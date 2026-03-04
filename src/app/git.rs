@@ -46,6 +46,11 @@ pub fn get_remote_list() -> Option<Vec<String>> {
     Some(remotes)
 }
 
+pub fn add_file(file: &str) -> Result<(), String> {
+    CommandRunner::run_with_success("git", &["add", file])?;
+    Ok(())
+}
+
 pub fn create_tag(tag: &str) -> Result<(), String> {
     CommandRunner::run_with_success("git", &["tag", tag])?;
     Ok(())
