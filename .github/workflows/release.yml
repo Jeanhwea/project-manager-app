@@ -59,7 +59,7 @@ jobs:
             tar -czf ${{ matrix.asset_name }}-${{ steps.extract_version.outputs.version }}.tar.gz ${{ matrix.artifact_name }}
           elif [ "${{ matrix.os }}" = "windows-latest" ]; then
             mkdir -p output
-            cp target\release\${{ matrix.artifact_name }} output\
+            cp target/release/${{ matrix.artifact_name }} output/
             cd output
             7z a -tzip ${{ matrix.asset_name }}-${{ steps.extract_version.outputs.version }}.zip ${{ matrix.artifact_name }}
           elif [ "${{ matrix.os }}" = "macOS-latest" ]; then
