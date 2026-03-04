@@ -1,4 +1,6 @@
- = "0.2.3"
+[package]
+name = "project-manager-app"
+version = "0.2.3"
 edition = "2024"
 
 [dependencies]
