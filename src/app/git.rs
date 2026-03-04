@@ -17,7 +17,7 @@ pub fn get_current_version() -> Option<String> {
 }
 
 pub fn get_current_branch() -> Option<String> {
-    let output = CommandRunner::run("git", &["branch", "--show-current"]).ok()?;
+    let output = CommandRunner::run_quiet("git", &["branch", "--show-current"]).ok()?;
 
     let branch = String::from_utf8(output.stdout).ok()?;
     let branch = branch.trim();

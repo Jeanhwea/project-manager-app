@@ -2,6 +2,12 @@ use super::git;
 use super::version::Version;
 
 pub fn execute(bump_type: &str) {
+    let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
+    if current_branch != "master" {
+        eprintln!("错误: 只能在 master 分支上执行 bomup");
+        std::process::exit(1);
+    }
+
     let current_tag = git::get_current_version().unwrap_or_else(|| "v0.0.0".to_string());
 
     let version = Version::from_tag(&current_tag).unwrap_or_default();
