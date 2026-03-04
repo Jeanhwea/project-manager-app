@@ -11,27 +11,20 @@ pub fn execute(bump_type: &str) {
     let config_file = detect_config_file();
     bomup_config_file(&new_tag, &config_file);
 
-    match git::add_file(&config_file) {
-        Ok(()) => println!("成功添加文件 {}", config_file),
-        Err(e) => {
-            eprintln!("错误: {}", e);
-            std::process::exit(1);
-        }
+    if let Err(e) = git::add_file(&config_file) {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
     }
 
-    match git::create_tag(&new_tag) {
-        Ok(()) => println!("成功创建 tag: {}", new_tag),
-        Err(e) => {
-            eprintln!("错误: {}", e);
-            std::process::exit(1);
-        }
+    if let Err(e) = git::create_tag(&new_tag) {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
     }
 
     if let Some(remotes) = git::get_remote_list() {
         for remote in remotes {
-            match git::push_tag(&remote, &new_tag) {
-                Ok(()) => println!("成功推送 tag {} 到远程仓库 {}", new_tag, remote),
-                Err(e) => eprintln!("错误: {}", e),
+            if let Err(e) = git::push_tag(&remote, &new_tag) {
+                eprintln!("错误: {}", e);
             }
         }
     }
