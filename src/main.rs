@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "project-manager-app")]
 #[command(about = "项目管理工具")]
+#[command(version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
