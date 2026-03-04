@@ -51,6 +51,11 @@ pub fn add_file(file: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn commit(message: &str) -> Result<(), String> {
+    CommandRunner::run_with_success("git", &["commit", "-m", message])?;
+    Ok(())
+}
+
 pub fn create_tag(tag: &str) -> Result<(), String> {
     CommandRunner::run_with_success("git", &["tag", tag])?;
     Ok(())
