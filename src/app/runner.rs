@@ -60,11 +60,11 @@ impl CommandRunner {
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         if !stdout.is_empty() {
-            println!("{}", stdout);
+            print!("{}", stdout);
         }
 
         if !stderr.is_empty() {
-            eprintln!("{}", stderr.white());
+            eprint!("{}", stderr.white());
         }
     }
 }
