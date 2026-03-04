@@ -49,9 +49,9 @@ impl CommandRunner {
             .collect();
         println!(
             "{} {} {}",
-            "=>".cyan(),
-            cmd.get_program().to_string_lossy().bright_blue(),
-            args.join(" ").bright_blue()
+            "==>".blue(),
+            cmd.get_program().to_string_lossy().yellow(),
+            args.join(" ").yellow()
         );
     }
 
@@ -60,11 +60,11 @@ impl CommandRunner {
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         if !stdout.is_empty() {
-            println!("{}", stdout.bright_white());
+            println!("{}", stdout);
         }
 
         if !stderr.is_empty() {
-            eprintln!("{}", stderr.bright_white());
+            eprintln!("{}", stderr.red());
         }
     }
 }
