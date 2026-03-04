@@ -74,10 +74,26 @@ pub fn edit_cargo_toml_file(tag: &str, config_file: &str) {
     });
 
     let version = tag.trim_start_matches('v');
-    let re = Regex::new(r#"version = "[0-9]+\.[0-9]+\.[0-9]+""#).unwrap();
-    let new_config_content = re.replace(&config_content, &format!(r#"version = "{}""#, version));
+    
+    let mut lines: Vec<String> = config_content.lines().map(|s| s.to_string()).collect();
+    let mut in_package_section = false;
+    
+    for line in &mut lines {
+        if line.trim() == "[package]" {
+            in_package_section = true;
+        } else if line.starts_with('[') && !line.trim().is_empty() {
+            in_package_section = false;
+        }
+        
+        if in_package_section && line.trim().starts_with("version = ") {
+            *line = format!("version = \"{}\"", version);
+            break;
+        }
+    }
+    
+    let new_config_content = lines.join("\n");
 
-    std::fs::write(config_file, new_config_content.to_string()).unwrap_or_else(|e| {
+    std::fs::write(config_file, new_config_content).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);
         std::process::exit(1);
     });
