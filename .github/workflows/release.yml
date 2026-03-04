@@ -21,7 +21,7 @@ jobs:
             asset_name: pma-linux
           - os: windows-latest
             artifact_name: pma.exe
-            asset_name: pma-windows.exe
+            asset_name: pma-windows
           - os: macOS-latest
             artifact_name: pma
             asset_name: pma-macos
@@ -36,17 +36,42 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Extract version from tag
+        id: extract_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
 
+      - name: Compress artifact
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            mkdir -p output
+            cp target/release/${{ matrix.artifact_name }} output/
+            cd output
+            tar -czf ${{ matrix.asset_name }}-${{ steps.extract_version.outputs.version }}.tar.gz ${{ matrix.artifact_name }}
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mkdir -p output
+            copy target\release\${{ matrix.artifact_name }} output\
+            cd output
+            7z a -tzip ${{ matrix.asset_name }}-${{ steps.extract_version.outputs.version }}.zip ${{ matrix.artifact_name }}
+          elif [ "${{ matrix.os }}" = "macOS-latest" ]; then
+            mkdir -p output
+            cp target/release/${{ matrix.artifact_name }} output/
+            cd output
+            tar -czf ${{ matrix.asset_name }}-${{ steps.extract_version.outputs.version }}.tar.gz ${{ matrix.artifact_name }}
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: target/release/${{ matrix.artifact_name }}
+          path: output/${{ matrix.asset_name }}-${{ steps.extract_version.outputs.version }}.*
 
   release:
     name: Create Release
@@ -55,6 +80,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: extract_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -65,9 +96,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/pma-linux/pma
-            artifacts/pma-windows.exe/pma.exe
-            artifacts/pma-macos/pma
+            artifacts/pma-linux/pma-linux-${{ steps.extract_version.outputs.version }}.tar.gz
+            artifacts/pma-windows/pma-windows-${{ steps.extract_version.outputs.version }}.zip
+            artifacts/pma-macos/pma-macos-${{ steps.extract_version.outputs.version }}.tar.gz
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
