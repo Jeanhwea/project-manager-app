@@ -11,6 +11,13 @@ pub fn execute(bump_type: &str) {
 
     let current_tag = git::get_current_version().unwrap_or_else(|| "v0.0.0".to_string());
 
+    let rev_current_tag = git::get_rev_revision(&current_tag).unwrap();
+    let rev_head = git::get_rev_revision("HEAD").unwrap();
+    if rev_current_tag == rev_head {
+        eprintln!("错误: 当前 HEAD 已被标记为 {}", current_tag);
+        std::process::exit(1);
+    }
+
     let version = Version::from_tag(&current_tag).unwrap_or_default();
     let new_version = version.bump(bump_type);
     let new_tag = new_version.to_tag();
@@ -74,23 +81,23 @@ pub fn edit_cargo_toml_file(tag: &str, config_file: &str) {
     });
 
     let version = tag.trim_start_matches('v');
-    
+
     let mut lines: Vec<String> = config_content.lines().map(|s| s.to_string()).collect();
     let mut in_package_section = false;
-    
+
     for line in &mut lines {
         if line.trim() == "[package]" {
             in_package_section = true;
         } else if line.starts_with('[') && !line.trim().is_empty() {
             in_package_section = false;
         }
-        
+
         if in_package_section && line.trim().starts_with("version = ") {
             *line = format!("version = \"{}\"", version);
             break;
         }
     }
-    
+
     let new_config_content = lines.join("\n");
 
     std::fs::write(config_file, new_config_content).unwrap_or_else(|e| {

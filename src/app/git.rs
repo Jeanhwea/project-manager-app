@@ -1,6 +1,19 @@
 use super::runner::CommandRunner;
 use super::version::compare_versions;
 
+pub fn get_rev_revision(ref_name: &str) -> Option<String> {
+    let output = CommandRunner::run_quiet("git", &["rev-parse", ref_name]).ok()?;
+
+    let revision = String::from_utf8(output.stdout).ok()?;
+    let revision = revision.trim();
+
+    if revision.is_empty() {
+        return None;
+    }
+
+    Some(revision.to_string())
+}
+
 pub fn get_current_version() -> Option<String> {
     let output = CommandRunner::run_quiet("git", &["tag", "-l", "v*"]).ok()?;
 
