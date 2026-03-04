@@ -49,7 +49,7 @@ impl CommandRunner {
             .collect();
         println!(
             "{} {} {}",
-            "==>".blue(),
+            "==>".white(),
             cmd.get_program().to_string_lossy().yellow(),
             args.join(" ").yellow()
         );
@@ -64,7 +64,7 @@ impl CommandRunner {
         }
 
         if !stderr.is_empty() {
-            eprintln!("{}", stderr.red());
+            eprintln!("{}", stderr.white());
         }
     }
 }
