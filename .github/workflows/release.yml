@@ -38,10 +38,10 @@ jobs:
 
       - name: Extract version from tag
         id: extract_version
+        shell: bash
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-        shell: bash
 
       - name: Build
         uses: actions-rs/cargo@v1
@@ -50,6 +50,7 @@ jobs:
           args: --release
 
       - name: Compress artifact
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             mkdir -p output
