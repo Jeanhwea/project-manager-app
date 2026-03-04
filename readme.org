@@ -1,0 +1,10 @@
+#+TITLE: Project Manager Application
+#+AUTHOR: Jinghui Hu
+#+EMAIL: hujinghui@buaa.edu.cn
+#+DATE: <2026-03-04 Wed>
+#+STARTUP: overview num indent
+#+OPTIONS: ^:nil
+
+
+* 项目管理
+1. 快速语义化版本管理
