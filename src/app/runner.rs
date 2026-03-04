@@ -1,4 +1,5 @@
 use std::process::{Command, Output};
+use colored::*;
 
 pub struct CommandRunner;
 
@@ -34,9 +35,10 @@ impl CommandRunner {
             .map(|s| s.to_string_lossy().to_string())
             .collect();
         println!(
-            ">>> 执行: {} {}",
-            cmd.get_program().to_string_lossy(),
-            args.join(" ")
+            "{} {} {}",
+            "==>".cyan(),
+            cmd.get_program().to_string_lossy().bright_blue(),
+            args.join(" ").bright_blue()
         );
     }
 
@@ -44,10 +46,10 @@ impl CommandRunner {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         if !stdout.is_empty() {
-            println!("<<< 输出:\n{}", stdout);
+            println!("{} {}", "<==".green(), stdout.bright_white());
         }
         if !stderr.is_empty() {
-            eprintln!("<<< 错误:\n{}", stderr);
+            eprintln!("{} {}", "!!!".red(), stderr.bright_red());
         }
     }
 }
