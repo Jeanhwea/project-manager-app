@@ -17,12 +17,12 @@ pub fn execute(bump_type: &str) {
     let config_file = detect_config_file();
     bomup_config_file(&new_tag, &config_file);
 
-    if let Err(e) = git::commit(&format!("{}", new_tag)) {
+    if let Err(e) = git::add_file(&config_file) {
         eprintln!("错误: {}", e);
         std::process::exit(1);
     }
 
-    if let Err(e) = git::add_file(&config_file) {
+    if let Err(e) = git::commit(&format!("{}", new_tag)) {
         eprintln!("错误: {}", e);
         std::process::exit(1);
     }
