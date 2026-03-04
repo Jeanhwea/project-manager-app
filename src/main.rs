@@ -1,3 +1,39 @@
+mod app;
+
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "project-manager-app")]
+#[command(about = "项目管理工具")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// 版本升级并创建新 tag
+    Bomup {
+        /// 升级类型: major, minor, patch
+        #[arg(default_value = "patch")]
+        bump_type: String,
+    },
+}
+
+impl Commands {
+    fn bump_type(&self) -> &str {
+        match self {
+            Commands::Bomup { bump_type } => bump_type.as_str(),
+        }
+    }
+}
+
 fn main() {
-    println!("Hello, world!");
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Bomup { .. } => {
+            app::bomup::execute(cli.command.bump_type());
+        }
+    }
 }
