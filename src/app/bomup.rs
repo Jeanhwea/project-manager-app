@@ -1,5 +1,6 @@
 use super::git;
 use super::version::Version;
+use regex::Regex;
 
 pub fn execute(bump_type: &str) {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
@@ -69,10 +70,11 @@ pub fn edit_cargo_toml_file(tag: &str, config_file: &str) {
         std::process::exit(1);
     });
 
-    let new_config_content =
-        config_content.replace("version = \"0.0.0\"", &format!("version = \"{}\"", tag));
+    let version = tag.trim_start_matches('v');
+    let re = Regex::new(r#"version = "[0-9]+\.[0-9]+\.[0-9]+""#).unwrap();
+    let new_config_content = re.replace(&config_content, &format!(r#"version = "{}""#, version));
 
-    std::fs::write(config_file, new_config_content).unwrap_or_else(|e| {
+    std::fs::write(config_file, new_config_content.to_string()).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);
         std::process::exit(1);
     });
@@ -84,12 +86,10 @@ pub fn edit_pom_xml_file(tag: &str, config_file: &str) {
         std::process::exit(1);
     });
 
-    let new_config_content = config_content.replace(
-        "<version>0.0.0</version>",
-        &format!("<version>{}</version>", tag),
-    );
+    let re = Regex::new(r#"<version>[0-9]+\.[0-9]+\.[0-9]+</version>"#).unwrap();
+    let new_config_content = re.replace(&config_content, &format!(r#"<version>{}</version>"#, tag));
 
-    std::fs::write(config_file, new_config_content).unwrap_or_else(|e| {
+    std::fs::write(config_file, new_config_content.to_string()).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);
         std::process::exit(1);
     });
