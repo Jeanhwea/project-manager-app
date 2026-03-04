@@ -41,6 +41,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Build
         uses: actions-rs/cargo@v1
@@ -86,6 +87,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
