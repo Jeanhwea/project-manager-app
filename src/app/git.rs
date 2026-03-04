@@ -16,8 +16,42 @@ pub fn get_current_version() -> Option<String> {
     tags.first().map(|s| s.to_string())
 }
 
+pub fn get_current_branch() -> Option<String> {
+    let output = CommandRunner::run("git", &["branch", "--show-current"]).ok()?;
+
+    let branch = String::from_utf8(output.stdout).ok()?;
+    let branch = branch.trim();
+
+    if branch.is_empty() {
+        return None;
+    }
+
+    Some(branch.to_string())
+}
+
+pub fn get_remote_list() -> Option<Vec<String>> {
+    let output = CommandRunner::run_quiet("git", &["remote"]).ok()?;
+
+    let remotes = String::from_utf8(output.stdout).ok()?;
+    let remotes: Vec<String> = remotes
+        .lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if remotes.is_empty() {
+        return None;
+    }
+
+    Some(remotes)
+}
+
 pub fn create_tag(tag: &str) -> Result<(), String> {
     CommandRunner::run_with_success("git", &["tag", tag])?;
-    CommandRunner::run_with_success("git", &["push", "origin", tag])?;
+    Ok(())
+}
+
+pub fn push_tag(remote: &str, tag: &str) -> Result<(), String> {
+    CommandRunner::run_with_success("git", &["push", remote, tag])?;
     Ok(())
 }

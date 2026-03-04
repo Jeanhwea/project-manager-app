@@ -1,19 +1,32 @@
-use std::process::{Command, Output};
 use colored::*;
+use std::process::{Command, Output};
 
 pub struct CommandRunner;
 
 impl CommandRunner {
     pub fn run(program: &str, args: &[&str]) -> Result<Output, String> {
+        Self::run_internal(program, args, true)
+    }
+
+    pub fn run_quiet(program: &str, args: &[&str]) -> Result<Output, String> {
+        Self::run_internal(program, args, false)
+    }
+
+    fn run_internal(program: &str, args: &[&str], verbose: bool) -> Result<Output, String> {
         let mut cmd = Command::new(program);
         cmd.args(args);
-        Self::print_command(&cmd);
+
+        if verbose {
+            Self::print_command(&cmd);
+        }
 
         let output = cmd
             .output()
             .map_err(|e| format!("执行 {} 失败: {}", program, e))?;
 
-        Self::print_output(&output);
+        if verbose {
+            Self::print_output(&output);
+        }
 
         Ok(output)
     }
@@ -45,11 +58,11 @@ impl CommandRunner {
     fn print_output(output: &Output) {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        
+
         if !stdout.is_empty() {
             println!("{}", stdout.bright_white());
         }
-        
+
         if !stderr.is_empty() {
             eprintln!("{}", stderr.bright_red());
         }
