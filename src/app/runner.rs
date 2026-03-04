@@ -64,7 +64,7 @@ impl CommandRunner {
         }
 
         if !stderr.is_empty() {
-            eprintln!("{}", stderr.bright_red());
+            eprintln!("{}", stderr.bright_white());
         }
     }
 }
