@@ -49,7 +49,7 @@ impl CommandRunner {
             .collect();
         println!(
             "{} {} {}",
-            "==>".white(),
+            "=>".white(),
             cmd.get_program().to_string_lossy().yellow(),
             args.join(" ").yellow()
         );
