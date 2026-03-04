@@ -38,6 +38,9 @@ pub fn execute(bump_type: &str) {
             if let Err(e) = git::push_tag(&remote, &new_tag) {
                 eprintln!("错误: {}", e);
             }
+            if let Err(e) = git::push_branch(&remote, &current_branch) {
+                eprintln!("错误: {}", e);
+            }
         }
     }
 }

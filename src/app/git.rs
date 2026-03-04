@@ -65,3 +65,8 @@ pub fn push_tag(remote: &str, tag: &str) -> Result<(), String> {
     CommandRunner::run_with_success("git", &["push", remote, tag])?;
     Ok(())
 }
+
+pub fn push_branch(remote: &str, branch: &str) -> Result<(), String> {
+    CommandRunner::run_with_success("git", &["push", remote, branch])?;
+    Ok(())
+}
