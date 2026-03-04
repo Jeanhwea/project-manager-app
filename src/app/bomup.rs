@@ -42,7 +42,6 @@ pub fn execute(bump_type: &str) {
 }
 
 pub fn bomup_config_file(tag: &str, config_file: &str) {
-    println!("升级 {} 为 {}", config_file, tag);
     if config_file == "Cargo.toml" {
         edit_cargo_toml_file(tag, config_file);
     } else if config_file == "pom.xml" {
