@@ -48,7 +48,7 @@ pub fn execute(path: &str) {
         let mut display_path = repo_path.to_string_lossy().to_string();
         display_path = display_path.trim_start_matches("\\\\?\\").to_string();
 
-        println!(">= {}", display_path.cyan());
+        println!(">> {}", display_path.cyan());
 
         // 打印远程仓库信息
         CommandRunner::run_with_success_in_dir(
