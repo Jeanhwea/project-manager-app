@@ -31,8 +31,9 @@ pub fn execute(path: &str) {
             continue;
         }
 
+        // 获取远程仓库名称
         let remotes = git::get_remote_name(&repo.path);
-        if remotes.is_none() {
+        if remotes.is_empty() {
             continue;
         }
 

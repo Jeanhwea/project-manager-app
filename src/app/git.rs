@@ -85,7 +85,7 @@ pub fn push_branch(remote: &str, branch: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn get_remote_name(work_dir: &Path) -> Option<String> {
+pub fn get_remote_name(work_dir: &Path) -> Vec<String> {
     let output =
         CommandRunner::run_quiet_in_dir("git", &["remote", "-v"], work_dir.to_str()?).ok()?;
 
@@ -93,11 +93,13 @@ pub fn get_remote_name(work_dir: &Path) -> Option<String> {
     let remotes: Vec<&str> = remotes.lines().collect();
 
     if remotes.is_empty() {
-        return None;
+        return Vec::new();
     }
 
-    let first_remote = remotes.first()?;
-    let remote_name = first_remote.split_whitespace().next()?;
+    let remotes: Vec<String> = remotes
+        .iter()
+        .map(|s| s.split_whitespace().next().unwrap().to_string())
+        .collect();
 
-    Some(remote_name.to_string())
+    remotes
 }
