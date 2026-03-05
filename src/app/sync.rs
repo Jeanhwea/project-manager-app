@@ -2,6 +2,7 @@ use super::git;
 use super::runner::CommandRunner;
 use std::fs;
 use std::path::Path;
+use colored::Colorize;
 
 // 定义仓库类型枚举
 #[derive(PartialEq)]
@@ -37,13 +38,6 @@ pub fn execute(path: &str) {
             continue;
         }
 
-        // 打印远程仓库信息
-        CommandRunner::run_with_success_in_dir(
-            "git",
-            &["remote", "-v"],
-            repo.path.to_str().unwrap(),
-        )
-        .unwrap();
 
         let repo_path = if let Ok(abs_path) = repo.path.canonicalize() {
             abs_path
@@ -55,7 +49,15 @@ pub fn execute(path: &str) {
         let mut display_path = repo_path.to_string_lossy().to_string();
         display_path = display_path.trim_start_matches("\\\\?\\").to_string();
 
-        println!("同步仓库: {}", display_path);
+        println!("<<< {}", display_path.cyan());
+
+        // 打印远程仓库信息
+        CommandRunner::run_with_success_in_dir(
+            "git",
+            &["remote", "-v"],
+            repo.path.to_str().unwrap(),
+        )
+        .unwrap();
 
         // 执行 git pull 命令
         if let Some(path_str) = repo_path.to_str() {
