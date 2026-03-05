@@ -30,10 +30,42 @@ pub fn execute(path: &str) {
             continue;
         }
 
-        println!("同步仓库: {}", repo.path.display());
+        // 获取当前分支
+        let current_branch = match CommandRunner::run_with_success_in_dir(
+            "git",
+            &["branch", "--show-current"],
+            repo.path.to_str().unwrap(),
+        ) {
+            Ok(output) => {
+                let branch_name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                branch_name
+            }
+            Err(e) => {
+                println!("获取当前分支失败: {}", e);
+                continue;
+            }
+        };
+
+        // 获取当前远程仓库
+        let current_remote = match CommandRunner::run_with_success_in_dir(
+            "git",
+            &["remote", "get-url", &current_branch],
+            repo.path.to_str().unwrap(),
+        ) {
+            Ok(output) => {
+                let remote_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                remote_url
+            }
+            Err(e) => {
+                println!("获取远程仓库失败: {}", e);
+                continue;
+            }
+        };
+
+        println!("同步仓库 {}: {}", current_remote, repo.path.display());
 
         // 执行 git pull 命令
-        CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
+        let _ = CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
     }
 }
 
