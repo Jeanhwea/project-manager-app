@@ -1,8 +1,8 @@
 use super::git;
 use super::runner::CommandRunner;
+use colored::Colorize;
 use std::fs;
 use std::path::Path;
-use colored::Colorize;
 
 // 定义仓库类型枚举
 #[derive(PartialEq)]
@@ -37,7 +37,6 @@ pub fn execute(path: &str) {
         if remotes.is_empty() {
             continue;
         }
-
 
         let repo_path = if let Ok(abs_path) = repo.path.canonicalize() {
             abs_path
