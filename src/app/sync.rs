@@ -15,8 +15,6 @@ struct RepoInfo {
 }
 
 pub fn execute(path: &str) {
-    println!("开始同步所有git仓库...");
-
     let sync_dir = std::path::Path::new(path);
     let git_repos = find_git_repositories(sync_dir);
 
@@ -30,21 +28,15 @@ pub fn execute(path: &str) {
     }
 
     for repo in git_repos {
-        println!("同步仓库: {}", repo.path.display());
+        println!("同步仓库: {}", repo.path.full_path().display());
 
         // 只对普通 git 仓库执行 git pull，跳过子模块
-        match repo.repo_type {
-            RepoType::Regular => {
-                let _ = CommandRunner::run_with_success_in_dir(
-                    "git",
-                    &["pull"],
-                    repo.path.to_str().unwrap(),
-                );
-            }
-            RepoType::Submodule => {
-                println!("跳过子模块: {}", repo.path.display());
-            }
+        if repo.repo_type == RepoType::Submodule {
+            continue;
         }
+
+        // 执行 git pull 命令
+        CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
     }
 }
 
