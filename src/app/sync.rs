@@ -24,10 +24,6 @@ pub fn execute(path: &str) {
         return;
     }
 
-    for repo in &git_repos {
-        println!("- {}", repo.path.display());
-    }
-
     for repo in git_repos {
         // 只对普通 git 仓库执行 git pull，跳过子模块
         if repo.repo_type == RepoType::Submodule {
