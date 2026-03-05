@@ -2,6 +2,18 @@ use super::runner::CommandRunner;
 use std::fs;
 use std::path::Path;
 
+// 定义仓库类型枚举
+enum RepoType {
+    Regular,  // 普通 git 仓库
+    Submodule,  // git 子模块
+}
+
+// 定义仓库信息结构体
+struct RepoInfo {
+    path: std::path::PathBuf,
+    repo_type: RepoType,
+}
+
 pub fn execute(path: &str) {
     println!("开始同步所有git仓库...");
 
@@ -14,21 +26,29 @@ pub fn execute(path: &str) {
     }
 
     for repo in &git_repos {
-        println!("- {}", repo.display());
+        println!("- {}", repo.path.display());
     }
 
     for repo in git_repos {
-        println!("同步仓库: {}", repo.display());
+        println!("同步仓库: {}", repo.path.display());
 
-        CommandRunner::run_with_success_in_dir("git", &["pull"], repo.to_str().unwrap());
+        // 只对普通 git 仓库执行 git pull，跳过子模块
+        match repo.repo_type {
+            RepoType::Regular => {
+                CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
+            }
+            RepoType::Submodule => {
+                println!("跳过子模块: {}", repo.path.display());
+            }
+        }
     }
 }
 
-fn find_git_repositories(dir: &Path) -> Vec<std::path::PathBuf> {
+fn find_git_repositories(dir: &Path) -> Vec<RepoInfo> {
     find_git_repositories_with_depth(dir, 5) // 默认最大深度为5
 }
 
-fn find_git_repositories_with_depth(dir: &Path, max_depth: usize) -> Vec<std::path::PathBuf> {
+fn find_git_repositories_with_depth(dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
     let mut repos = Vec::new();
 
     if max_depth == 0 {
@@ -49,9 +69,12 @@ fn find_git_repositories_with_depth(dir: &Path, max_depth: usize) -> Vec<std::pa
 
                 if path.is_dir() {
                     if file_name_str == ".git" {
-                        // 找到 git 仓库，添加其父目录
+                        // 找到普通 git 仓库，添加其父目录
                         if let Some(parent) = path.parent() {
-                            repos.push(parent.to_path_buf());
+                            repos.push(RepoInfo {
+                                path: parent.to_path_buf(),
+                                repo_type: RepoType::Regular,
+                            });
                         }
                     } else {
                         // 递归搜索子目录，深度减1
@@ -60,7 +83,10 @@ fn find_git_repositories_with_depth(dir: &Path, max_depth: usize) -> Vec<std::pa
                 } else if file_name_str == ".git" {
                     // 找到 git 子模块（有 .git 文件而不是目录）
                     if let Some(parent) = path.parent() {
-                        repos.push(parent.to_path_buf());
+                        repos.push(RepoInfo {
+                            path: parent.to_path_buf(),
+                            repo_type: RepoType::Submodule,
+                        });
                     }
                 }
             }
