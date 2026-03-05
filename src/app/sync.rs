@@ -37,6 +37,7 @@ pub fn execute(path: &str) {
             continue;
         }
 
+        // 打印远程仓库信息
         CommandRunner::run_with_success_in_dir(
             "git",
             &["remote", "-v"],
