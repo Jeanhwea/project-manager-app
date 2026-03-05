@@ -174,11 +174,10 @@ pub fn edit_pyproject_toml_file(tag: &str, config_file: &str) {
 pub fn edit_python_package_init_file(tag: &str, config_file: &str) {
     let version = tag.trim_start_matches('v');
 
-    let content = std::fs::read_to_string(config_file)
-        .unwrap_or_else(|e| {
-            eprintln!("错误: {}", e);
-            std::process::exit(1);
-        });
+    let content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
+    });
 
     use regex::Regex;
     let re = Regex::new(r#"__version__ = "[^"]*""#).unwrap();

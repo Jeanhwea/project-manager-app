@@ -42,6 +42,50 @@ impl CommandRunner {
         Ok(output)
     }
 
+    pub fn run_with_success_in_dir(
+        program: &str,
+        args: &[&str],
+        dir: &str,
+    ) -> Result<Output, String> {
+        let output = Self::run_in_dir(program, args, dir)?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("命令执行失败: {}", stderr));
+        }
+
+        Ok(output)
+    }
+
+    pub fn run_in_dir(program: &str, args: &[&str], dir: &str) -> Result<Output, String> {
+        Self::run_internal_in_dir(program, args, dir, true)
+    }
+
+    fn run_internal_in_dir(
+        program: &str,
+        args: &[&str],
+        dir: &str,
+        verbose: bool,
+    ) -> Result<Output, String> {
+        let mut cmd = Command::new(program);
+        cmd.args(args);
+        cmd.current_dir(dir);
+
+        if verbose {
+            Self::print_command(&cmd);
+        }
+
+        let output = cmd
+            .output()
+            .map_err(|e| format!("执行 {} 失败: {}", program, e))?;
+
+        if verbose {
+            Self::print_output(&output);
+        }
+
+        Ok(output)
+    }
+
     fn print_command(cmd: &Command) {
         let args: Vec<String> = cmd
             .get_args()
