@@ -25,24 +25,39 @@ pub fn execute(path: &str) {
 }
 
 fn find_git_repositories(dir: &Path) -> Vec<std::path::PathBuf> {
+    find_git_repositories_with_depth(dir, 5) 
+}
+
+fn find_git_repositories_with_depth(dir: &Path, max_depth: usize) -> Vec<std::path::PathBuf> {
     let mut repos = Vec::new();
+
+    if max_depth == 0 {
+        return repos;
+    }
 
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries {
             if let Ok(entry) = entry {
                 let path = entry.path();
+                let file_name = entry.file_name();
+                let file_name_str = file_name.to_str().unwrap_or("");
+
+                // Skip .venv directories
+                if file_name_str == ".venv" {
+                    continue;
+                }
 
                 if path.is_dir() {
-                    if path.ends_with(".git") {
+                    if file_name_str == ".git" {
                         // Found a git repository, add its parent directory
                         if let Some(parent) = path.parent() {
                             repos.push(parent.to_path_buf());
                         }
                     } else {
-                        // Recursively search in subdirectories
-                        repos.extend(find_git_repositories(&path));
+                        // Recursively search in subdirectories with reduced depth
+                        repos.extend(find_git_repositories_with_depth(&path, max_depth - 1));
                     }
-                } else if path.is_file() && path.file_name().unwrap_or_default() == ".git" {
+                } else if file_name_str == ".git" {
                     // Found a git submodule (has .git file instead of directory)
                     if let Some(parent) = path.parent() {
                         repos.push(parent.to_path_buf());
