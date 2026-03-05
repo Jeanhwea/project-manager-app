@@ -37,6 +37,13 @@ pub fn execute(path: &str) {
             continue;
         }
 
+        CommandRunner::run_with_success_in_dir(
+            "git",
+            &["remote", "-v"],
+            repo.path.to_str().unwrap(),
+        )
+        .unwrap();
+
         let repo_path = if let Ok(abs_path) = repo.path.canonicalize() {
             abs_path
         } else {
