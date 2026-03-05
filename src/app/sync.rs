@@ -4,8 +4,8 @@ use std::path::Path;
 
 // 定义仓库类型枚举
 enum RepoType {
-    Regular,  // 普通 git 仓库
-    Submodule,  // git 子模块
+    Regular,   // 普通 git 仓库
+    Submodule, // git 子模块
 }
 
 // 定义仓库信息结构体
@@ -35,7 +35,11 @@ pub fn execute(path: &str) {
         // 只对普通 git 仓库执行 git pull，跳过子模块
         match repo.repo_type {
             RepoType::Regular => {
-                CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
+                let _ = CommandRunner::run_with_success_in_dir(
+                    "git",
+                    &["pull"],
+                    repo.path.to_str().unwrap(),
+                );
             }
             RepoType::Submodule => {
                 println!("跳过子模块: {}", repo.path.display());
