@@ -29,16 +29,15 @@ pub fn execute(path: &str) {
     }
 
     for repo in git_repos {
-        println!("同步仓库: {}", repo.path.display());
-
         // 只对普通 git 仓库执行 git pull，跳过子模块
         if repo.repo_type == RepoType::Submodule {
             continue;
         }
 
+        println!("同步仓库: {}", repo.path.display());
+
         // 执行 git pull 命令
-        let _ =
-            CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
+        CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
     }
 }
 
