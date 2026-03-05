@@ -60,8 +60,14 @@ pub fn execute(path: &str) {
 
         // 执行 git pull 命令
         if let Some(path_str) = repo_path.to_str() {
+            // git pull
             if CommandRunner::run_with_success_in_dir("git", &["pull"], path_str).is_err() {
                 println!("同步仓库失败: {}", display_path);
+            }
+        
+            // git push
+            if CommandRunner::run_with_success_in_dir("git", &["push"], path_str).is_err() {
+                println!("推送仓库失败: {}", display_path);
             }
         } else {
             println!("同步仓库路径无效: {}", display_path);
