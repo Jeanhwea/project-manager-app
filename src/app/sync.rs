@@ -30,10 +30,22 @@ pub fn execute(path: &str) {
             continue;
         }
 
-        println!("同步仓库: {}", repo.path.display());
+        let repo_path = if let Ok(abs_path) = repo.path.canonicalize() {
+            abs_path
+        } else {
+            repo.path.clone()
+        };
+
+        println!("同步仓库: {}", repo_path.display());
 
         // 执行 git pull 命令
-        CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
+        if let Some(path_str) = repo_path.to_str() {
+            if CommandRunner::run_with_success_in_dir("git", &["pull"], path_str).is_err() {
+                println!("同步仓库失败: {}", repo_path.display());
+            }
+        } else {
+            println!("同步仓库路径无效: {}", repo_path.display());
+        }
     }
 }
 
