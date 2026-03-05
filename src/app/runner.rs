@@ -61,6 +61,10 @@ impl CommandRunner {
         Self::run_internal_in_dir(program, args, dir, true)
     }
 
+    pub fn run_quiet_in_dir(program: &str, args: &[&str], dir: &str) -> Result<Output, String> {
+        Self::run_internal_in_dir(program, args, dir, false)
+    }
+
     fn run_internal_in_dir(
         program: &str,
         args: &[&str],

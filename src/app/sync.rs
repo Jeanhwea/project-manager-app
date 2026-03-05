@@ -1,3 +1,4 @@
+use super::git;
 use super::runner::CommandRunner;
 use std::fs;
 use std::path::Path;
@@ -27,6 +28,11 @@ pub fn execute(path: &str) {
     for repo in git_repos {
         // 只对普通 git 仓库执行 git pull，跳过子模块
         if repo.repo_type == RepoType::Submodule {
+            continue;
+        }
+
+        let remotes = git::get_remote_name(&repo.path);
+        if remotes.is_none() {
             continue;
         }
 
