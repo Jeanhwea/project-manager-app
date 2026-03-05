@@ -57,6 +57,9 @@ pub fn bomup_config_file(tag: &str, config_file: &str) {
         edit_cargo_toml_file(tag, config_file);
     } else if config_file == "pom.xml" {
         edit_pom_xml_file(tag, config_file);
+    } else if config_file == "pyproject.toml" {
+        edit_pyproject_toml_file(tag, config_file);
+        edit_python_package_init_file(tag, config_file);
     } else {
         eprintln!("错误: 不支持的配置文件 {}", config_file);
         std::process::exit(1);
@@ -68,8 +71,10 @@ pub fn detect_config_file() -> String {
         "Cargo.toml".to_string()
     } else if std::path::Path::new("pom.xml").exists() {
         "pom.xml".to_string()
+    } else if std::path::Path::new("pyproject.toml").exists() {
+        "pyproject.toml".to_string()
     } else {
-        eprintln!("错误: 未检测到 Cargo.toml 或 pom.xml 文件");
+        eprintln!("错误: 未检测到 Cargo.toml、pom.xml 或 pyproject.toml 文件");
         std::process::exit(1);
     }
 }
@@ -116,6 +121,65 @@ pub fn edit_pom_xml_file(tag: &str, config_file: &str) {
     let new_config_content = re.replace(&config_content, &format!(r#"<version>{}</version>"#, tag));
 
     std::fs::write(config_file, new_config_content.to_string()).unwrap_or_else(|e| {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
+    });
+}
+
+pub fn edit_pyproject_toml_file(tag: &str, config_file: &str) {
+    let config_content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
+    });
+
+    let version = tag.trim_start_matches('v');
+
+    let mut lines: Vec<String> = config_content.lines().map(|s| s.to_string()).collect();
+    let mut in_project_section = false;
+
+    for line in &mut lines {
+        if line.trim() == "[project]" {
+            in_project_section = true;
+        } else if line.starts_with('[') && !line.trim().is_empty() {
+            in_project_section = false;
+        }
+
+        if in_project_section && line.trim().starts_with("version = ") {
+            *line = format!("version = \"{}\"", version);
+            break;
+        }
+    }
+
+    let new_config_content = lines.join("\n");
+
+    std::fs::write(config_file, new_config_content).unwrap_or_else(|e| {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
+    });
+}
+
+pub fn edit_python_package_init_file(tag: &str, config_file: &str) {
+    let version = tag.trim_start_matches('v');
+
+    let mut lines: Vec<String> = std::fs::read_to_string(config_file)
+        .unwrap_or_else(|e| {
+            eprintln!("错误: {}", e);
+            std::process::exit(1);
+        })
+        .lines()
+        .map(|s| s.to_string())
+        .collect();
+
+    for line in &mut lines {
+        if line.trim().starts_with("__version__ = ") {
+            *line = format!("__version__ = \"{}\"", version);
+            break;
+        }
+    }
+
+    let new_config_content = lines.join("\n");
+
+    std::fs::write(config_file, new_config_content).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);
         std::process::exit(1);
     });
