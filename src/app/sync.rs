@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 
 // 定义仓库类型枚举
+#[derive(PartialEq)]
 enum RepoType {
     Regular,   // 普通 git 仓库
     Submodule, // git 子模块
@@ -28,7 +29,7 @@ pub fn execute(path: &str) {
     }
 
     for repo in git_repos {
-        println!("同步仓库: {}", repo.path.full_path().display());
+        println!("同步仓库: {}", repo.path.display());
 
         // 只对普通 git 仓库执行 git pull，跳过子模块
         if repo.repo_type == RepoType::Submodule {
@@ -36,7 +37,7 @@ pub fn execute(path: &str) {
         }
 
         // 执行 git pull 命令
-        CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
+        let _ = CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
     }
 }
 
