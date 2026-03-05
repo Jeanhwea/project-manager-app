@@ -22,12 +22,13 @@ pub fn execute(bump_type: &str) {
     let new_version = version.bump(bump_type);
     let new_tag = new_version.to_tag();
 
-    let config_file = detect_config_file();
-    release_config_file(&new_tag, &config_file);
-
-    if let Err(e) = git::add_file(&config_file) {
-        eprintln!("错误: {}", e);
-        std::process::exit(1);
+    let config_files = detect_config_file();
+    for config_file in config_files {
+        release_config_file(&new_tag, &config_file);
+        if let Err(e) = git::add_file(&config_file) {
+            eprintln!("错误: {}", e);
+            std::process::exit(1);
+        }
     }
 
     if let Err(e) = git::commit(&format!("{}", new_tag)) {
@@ -59,21 +60,31 @@ pub fn release_config_file(tag: &str, config_file: &str) {
         edit_pom_xml_file(tag, config_file);
     } else if config_file == "pyproject.toml" {
         edit_pyproject_toml_file(tag, config_file);
-        edit_python_package_init_file(tag, "src/__version__.py");
+    } else if config_file == "src/__version__.py" {
+        edit_python_package_init_file(tag, config_file);
     } else {
         eprintln!("错误: 不支持的配置文件 {}", config_file);
         std::process::exit(1);
     }
 }
 
-pub fn detect_config_file() -> String {
+pub fn detect_config_file() -> Vec<String> {
+    let mut config_files = Vec::new();
+
     if std::path::Path::new("Cargo.toml").exists() {
-        "Cargo.toml".to_string()
-    } else if std::path::Path::new("pom.xml").exists() {
-        "pom.xml".to_string()
-    } else if std::path::Path::new("pyproject.toml").exists() {
-        "pyproject.toml".to_string()
-    } else {
+        config_files.push("Cargo.toml".to_string());
+    }
+    if std::path::Path::new("pom.xml").exists() {
+        config_files.push("pom.xml".to_string());
+    }
+    if std::path::Path::new("pyproject.toml").exists() {
+        config_files.push("pyproject.toml".to_string());
+    }
+    if std::path::Path::new("src/__version__.py").exists() {
+        config_files.push("src/__version__.py".to_string());
+    }
+
+    if config_files.is_empty() {
         eprintln!("错误: 未检测到 Cargo.toml、pom.xml 或 pyproject.toml 文件");
         std::process::exit(1);
     }
