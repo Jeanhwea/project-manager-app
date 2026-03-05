@@ -14,6 +14,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// 版本升级并创建新 tag
+    #[command(alias = "re")]
     Release {
         /// 升级类型: major, minor, patch
         #[arg(default_value = "patch")]
