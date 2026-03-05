@@ -88,6 +88,8 @@ pub fn detect_config_file() -> Vec<String> {
         eprintln!("错误: 未检测到 Cargo.toml、pom.xml 或 pyproject.toml 文件");
         std::process::exit(1);
     }
+
+    config_files
 }
 
 pub fn edit_cargo_toml_file(tag: &str, config_file: &str) {
