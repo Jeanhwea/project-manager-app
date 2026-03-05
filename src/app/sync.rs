@@ -37,7 +37,8 @@ pub fn execute(path: &str) {
         }
 
         // 执行 git pull 命令
-        let _ = CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
+        let _ =
+            CommandRunner::run_with_success_in_dir("git", &["pull"], repo.path.to_str().unwrap());
     }
 }
 
