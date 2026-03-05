@@ -26,12 +26,12 @@ pub fn execute(path: &str) {
 
 fn find_git_repositories(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut repos = Vec::new();
-    
+
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries {
             if let Ok(entry) = entry {
                 let path = entry.path();
-                
+
                 if path.is_dir() {
                     if path.ends_with(".git") {
                         // Found a git repository, add its parent directory
@@ -51,6 +51,6 @@ fn find_git_repositories(dir: &Path) -> Vec<std::path::PathBuf> {
             }
         }
     }
-    
+
     repos
 }
