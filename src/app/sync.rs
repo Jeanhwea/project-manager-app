@@ -36,15 +36,19 @@ pub fn execute(path: &str) {
             repo.path.clone()
         };
 
-        println!("同步仓库: {}", repo_path.display());
+        // 优化路径显示，移除 Windows UNC 路径前缀
+        let mut display_path = repo_path.to_string_lossy().to_string();
+        display_path = display_path.trim_start_matches("\\\\?\\").to_string();
+
+        println!("同步仓库: {}", display_path);
 
         // 执行 git pull 命令
         if let Some(path_str) = repo_path.to_str() {
             if CommandRunner::run_with_success_in_dir("git", &["pull"], path_str).is_err() {
-                println!("同步仓库失败: {}", repo_path.display());
+                println!("同步仓库失败: {}", display_path);
             }
         } else {
-            println!("同步仓库路径无效: {}", repo_path.display());
+            println!("同步仓库路径无效: {}", display_path);
         }
     }
 }
