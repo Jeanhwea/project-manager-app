@@ -14,7 +14,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// 版本升级并创建新 tag
-    Bomup {
+    Release {
         /// 升级类型: major, minor, patch
         #[arg(default_value = "patch")]
         bump_type: String,
@@ -24,7 +24,7 @@ enum Commands {
 impl Commands {
     fn bump_type(&self) -> &str {
         match self {
-            Commands::Bomup { bump_type } => bump_type.as_str(),
+            Commands::Release { bump_type } => bump_type.as_str(),
         }
     }
 }
@@ -33,8 +33,8 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Bomup { .. } => {
-            app::bomup::execute(cli.command.bump_type());
+        Commands::Release { .. } => {
+            app::release::execute(cli.command.bump_type());
         }
     }
 }

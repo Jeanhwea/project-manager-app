@@ -5,7 +5,7 @@ use regex::Regex;
 pub fn execute(bump_type: &str) {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
     if current_branch != "master" {
-        eprintln!("错误: 只能在 master 分支上执行 bomup");
+        eprintln!("错误: 只能在 master 分支上执行 release");
         std::process::exit(1);
     }
 
@@ -23,7 +23,7 @@ pub fn execute(bump_type: &str) {
     let new_tag = new_version.to_tag();
 
     let config_file = detect_config_file();
-    bomup_config_file(&new_tag, &config_file);
+    release_config_file(&new_tag, &config_file);
 
     if let Err(e) = git::add_file(&config_file) {
         eprintln!("错误: {}", e);
@@ -52,14 +52,14 @@ pub fn execute(bump_type: &str) {
     }
 }
 
-pub fn bomup_config_file(tag: &str, config_file: &str) {
+pub fn release_config_file(tag: &str, config_file: &str) {
     if config_file == "Cargo.toml" {
         edit_cargo_toml_file(tag, config_file);
     } else if config_file == "pom.xml" {
         edit_pom_xml_file(tag, config_file);
     } else if config_file == "pyproject.toml" {
         edit_pyproject_toml_file(tag, config_file);
-        edit_python_package_init_file(tag, config_file);
+        edit_python_package_init_file(tag, "src/__version__.py");
     } else {
         eprintln!("错误: 不支持的配置文件 {}", config_file);
         std::process::exit(1);
