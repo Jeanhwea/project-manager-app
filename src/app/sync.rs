@@ -26,12 +26,12 @@ pub fn execute(path: &str) {
 
 fn find_git_repositories(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut repos = Vec::new();
-
+    
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries {
             if let Ok(entry) = entry {
                 let path = entry.path();
-
+                
                 if path.is_dir() {
                     if path.ends_with(".git") {
                         // Found a git repository, add its parent directory
@@ -42,10 +42,15 @@ fn find_git_repositories(dir: &Path) -> Vec<std::path::PathBuf> {
                         // Recursively search in subdirectories
                         repos.extend(find_git_repositories(&path));
                     }
+                } else if path.is_file() && path.file_name().unwrap_or_default() == ".git" {
+                    // Found a git submodule (has .git file instead of directory)
+                    if let Some(parent) = path.parent() {
+                        repos.push(parent.to_path_buf());
+                    }
                 }
             }
         }
     }
-
+    
     repos
 }
