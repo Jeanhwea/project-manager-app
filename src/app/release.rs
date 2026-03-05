@@ -5,7 +5,7 @@ use regex::Regex;
 pub fn execute(bump_type: &str) {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
     if current_branch != "master" {
-        eprintln!("错误: 只能在 master 分支上执行 release");
+        eprintln!("错误: 只能�?master 分支上执�?release");
         std::process::exit(1);
     }
 
@@ -14,7 +14,7 @@ pub fn execute(bump_type: &str) {
     let rev_current_tag = git::get_rev_revision(&current_tag).unwrap();
     let rev_head = git::get_rev_revision("HEAD").unwrap();
     if rev_current_tag == rev_head {
-        eprintln!("错误: 当前 HEAD 已被标记为 {}", current_tag);
+        eprintln!("错误: 当前 HEAD 已被标记�?{}", current_tag);
         std::process::exit(1);
     }
 
@@ -85,7 +85,7 @@ pub fn detect_config_file() -> Vec<String> {
     }
 
     if config_files.is_empty() {
-        eprintln!("错误: 未检测到 Cargo.toml、pom.xml 或 pyproject.toml 文件");
+        eprintln!("错误: 未检测到 Cargo.toml、pom.xml �?pyproject.toml 文件");
         std::process::exit(1);
     }
 
@@ -197,3 +197,4 @@ pub fn edit_python_package_init_file(tag: &str, config_file: &str) {
         std::process::exit(1);
     });
 }
+
