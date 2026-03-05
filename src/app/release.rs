@@ -174,25 +174,17 @@ pub fn edit_pyproject_toml_file(tag: &str, config_file: &str) {
 pub fn edit_python_package_init_file(tag: &str, config_file: &str) {
     let version = tag.trim_start_matches('v');
 
-    let mut lines: Vec<String> = std::fs::read_to_string(config_file)
+    let content = std::fs::read_to_string(config_file)
         .unwrap_or_else(|e| {
             eprintln!("错误: {}", e);
             std::process::exit(1);
-        })
-        .lines()
-        .map(|s| s.to_string())
-        .collect();
+        });
 
-    for line in &mut lines {
-        if line.trim().starts_with("__version__ = ") {
-            *line = format!("__version__ = \"{}\"", version);
-            break;
-        }
-    }
+    use regex::Regex;
+    let re = Regex::new(r#"__version__ = "[^"]*""#).unwrap();
+    let new_content = re.replace(&content, &format!(r#"__version__ = "{}""#, version));
 
-    let new_config_content = lines.join("\n");
-
-    std::fs::write(config_file, new_config_content).unwrap_or_else(|e| {
+    std::fs::write(config_file, new_content.as_ref()).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);
         std::process::exit(1);
     });
