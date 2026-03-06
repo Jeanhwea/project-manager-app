@@ -83,6 +83,7 @@ pub fn execute(path: &str) {
                         println!("跳过推送 {} ({})", remote, url.green());
                         continue;
                     }
+
                     if CommandRunner::run_with_success_in_dir("git", &["push", &remote], path_str)
                         .is_err()
                     {
