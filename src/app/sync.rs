@@ -26,7 +26,9 @@ pub fn execute(path: &str) {
         return;
     }
 
-    for repo in git_repos {
+    let total_repos = git_repos.len();
+
+    for (repo_index, repo) in git_repos.iter().enumerate() {
         // 只对普通 git 仓库执行 git pull，跳过子模块
         if repo.repo_type == RepoType::Submodule {
             continue;
@@ -48,7 +50,12 @@ pub fn execute(path: &str) {
         let mut display_path = repo_path.to_string_lossy().to_string();
         display_path = display_path.trim_start_matches("\\\\?\\").to_string();
 
-        println!(">> {}", display_path.cyan());
+        println!(
+            "({}/{}) <<= {}",
+            repo_index + 1,
+            total_repos,
+            display_path.cyan()
+        );
 
         // 打印远程仓库信息
         CommandRunner::run_with_success_in_dir(
