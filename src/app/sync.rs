@@ -29,6 +29,15 @@ pub fn execute(path: &str) {
     let total_repos = git_repos.len();
 
     for (repo_index, repo) in git_repos.iter().enumerate() {
+        let repo_path = if let Ok(abs_path) = repo.path.canonicalize() {
+            abs_path
+        } else {
+            repo.path.clone()
+        };
+
+        // 优化路径显示，移除 Windows UNC 路径前缀
+        let mut display_path = repo_path.to_string_lossy().to_string();
+        display_path = display_path.trim_start_matches("\\\\?\\").to_string();
         println!(
             "({}/{}) <<= {}",
             repo_index + 1,
@@ -46,16 +55,6 @@ pub fn execute(path: &str) {
         if remotes.is_empty() {
             continue;
         }
-
-        let repo_path = if let Ok(abs_path) = repo.path.canonicalize() {
-            abs_path
-        } else {
-            repo.path.clone()
-        };
-
-        // 优化路径显示，移除 Windows UNC 路径前缀
-        let mut display_path = repo_path.to_string_lossy().to_string();
-        display_path = display_path.trim_start_matches("\\\\?\\").to_string();
 
         // 打印远程仓库信息
         CommandRunner::run_with_success_in_dir(
