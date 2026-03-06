@@ -103,3 +103,35 @@ pub fn get_remote_name(work_dir: &Path) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .collect()
 }
+
+// return (protocol, remote, path)
+pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
+    let url = url.trim();
+    if url.is_empty() {
+        return None;
+    }
+
+    let mut protocol = "".to_string();
+
+    let url = if url.starts_with("git@") {
+        protocol = "git".to_string();
+        url.replace("git@", "")
+    } else if url.starts_with("https://") {
+        protocol = "https".to_string();
+        url.replace("https://", "")
+    } else if url.starts_with("http://") {
+        protocol = "http".to_string();
+        url.replace("http://", "")
+    } else {
+        return None;
+    };
+
+
+    let parts: Vec<&str> = url.splitn(2, ':').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+
+    let (remote, path) = (parts[0].to_string(), parts[1].to_string());
+    Some((protocol, remote, path))
+}

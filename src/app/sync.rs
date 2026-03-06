@@ -38,6 +38,11 @@ pub fn execute(path: &str) {
             continue;
         }
 
+        // 获取 remote 仓库协议
+        let protocol = git::parse_git_remote_url(&remotes[0])
+            .map(|(proto, _, _)| proto)
+            .unwrap_or_else(|| "git".to_string());
+
         let repo_path = if let Ok(abs_path) = repo.path.canonicalize() {
             abs_path
         } else {
@@ -64,6 +69,11 @@ pub fn execute(path: &str) {
             if CommandRunner::run_with_success_in_dir("git", &["pull"], path_str).is_err() {
                 println!("同步仓库失败: {}", display_path);
             }
+
+            // 获取远程仓库协议
+            let protocol = git::parse_git_remote_url(&remotes[0])
+                .map(|(proto, _, _)| proto)
+                .unwrap_or_else(|| "git".to_string());
         
             // git push
             if CommandRunner::run_with_success_in_dir("git", &["push"], path_str).is_err() {
