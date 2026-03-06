@@ -33,7 +33,7 @@ pub fn execute(path: &str) {
         }
 
         // 获取远程仓库名称
-        let remotes = git::get_remote_name(&repo.path);
+        let remotes = git::get_remote_info(&repo.path);
         if remotes.is_empty() {
             continue;
         }
@@ -64,10 +64,20 @@ pub fn execute(path: &str) {
             if CommandRunner::run_with_success_in_dir("git", &["pull"], path_str).is_err() {
                 println!("同步仓库失败: {}", display_path);
             }
-        
-            // git push
-            if CommandRunner::run_with_success_in_dir("git", &["push"], path_str).is_err() {
-                println!("推送仓库失败: {}", display_path);
+
+            // 对每个远程仓库执行 git push
+            for (remote, url) in remotes {
+                if let Some((protocol, host, _path)) = git::parse_git_remote_url(&url) {
+                    if protocol == "https" && host == "github.com" {
+                        println!("跳过推送 {} ({})", remote, url.green());
+                        continue;
+                    }
+                    if CommandRunner::run_with_success_in_dir("git", &["push", &remote], path_str)
+                        .is_err()
+                    {
+                        println!("推送仓库失败: {}", display_path);
+                    }
+                }
             }
         } else {
             println!("同步仓库路径无效: {}", display_path);
