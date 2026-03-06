@@ -104,26 +104,63 @@ pub fn get_remote_name(work_dir: &Path) -> Vec<String> {
         .collect()
 }
 
-// return (protocol, remote, path)
+pub fn get_remote_info(work_dir: &Path) -> Vec<(String, String)> {
+    let remotes = get_remote_name(work_dir);
+    if remotes.is_empty() {
+        return Vec::new();
+    }
+
+    let mut remote_info = Vec::new();
+    for remote in remotes {
+        let output = match CommandRunner::run_quiet_in_dir(
+            "git",
+            &["remote", "get-url", &remote],
+            work_dir.to_str().unwrap(),
+        ) {
+            Ok(out) => out,
+            Err(_) => continue,
+        };
+
+        let url = match String::from_utf8(output.stdout) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        let url = url.trim();
+        if url.is_empty() {
+            continue;
+        }
+
+        remote_info.push((remote, url.to_string()));
+    }
+
+    remote_info
+}
+
 pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
     let url = url.trim();
     if url.is_empty() {
         return None;
     }
 
-    let mut protocol = "".to_string();
-
-    let url = if url.starts_with("git@") {
-        protocol = "git".to_string();
-        url.replace("git@", "")
+    let protocol = if url.starts_with("git@") {
+        "git".to_string()
     } else if url.starts_with("https://") {
-        protocol = "https".to_string();
-        url.replace("https://", "")
+        "https".to_string()
     } else if url.starts_with("http://") {
-        protocol = "http".to_string();
-        url.replace("http://", "")
+        "http".to_string()
     } else {
         return None;
+    };
+
+    let url = if url.starts_with("git@") {
+        url.replace("git@", "")
+    } else if url.starts_with("https://") {
+        url.replace("https://", "")
+    } else if url.starts_with("http://") {
+        url.replace("http://", "")
+    } else {
+        url
     };
 
     let parts: Vec<&str> = url.splitn(2, ':').collect();

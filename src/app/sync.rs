@@ -33,15 +33,10 @@ pub fn execute(path: &str) {
         }
 
         // 获取远程仓库名称
-        let remotes = git::get_remote_name(&repo.path);
+        let remotes = git::get_remote_info(&repo.path);
         if remotes.is_empty() {
             continue;
         }
-
-        // 获取 remote 仓库协议
-        let protocol = git::parse_git_remote_url(&remotes[0])
-            .map(|(proto, _, _)| proto)
-            .unwrap_or_else(|| "git".to_string());
 
         let repo_path = if let Ok(abs_path) = repo.path.canonicalize() {
             abs_path
@@ -70,14 +65,19 @@ pub fn execute(path: &str) {
                 println!("同步仓库失败: {}", display_path);
             }
 
-            // 获取远程仓库协议
-            let protocol = git::parse_git_remote_url(&remotes[0])
-                .map(|(proto, _, _)| proto)
-                .unwrap_or_else(|| "git".to_string());
-
-            // git push
-            if CommandRunner::run_with_success_in_dir("git", &["push"], path_str).is_err() {
-                println!("推送仓库失败: {}", display_path);
+            // 对每个远程仓库执行 git push
+            for (remote, url) in remotes {
+                if let Some((protocol, host, path)) = git::parse_git_remote_url(&url) {
+                    println!(
+                        "推送远程仓库: {} ({}) {} {} {}",
+                        remote, url, protocol, host, path
+                    );
+                    if CommandRunner::run_with_success_in_dir("git", &["push", &remote], path_str)
+                        .is_err()
+                    {
+                        println!("推送仓库失败: {}", display_path);
+                    }
+                }
             }
         } else {
             println!("同步仓库路径无效: {}", display_path);
