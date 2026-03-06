@@ -2,6 +2,11 @@ use super::git;
 use super::version::Version;
 use regex::Regex;
 
+const CARGO_TOML: &str = "Cargo.toml";
+const POM_XML: &str = "pom.xml";
+const PYPROJECT_TOML: &str = "pyproject.toml";
+const PYTHON_VERSION_FILE: &str = "src/__version__.py";
+
 pub fn execute(bump_type: &str) {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
     if current_branch != "master" {
@@ -54,13 +59,13 @@ pub fn execute(bump_type: &str) {
 }
 
 pub fn release_config_file(tag: &str, config_file: &str) {
-    if config_file == "Cargo.toml" {
+    if config_file == CARGO_TOML {
         edit_cargo_toml_file(tag, config_file);
-    } else if config_file == "pom.xml" {
+    } else if config_file == POM_XML {
         edit_pom_xml_file(tag, config_file);
-    } else if config_file == "pyproject.toml" {
+    } else if config_file == PYPROJECT_TOML {
         edit_pyproject_toml_file(tag, config_file);
-    } else if config_file == "src/__version__.py" {
+    } else if config_file == PYTHON_VERSION_FILE {
         edit_python_package_init_file(tag, config_file);
     } else {
         eprintln!("错误: 不支持的配置文件 {}", config_file);
@@ -71,17 +76,17 @@ pub fn release_config_file(tag: &str, config_file: &str) {
 pub fn detect_config_file() -> Vec<String> {
     let mut config_files = Vec::new();
 
-    if std::path::Path::new("Cargo.toml").exists() {
-        config_files.push("Cargo.toml".to_string());
+    if std::path::Path::new(CARGO_TOML).exists() {
+        config_files.push(CARGO_TOML.to_string());
     }
-    if std::path::Path::new("pom.xml").exists() {
-        config_files.push("pom.xml".to_string());
+    if std::path::Path::new(POM_XML).exists() {
+        config_files.push(POM_XML.to_string());
     }
-    if std::path::Path::new("pyproject.toml").exists() {
-        config_files.push("pyproject.toml".to_string());
+    if std::path::Path::new(PYPROJECT_TOML).exists() {
+        config_files.push(PYPROJECT_TOML.to_string());
     }
-    if std::path::Path::new("src/__version__.py").exists() {
-        config_files.push("src/__version__.py".to_string());
+    if std::path::Path::new(PYTHON_VERSION_FILE).exists() {
+        config_files.push(PYTHON_VERSION_FILE.to_string());
     }
 
     if config_files.is_empty() {
