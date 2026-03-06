@@ -84,8 +84,22 @@ pub fn execute(path: &str) {
                         continue;
                     }
 
-                    if CommandRunner::run_with_success_in_dir("git", &["push", &remote], path_str)
-                        .is_err()
+                    if CommandRunner::run_with_success_in_dir(
+                        "git",
+                        &["push", &remote, "--all"],
+                        path_str,
+                    )
+                    .is_err()
+                    {
+                        println!("推送仓库失败: {}", display_path.red());
+                    }
+
+                    if CommandRunner::run_with_success_in_dir(
+                        "git",
+                        &["push", &remote, "--tags"],
+                        path_str,
+                    )
+                    .is_err()
                     {
                         println!("推送仓库失败: {}", display_path.red());
                     }

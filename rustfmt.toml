@@ -1,0 +1,12 @@
+# https://github.com/rust-lang/rustfmt/blob/master/Configurations.md
+
+# common
+max_width = 100
+edition = "2024"
+
+# imports style
+# group_imports = "StdExternalCrate"
+# imports_granularity = "Crate"
+
+# drive
+merge_derives = false
