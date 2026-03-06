@@ -74,7 +74,7 @@ pub fn execute(path: &str) {
             let protocol = git::parse_git_remote_url(&remotes[0])
                 .map(|(proto, _, _)| proto)
                 .unwrap_or_else(|| "git".to_string());
-        
+
             // git push
             if CommandRunner::run_with_success_in_dir("git", &["push"], path_str).is_err() {
                 println!("推送仓库失败: {}", display_path);

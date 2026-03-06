@@ -126,7 +126,6 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
         return None;
     };
 
-
     let parts: Vec<&str> = url.splitn(2, ':').collect();
     if parts.len() != 2 {
         return None;
