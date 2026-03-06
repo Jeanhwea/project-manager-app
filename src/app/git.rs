@@ -168,6 +168,6 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
         return None;
     }
 
-    let (remote, path) = (parts[0].to_string(), parts[1].to_string());
-    Some((protocol, remote, path))
+    let (host, path) = (parts[0].to_string(), parts[1].to_string());
+    Some((protocol, host, path))
 }

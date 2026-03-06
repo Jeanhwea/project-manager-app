@@ -67,11 +67,11 @@ pub fn execute(path: &str) {
 
             // 对每个远程仓库执行 git push
             for (remote, url) in remotes {
-                if let Some((protocol, host, path)) = git::parse_git_remote_url(&url) {
-                    println!(
-                        "推送远程仓库: {} ({}) {} {} {}",
-                        remote, url, protocol, host, path
-                    );
+                if let Some((protocol, host, _path)) = git::parse_git_remote_url(&url) {
+                    if protocol == "https" && host == "github.com" {
+                        println!("跳过推送 {} ({})", remote, url.green());
+                        continue;
+                    }
                     if CommandRunner::run_with_success_in_dir("git", &["push", &remote], path_str)
                         .is_err()
                     {
