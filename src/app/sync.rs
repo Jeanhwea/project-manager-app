@@ -67,8 +67,19 @@ pub fn execute(path: &str) {
 
             // 对每个远程仓库执行 git push
             for (remote, url) in remotes {
-                if let Some((protocol, host, _path)) = git::parse_git_remote_url(&url) {
-                    if protocol == "https" && host == "github.com" {
+                if let Some((protocol, host, path)) = git::parse_git_remote_url(&url) {
+                    let skip_push = if protocol == "https" && host == "github.com" {
+                        true
+                    } else if protocol == "git"
+                        && host == "gitee.com"
+                        && path.starts_with("red_base")
+                    {
+                        true
+                    } else {
+                        false
+                    };
+
+                    if skip_push {
                         println!("跳过推送 {} ({})", remote, url.green());
                         continue;
                     }
