@@ -160,7 +160,7 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
     } else if url.starts_with("http://") {
         url.replace("http://", "")
     } else {
-        url
+        url.to_string()
     };
 
     let parts: Vec<&str> = url.splitn(2, ':').collect();
