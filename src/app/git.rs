@@ -158,17 +158,17 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
         return None;
     };
 
-    let url = if url.starts_with("git@") {
-        url.replace("git@", "")
+    let (url, separator) = if url.starts_with("git@") {
+        (url.replace("git@", ""), ':')
     } else if url.starts_with("https://") {
-        url.replace("https://", "")
+        (url.replace("https://", ""), '/')
     } else if url.starts_with("http://") {
-        url.replace("http://", "")
+        (url.replace("http://", ""), '/')
     } else {
-        url.to_string()
+        (url.to_string(), ':')
     };
 
-    let parts: Vec<&str> = url.splitn(2, ':').collect();
+    let parts: Vec<&str> = url.splitn(2, separator).collect();
     if parts.len() != 2 {
         return None;
     }

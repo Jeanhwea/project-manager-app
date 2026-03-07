@@ -53,7 +53,6 @@ fn do_sync_repository(repo_path: &Path, display_path: &str) {
     // 获取远程仓库信息
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
-        println!("  未找到远程仓库");
         return;
     }
 
@@ -92,11 +91,15 @@ fn do_sync_repository(repo_path: &Path, display_path: &str) {
 
 fn should_skip_push(url: &str) -> bool {
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
+        println!("  解析远程URL: {} {} {}", protocol, host, path);
         if protocol == "https" && (host == "github.com" || host == "githubfast.com") {
             return true;
         } else if protocol == "git" && host == "gitee.com" && path.starts_with("red_base") {
             return true;
         }
+    } else {
+        println!("  未知协议或主机: {}", url);
+        return false;
     }
     false
 }
