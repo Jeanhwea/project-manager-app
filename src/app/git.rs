@@ -176,3 +176,28 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
     let (host, path) = (parts[0].to_string(), parts[1].to_string());
     Some((protocol, host, path))
 }
+
+pub fn get_remote_name_by_url(url: &str) -> Option<String> {
+    let (_, host, path) = parse_git_remote_url(url)?;
+
+    let remote_name = if host == "github.com" {
+        "github".to_string()
+    } else if host == "gitana.jeanhwea.io" {
+        "gitana".to_string()
+    } else if host == "gitee.com" {
+        if path.to_lowercase().starts_with("jeanhwea/") {
+            "gitee".to_string()
+        } else if path.to_lowercase().starts_with("red_8/") {
+            "redinf".to_string()
+        } else if path.to_lowercase().starts_with("redtool/") {
+            "redinf".to_string()
+        } else {
+            "gitee".to_string()
+        }
+    } else if host == "192.168.0.101" {
+        "avic".to_string()
+    } else {
+        "origin".to_string()
+    };
+    Some(remote_name)
+}
