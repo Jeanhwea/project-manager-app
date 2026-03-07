@@ -31,7 +31,7 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
 
         // 优化路径显示，移除 Windows UNC 路径前缀
         let mut display_path = repo_path.to_string_lossy().to_string();
-        display_path = display_path.trim_start_matches(r"\\?\\").to_string();
+        display_path = display_path.trim_start_matches("\\\\?\\").to_string();
         println!(
             "({}/{}) <<= {}",
             repo_index + 1,
