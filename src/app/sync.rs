@@ -56,6 +56,14 @@ pub fn execute(path: &str) {
             continue;
         }
 
+        // 打印本地分支
+        CommandRunner::run_with_success_in_dir(
+            "git",
+            &["branch", "--list"],
+            repo.path.to_str().unwrap(),
+        )
+        .unwrap();
+
         // 打印远程仓库信息
         CommandRunner::run_with_success_in_dir(
             "git",

@@ -60,7 +60,7 @@ pub fn get_remote_list() -> Option<Vec<String>> {
     Some(remotes)
 }
 
-pub fn get_cached_changes() -> Result<(), String> {
+pub fn list_cached_changes() -> Result<(), String> {
     CommandRunner::run_with_success("git", &["diff", "--cached"])?;
     Ok(())
 }

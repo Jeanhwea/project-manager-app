@@ -36,7 +36,7 @@ pub fn execute(bump_type: &str) {
         }
     }
 
-    if let Err(e) = git::get_cached_changes() {
+    if let Err(e) = git::list_cached_changes() {
         eprintln!("错误: {}", e);
         std::process::exit(1);
     }
