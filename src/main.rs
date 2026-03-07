@@ -1,6 +1,6 @@
 mod app;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(name = "pma")]
@@ -11,14 +11,31 @@ struct Cli {
     command: Commands,
 }
 
+#[derive(ValueEnum, Clone, Debug)]
+enum BumpType {
+    Major,
+    Minor,
+    Patch,
+}
+
+impl BumpType {
+    fn as_str(&self) -> &'static str {
+        match self {
+            BumpType::Major => "major",
+            BumpType::Minor => "minor",
+            BumpType::Patch => "patch",
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Commands {
     /// 发布新的版本
     #[command(visible_alias = "re")]
     Release {
-        /// 升级类型: major, minor, patch
-        #[arg(default_value = "patch")]
-        bump_type: String,
+        /// 升级类型
+        #[arg(value_enum, default_value = "patch")]
+        bump_type: BumpType,
     },
     /// 同步所有代码仓库
     #[command(visible_alias = "sync")]
@@ -50,7 +67,7 @@ fn main() {
 
     match cli.command {
         Commands::Release { bump_type } => {
-            app::release::execute(&bump_type);
+            app::release::execute(bump_type.as_str());
         }
         Commands::Synchronize { path, max_depth } => {
             app::sync::execute(&path, max_depth);
