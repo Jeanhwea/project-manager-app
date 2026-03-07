@@ -36,13 +36,9 @@ pub fn execute(bump_type: &str) {
         }
     }
 
-    if let Some(changes) = git::get_cached_changes() {
-        for change in changes {
-            if let Err(e) = git::add_file(&change) {
-                eprintln!("错误: {}", e);
-                std::process::exit(1);
-            }
-        }
+    if let Err(e) = git::get_cached_changes() {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
     }
 
     if let Err(e) = git::commit(&format!("{}", new_tag)) {

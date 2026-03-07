@@ -60,21 +60,9 @@ pub fn get_remote_list() -> Option<Vec<String>> {
     Some(remotes)
 }
 
-pub fn get_cached_changes() -> Option<Vec<String>> {
-    let output = CommandRunner::run_quiet("git", &["diff", "--cached"]).ok()?;
-
-    let files = String::from_utf8(output.stdout).ok()?;
-    let files: Vec<String> = files
-        .lines()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    if files.is_empty() {
-        return None;
-    }
-
-    Some(files)
+pub fn get_cached_changes() -> Result<(), String> {
+    CommandRunner::run_with_success("git", &["diff", "--cached"])?;
+    Ok(())
 }
 
 pub fn add_file(file: &str) -> Result<(), String> {
