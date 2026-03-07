@@ -24,13 +24,11 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) {
             repo.path.clone()
         };
 
-        // 优化路径显示，移除 Windows UNC 路径前缀
-        let display_path = utils::format_path(&repo_path);
         println!(
             "({}/{}) <<= {}",
             repo_index + 1,
             total_repos,
-            display_path.cyan()
+            utils::format_path(&repo_path).cyan()
         );
 
         // 只对普通 git 仓库执行 git pull，跳过子模块
@@ -43,7 +41,7 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) {
         }
 
         // 获取远程仓库名称
-        let remotes = git::get_remote_info(&repo.path);
+        let remotes = git::get_remote_info(&repo_path);
         if remotes.is_empty() {
             continue;
         }

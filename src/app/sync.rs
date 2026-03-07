@@ -30,13 +30,11 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
             repo_info.path.clone()
         };
 
-        // 优化路径显示，移除 Windows UNC 路径前缀
-        let display_path = utils::format_path(&repo_path);
         println!(
             "({}/{}) <<= {}",
             repo_index + 1,
             total_repos,
-            display_path.cyan()
+            utils::format_path(&repo_path).cyan()
         );
 
         // 只对普通 git 仓库执行 git pull，跳过子模块
@@ -45,11 +43,11 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
         }
 
         // 同步仓库
-        do_sync_repository(&repo_path, &display_path);
+        do_sync_repository(&repo_path);
     }
 }
 
-fn do_sync_repository(repo_path: &Path, display_path: &str) {
+fn do_sync_repository(repo_path: &Path) {
     // 获取远程仓库信息
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
@@ -75,7 +73,7 @@ fn do_sync_repository(repo_path: &Path, display_path: &str) {
     }
 
     // 拉取远端数据
-    do_pull_repository(repo_path, display_path);
+    do_pull_repository(repo_path);
 
     // 对每个远程仓库执行 git push
     for (remote, url) in remotes {
@@ -85,7 +83,7 @@ fn do_sync_repository(repo_path: &Path, display_path: &str) {
         }
 
         // 推送所有分支和标签
-        do_push_repository(repo_path, display_path, &remote);
+        do_push_repository(repo_path, &remote);
     }
 }
 
@@ -104,26 +102,26 @@ fn should_skip_push(url: &str) -> bool {
     false
 }
 
-fn do_pull_repository(repo_path: &Path, display_path: &str) {
+fn do_pull_repository(repo_path: &Path) {
     if CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path.to_str().unwrap())
         .is_err()
     {
-        println!("  同步仓库失败: {}", display_path.red());
+        println!("  同步仓库失败: {}", utils::format_path(repo_path).red());
     }
 }
 
-fn do_push_repository(repo_path: &Path, display_path: &str, remote: &str) {
+fn do_push_repository(repo_path: &Path, remote: &str) {
     let path_str = repo_path.to_str().unwrap();
 
     // 推送所有分支
     if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], path_str).is_err()
     {
-        println!("  推送分支失败: {}", display_path.red());
+        println!("  推送分支失败: {}", utils::format_path(repo_path).red());
     }
 
     // 推送所有标签
     if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], path_str).is_err()
     {
-        println!("  推送标签失败: {}", display_path.red());
+        println!("  推送标签失败: {}", utils::format_path(repo_path).red());
     }
 }
