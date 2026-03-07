@@ -2,7 +2,6 @@ use super::git;
 use super::utils;
 use super::version::Version;
 use regex::Regex;
-use std::path::Path;
 
 const CARGO_TOML: &str = "Cargo.toml";
 const POM_XML: &str = "pom.xml";
