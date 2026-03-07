@@ -180,7 +180,7 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
 pub fn get_remote_name_by_url(url: &str) -> Option<String> {
     let (_, host, path) = parse_git_remote_url(url)?;
 
-    let remote_name = if host == "github.com" {
+    let remote_name = if (host == "github.com" || host == "githubfast.com") {
         "github".to_string()
     } else if host == "gitana.jeanhwea.io" {
         "gitana".to_string()
