@@ -30,6 +30,16 @@ enum Commands {
         #[arg(default_value = ".")]
         path: String,
     },
+    /// 清理项目信息
+    #[command(visible_alias = "hk")]
+    Housekeeping {
+        /// 搜索的最大深度
+        #[arg(long, short, default_value = "3")]
+        max_depth: Option<usize>,
+        /// 要搜索的目录路径，默认为当前目录
+        #[arg(default_value = ".")]
+        path: String,
+    },
 }
 
 impl Commands {
@@ -37,6 +47,7 @@ impl Commands {
         match self {
             Commands::Release { bump_type } => bump_type.as_str(),
             Commands::Synchronize { .. } => "",
+            Commands::Housekeeping { .. } => "",
         }
     }
 }
@@ -50,6 +61,9 @@ fn main() {
         }
         Commands::Synchronize { path, max_depth } => {
             app::sync::execute(&path, max_depth);
+        }
+        Commands::Housekeeping { path, max_depth } => {
+            app::housekeeping::execute(&path, max_depth);
         }
     }
 }
