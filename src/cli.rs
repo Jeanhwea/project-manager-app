@@ -47,8 +47,10 @@ pub struct Cli {
 #[derive(ValueEnum, Clone, Debug)]
 pub enum BumpType {
     /// 主版本号升级（如 1.0.0 -> 2.0.0）
+    #[value(alias = "ma")]
     Major,
     /// 次版本号升级（如 1.0.0 -> 1.1.0）
+    #[value(alias = "mi")]
     Minor,
     /// 修订版本号升级（如 1.0.0 -> 1.0.1）
     Patch,
