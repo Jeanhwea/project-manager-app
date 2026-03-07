@@ -77,7 +77,7 @@ pub enum Commands {
         bump_type: BumpType,
     },
     /// 同步所有代码仓库
-    #[command(visible_alias = "sync")]
+    #[command(visible_aliases = ["sy", "sync"])]
     #[command(about = "同步所有代码仓库")]
     Synchronize {
         /// 搜索的最大深度
@@ -87,10 +87,10 @@ pub enum Commands {
         #[arg(default_value = ".", help = "要搜索的目录路径")]
         path: String,
     },
-    /// 清理项目信息
-    #[command(visible_alias = "hk")]
-    #[command(about = "清理项目信息")]
-    Housekeeping {
+    /// 诊断项目健康状况
+    #[command(visible_alias = "dc")]
+    #[command(about = "诊断项目健康状况")]
+    Doctor {
         /// 搜索的最大深度
         #[arg(long, short, default_value = "3", help = "搜索的最大深度")]
         max_depth: Option<usize>,

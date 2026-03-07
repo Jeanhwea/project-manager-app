@@ -14,12 +14,12 @@ fn main() {
         Commands::Synchronize { path, max_depth } => {
             app::sync::execute(&path, max_depth);
         }
-        Commands::Housekeeping {
+        Commands::Doctor {
             path,
             max_depth,
             gc,
         } => {
-            app::housekeeping::execute(&path, max_depth, gc);
+            app::doctor::execute(&path, max_depth, gc);
         }
     }
 }
