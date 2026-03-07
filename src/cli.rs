@@ -36,7 +36,7 @@ fn get_styles() -> Styles {
 
 #[derive(Parser)]
 #[command(name = "pma")]
-#[command(about = "项目管理工具 (Project Manager Application)")]
+#[command(about = "Project Manager Application (项目管理工具)")]
 #[command(version)]
 #[command(styles = get_styles())]
 pub struct Cli {
