@@ -23,6 +23,9 @@ enum Commands {
     /// 同步所有代码仓库
     #[command(visible_alias = "sync")]
     Synchronize {
+        /// 搜索的最大深度
+        #[arg(long, short, default_value = "3")]
+        max_depth: Option<usize>,
         /// 要搜索的目录路径，默认为当前目录
         #[arg(default_value = ".")]
         path: String,
@@ -45,8 +48,8 @@ fn main() {
         Commands::Release { .. } => {
             app::release::execute(cli.command.bump_type());
         }
-        Commands::Synchronize { path } => {
-            app::sync::execute(&path);
+        Commands::Synchronize { path, max_depth } => {
+            app::sync::execute(&path, max_depth);
         }
     }
 }

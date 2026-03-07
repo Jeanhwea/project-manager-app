@@ -17,9 +17,9 @@ struct RepoInfo {
     repo_type: RepoType,
 }
 
-pub fn execute(path: &str) {
+pub fn execute(path: &str, max_depth: Option<usize>) {
     let sync_dir = std::path::Path::new(path);
-    let git_repos = find_git_repositories(sync_dir);
+    let git_repos = find_git_repositories(sync_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");
@@ -125,8 +125,8 @@ pub fn execute(path: &str) {
     }
 }
 
-fn find_git_repositories(dir: &Path) -> Vec<RepoInfo> {
-    find_git_repositories_with_depth(dir, 5) // 默认最大深度为5
+fn find_git_repositories(dir: &Path, max_depth: Option<usize>) -> Vec<RepoInfo> {
+    find_git_repositories_with_depth(dir, max_depth.unwrap())
 }
 
 fn find_git_repositories_with_depth(dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
