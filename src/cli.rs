@@ -68,37 +68,58 @@ impl BumpType {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// 发布新的版本
+    /// Release a new version
     #[command(visible_alias = "re")]
-    #[command(about = "发布新的版本")]
+    #[command(about = "Release a new version")]
     Release {
-        /// 升级类型：major（主版本）、minor（次版本）、patch（修订版本）
+        /// Bump type: major, minor, patch
         #[arg(value_enum, default_value = "patch", help = "升级类型")]
         bump_type: BumpType,
     },
-    /// 同步所有代码仓库
+    /// Synchronize all code repositories
     #[command(visible_aliases = ["sy", "sync"])]
-    #[command(about = "同步所有代码仓库")]
+    #[command(about = "Synchronize all code repositories")]
     Synchronize {
-        /// 搜索的最大深度
-        #[arg(long, short, default_value = "3", help = "搜索的最大深度")]
+        /// Maximum depth to search for repositories
+        #[arg(
+            long,
+            short,
+            default_value = "3",
+            help = "Maximum depth to search for repositories"
+        )]
         max_depth: Option<usize>,
-        /// 要搜索的目录路径，默认为当前目录
-        #[arg(default_value = ".", help = "要搜索的目录路径")]
+        /// Path to the directory to search for repositories, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the directory to search for repositories, defaults to current directory"
+        )]
         path: String,
     },
-    /// 诊断项目健康状况
+    /// Diagnostic project health
     #[command(visible_alias = "dc")]
-    #[command(about = "诊断项目健康状况")]
+    #[command(about = "Diagnostic project health")]
     Doctor {
-        /// 搜索的最大深度
-        #[arg(long, short, default_value = "3", help = "搜索的最大深度")]
+        /// Maximum depth to search for repositories
+        #[arg(
+            long,
+            short,
+            default_value = "3",
+            help = "Maximum depth to search for repositories"
+        )]
         max_depth: Option<usize>,
-        /// 要执行垃圾回收
-        #[arg(long, short, default_value = "false", help = "执行垃圾回收")]
+        /// Whether to perform garbage collection
+        #[arg(
+            long,
+            short,
+            default_value = "false",
+            help = "Whether to perform garbage collection"
+        )]
         gc: bool,
-        /// 要搜索的目录路径，默认为当前目录
-        #[arg(default_value = ".", help = "要搜索的目录路径")]
+        /// Path to the directory to search for repositories, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the directory to search for repositories, defaults to current directory"
+        )]
         path: String,
     },
 }
