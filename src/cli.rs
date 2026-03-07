@@ -39,12 +39,6 @@ fn get_styles() -> Styles {
 #[command(about = "项目管理工具 (Project Manager Application)")]
 #[command(version)]
 #[command(styles = get_styles())]
-#[command(arg_required_else_help = true)]
-#[command(help_template = "{about} (版本: {version})\n\n使用方法: {usage}\n\n命令:\n{subcommands}\n\n选项:\n{options}\n")]
-#[command(next_line_help = true)]
-#[command(version = "0.5.1")]
-#[command(help = "显示帮助信息")]
-#[command(version_help = "显示版本信息")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
