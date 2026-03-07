@@ -20,7 +20,7 @@ enum Commands {
         #[arg(default_value = "patch")]
         bump_type: String,
     },
-    /// 同步所有git仓库
+    /// 同步所有代码仓库
     #[command(visible_alias = "sync")]
     Synchronize {
         /// 要搜索的目录路径，默认为当前目录
