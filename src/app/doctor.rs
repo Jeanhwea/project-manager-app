@@ -24,11 +24,11 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) {
             repo.path.clone()
         };
 
+        let progress = format!("({}/{})", repo_index + 1, total_repos);
         println!(
-            "({}/{}) <<= {}",
-            repo_index + 1,
-            total_repos,
-            utils::format_path(&repo_path).cyan()
+            "<<= {} {}",
+            progress.cyan().underline(),
+            utils::format_path(&repo_path).cyan().underline(),
         );
 
         // 只对普通 git 仓库执行 git pull，跳过子模块
