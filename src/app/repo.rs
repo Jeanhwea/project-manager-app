@@ -1,6 +1,3 @@
-use super::git;
-use super::runner::CommandRunner;
-use colored::Colorize;
 use std::fs;
 use std::path::Path;
 
@@ -18,7 +15,7 @@ pub struct RepoInfo {
 }
 
 pub fn find_git_repositories(dir: &Path, max_depth: Option<usize>) -> Vec<RepoInfo> {
-    find_git_repositories_with_depth(dir, max_depth.unwrap())
+    find_git_repositories_with_depth(dir, max_depth.unwrap_or(3))
 }
 
 fn find_git_repositories_with_depth(dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
