@@ -2,7 +2,7 @@ use super::git;
 use super::runner::CommandRunner;
 use colored::Colorize;
 
-use super::repo::{ RepoType};
+use super::repo::RepoType;
 
 pub fn execute(path: &str, max_depth: Option<usize>) {
     let sync_dir = std::path::Path::new(path);
