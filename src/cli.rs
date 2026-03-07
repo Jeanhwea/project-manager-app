@@ -46,13 +46,14 @@ pub struct Cli {
 
 #[derive(ValueEnum, Clone, Debug)]
 pub enum BumpType {
-    /// 主版本号升级（如 1.0.0 -> 2.0.0）
+    /// Major version bump (e.g. 1.0.0 -> 2.0.0)
     #[value(alias = "ma")]
     Major,
-    /// 次版本号升级（如 1.0.0 -> 1.1.0）
+    /// Minor version bump (e.g. 1.0.0 -> 1.1.0)
     #[value(alias = "mi")]
     Minor,
-    /// 修订版本号升级（如 1.0.0 -> 1.0.1）
+    /// Patch version bump (e.g. 1.0.0 -> 1.0.1)
+    #[value(alias = "pa")]
     Patch,
 }
 
@@ -73,13 +74,17 @@ pub enum Commands {
     #[command(about = "Release a new version")]
     Release {
         /// Bump type: major, minor, patch
-        #[arg(value_enum, default_value = "patch", help = "升级类型")]
+        #[arg(
+            value_enum,
+            default_value = "patch",
+            help = "Bump type: major, minor, patch"
+        )]
         bump_type: BumpType,
     },
     /// Synchronize all code repositories
-    #[command(visible_aliases = ["sy", "sync"])]
+    #[command(visible_alias = "sy")]
     #[command(about = "Synchronize all code repositories")]
-    Synchronize {
+    Sync {
         /// Maximum depth to search for repositories
         #[arg(
             long,

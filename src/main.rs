@@ -11,7 +11,7 @@ fn main() {
         Commands::Release { bump_type } => {
             app::release::execute(bump_type.as_str());
         }
-        Commands::Synchronize { path, max_depth } => {
+        Commands::Sync { path, max_depth } => {
             app::sync::execute(&path, max_depth);
         }
         Commands::Doctor {
