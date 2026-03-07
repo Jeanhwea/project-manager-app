@@ -92,7 +92,7 @@ fn do_sync_repository(repo_path: &Path, display_path: &str) {
 
 fn should_skip_push(url: &str) -> bool {
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
-        if protocol == "https" && host == "github.com" {
+        if protocol == "https" && (host == "github.com" || host == "githubfast.com") {
             return true;
         } else if protocol == "git" && host == "gitee.com" && path.starts_with("red_base") {
             return true;
