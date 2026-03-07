@@ -24,7 +24,7 @@ enum Commands {
     #[command(visible_alias = "sync")]
     Synchronize {
         /// 要搜索的目录路径，默认为当前目录
-        #[arg(long, short, default_value = ".")]
+        #[arg(default_value = ".")]
         path: String,
     },
 }
