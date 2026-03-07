@@ -36,6 +36,9 @@ enum Commands {
         /// 搜索的最大深度
         #[arg(long, short, default_value = "3")]
         max_depth: Option<usize>,
+        /// 要执行垃圾回收
+        #[arg(long, short, default_value = "false")]
+        gc: bool,
         /// 要搜索的目录路径，默认为当前目录
         #[arg(default_value = ".")]
         path: String,
@@ -62,8 +65,12 @@ fn main() {
         Commands::Synchronize { path, max_depth } => {
             app::sync::execute(&path, max_depth);
         }
-        Commands::Housekeeping { path, max_depth } => {
-            app::housekeeping::execute(&path, max_depth);
+        Commands::Housekeeping {
+            path,
+            max_depth,
+            gc,
+        } => {
+            app::housekeeping::execute(&path, max_depth, gc);
         }
     }
 }

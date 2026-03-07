@@ -5,7 +5,7 @@ use std::path::Path;
 
 use super::repo::RepoType;
 
-pub fn execute(path: &str, max_depth: Option<usize>) {
+pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) {
     let root_dir = std::path::Path::new(path);
     let git_repos = super::repo::find_git_repositories(root_dir, max_depth);
 
@@ -36,6 +36,10 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
         // 只对普通 git 仓库执行 git pull，跳过子模块
         if repo.repo_type == RepoType::Submodule {
             continue;
+        }
+
+        if gc {
+            do_git_garbage_collect(&repo_path);
         }
 
         // 获取远程仓库名称
@@ -69,4 +73,8 @@ fn do_rename_git_remote(repo_path: &Path, old_name: &str, new_name: &str) {
         repo_path.to_str().unwrap(),
     )
     .unwrap();
+}
+
+fn do_git_garbage_collect(repo_path: &Path) {
+    CommandRunner::run_with_success_in_dir("git", &["gc"], repo_path.to_str().unwrap()).unwrap();
 }
