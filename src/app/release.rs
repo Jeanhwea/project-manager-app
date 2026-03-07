@@ -1,6 +1,8 @@
 use super::git;
+use super::utils;
 use super::version::Version;
 use regex::Regex;
+use std::path::Path;
 
 const CARGO_TOML: &str = "Cargo.toml";
 const POM_XML: &str = "pom.xml";
@@ -92,6 +94,12 @@ fn detect_config_file() -> Vec<String> {
     }
     if std::path::Path::new(PYTHON_VERSION_FILE).exists() {
         config_files.push(PYTHON_VERSION_FILE.to_string());
+    }
+
+    let dir_name = utils::get_current_dir();
+    let python_project_version_file = format!("{}/__version__.py", dir_name);
+    if std::path::Path::new(&python_project_version_file).exists() {
+        config_files.push(python_project_version_file);
     }
 
     if config_files.is_empty() {
