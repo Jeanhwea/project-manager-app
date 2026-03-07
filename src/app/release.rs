@@ -78,7 +78,7 @@ pub fn release_config_file(tag: &str, config_file: &str) {
     }
 }
 
-pub fn detect_config_file() -> Vec<String> {
+fn detect_config_file() -> Vec<String> {
     let mut config_files = Vec::new();
 
     if std::path::Path::new(CARGO_TOML).exists() {
@@ -102,7 +102,7 @@ pub fn detect_config_file() -> Vec<String> {
     config_files
 }
 
-pub fn edit_cargo_toml_file(tag: &str, config_file: &str) {
+fn edit_cargo_toml_file(tag: &str, config_file: &str) {
     let config_content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);
         std::process::exit(1);
@@ -134,7 +134,7 @@ pub fn edit_cargo_toml_file(tag: &str, config_file: &str) {
     });
 }
 
-pub fn edit_pom_xml_file(tag: &str, config_file: &str) {
+fn edit_pom_xml_file(tag: &str, config_file: &str) {
     let config_content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);
         std::process::exit(1);
@@ -149,7 +149,7 @@ pub fn edit_pom_xml_file(tag: &str, config_file: &str) {
     });
 }
 
-pub fn edit_pyproject_toml_file(tag: &str, config_file: &str) {
+fn edit_pyproject_toml_file(tag: &str, config_file: &str) {
     let config_content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);
         std::process::exit(1);
@@ -181,7 +181,7 @@ pub fn edit_pyproject_toml_file(tag: &str, config_file: &str) {
     });
 }
 
-pub fn edit_python_package_init_file(tag: &str, config_file: &str) {
+fn edit_python_package_init_file(tag: &str, config_file: &str) {
     let version = tag.trim_start_matches('v');
 
     let content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
