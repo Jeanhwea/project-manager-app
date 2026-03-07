@@ -75,23 +75,18 @@ fn do_sync_repository(repo_path: &Path, display_path: &str) {
         println!("  无法获取远程信息: {}", e);
     }
 
-    // 执行 git pull 命令
-    if let Some(path_str) = repo_path.to_str() {
-        // git pull
-        do_pull_repository(repo_path, display_path);
+    // 拉取远端数据
+    do_pull_repository(repo_path, display_path);
 
-        // 对每个远程仓库执行 git push
-        for (remote, url) in remotes {
-            if should_skip_push(&url) {
-                println!("  跳过推送 {} ({})\n", remote, url.green());
-                continue;
-            }
-
-            // 推送所有分支和标签
-            do_push_repository(repo_path, display_path);
+    // 对每个远程仓库执行 git push
+    for (remote, url) in remotes {
+        if should_skip_push(&url) {
+            println!("  跳过推送 {} ({})\n", remote, url.green());
+            continue;
         }
-    } else {
-        println!("  同步仓库路径无效: {}", display_path.red());
+
+        // 推送所有分支和标签
+        do_push_repository(repo_path, display_path, &remote);
     }
 }
 
@@ -114,16 +109,17 @@ fn do_pull_repository(repo_path: &Path, display_path: &str) {
     }
 }
 
-fn do_push_repository(repo_path: &Path, display_path: &str) {
+fn do_push_repository(repo_path: &Path, display_path: &str, remote: &str) {
+    let path_str = repo_path.to_str().unwrap();
+
     // 推送所有分支
-    if CommandRunner::run_with_success_in_dir("git", &["push", &remote, "--all"], path_str).is_err()
+    if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], path_str).is_err()
     {
         println!("  推送分支失败: {}", display_path.red());
     }
 
     // 推送所有标签
-    if CommandRunner::run_with_success_in_dir("git", &["push", &remote, "--tags"], path_str)
-        .is_err()
+    if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], path_str).is_err()
     {
         println!("  推送标签失败: {}", display_path.red());
     }
