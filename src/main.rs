@@ -45,22 +45,12 @@ enum Commands {
     },
 }
 
-impl Commands {
-    fn bump_type(&self) -> &str {
-        match self {
-            Commands::Release { bump_type } => bump_type.as_str(),
-            Commands::Synchronize { .. } => "",
-            Commands::Housekeeping { .. } => "",
-        }
-    }
-}
-
 fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Release { .. } => {
-            app::release::execute(cli.command.bump_type());
+        Commands::Release { bump_type } => {
+            app::release::execute(&bump_type);
         }
         Commands::Synchronize { path, max_depth } => {
             app::sync::execute(&path, max_depth);
