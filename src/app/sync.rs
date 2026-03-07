@@ -33,7 +33,7 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
         let progress = format!("({}/{})", repo_index + 1, total_repos);
         println!(
             "<<= {} {}",
-            progress.cyan().underline(),
+            progress.white().bold(),
             utils::format_path(&repo_path).cyan().underline(),
         );
 
