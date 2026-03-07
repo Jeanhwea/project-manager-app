@@ -191,6 +191,10 @@ pub fn get_remote_name_by_url(url: &str) -> Option<String> {
             "redinf".to_string()
         } else if path.to_lowercase().starts_with("redtool/") {
             "redinf".to_string()
+        } else if path.to_lowercase().starts_with("red_base/") {
+            "redinf".to_string()
+        } else if path.to_lowercase().starts_with("teampuzzle/") {
+            "redinf".to_string()
         } else {
             "gitee".to_string()
         }
