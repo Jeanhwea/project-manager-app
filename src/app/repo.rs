@@ -14,18 +14,18 @@ pub struct RepoInfo {
     pub repo_type: RepoType,
 }
 
-pub fn find_git_repositories(dir: &Path, max_depth: Option<usize>) -> Vec<RepoInfo> {
-    find_git_repositories_with_depth(dir, max_depth.unwrap_or(3))
+pub fn find_git_repositories(root_dir: &Path, max_depth: Option<usize>) -> Vec<RepoInfo> {
+    find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(3))
 }
 
-fn find_git_repositories_with_depth(dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
+fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
     let mut repos = Vec::new();
 
     if max_depth == 0 {
         return repos;
     }
 
-    if let Ok(entries) = fs::read_dir(dir) {
+    if let Ok(entries) = fs::read_dir(root_dir) {
         for entry in entries {
             if let Ok(entry) = entry {
                 let path = entry.path();
