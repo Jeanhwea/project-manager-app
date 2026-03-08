@@ -34,7 +34,7 @@ pub fn execute(bump_type: &str) -> Result<()> {
     }
 
     git::list_cached_changes()?;
-    git::commit(&format!("{}", new_tag))?;
+    git::commit(&new_tag.to_string())?;
     git::create_tag(&new_tag)?;
 
     if let Some(remotes) = git::get_remote_list() {

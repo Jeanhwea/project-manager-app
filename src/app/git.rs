@@ -194,13 +194,11 @@ pub fn get_remote_name_by_url(url: &str) -> Option<String> {
     } else if host == "gitee.com" {
         if path.to_lowercase().starts_with("jeanhwea/") {
             "gitee".to_string()
-        } else if path.to_lowercase().starts_with("red_8/") {
-            "redinf".to_string()
-        } else if path.to_lowercase().starts_with("redtool/") {
-            "redinf".to_string()
-        } else if path.to_lowercase().starts_with("red_base/") {
-            "redinf".to_string()
-        } else if path.to_lowercase().starts_with("teampuzzle/") {
+        } else if path.to_lowercase().starts_with("red_8/")
+            || path.to_lowercase().starts_with("redtool/")
+            || path.to_lowercase().starts_with("red_base/")
+            || path.to_lowercase().starts_with("teampuzzle/")
+        {
             "redinf".to_string()
         } else {
             "gitee".to_string()
