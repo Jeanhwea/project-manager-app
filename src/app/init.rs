@@ -104,9 +104,17 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
 }
 
 fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
+    // delete .git directory
     std::fs::remove_dir_all(project_dir.join(".git"))?;
+
+    // delete .gitmodules file
     if project_dir.join(".gitmodules").exists() {
         std::fs::remove_file(project_dir.join(".gitmodules"))?;
+    }
+
+    // delete git submodule directory
+    for submodule in submodules {
+        std::fs::remove_dir_all(project_dir.join(&submodule.path))?;
     }
 
     CommandRunner::run_with_success_in_dir("git", &["init"], project_dir)
