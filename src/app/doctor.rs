@@ -74,11 +74,11 @@ fn do_rename_git_remote(repo_path: &Path, old_name: &str, new_name: &str) {
     CommandRunner::run_with_success_in_dir(
         "git",
         &["remote", "rename", old_name, new_name],
-        repo_path.to_str().unwrap(),
+        repo_path,
     )
     .unwrap();
 }
 
 fn do_git_garbage_collect(repo_path: &Path) {
-    CommandRunner::run_with_success_in_dir("git", &["gc"], repo_path.to_str().unwrap()).unwrap();
+    CommandRunner::run_with_success_in_dir("git", &["gc"], repo_path).unwrap();
 }

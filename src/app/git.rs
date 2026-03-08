@@ -3,7 +3,8 @@ use super::version::compare_versions;
 use std::path::Path;
 
 pub fn get_rev_revision(ref_name: &str) -> Option<String> {
-    let output = CommandRunner::run_quiet("git", &["rev-parse", ref_name]).ok()?;
+    let output =
+        CommandRunner::run_quiet("git", &["rev-parse", ref_name]).ok()?;
 
     let revision = String::from_utf8(output.stdout).ok()?;
     let revision = revision.trim();
@@ -31,7 +32,8 @@ pub fn get_current_version() -> Option<String> {
 }
 
 pub fn get_current_branch() -> Option<String> {
-    let output = CommandRunner::run_quiet("git", &["branch", "--show-current"]).ok()?;
+    let output =
+        CommandRunner::run_quiet("git", &["branch", "--show-current"]).ok()?;
 
     let branch = String::from_utf8(output.stdout).ok()?;
     let branch = branch.trim();
@@ -92,7 +94,7 @@ pub fn push_branch(remote: &str, branch: &str) -> Result<(), String> {
 
 pub fn get_remote_name(work_dir: &Path) -> Vec<String> {
     let output =
-        match CommandRunner::run_quiet_in_dir("git", &["remote"], work_dir.to_str().unwrap()) {
+        match CommandRunner::run_quiet_in_dir("git", &["remote"], work_dir) {
             Ok(out) => out,
             Err(_) => return Vec::new(),
         };
@@ -120,7 +122,7 @@ pub fn get_remote_info(work_dir: &Path) -> Vec<(String, String)> {
         let output = match CommandRunner::run_quiet_in_dir(
             "git",
             &["remote", "get-url", &remote],
-            work_dir.to_str().unwrap(),
+            work_dir,
         ) {
             Ok(out) => out,
             Err(_) => continue,

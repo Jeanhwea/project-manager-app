@@ -1,4 +1,5 @@
 use colored::*;
+use std::path::Path;
 use std::process::{Command, Output};
 
 pub struct CommandRunner;
@@ -12,7 +13,11 @@ impl CommandRunner {
         Self::run_internal(program, args, false)
     }
 
-    fn run_internal(program: &str, args: &[&str], verbose: bool) -> Result<Output, String> {
+    fn run_internal(
+        program: &str,
+        args: &[&str],
+        verbose: bool,
+    ) -> Result<Output, String> {
         let mut cmd = Command::new(program);
         cmd.args(args);
 
@@ -31,7 +36,10 @@ impl CommandRunner {
         Ok(output)
     }
 
-    pub fn run_with_success(program: &str, args: &[&str]) -> Result<Output, String> {
+    pub fn run_with_success(
+        program: &str,
+        args: &[&str],
+    ) -> Result<Output, String> {
         let output = Self::run(program, args)?;
 
         if !output.status.success() {
@@ -45,7 +53,7 @@ impl CommandRunner {
     pub fn run_with_success_in_dir(
         program: &str,
         args: &[&str],
-        dir: &str,
+        dir: &Path,
     ) -> Result<Output, String> {
         let output = Self::run_in_dir(program, args, dir)?;
 
@@ -57,18 +65,26 @@ impl CommandRunner {
         Ok(output)
     }
 
-    pub fn run_in_dir(program: &str, args: &[&str], dir: &str) -> Result<Output, String> {
+    pub fn run_in_dir(
+        program: &str,
+        args: &[&str],
+        dir: &Path,
+    ) -> Result<Output, String> {
         Self::run_internal_in_dir(program, args, dir, true)
     }
 
-    pub fn run_quiet_in_dir(program: &str, args: &[&str], dir: &str) -> Result<Output, String> {
+    pub fn run_quiet_in_dir(
+        program: &str,
+        args: &[&str],
+        dir: &Path,
+    ) -> Result<Output, String> {
         Self::run_internal_in_dir(program, args, dir, false)
     }
 
     fn run_internal_in_dir(
         program: &str,
         args: &[&str],
-        dir: &str,
+        dir: &Path,
         verbose: bool,
     ) -> Result<Output, String> {
         let mut cmd = Command::new(program);
