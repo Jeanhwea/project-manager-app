@@ -1,7 +1,29 @@
 use super::git;
 use super::runner::CommandRunner;
+use super::utils::to_kebab_case;
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ActionType {
+    Replace,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct Action {
+    action: ActionType,
+    str_old: String,
+    str_new: String,
+    files: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct PmaConfig {
+    project_name: String,
+    actions: Vec<Action>,
+}
 
 #[derive(Debug, Clone)]
 struct Submodule {
@@ -43,9 +65,10 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
 
     let submodules = get_submodules(project_dir)?;
 
+    do_perform_actions(project_dir, &project_name)?;
+
     do_reinit_repo(project_dir, &submodules)
 }
-
 fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
     let gitmodules_path = project_dir.join(".gitmodules");
 
@@ -101,6 +124,58 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
     }
 
     Ok(submodules)
+}
+
+fn do_perform_actions(project_dir: &Path, project_name: &str) -> Result<()> {
+    let pma_config = project_dir.join(".pma.json");
+    if !pma_config.exists() {
+        return Ok(());
+    }
+
+    let pma_content = std::fs::read_to_string(&pma_config)
+        .with_context(|| format!("无法读取 .pma.json 文件: {}", pma_config.display()))?;
+
+    let config: PmaConfig =
+        serde_json::from_str(&pma_content).with_context(|| "无法解析 .pma.json 文件内容")?;
+
+    for action in config.actions {
+        match action.action {
+            ActionType::Replace => {
+                do_replace_action(project_dir, &action, project_name)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn do_replace_action(project_dir: &Path, action: &Action, project_name: &str) -> Result<()> {
+    let str_new = resolve_placeholders(&action.str_new, project_name);
+
+    for file_path in &action.files {
+        let full_path = project_dir.join(file_path);
+        if !full_path.exists() {
+            continue;
+        }
+
+        let content = std::fs::read_to_string(&full_path)
+            .with_context(|| format!("无法读取文件: {}", full_path.display()))?;
+
+        let new_content = content.replace(&action.str_old, &str_new);
+
+        std::fs::write(&full_path, new_content)
+            .with_context(|| format!("无法写入文件: {}", full_path.display()))?;
+    }
+
+    Ok(())
+}
+
+fn resolve_placeholders(template: &str, project_name: &str) -> String {
+    let result = template.replace("${PMA_PROJECT_NAME}", project_name);
+
+    let project_name_kebab = to_kebab_case(project_name);
+
+    result.replace("${PMA_PROJECT_NAME_KEBAB}", &project_name_kebab)
 }
 
 fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
