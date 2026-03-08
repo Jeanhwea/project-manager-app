@@ -30,7 +30,7 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) -> Result<()> {
             repo.path.clone()
         };
 
-        let progress = format!("({}/{ })", repo_index + 1, total_repos);
+        let progress = format!("({}/{})", repo_index + 1, total_repos);
         println!(
             "{}>> {}",
             progress.white().bold(),
