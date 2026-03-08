@@ -68,14 +68,10 @@ pub fn list_cached_changes() -> Result<()> {
         .map(|_| ())
 }
 
-pub fn clone(repo_url: &str, dest_dir: &Path) -> Result<()> {
-    CommandRunner::run_with_success_in_dir(
-        "git",
-        &["clone", repo_url, dest_dir.to_string_lossy().as_ref()],
-        dest_dir,
-    )
-    .with_context(|| format!("无法克隆仓库 {} 到 {}", repo_url, dest_dir.display()))
-    .map(|_| ())
+pub fn clone(repo_url: &str, name: &str) -> Result<()> {
+    CommandRunner::run_with_success("git", &["clone", repo_url, name])
+        .with_context(|| format!("无法克隆仓库 {} 到 {}", repo_url, name))
+        .map(|_| ())
 }
 
 pub fn add_file(file: &str) -> Result<()> {

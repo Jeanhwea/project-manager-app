@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::path::Path;
 
 pub fn execute(path: &str, name: &str) -> Result<()> {
@@ -25,7 +25,10 @@ pub fn execute(path: &str, name: &str) -> Result<()> {
 }
 
 fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
-    println!("初始化项目: {} -> {}", repo_url, project_dir.display());
-    super::git::clone(repo_url, project_dir)?;
-    Ok(())
+    let project_name = project_dir
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy();
+    super::git::clone(repo_url, &project_name)
+        .with_context(|| format!("无法克隆仓库 {} 到 {}", repo_url, project_dir.display()))
 }
