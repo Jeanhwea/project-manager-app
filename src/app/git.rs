@@ -64,38 +64,44 @@ pub fn get_remote_list() -> Option<Vec<String>> {
 
 pub fn list_cached_changes() -> Result<()> {
     CommandRunner::run_with_success("git", &["diff", "--cached"])
-        .with_context(|| "无法列出缓存的更改")?;
-    Ok(())
+        .with_context(|| "无法列出缓存的更改")
+        .map(|_| ())
+}
+
+pub fn clone(repo_url: &str, name: &str) -> Result<()> {
+    CommandRunner::run_with_success("git", &["clone", repo_url, name])
+        .with_context(|| format!("无法克隆仓库 {} 到 {}", repo_url, name))
+        .map(|_| ())
 }
 
 pub fn add_file(file: &str) -> Result<()> {
     CommandRunner::run_with_success("git", &["add", file])
-        .with_context(|| format!("无法添加文件 {}", file))?;
-    Ok(())
+        .with_context(|| format!("无法添加文件 {}", file))
+        .map(|_| ())
 }
 
 pub fn commit(message: &str) -> Result<()> {
     CommandRunner::run_with_success("git", &["commit", "-m", message])
-        .with_context(|| format!("无法提交: {}", message))?;
-    Ok(())
+        .with_context(|| format!("无法提交: {}", message))
+        .map(|_| ())
 }
 
 pub fn create_tag(tag: &str) -> Result<()> {
     CommandRunner::run_with_success("git", &["tag", tag])
-        .with_context(|| format!("无法创建标签 {}", tag))?;
-    Ok(())
+        .with_context(|| format!("无法创建标签 {}", tag))
+        .map(|_| ())
 }
 
 pub fn push_tag(remote: &str, tag: &str) -> Result<()> {
     CommandRunner::run_with_success("git", &["push", remote, tag])
-        .with_context(|| format!("无法推送标签 {} 到 {}", tag, remote))?;
-    Ok(())
+        .with_context(|| format!("无法推送标签 {} 到 {}", tag, remote))
+        .map(|_| ())
 }
 
 pub fn push_branch(remote: &str, branch: &str) -> Result<()> {
     CommandRunner::run_with_success("git", &["push", remote, branch])
-        .with_context(|| format!("无法推送分支 {} 到 {}", branch, remote))?;
-    Ok(())
+        .with_context(|| format!("无法推送分支 {} 到 {}", branch, remote))
+        .map(|_| ())
 }
 
 pub fn get_remote_name(work_dir: &Path) -> Vec<String> {

@@ -35,23 +35,19 @@ impl CommandRunner {
 
     pub fn run_with_success(program: &str, args: &[&str]) -> Result<Output> {
         let output = Self::run(program, args)?;
-
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             anyhow::bail!("命令执行失败: {}", stderr);
         }
-
         Ok(output)
     }
 
     pub fn run_with_success_in_dir(program: &str, args: &[&str], dir: &Path) -> Result<Output> {
         let output = Self::run_in_dir(program, args, dir)?;
-
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             anyhow::bail!("命令执行失败: {}", stderr);
         }
-
         Ok(output)
     }
 
