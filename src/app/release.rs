@@ -3,6 +3,7 @@ use super::utils;
 use super::version::Version;
 use anyhow::{Context, Result};
 use regex::Regex;
+use std::path::Path;
 
 const CARGO_TOML: &str = "Cargo.toml";
 const POM_XML: &str = "pom.xml";
@@ -71,34 +72,34 @@ pub fn release_config_file(tag: &str, config_file: &str) -> Result<()> {
 fn detect_config_file() -> Result<Vec<String>> {
     let mut config_files = Vec::new();
 
-    if std::path::Path::new(CARGO_TOML).exists() {
+    if Path::new(CARGO_TOML).exists() {
         config_files.push(CARGO_TOML.to_string());
     }
-    if std::path::Path::new(POM_XML).exists() {
+    if Path::new(POM_XML).exists() {
         config_files.push(POM_XML.to_string());
     }
-    if std::path::Path::new(PYPROJECT_TOML).exists() {
+    if Path::new(PYPROJECT_TOML).exists() {
         config_files.push(PYPROJECT_TOML.to_string());
     }
-    if std::path::Path::new(PYTHON_VERSION_FILE).exists() {
+    if Path::new(PYTHON_VERSION_FILE).exists() {
         config_files.push(PYTHON_VERSION_FILE.to_string());
     }
 
-    if std::path::Path::new(VERSION_FILE).exists() {
+    if Path::new(VERSION_FILE).exists() {
         config_files.push(VERSION_FILE.to_string());
     }
-    if std::path::Path::new(VERSION_TEXT).exists() {
+    if Path::new(VERSION_TEXT).exists() {
         config_files.push(VERSION_TEXT.to_string());
     }
 
     let dir_name = utils::get_current_dir()?;
     let python_project_version_file = format!("{}/__version__.py", dir_name);
-    if std::path::Path::new(&python_project_version_file).exists() {
+    if Path::new(&python_project_version_file).exists() {
         config_files.push(python_project_version_file);
     }
 
     if config_files.is_empty() {
-        anyhow::bail!("未检测到 Cargo.toml、pom.xml 或 pyproject.toml 文件");
+        anyhow::bail!("未检测到可编辑的配置文件");
     }
 
     Ok(config_files)
