@@ -42,18 +42,15 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
             continue;
         }
 
+        // 打印仓库信息
+        do_info_repository(&repo_path);
+
         // 同步仓库
         do_sync_repository(&repo_path);
     }
 }
 
-fn do_sync_repository(repo_path: &Path) {
-    // 获取远程仓库信息
-    let remotes = git::get_remote_info(repo_path);
-    if remotes.is_empty() {
-        return;
-    }
-
+fn do_info_repository(repo_path: &Path) {
     // 打印本地分支
     if let Err(e) =
         CommandRunner::run_with_success_in_dir("git", &["branch", "--list"], repo_path)
@@ -64,6 +61,14 @@ fn do_sync_repository(repo_path: &Path) {
     // 打印远程仓库信息
     if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["remote", "-v"], repo_path) {
         println!("  无法获取远程信息: {}", e);
+    }
+}
+
+fn do_sync_repository(repo_path: &Path) {
+    // 获取远程仓库信息
+    let remotes = git::get_remote_info(repo_path);
+    if remotes.is_empty() {
+        return;
     }
 
     // 拉取远端数据
