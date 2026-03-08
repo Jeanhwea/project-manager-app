@@ -7,7 +7,13 @@ use std::path::Path;
 use super::repo::RepoType;
 
 pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) {
-    let root_dir = std::path::Path::new(path);
+    let root_dir = Path::new(path);
+
+    if !root_dir.exists() {
+        eprintln!("目录不存在: {}", path);
+        return;
+    }
+
     let git_repos = super::repo::find_git_repositories(root_dir, max_depth);
 
     if git_repos.is_empty() {
