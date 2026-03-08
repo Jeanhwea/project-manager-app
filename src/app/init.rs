@@ -46,8 +46,68 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
     do_reinit_repo(project_dir, &submodules)
 }
 
+fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
+    let gitmodules_path = project_dir.join(".gitmodules");
+
+    if !gitmodules_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let output = CommandRunner::run_quiet_in_dir(
+        "git",
+        &["config", "--file", ".gitmodules", "--get-regexp", "path"],
+        project_dir,
+    )
+    .with_context(|| "无法读取 .gitmodules 配置")?;
+
+    let content =
+        String::from_utf8(output.stdout).with_context(|| "无法解析 .gitmodules 输出")?;
+
+    let mut submodules = Vec::new();
+
+    for line in content.lines() {
+        let parts: Vec<&str> = line.splitn(2, ' ').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+
+        let submodule_path = parts[1].trim();
+        if submodule_path.is_empty() {
+            continue;
+        }
+
+        let url_output = CommandRunner::run_quiet_in_dir(
+            "git",
+            &[
+                "config",
+                "--file",
+                ".gitmodules",
+                "--get",
+                &format!("submodule.{}.url", submodule_path),
+            ],
+            project_dir,
+        )
+        .with_context(|| format!("无法获取子模块 {} 的 URL", submodule_path))?;
+
+        let url = String::from_utf8(url_output.stdout).with_context(|| "无法解析子模块 URL")?;
+        let url = url.trim();
+
+        if !url.is_empty() {
+            submodules.push(Submodule {
+                path: submodule_path.to_string(),
+                url: url.to_string(),
+            });
+        }
+    }
+
+    Ok(submodules)
+}
+
 fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
     std::fs::remove_dir_all(project_dir.join(".git"))?;
+    if project_dir.join(".gitmodules").exists() {
+        std::fs::remove_file(project_dir.join(".gitmodules"))?;
+    }
 
     CommandRunner::run_with_success_in_dir("git", &["init"], project_dir)
         .with_context(|| format!("无法初始化 Git 仓库到 {}", project_dir.display()))?;
@@ -57,6 +117,21 @@ fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
 
     CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "init"], project_dir)
         .with_context(|| format!("无法提交初始化提交到 Git 仓库 {}", project_dir.display()))?;
+
+    for submodule in submodules {
+        CommandRunner::run_with_success_in_dir(
+            "git",
+            &["submodule", "add", &submodule.url, &submodule.path],
+            project_dir,
+        )
+        .with_context(|| {
+            format!(
+                "无法添加子模块 {} 到 {}",
+                submodule.path,
+                project_dir.display()
+            )
+        })?;
+    }
 
     Ok(())
 }
