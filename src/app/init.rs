@@ -120,12 +120,6 @@ fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
     CommandRunner::run_with_success_in_dir("git", &["init"], project_dir)
         .with_context(|| format!("无法初始化 Git 仓库到 {}", project_dir.display()))?;
 
-    CommandRunner::run_with_success_in_dir("git", &["add", "."], project_dir)
-        .with_context(|| format!("无法添加所有文件到 Git 仓库 {}", project_dir.display()))?;
-
-    CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "init"], project_dir)
-        .with_context(|| format!("无法提交初始化提交到 Git 仓库 {}", project_dir.display()))?;
-
     for submodule in submodules {
         CommandRunner::run_with_success_in_dir(
             "git",
@@ -140,6 +134,12 @@ fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
             )
         })?;
     }
+
+    CommandRunner::run_with_success_in_dir("git", &["add", "."], project_dir)
+        .with_context(|| format!("无法添加所有文件到 Git 仓库 {}", project_dir.display()))?;
+
+    CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "init"], project_dir)
+        .with_context(|| format!("无法提交初始化提交到 Git 仓库 {}", project_dir.display()))?;
 
     Ok(())
 }
