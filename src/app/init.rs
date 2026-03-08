@@ -1,7 +1,8 @@
 use super::git;
 use super::runner::CommandRunner;
-use super::utils::to_kebab_case;
+
 use anyhow::{Context, Result};
+use heck::ToKebabCase;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -172,10 +173,7 @@ fn do_replace_action(project_dir: &Path, action: &Action, project_name: &str) ->
 
 fn resolve_placeholders(template: &str, project_name: &str) -> String {
     let result = template.replace("${PMA_PROJECT_NAME}", project_name);
-
-    let project_name_kebab = to_kebab_case(project_name);
-
-    result.replace("${PMA_PROJECT_NAME_KEBAB}", &project_name_kebab)
+    result.replace("${PMA_PROJECT_NAME_KEBAB}", &project_name.to_kebab_case())
 }
 
 fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
