@@ -1,7 +1,7 @@
 # https://github.com/rust-lang/rustfmt/blob/master/Configurations.md
 
 # common
-max_width = 80
+max_width = 98
 edition = "2024"
 
 # imports style

@@ -13,11 +13,7 @@ impl CommandRunner {
         Self::run_internal(program, args, false)
     }
 
-    fn run_internal(
-        program: &str,
-        args: &[&str],
-        verbose: bool,
-    ) -> Result<Output, String> {
+    fn run_internal(program: &str, args: &[&str], verbose: bool) -> Result<Output, String> {
         let mut cmd = Command::new(program);
         cmd.args(args);
 
@@ -36,10 +32,7 @@ impl CommandRunner {
         Ok(output)
     }
 
-    pub fn run_with_success(
-        program: &str,
-        args: &[&str],
-    ) -> Result<Output, String> {
+    pub fn run_with_success(program: &str, args: &[&str]) -> Result<Output, String> {
         let output = Self::run(program, args)?;
 
         if !output.status.success() {
@@ -65,19 +58,11 @@ impl CommandRunner {
         Ok(output)
     }
 
-    pub fn run_in_dir(
-        program: &str,
-        args: &[&str],
-        dir: &Path,
-    ) -> Result<Output, String> {
+    pub fn run_in_dir(program: &str, args: &[&str], dir: &Path) -> Result<Output, String> {
         Self::run_internal_in_dir(program, args, dir, true)
     }
 
-    pub fn run_quiet_in_dir(
-        program: &str,
-        args: &[&str],
-        dir: &Path,
-    ) -> Result<Output, String> {
+    pub fn run_quiet_in_dir(program: &str, args: &[&str], dir: &Path) -> Result<Output, String> {
         Self::run_internal_in_dir(program, args, dir, false)
     }
 

@@ -9,15 +9,13 @@ const PYPROJECT_TOML: &str = "pyproject.toml";
 const PYTHON_VERSION_FILE: &str = "src/__version__.py";
 
 pub fn execute(bump_type: &str) {
-    let current_branch =
-        git::get_current_branch().unwrap_or_else(|| "master".to_string());
+    let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
     if current_branch != "master" {
         eprintln!("错误: 只能在 master 分支上执行 release");
         std::process::exit(1);
     }
 
-    let current_tag =
-        git::get_current_version().unwrap_or_else(|| "v0.0.0".to_string());
+    let current_tag = git::get_current_version().unwrap_or_else(|| "v0.0.0".to_string());
 
     let rev_current_tag = git::get_rev_revision(&current_tag).unwrap();
     let rev_head = git::get_rev_revision("HEAD").unwrap();
@@ -112,16 +110,14 @@ fn detect_config_file() -> Vec<String> {
 }
 
 fn edit_cargo_toml_file(tag: &str, config_file: &str) {
-    let config_content =
-        std::fs::read_to_string(config_file).unwrap_or_else(|e| {
-            eprintln!("错误: {}", e);
-            std::process::exit(1);
-        });
+    let config_content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
+    });
 
     let version = tag.trim_start_matches('v');
 
-    let mut lines: Vec<String> =
-        config_content.lines().map(|s| s.to_string()).collect();
+    let mut lines: Vec<String> = config_content.lines().map(|s| s.to_string()).collect();
     let mut in_package_section = false;
 
     for line in &mut lines {
@@ -146,36 +142,30 @@ fn edit_cargo_toml_file(tag: &str, config_file: &str) {
 }
 
 fn edit_pom_xml_file(tag: &str, config_file: &str) {
-    let config_content =
-        std::fs::read_to_string(config_file).unwrap_or_else(|e| {
-            eprintln!("错误: {}", e);
-            std::process::exit(1);
-        });
+    let config_content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
+    });
 
-    let re =
-        Regex::new(r#"<version>[0-9]+\.[0-9]+\.[0-9]+</version>"#).unwrap();
+    let re = Regex::new(r#"<version>[0-9]+\.[0-9]+\.[0-9]+</version>"#).unwrap();
     let new_config_content =
         re.replace(&config_content, &format!(r#"<version>{}</version>"#, tag));
 
-    std::fs::write(config_file, new_config_content.to_string()).unwrap_or_else(
-        |e| {
-            eprintln!("错误: {}", e);
-            std::process::exit(1);
-        },
-    );
+    std::fs::write(config_file, new_config_content.to_string()).unwrap_or_else(|e| {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
+    });
 }
 
 fn edit_pyproject_toml_file(tag: &str, config_file: &str) {
-    let config_content =
-        std::fs::read_to_string(config_file).unwrap_or_else(|e| {
-            eprintln!("错误: {}", e);
-            std::process::exit(1);
-        });
+    let config_content = std::fs::read_to_string(config_file).unwrap_or_else(|e| {
+        eprintln!("错误: {}", e);
+        std::process::exit(1);
+    });
 
     let version = tag.trim_start_matches('v');
 
-    let mut lines: Vec<String> =
-        config_content.lines().map(|s| s.to_string()).collect();
+    let mut lines: Vec<String> = config_content.lines().map(|s| s.to_string()).collect();
     let mut in_project_section = false;
 
     for line in &mut lines {
@@ -209,8 +199,7 @@ fn edit_python_package_init_file(tag: &str, config_file: &str) {
 
     use regex::Regex;
     let re = Regex::new(r#"__version__ = "[^"]*""#).unwrap();
-    let new_content =
-        re.replace(&content, &format!(r#"__version__ = "{}""#, version));
+    let new_content = re.replace(&content, &format!(r#"__version__ = "{}""#, version));
 
     std::fs::write(config_file, new_content.as_ref()).unwrap_or_else(|e| {
         eprintln!("错误: {}", e);

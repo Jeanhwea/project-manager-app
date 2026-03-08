@@ -55,20 +55,14 @@ fn do_sync_repository(repo_path: &Path) {
     }
 
     // 打印本地分支
-    if let Err(e) = CommandRunner::run_with_success_in_dir(
-        "git",
-        &["branch", "--list"],
-        repo_path,
-    ) {
+    if let Err(e) =
+        CommandRunner::run_with_success_in_dir("git", &["branch", "--list"], repo_path)
+    {
         println!("  无法获取分支信息: {}", e);
     }
 
     // 打印远程仓库信息
-    if let Err(e) = CommandRunner::run_with_success_in_dir(
-        "git",
-        &["remote", "-v"],
-        repo_path,
-    ) {
+    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["remote", "-v"], repo_path) {
         println!("  无法获取远程信息: {}", e);
     }
 
@@ -90,14 +84,9 @@ fn do_sync_repository(repo_path: &Path) {
 fn should_skip_push(url: &str) -> bool {
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
         // println!("  解析远程URL: {} {} {}", protocol, host, path);
-        if protocol == "https"
-            && (host == "github.com" || host == "githubfast.com")
-        {
+        if protocol == "https" && (host == "github.com" || host == "githubfast.com") {
             return true;
-        } else if protocol == "git"
-            && host == "gitee.com"
-            && path.starts_with("red_base")
-        {
+        } else if protocol == "git" && host == "gitee.com" && path.starts_with("red_base") {
             return true;
         }
     } else {
@@ -108,32 +97,22 @@ fn should_skip_push(url: &str) -> bool {
 }
 
 fn do_pull_repository(repo_path: &Path) {
-    if CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path)
-        .is_err()
-    {
+    if CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path).is_err() {
         println!("  同步仓库失败: {}", utils::format_path(repo_path).red());
     }
 }
 
 fn do_push_repository(repo_path: &Path, remote: &str) {
     // 推送所有分支
-    if CommandRunner::run_with_success_in_dir(
-        "git",
-        &["push", remote, "--all"],
-        repo_path,
-    )
-    .is_err()
+    if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], repo_path)
+        .is_err()
     {
         println!("  推送分支失败: {}", utils::format_path(repo_path).red());
     }
 
     // 推送所有标签
-    if CommandRunner::run_with_success_in_dir(
-        "git",
-        &["push", remote, "--tags"],
-        repo_path,
-    )
-    .is_err()
+    if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], repo_path)
+        .is_err()
     {
         println!("  推送标签失败: {}", utils::format_path(repo_path).red());
     }
