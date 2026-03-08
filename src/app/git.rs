@@ -1,18 +1,20 @@
 use super::runner::CommandRunner;
 use super::version::compare_versions;
+use anyhow::{Context, Result};
 use std::path::Path;
 
-pub fn get_rev_revision(ref_name: &str) -> Option<String> {
-    let output = CommandRunner::run_quiet("git", &["rev-parse", ref_name]).ok()?;
+pub fn get_rev_revision(ref_name: &str) -> Result<String> {
+    let output = CommandRunner::run_quiet("git", &["rev-parse", ref_name])
+        .with_context(|| format!("无法获取 {} 的 revision", ref_name))?;
 
-    let revision = String::from_utf8(output.stdout).ok()?;
+    let revision = String::from_utf8(output.stdout).with_context(|| "无法解析 revision 输出")?;
     let revision = revision.trim();
 
     if revision.is_empty() {
-        return None;
+        anyhow::bail!("{} 的 revision 为空", ref_name);
     }
 
-    Some(revision.to_string())
+    Ok(revision.to_string())
 }
 
 pub fn get_current_version() -> Option<String> {
@@ -60,33 +62,39 @@ pub fn get_remote_list() -> Option<Vec<String>> {
     Some(remotes)
 }
 
-pub fn list_cached_changes() -> Result<(), String> {
-    CommandRunner::run_with_success("git", &["diff", "--cached"])?;
+pub fn list_cached_changes() -> Result<()> {
+    CommandRunner::run_with_success("git", &["diff", "--cached"])
+        .with_context(|| "无法列出缓存的更改")?;
     Ok(())
 }
 
-pub fn add_file(file: &str) -> Result<(), String> {
-    CommandRunner::run_with_success("git", &["add", file])?;
+pub fn add_file(file: &str) -> Result<()> {
+    CommandRunner::run_with_success("git", &["add", file])
+        .with_context(|| format!("无法添加文件 {}", file))?;
     Ok(())
 }
 
-pub fn commit(message: &str) -> Result<(), String> {
-    CommandRunner::run_with_success("git", &["commit", "-m", message])?;
+pub fn commit(message: &str) -> Result<()> {
+    CommandRunner::run_with_success("git", &["commit", "-m", message])
+        .with_context(|| format!("无法提交: {}", message))?;
     Ok(())
 }
 
-pub fn create_tag(tag: &str) -> Result<(), String> {
-    CommandRunner::run_with_success("git", &["tag", tag])?;
+pub fn create_tag(tag: &str) -> Result<()> {
+    CommandRunner::run_with_success("git", &["tag", tag])
+        .with_context(|| format!("无法创建标签 {}", tag))?;
     Ok(())
 }
 
-pub fn push_tag(remote: &str, tag: &str) -> Result<(), String> {
-    CommandRunner::run_with_success("git", &["push", remote, tag])?;
+pub fn push_tag(remote: &str, tag: &str) -> Result<()> {
+    CommandRunner::run_with_success("git", &["push", remote, tag])
+        .with_context(|| format!("无法推送标签 {} 到 {}", tag, remote))?;
     Ok(())
 }
 
-pub fn push_branch(remote: &str, branch: &str) -> Result<(), String> {
-    CommandRunner::run_with_success("git", &["push", remote, branch])?;
+pub fn push_branch(remote: &str, branch: &str) -> Result<()> {
+    CommandRunner::run_with_success("git", &["push", remote, branch])
+        .with_context(|| format!("无法推送分支 {} 到 {}", branch, remote))?;
     Ok(())
 }
 

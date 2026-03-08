@@ -1,24 +1,24 @@
 use super::git;
 use super::runner::CommandRunner;
 use super::utils;
+use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
 
 use super::repo::RepoType;
 
-pub fn execute(path: &str, max_depth: Option<usize>) {
+pub fn execute(path: &str, max_depth: Option<usize>) -> Result<()> {
     let root_dir = Path::new(path);
 
     if !root_dir.exists() {
-        eprintln!("目录不存在: {}", path);
-        return;
+        anyhow::bail!("目录不存在: {}", path);
     }
 
     let git_repos = super::repo::find_git_repositories(root_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");
-        return;
+        return Ok(());
     }
 
     let total_repos = git_repos.len();
@@ -30,7 +30,7 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
             repo_info.path.clone()
         };
 
-        let progress = format!("({}/{})", repo_index + 1, total_repos);
+        let progress = format!("({}/{ })", repo_index + 1, total_repos);
         println!(
             "{}>> {}",
             progress.white().bold(),
@@ -48,6 +48,8 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
         // 同步仓库
         do_sync_repository(&repo_path);
     }
+
+    Ok(())
 }
 
 fn do_info_repository(repo_path: &Path) {
@@ -102,23 +104,35 @@ fn should_skip_push(url: &str) -> bool {
 }
 
 fn do_pull_repository(repo_path: &Path) {
-    if CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path).is_err() {
-        println!("  同步仓库失败: {}", utils::format_path(repo_path).red());
+    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path) {
+        println!(
+            "  同步仓库失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
     }
 }
 
 fn do_push_repository(repo_path: &Path, remote: &str) {
     // 推送所有分支
-    if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], repo_path)
-        .is_err()
+    if let Err(e) =
+        CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], repo_path)
     {
-        println!("  推送分支失败: {}", utils::format_path(repo_path).red());
+        println!(
+            "  推送分支失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
     }
 
     // 推送所有标签
-    if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], repo_path)
-        .is_err()
+    if let Err(e) =
+        CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], repo_path)
     {
-        println!("  推送标签失败: {}", utils::format_path(repo_path).red());
+        println!(
+            "  推送标签失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
     }
 }
