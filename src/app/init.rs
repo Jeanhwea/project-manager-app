@@ -237,7 +237,7 @@ fn do_reinit_repo(
         std::fs::remove_dir_all(project_dir.join(&submodule.path))?;
     }
 
-    CommandRunner::run_with_success_in_dir("git", &["init", "."], project_dir)
+    CommandRunner::run_with_success_in_dir("git", &["init"], project_dir)
         .with_context(|| format!("无法初始化 Git 仓库到 {}", project_dir.display()))?;
 
     for submodule in submodules {
