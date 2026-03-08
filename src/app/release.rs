@@ -64,7 +64,7 @@ pub fn release_config_file(tag: &str, config_file: &str) -> Result<()> {
     } else if config_file == PYTHON_VERSION_FILE {
         edit_python_package_init_file(tag, config_file)?;
     } else if config_file == VERSION_FILE {
-        edit_version_file(tag, config_file)?;
+        edit_version_text_file(tag, config_file)?;
     } else if config_file == VERSION_TEXT {
         edit_version_text_file(tag, config_file)?;
     } else {
@@ -198,7 +198,7 @@ fn edit_python_package_init_file(tag: &str, config_file: &str) -> Result<()> {
     Ok(())
 }
 
-fn edit_version_file(tag: &str, config_file: &str) -> Result<()> {
+fn edit_version_text_file(tag: &str, config_file: &str) -> Result<()> {
     let version = tag.trim_start_matches('v');
 
     std::fs::write(config_file, version).with_context(|| format!("无法写入 {}", config_file))?;
