@@ -7,17 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum ActionType {
-    Replace,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct Action {
-    action: ActionType,
-    str_old: String,
-    str_new: String,
-    files: Vec<String>,
+#[serde(tag = "action", rename_all = "snake_case")]
+enum Action {
+    Replace {
+        str_old: String,
+        str_new: String,
+        files: Vec<String>,
+    },
+    AddGitRemote {
+        remote_name: String,
+        remote_url: String,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -138,9 +138,19 @@ fn do_perform_actions(project_dir: &Path, project_name: &str) -> Result<()> {
         serde_json::from_str(&pma_content).with_context(|| "无法解析 .pma.json 文件内容")?;
 
     for action in config.actions {
-        match action.action {
-            ActionType::Replace => {
-                do_replace_action(project_dir, &action, project_name)?;
+        match action {
+            Action::Replace {
+                str_old,
+                str_new,
+                files,
+            } => {
+                do_replace_action(project_dir, &str_old, &str_new, &files, project_name)?;
+            }
+            Action::AddGitRemote {
+                remote_name,
+                remote_url,
+            } => {
+                do_add_git_remote_action(project_dir, &remote_name, &remote_url, project_name)?;
             }
         }
     }
@@ -151,10 +161,16 @@ fn do_perform_actions(project_dir: &Path, project_name: &str) -> Result<()> {
     Ok(())
 }
 
-fn do_replace_action(project_dir: &Path, action: &Action, project_name: &str) -> Result<()> {
-    let str_new = resolve_placeholders(&action.str_new, project_name);
+fn do_replace_action(
+    project_dir: &Path,
+    str_old: &str,
+    str_new: &str,
+    files: &[String],
+    project_name: &str,
+) -> Result<()> {
+    let str_new = resolve_placeholders(str_new, project_name);
 
-    for file_path in &action.files {
+    for file_path in files {
         let full_path = project_dir.join(file_path);
         if !full_path.exists() {
             continue;
@@ -163,11 +179,35 @@ fn do_replace_action(project_dir: &Path, action: &Action, project_name: &str) ->
         let content = std::fs::read_to_string(&full_path)
             .with_context(|| format!("无法读取文件: {}", full_path.display()))?;
 
-        let new_content = content.replace(&action.str_old, &str_new);
+        let new_content = content.replace(str_old, &str_new);
 
         std::fs::write(&full_path, new_content)
             .with_context(|| format!("无法写入文件: {}", full_path.display()))?;
     }
+
+    Ok(())
+}
+
+fn do_add_git_remote_action(
+    project_dir: &Path,
+    remote_name: &str,
+    remote_url: &str,
+    project_name: &str,
+) -> Result<()> {
+    let remote_url = resolve_placeholders(remote_url, project_name);
+
+    CommandRunner::run_with_success_in_dir(
+        "git",
+        &["remote", "add", remote_name, &remote_url],
+        project_dir,
+    )
+    .with_context(|| {
+        format!(
+            "无法添加 Git 远程仓库 {} 到 {}",
+            remote_name,
+            project_dir.display()
+        )
+    })?;
 
     Ok(())
 }
