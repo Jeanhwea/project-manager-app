@@ -20,12 +20,12 @@ pub fn execute(path: &str, name: &str) -> Result<()> {
         anyhow::bail!("项目目录已存在: {}", project_dir.display());
     }
 
-    let repo_url = repo_dir.to_string_lossy().as_ref();
-    do_init_project(&repo_url, &project_dir)
+    let repo_url = repo_dir.to_string_lossy();
+    do_init_project(repo_url.as_ref(), &project_dir)
 }
 
-fn do_init_project(from_url: &str, project_dir: &Path) -> Result<()> {
-    println!("初始化项目: {} -> {}", from_url, project_dir.display());
-    git::clone(from_url, project_dir)?;
+fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
+    println!("初始化项目: {} -> {}", repo_url, project_dir.display());
+    super::git::clone(repo_url, project_dir)?;
     Ok(())
 }
