@@ -36,6 +36,12 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
     git::clone(repo_url, &project_name)
         .with_context(|| format!("无法克隆仓库 {} 到 {}", repo_url, project_dir.display()))?;
 
+    // 读取 submodule 配置
+
+    do_reinit_repo(repo_url, project_dir)
+}
+
+fn do_reinit_repo(repo_url: &str, project_dir: &Path) -> Result<()> {
     // remove the .git directory
     std::fs::remove_dir_all(project_dir.join(".git"))?;
 
