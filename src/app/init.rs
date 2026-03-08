@@ -66,9 +66,7 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
 
     let submodules = get_submodules(project_dir)?;
 
-    do_perform_actions(project_dir, &project_name)?;
-
-    do_reinit_repo(project_dir, &submodules)
+    do_reinit_repo(project_dir, &project_name, &submodules)
 }
 fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
     let gitmodules_path = project_dir.join(".gitmodules");
@@ -181,7 +179,11 @@ fn resolve_placeholders(template: &str, project_name: &str) -> String {
         .replace("${PMA_PROJECT_NAME_PASCAL}", &project_name.to_pascal_case())
 }
 
-fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
+fn do_reinit_repo(
+    project_dir: &Path,
+    project_name: &str,
+    submodules: &[Submodule],
+) -> Result<()> {
     // delete .git directory
     std::fs::remove_dir_all(project_dir.join(".git"))?;
 
@@ -212,6 +214,8 @@ fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
             )
         })?;
     }
+
+    do_perform_actions(project_dir, &project_name)?;
 
     CommandRunner::run_with_success_in_dir("git", &["add", "."], project_dir)
         .with_context(|| format!("无法添加所有文件到 Git 仓库 {}", project_dir.display()))?;
