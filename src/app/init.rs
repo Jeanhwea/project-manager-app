@@ -3,6 +3,12 @@ use super::runner::CommandRunner;
 use anyhow::{Context, Result};
 use std::path::Path;
 
+#[derive(Debug, Clone)]
+struct Submodule {
+    path: String,
+    url: String,
+}
+
 pub fn execute(path: &str, name: &str) -> Result<()> {
     let root_dir = Path::new(path);
 
@@ -32,28 +38,23 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
         .unwrap_or_default()
         .to_string_lossy();
 
-    // git clone <repo_url> <project_name>
     git::clone(repo_url, &project_name)
         .with_context(|| format!("无法克隆仓库 {} 到 {}", repo_url, project_dir.display()))?;
 
-    // 读取 submodule 配置
+    let submodules = get_submodules(project_dir)?;
 
-    do_reinit_repo(project_dir)
+    do_reinit_repo(project_dir, &submodules)
 }
 
-fn do_reinit_repo(project_dir: &Path) -> Result<()> {
-    // remove the .git directory
+fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
     std::fs::remove_dir_all(project_dir.join(".git"))?;
 
-    // git init .
     CommandRunner::run_with_success_in_dir("git", &["init"], project_dir)
         .with_context(|| format!("无法初始化 Git 仓库到 {}", project_dir.display()))?;
 
-    // git add .
     CommandRunner::run_with_success_in_dir("git", &["add", "."], project_dir)
         .with_context(|| format!("无法添加所有文件到 Git 仓库 {}", project_dir.display()))?;
 
-    // git commit -m "init"
     CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "init"], project_dir)
         .with_context(|| format!("无法提交初始化提交到 Git 仓库 {}", project_dir.display()))?;
 
