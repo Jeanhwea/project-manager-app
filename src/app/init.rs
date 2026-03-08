@@ -8,9 +8,9 @@ pub fn execute(path: &str, name: &str) -> Result<()> {
         anyhow::bail!("目录不存在: {}", path);
     }
 
-    let repo_dir = root_dir.join(name);
+    let repo_dir = root_dir.join(".git");
     if !repo_dir.exists() {
-        anyhow::bail!("项目目录不存在: {}", repo_dir.to_string_lossy());
+        anyhow::bail!("项目仓库目录不存在: {}", repo_dir.to_string_lossy());
     }
 
     let curr_dir = std::env::current_dir()?;
