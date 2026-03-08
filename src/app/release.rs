@@ -8,6 +8,8 @@ const CARGO_TOML: &str = "Cargo.toml";
 const POM_XML: &str = "pom.xml";
 const PYPROJECT_TOML: &str = "pyproject.toml";
 const PYTHON_VERSION_FILE: &str = "src/__version__.py";
+const VERSION_FILE: &str = "version";
+const VERSION_TEXT: &str = "version.txt";
 
 pub fn execute(bump_type: &str) -> Result<()> {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
@@ -80,6 +82,13 @@ fn detect_config_file() -> Result<Vec<String>> {
     }
     if std::path::Path::new(PYTHON_VERSION_FILE).exists() {
         config_files.push(PYTHON_VERSION_FILE.to_string());
+    }
+
+    if std::path::Path::new(VERSION_FILE).exists() {
+        config_files.push(VERSION_FILE.to_string());
+    }
+    if std::path::Path::new(VERSION_TEXT).exists() {
+        config_files.push(VERSION_TEXT.to_string());
     }
 
     let dir_name = utils::get_current_dir()?;
@@ -180,6 +189,14 @@ fn edit_python_package_init_file(tag: &str, config_file: &str) -> Result<()> {
 
     std::fs::write(config_file, new_content.as_ref())
         .with_context(|| format!("无法写入 {}", config_file))?;
+
+    Ok(())
+}
+
+fn edit_version_file(tag: &str, config_file: &str) -> Result<()> {
+    let version = tag.trim_start_matches('v');
+
+    std::fs::write(config_file, version).with_context(|| format!("无法写入 {}", config_file))?;
 
     Ok(())
 }
