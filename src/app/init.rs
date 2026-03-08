@@ -2,7 +2,7 @@ use super::git;
 use super::runner::CommandRunner;
 
 use anyhow::{Context, Result};
-use heck::ToKebabCase;
+use heck::{ToKebabCase, ToPascalCase};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -147,6 +147,9 @@ fn do_perform_actions(project_dir: &Path, project_name: &str) -> Result<()> {
         }
     }
 
+    // delete .pma.json file
+    std::fs::remove_file(pma_config)?;
+
     Ok(())
 }
 
@@ -172,8 +175,10 @@ fn do_replace_action(project_dir: &Path, action: &Action, project_name: &str) ->
 }
 
 fn resolve_placeholders(template: &str, project_name: &str) -> String {
-    let result = template.replace("${PMA_PROJECT_NAME}", project_name);
-    result.replace("${PMA_PROJECT_NAME_KEBAB}", &project_name.to_kebab_case())
+    template
+        .replace("${PMA_PROJECT_NAME}", project_name)
+        .replace("${PMA_PROJECT_NAME_KEBAB}", &project_name.to_kebab_case())
+        .replace("${PMA_PROJECT_NAME_PASCAL}", &project_name.to_pascal_case())
 }
 
 fn do_reinit_repo(project_dir: &Path, submodules: &[Submodule]) -> Result<()> {
