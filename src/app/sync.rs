@@ -1,24 +1,24 @@
 use super::git;
 use super::runner::CommandRunner;
 use super::utils;
+use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
 
 use super::repo::RepoType;
 
-pub fn execute(path: &str, max_depth: Option<usize>) {
+pub fn execute(path: &str, max_depth: Option<usize>) -> Result<()> {
     let root_dir = Path::new(path);
 
     if !root_dir.exists() {
-        eprintln!("目录不存在: {}", path);
-        return;
+        anyhow::bail!("目录不存在: {}", path);
     }
 
     let git_repos = super::repo::find_git_repositories(root_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");
-        return;
+        return Ok(());
     }
 
     let total_repos = git_repos.len();
@@ -42,8 +42,27 @@ pub fn execute(path: &str, max_depth: Option<usize>) {
             continue;
         }
 
+        // 打印仓库信息
+        do_info_repository(&repo_path);
+
         // 同步仓库
         do_sync_repository(&repo_path);
+    }
+
+    Ok(())
+}
+
+fn do_info_repository(repo_path: &Path) {
+    // 打印本地分支
+    if let Err(e) =
+        CommandRunner::run_with_success_in_dir("git", &["branch", "--list"], repo_path)
+    {
+        println!("  无法获取分支信息: {}", e);
+    }
+
+    // 打印远程仓库信息
+    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["remote", "-v"], repo_path) {
+        println!("  无法获取远程信息: {}", e);
     }
 }
 
@@ -52,24 +71,6 @@ fn do_sync_repository(repo_path: &Path) {
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
         return;
-    }
-
-    // 打印本地分支
-    if let Err(e) = CommandRunner::run_with_success_in_dir(
-        "git",
-        &["branch", "--list"],
-        repo_path.to_str().unwrap(),
-    ) {
-        println!("  无法获取分支信息: {}", e);
-    }
-
-    // 打印远程仓库信息
-    if let Err(e) = CommandRunner::run_with_success_in_dir(
-        "git",
-        &["remote", "-v"],
-        repo_path.to_str().unwrap(),
-    ) {
-        println!("  无法获取远程信息: {}", e);
     }
 
     // 拉取远端数据
@@ -92,36 +93,46 @@ fn should_skip_push(url: &str) -> bool {
         // println!("  解析远程URL: {} {} {}", protocol, host, path);
         if protocol == "https" && (host == "github.com" || host == "githubfast.com") {
             return true;
-        } else if protocol == "git" && host == "gitee.com" && path.starts_with("red_base") {
+        }
+        if protocol == "git" && host == "gitee.com" && path.starts_with("red_base") {
             return true;
         }
     } else {
         println!("  未知协议或主机: {}", url);
-        return false;
     }
     false
 }
 
 fn do_pull_repository(repo_path: &Path) {
-    if CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path.to_str().unwrap())
-        .is_err()
-    {
-        println!("  同步仓库失败: {}", utils::format_path(repo_path).red());
+    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path) {
+        println!(
+            "  同步仓库失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
     }
 }
 
 fn do_push_repository(repo_path: &Path, remote: &str) {
-    let path_str = repo_path.to_str().unwrap();
-
     // 推送所有分支
-    if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], path_str).is_err()
+    if let Err(e) =
+        CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], repo_path)
     {
-        println!("  推送分支失败: {}", utils::format_path(repo_path).red());
+        println!(
+            "  推送分支失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
     }
 
     // 推送所有标签
-    if CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], path_str).is_err()
+    if let Err(e) =
+        CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], repo_path)
     {
-        println!("  推送标签失败: {}", utils::format_path(repo_path).red());
+        println!(
+            "  推送标签失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
     }
 }

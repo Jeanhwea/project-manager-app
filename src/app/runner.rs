@@ -1,18 +1,20 @@
+use anyhow::{Context, Result};
 use colored::*;
+use std::path::Path;
 use std::process::{Command, Output};
 
 pub struct CommandRunner;
 
 impl CommandRunner {
-    pub fn run(program: &str, args: &[&str]) -> Result<Output, String> {
+    pub fn run(program: &str, args: &[&str]) -> Result<Output> {
         Self::run_internal(program, args, true)
     }
 
-    pub fn run_quiet(program: &str, args: &[&str]) -> Result<Output, String> {
+    pub fn run_quiet(program: &str, args: &[&str]) -> Result<Output> {
         Self::run_internal(program, args, false)
     }
 
-    fn run_internal(program: &str, args: &[&str], verbose: bool) -> Result<Output, String> {
+    fn run_internal(program: &str, args: &[&str], verbose: bool) -> Result<Output> {
         let mut cmd = Command::new(program);
         cmd.args(args);
 
@@ -22,7 +24,7 @@ impl CommandRunner {
 
         let output = cmd
             .output()
-            .map_err(|e| format!("执行 {} 失败: {}", program, e))?;
+            .with_context(|| format!("执行 {} 失败", program))?;
 
         if verbose {
             Self::print_output(&output);
@@ -31,46 +33,42 @@ impl CommandRunner {
         Ok(output)
     }
 
-    pub fn run_with_success(program: &str, args: &[&str]) -> Result<Output, String> {
+    pub fn run_with_success(program: &str, args: &[&str]) -> Result<Output> {
         let output = Self::run(program, args)?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("命令执行失败: {}", stderr));
+            anyhow::bail!("命令执行失败: {}", stderr);
         }
 
         Ok(output)
     }
 
-    pub fn run_with_success_in_dir(
-        program: &str,
-        args: &[&str],
-        dir: &str,
-    ) -> Result<Output, String> {
+    pub fn run_with_success_in_dir(program: &str, args: &[&str], dir: &Path) -> Result<Output> {
         let output = Self::run_in_dir(program, args, dir)?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("命令执行失败: {}", stderr));
+            anyhow::bail!("命令执行失败: {}", stderr);
         }
 
         Ok(output)
     }
 
-    pub fn run_in_dir(program: &str, args: &[&str], dir: &str) -> Result<Output, String> {
+    pub fn run_in_dir(program: &str, args: &[&str], dir: &Path) -> Result<Output> {
         Self::run_internal_in_dir(program, args, dir, true)
     }
 
-    pub fn run_quiet_in_dir(program: &str, args: &[&str], dir: &str) -> Result<Output, String> {
+    pub fn run_quiet_in_dir(program: &str, args: &[&str], dir: &Path) -> Result<Output> {
         Self::run_internal_in_dir(program, args, dir, false)
     }
 
     fn run_internal_in_dir(
         program: &str,
         args: &[&str],
-        dir: &str,
+        dir: &Path,
         verbose: bool,
-    ) -> Result<Output, String> {
+    ) -> Result<Output> {
         let mut cmd = Command::new(program);
         cmd.args(args);
         cmd.current_dir(dir);
@@ -81,7 +79,7 @@ impl CommandRunner {
 
         let output = cmd
             .output()
-            .map_err(|e| format!("执行 {} 失败: {}", program, e))?;
+            .with_context(|| format!("执行 {} 失败", program))?;
 
         if verbose {
             Self::print_output(&output);

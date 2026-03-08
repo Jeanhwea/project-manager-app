@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Version {
     pub major: u32,
     pub minor: u32,
@@ -42,16 +42,6 @@ impl Version {
 
     pub fn to_tag(&self) -> String {
         format!("v{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
-
-impl Default for Version {
-    fn default() -> Self {
-        Version {
-            major: 0,
-            minor: 0,
-            patch: 0,
-        }
     }
 }
 

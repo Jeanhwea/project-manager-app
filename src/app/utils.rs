@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use std::path::Path;
 
 /// 优化路径显示，移除 Windows UNC 路径前缀
@@ -7,18 +8,13 @@ pub fn format_path(path: &Path) -> String {
         .to_string()
 }
 
-pub fn get_current_dir() -> String {
-    std::env::current_dir()
-        .expect("Failed to get current directory")
+pub fn get_current_dir() -> Result<String> {
+    let current_dir = std::env::current_dir().context("无法获取当前目录")?;
+    let canonical = current_dir
         .canonicalize()
-        .unwrap_or_else(|e| {
-            eprintln!("错误: {}", e);
-            std::process::exit(1);
-        })
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string()
+        .context("无法规范化当前目录路径")?;
+    let file_name = canonical.file_name().context("无法获取当前目录名称")?;
+    Ok(file_name.to_string_lossy().to_string())
 }
 
 #[cfg(test)]
@@ -27,7 +23,7 @@ mod tests {
 
     #[test]
     fn test_get_current_dir() {
-        let dir_name = get_current_dir();
+        let dir_name = get_current_dir().expect("应该能获取当前目录");
         assert!(!dir_name.is_empty(), "Directory name should not be empty");
     }
 

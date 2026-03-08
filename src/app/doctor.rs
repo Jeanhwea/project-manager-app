@@ -1,18 +1,24 @@
 use super::git;
 use super::runner::CommandRunner;
 use super::utils;
+use anyhow::{Context, Result};
 use colored::Colorize;
 use std::path::Path;
 
 use super::repo::RepoType;
 
-pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) {
-    let root_dir = std::path::Path::new(path);
+pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) -> Result<()> {
+    let root_dir = Path::new(path);
+
+    if !root_dir.exists() {
+        anyhow::bail!("目录不存在: {}", path);
+    }
+
     let git_repos = super::repo::find_git_repositories(root_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");
-        return;
+        return Ok(());
     }
 
     let total_repos = git_repos.len();
@@ -37,7 +43,7 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) {
         }
 
         if gc {
-            do_git_garbage_collect(&repo_path);
+            do_git_garbage_collect(&repo_path)?;
         }
 
         // 获取远程仓库名称
@@ -56,23 +62,28 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) {
                         new_name.yellow(),
                         remote_url
                     );
-                    do_rename_git_remote(&repo.path, &remote_name, &new_name);
+                    do_rename_git_remote(&repo.path, &remote_name, &new_name)?;
                 }
                 _ => continue,
             }
         }
     }
+
+    Ok(())
 }
 
-fn do_rename_git_remote(repo_path: &Path, old_name: &str, new_name: &str) {
+fn do_rename_git_remote(repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
     CommandRunner::run_with_success_in_dir(
         "git",
         &["remote", "rename", old_name, new_name],
-        repo_path.to_str().unwrap(),
+        repo_path,
     )
-    .unwrap();
+    .with_context(|| format!("无法重命名远程仓库 {} -> {}", old_name, new_name))?;
+    Ok(())
 }
 
-fn do_git_garbage_collect(repo_path: &Path) {
-    CommandRunner::run_with_success_in_dir("git", &["gc"], repo_path.to_str().unwrap()).unwrap();
+fn do_git_garbage_collect(repo_path: &Path) -> Result<()> {
+    CommandRunner::run_with_success_in_dir("git", &["gc"], repo_path)
+        .with_context(|| "无法执行 git gc")?;
+    Ok(())
 }
