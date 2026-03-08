@@ -1,3 +1,5 @@
+use super::git;
+use super::runner::CommandRunner;
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -29,6 +31,25 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
         .file_name()
         .unwrap_or_default()
         .to_string_lossy();
-    super::git::clone(repo_url, &project_name)
-        .with_context(|| format!("无法克隆仓库 {} 到 {}", repo_url, project_dir.display()))
+
+    // git clone <repo_url> <project_name>
+    git::clone(repo_url, &project_name)
+        .with_context(|| format!("无法克隆仓库 {} 到 {}", repo_url, project_dir.display()))?;
+
+    // remove the .git directory
+    std::fs::remove_dir_all(project_dir.join(".git"))?;
+
+    // git init .
+    CommandRunner::run_with_success_in_dir("git", &["init"], project_dir)
+        .with_context(|| format!("无法初始化 Git 仓库到 {}", project_dir.display()))?;
+
+    // git add .
+    CommandRunner::run_with_success_in_dir("git", &["add", "."], project_dir)
+        .with_context(|| format!("无法添加所有文件到 Git 仓库 {}", project_dir.display()))?;
+
+    // git commit -m "init"
+    CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "init"], project_dir)
+        .with_context(|| format!("无法提交初始化提交到 Git 仓库 {}", project_dir.display()))?;
+
+    Ok(())
 }
