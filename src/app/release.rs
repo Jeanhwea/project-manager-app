@@ -63,6 +63,10 @@ pub fn release_config_file(tag: &str, config_file: &str) -> Result<()> {
         edit_pyproject_toml_file(tag, config_file)?;
     } else if config_file == PYTHON_VERSION_FILE {
         edit_python_package_init_file(tag, config_file)?;
+    } else if config_file == VERSION_FILE {
+        edit_version_file(tag, config_file)?;
+    } else if config_file == VERSION_TEXT {
+        edit_version_text_file(tag, config_file)?;
     } else {
         anyhow::bail!("不支持的配置文件 {}", config_file);
     }
