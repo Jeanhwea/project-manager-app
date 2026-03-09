@@ -3,6 +3,8 @@ use super::version::compare_versions;
 use anyhow::{Context, Result};
 use std::path::Path;
 
+const REDINF_PATH_PREFIXES: &[&str] = &["red_8/", "redtool/", "red_base/", "teampuzzle/"];
+
 pub fn get_rev_revision(ref_name: &str) -> Result<String> {
     let output = CommandRunner::run_quiet("git", &["rev-parse", ref_name])
         .with_context(|| format!("无法获取 {} 的 revision", ref_name))?;
@@ -176,7 +178,7 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
     let (url, separator) = if url.starts_with("git@") {
         (url.replace("git@", ""), ':')
     } else if url.starts_with("ssh://git@") {
-        (url.replace("ssh://git@", ""), ':')
+        (url.replace("ssh://git@", ""), '/')
     } else if url.starts_with("https://") {
         (url.replace("https://", ""), '/')
     } else if url.starts_with("http://") {
@@ -202,18 +204,15 @@ pub fn get_remote_name_by_url(url: &str) -> Option<String> {
     } else if host == "gitana.jeanhwea.io" {
         "gitana".to_string()
     } else if host == "gitee.com" {
-        if path.to_lowercase().starts_with("jeanhwea/") {
-            "gitee".to_string()
-        } else if path.to_lowercase().starts_with("red_8/")
-            || path.to_lowercase().starts_with("redtool/")
-            || path.to_lowercase().starts_with("red_base/")
-            || path.to_lowercase().starts_with("teampuzzle/")
+        if REDINF_PATH_PREFIXES
+            .iter()
+            .any(|prefix| path.to_lowercase().starts_with(prefix))
         {
             "redinf".to_string()
         } else {
             "gitee".to_string()
         }
-    } else if host == "192.168.0.101" {
+    } else if host.starts_with("192.168.0.110") {
         "avic".to_string()
     } else {
         "origin".to_string()

@@ -7,7 +7,7 @@ use std::path::Path;
 
 use super::repo::RepoType;
 
-pub fn execute(path: &str, max_depth: Option<usize>) -> Result<()> {
+pub fn execute(path: &str, max_depth: Option<usize>, skip_remotes: Vec<String>) -> Result<()> {
     let root_dir = Path::new(path);
 
     if !root_dir.exists() {
@@ -19,6 +19,10 @@ pub fn execute(path: &str, max_depth: Option<usize>) -> Result<()> {
     if git_repos.is_empty() {
         println!("未找到git仓库");
         return Ok(());
+    }
+
+    if !skip_remotes.is_empty() {
+        println!("跳过远程仓库: {:?}", skip_remotes);
     }
 
     let total_repos = git_repos.len();
@@ -46,7 +50,7 @@ pub fn execute(path: &str, max_depth: Option<usize>) -> Result<()> {
         do_info_repository(&repo_path);
 
         // 同步仓库
-        do_sync_repository(&repo_path);
+        do_sync_repository(&repo_path, skip_remotes.clone());
     }
 
     Ok(())
@@ -66,19 +70,51 @@ fn do_info_repository(repo_path: &Path) {
     }
 }
 
-fn do_sync_repository(repo_path: &Path) {
+fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
     // 获取远程仓库信息
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
         return;
     }
 
+    // 获取当前分支关联的远程仓库
+    let mut track_remote = "".to_string();
+    let mut track_remote_url = "".to_string();
+
+    if let Ok(output) = CommandRunner::run_quiet_in_dir(
+        "git",
+        &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
+        repo_path,
+    ) {
+        if let Ok(upstream) = String::from_utf8(output.stdout) {
+            let upstream = upstream.trim();
+            if !upstream.is_empty() {
+                if let Some((remote, _branch)) = upstream.split_once('/') {
+                    track_remote = remote.to_string();
+                    // 查找对应的远程仓库 URL
+                    for (r, url) in &remotes {
+                        if r == remote {
+                            track_remote_url = url.to_string();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 拉取远端数据
-    do_pull_repository(repo_path);
+    if !skip_remotes.contains(&track_remote) {
+        do_pull_repository(repo_path);
+    } else {
+        println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
+        return;
+    }
 
     // 对每个远程仓库执行 git push
     for (remote, url) in remotes {
-        if should_skip_push(&url) {
+        // 检测是否跳过推送
+        if should_skip_push(&remote, &url, &skip_remotes) {
             println!("  跳过推送 {} ({})", remote, url.green());
             continue;
         }
@@ -88,7 +124,11 @@ fn do_sync_repository(repo_path: &Path) {
     }
 }
 
-fn should_skip_push(url: &str) -> bool {
+fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
+    // 检查是否在跳过列表中
+    if skip_remotes.iter().any(|s| s.as_str() == remote) {
+        return true;
+    }
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
         // println!("  解析远程URL: {} {} {}", protocol, host, path);
         if protocol == "https" && (host == "github.com" || host == "githubfast.com") {
