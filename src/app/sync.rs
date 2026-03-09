@@ -70,37 +70,35 @@ fn do_info_repository(repo_path: &Path) {
     }
 }
 
+fn get_tracking_remote_info(
+    repo_path: &Path,
+    remotes: &[(String, String)],
+) -> Option<(String, String)> {
+    let output = CommandRunner::run_quiet_in_dir(
+        "git",
+        &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
+        repo_path,
+    )
+    .ok()?;
+
+    let upstream = String::from_utf8(output.stdout).ok()?;
+    let (remote, _) = upstream.trim().split_once('/')?;
+    let (_, url) = remotes.iter().find(|(r, _)| r == remote)?;
+
+    Some((remote.to_string(), url.clone()))
+}
+
 fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
-    // 获取远程仓库信息
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
         return;
     }
 
-    // 获取当前分支关联的远程仓库
-    let mut track_remote = "".to_string();
-    let mut track_remote_url = "".to_string();
-
-    if let Ok(output) = CommandRunner::run_quiet_in_dir(
-        "git",
-        &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
-        repo_path,
-    ) && let Ok(upstream) = String::from_utf8(output.stdout)
-    {
-        let upstream = upstream.trim();
-        if !upstream.is_empty()
-            && let Some((remote, _branch)) = upstream.split_once('/')
-        {
-            track_remote = remote.to_string();
-            // 查找对应的远程仓库 URL
-            for (r, url) in &remotes {
-                if r == remote {
-                    track_remote_url = url.to_string();
-                    break;
-                }
-            }
-        }
-    }
+    // 获取当前分支的跟踪远程仓库
+    let (track_remote, track_remote_url) = match get_tracking_remote_info(repo_path, &remotes) {
+        Some(info) => info,
+        None => return,
+    };
 
     // 拉取远端数据
     if !skip_remotes.contains(&track_remote) {
