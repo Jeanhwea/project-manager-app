@@ -82,7 +82,7 @@ pub enum Commands {
         bump_type: BumpType,
     },
     /// Synchronize all code repositories
-    #[command(visible_alias = "ss")]
+    #[command(visible_alias = "s")]
     #[command(about = "Synchronize all code repositories")]
     Sync {
         /// Maximum depth to search for repositories
