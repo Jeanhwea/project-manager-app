@@ -55,13 +55,16 @@ pub fn execute(bump_type: &str) -> Result<()> {
 }
 
 pub fn release_config_file(tag: &str, config_file: &str) -> Result<()> {
+    let dir_name = utils::get_current_dir()?;
+    let python_project_version_file = format!("{}/__version__.py", dir_name);
+
     if config_file == CARGO_TOML {
         edit_cargo_toml_file(tag, config_file)?;
     } else if config_file == POM_XML {
         edit_pom_xml_file(tag, config_file)?;
     } else if config_file == PYPROJECT_TOML {
         edit_pyproject_toml_file(tag, config_file)?;
-    } else if config_file == PYTHON_VERSION_FILE {
+    } else if config_file == PYTHON_VERSION_FILE || config_file == python_project_version_file {
         edit_python_package_init_file(tag, config_file)?;
     } else if config_file == VERSION_FILE {
         edit_version_text_file(tag, config_file)?;
