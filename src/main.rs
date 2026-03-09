@@ -41,8 +41,8 @@ fn main() -> Result<()> {
         } => {
             app::doctor::execute(&path, max_depth, gc)?;
         }
-        Commands::Init { path, name } => {
-            app::init::execute(&path, &name)?;
+        Commands::Fork { path, name } => {
+            app::fork::execute(&path, &name)?;
         }
     }
 

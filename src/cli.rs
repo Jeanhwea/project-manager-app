@@ -130,11 +130,11 @@ pub enum Commands {
         )]
         path: String,
     },
-    /// Initialize a new project from a template
-    #[command(about = "Initialize a new project from a template")]
-    Init {
-        /// Path to initialize the project from
-        #[arg(help = "Path to initialize the project from")]
+    /// Fork a new project from a template
+    #[command(about = "Fork a new project from a template")]
+    Fork {
+        /// Path to fork the project from
+        #[arg(help = "Path to fork the project from")]
         path: String,
 
         /// Name of the project

@@ -1,6 +1,6 @@
 pub mod doctor;
+pub mod fork;
 pub mod git;
-pub mod init;
 pub mod release;
 pub mod repo;
 pub mod runner;
