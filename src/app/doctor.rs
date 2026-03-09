@@ -1,6 +1,6 @@
 use super::git;
 use super::runner::CommandRunner;
-use super::utils;
+use crate::utils;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use std::path::Path;

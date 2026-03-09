@@ -5,5 +5,4 @@ pub mod release;
 pub mod repo;
 pub mod runner;
 pub mod sync;
-pub mod utils;
 pub mod version;

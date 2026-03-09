@@ -1,6 +1,6 @@
 use super::git;
-use super::utils;
 use super::version::Version;
+use crate::utils;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
