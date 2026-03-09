@@ -85,19 +85,18 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
         "git",
         &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
         repo_path,
-    ) {
-        if let Ok(upstream) = String::from_utf8(output.stdout) {
-            let upstream = upstream.trim();
-            if !upstream.is_empty() {
-                if let Some((remote, _branch)) = upstream.split_once('/') {
-                    track_remote = remote.to_string();
-                    // 查找对应的远程仓库 URL
-                    for (r, url) in &remotes {
-                        if r == remote {
-                            track_remote_url = url.to_string();
-                            break;
-                        }
-                    }
+    ) && let Ok(upstream) = String::from_utf8(output.stdout)
+    {
+        let upstream = upstream.trim();
+        if !upstream.is_empty()
+            && let Some((remote, _branch)) = upstream.split_once('/')
+        {
+            track_remote = remote.to_string();
+            // 查找对应的远程仓库 URL
+            for (r, url) in &remotes {
+                if r == remote {
+                    track_remote_url = url.to_string();
+                    break;
                 }
             }
         }

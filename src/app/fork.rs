@@ -255,7 +255,7 @@ fn do_reinit_repo(
         })?;
     }
 
-    do_perform_actions(project_dir, &project_name)?;
+    do_perform_actions(project_dir, project_name)?;
 
     CommandRunner::run_with_success_in_dir("git", &["add", "."], project_dir)
         .with_context(|| format!("无法添加所有文件到 Git 仓库 {}", project_dir.display()))?;
