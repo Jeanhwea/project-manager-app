@@ -21,6 +21,10 @@ pub fn execute(path: &str, max_depth: Option<usize>, skip_remotes: Vec<String>) 
         return Ok(());
     }
 
+    if !skip_remotes.is_empty() {
+        println!("跳过远程仓库: {:?}", skip_remotes);
+    }
+
     let total_repos = git_repos.len();
 
     for (repo_index, repo_info) in git_repos.iter().enumerate() {
