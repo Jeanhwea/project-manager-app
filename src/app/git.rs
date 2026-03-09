@@ -212,7 +212,7 @@ pub fn get_remote_name_by_url(url: &str) -> Option<String> {
         } else {
             "gitee".to_string()
         }
-    } else if host == "192.168.0.101" {
+    } else if host.starts_with("192.168.0.101") {
         "avic".to_string()
     } else {
         "origin".to_string()
