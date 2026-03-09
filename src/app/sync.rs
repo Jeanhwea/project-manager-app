@@ -75,6 +75,7 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
 
     // 获取当前分支关联的远程仓库
     let mut track_remote = "".to_string();
+    let mut track_remote_url = "".to_string();
     if let Ok(output) = CommandRunner::run_quiet_in_dir(
         "git",
         &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
@@ -94,7 +95,7 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
     if !skip_remotes.contains(&track_remote) {
         do_pull_repository(repo_path);
     } else {
-        println!("  跳过拉取，因为远程仓库 {} 在跳过列表中", track_remote);
+        println!("  跳过拉取，{} ({})", track_remote, track_remote_url);
     }
 
     // 对每个远程仓库执行 git push
