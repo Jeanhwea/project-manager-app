@@ -73,25 +73,28 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
         return;
     }
 
-    // 获取远端信息
-    let track_remote = CommandRunner::run_quiet_in_dir(
+    // 获取当前分支关联的远程仓库
+    let mut track_remote = "".to_string();
+    if let Ok(output) = CommandRunner::run_quiet_in_dir(
         "git",
         &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
         repo_path,
-    )
-    .split_once('/')
-    .map(|(remote, _)| remote.to_string())
-    .unwrap_or_else(|| "".to_string());
+    ) {
+        if let Ok(upstream) = String::from_utf8(output.stdout) {
+            let upstream = upstream.trim();
+            if !upstream.is_empty() {
+                if let Some((remote, _branch)) = upstream.split_once('/') {
+                    track_remote = remote.to_string();
+                }
+            }
+        }
+    }
 
     // 拉取远端数据
     if !skip_remotes.contains(&track_remote) {
         do_pull_repository(repo_path);
     } else {
-        println!(
-            "  跳过同步 {} ({})",
-            track_remote,
-            remotes[&track_remote].green()
-        );
+        println!("  跳过拉取，因为远程仓库 {} 在跳过列表中", track_remote);
     }
 
     // 对每个远程仓库执行 git push
@@ -109,10 +112,7 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
 
 fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     // 检查是否在跳过列表中
-    if skip_remotes.contains(&remote.to_string()) {
-        return true;
-    }
-    if remote == "origin" {
+    if skip_remotes.iter().any(|s| s.as_str() == remote) {
         return true;
     }
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
