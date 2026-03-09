@@ -73,8 +73,26 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
         return;
     }
 
+    // 获取远端信息
+    let track_remote = CommandRunner::run_quiet_in_dir(
+        "git",
+        &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
+        repo_path,
+    )
+    .split_once('/')
+    .map(|(remote, _)| remote.to_string())
+    .unwrap_or_else(|| "".to_string());
+
     // 拉取远端数据
-    do_pull_repository(repo_path);
+    if !skip_remotes.contains(&track_remote) {
+        do_pull_repository(repo_path);
+    } else {
+        println!(
+            "  跳过同步 {} ({})",
+            track_remote,
+            remotes[&track_remote].green()
+        );
+    }
 
     // 对每个远程仓库执行 git push
     for (remote, url) in remotes {
