@@ -178,7 +178,12 @@ fn edit_pyproject_toml_file(tag: &str, config_file: &str) -> Result<()> {
         }
     }
 
-    let new_config_content = lines.join("\n");
+    let mut new_config_content = lines.join("\n");
+    
+    // 保留原始文件的最后换行符
+    if config_content.ends_with('\n') {
+        new_config_content.push('\n');
+    }
 
     std::fs::write(config_file, new_config_content)
         .with_context(|| format!("无法写入 {}", config_file))?;
