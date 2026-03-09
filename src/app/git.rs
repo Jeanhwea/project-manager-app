@@ -163,6 +163,8 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
 
     let protocol = if url.starts_with("git@") {
         "git".to_string()
+    } else if url.starts_with("ssh://git@") {
+        "git".to_string()
     } else if url.starts_with("https://") {
         "https".to_string()
     } else if url.starts_with("http://") {
@@ -173,6 +175,8 @@ pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
 
     let (url, separator) = if url.starts_with("git@") {
         (url.replace("git@", ""), ':')
+    } else if url.starts_with("ssh://git@") {
+        (url.replace("ssh://git@", ""), ':')
     } else if url.starts_with("https://") {
         (url.replace("https://", ""), '/')
     } else if url.starts_with("http://") {
