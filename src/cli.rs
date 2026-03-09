@@ -104,7 +104,6 @@ pub enum Commands {
         path: String,
     },
     /// Diagnostic project health
-    #[command(visible_alias = "dd")]
     #[command(about = "Diagnostic project health")]
     Doctor {
         /// Maximum depth to search for repositories
