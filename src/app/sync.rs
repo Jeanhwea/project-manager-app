@@ -78,7 +78,7 @@ fn do_sync_repository(repo_path: &Path) {
 
     // 对每个远程仓库执行 git push
     for (remote, url) in remotes {
-        if should_skip_push(&url) {
+        if should_skip_push(remote, &url) {
             println!("  跳过推送 {} ({})", remote, url.green());
             continue;
         }
@@ -88,7 +88,10 @@ fn do_sync_repository(repo_path: &Path) {
     }
 }
 
-fn should_skip_push(url: &str) -> bool {
+fn should_skip_push(remote: &str, url: &str) -> bool {
+    if remote == "origin" {
+        return true;
+    }
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
         // println!("  解析远程URL: {} {} {}", protocol, host, path);
         if protocol == "https" && (host == "github.com" || host == "githubfast.com") {
