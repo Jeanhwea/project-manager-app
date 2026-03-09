@@ -82,7 +82,7 @@ pub enum Commands {
         bump_type: BumpType,
     },
     /// Synchronize all code repositories
-    #[command(visible_alias = "sy")]
+    #[command(visible_alias = "ss")]
     #[command(about = "Synchronize all code repositories")]
     Sync {
         /// Maximum depth to search for repositories
@@ -104,7 +104,7 @@ pub enum Commands {
         path: String,
     },
     /// Diagnostic project health
-    #[command(visible_alias = "dc")]
+    #[command(visible_alias = "dd")]
     #[command(about = "Diagnostic project health")]
     Doctor {
         /// Maximum depth to search for repositories
