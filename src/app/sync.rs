@@ -78,7 +78,8 @@ fn do_sync_repository(repo_path: &Path) {
 
     // 对每个远程仓库执行 git push
     for (remote, url) in remotes {
-        if should_skip_push(remote, &url) {
+        // 检测是否跳过推送
+        if should_skip_push(&remote, &url) {
             println!("  跳过推送 {} ({})", remote, url.green());
             continue;
         }
