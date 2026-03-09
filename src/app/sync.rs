@@ -7,7 +7,7 @@ use std::path::Path;
 
 use super::repo::RepoType;
 
-pub fn execute(path: &str, max_depth: Option<usize>) -> Result<()> {
+pub fn execute(path: &str, max_depth: Option<usize>, skip_remotes: Vec<String>) -> Result<()> {
     let root_dir = Path::new(path);
 
     if !root_dir.exists() {
@@ -46,7 +46,7 @@ pub fn execute(path: &str, max_depth: Option<usize>) -> Result<()> {
         do_info_repository(&repo_path);
 
         // 同步仓库
-        do_sync_repository(&repo_path);
+        do_sync_repository(&repo_path, skip_remotes.clone());
     }
 
     Ok(())
@@ -66,7 +66,7 @@ fn do_info_repository(repo_path: &Path) {
     }
 }
 
-fn do_sync_repository(repo_path: &Path) {
+fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
     // 获取远程仓库信息
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
@@ -79,7 +79,7 @@ fn do_sync_repository(repo_path: &Path) {
     // 对每个远程仓库执行 git push
     for (remote, url) in remotes {
         // 检测是否跳过推送
-        if should_skip_push(&remote, &url) {
+        if should_skip_push(&remote, &url, &skip_remotes) {
             println!("  跳过推送 {} ({})", remote, url.green());
             continue;
         }
@@ -89,7 +89,11 @@ fn do_sync_repository(repo_path: &Path) {
     }
 }
 
-fn should_skip_push(remote: &str, url: &str) -> bool {
+fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
+    // 检查是否在跳过列表中
+    if skip_remotes.contains(&remote.to_string()) {
+        return true;
+    }
     if remote == "origin" {
         return true;
     }

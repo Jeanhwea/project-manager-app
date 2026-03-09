@@ -12,8 +12,12 @@ fn main() -> Result<()> {
         Commands::Release { bump_type } => {
             app::release::execute(bump_type.as_str())?;
         }
-        Commands::Sync { path, max_depth } => {
-            app::sync::execute(&path, max_depth)?;
+        Commands::Sync {
+            path,
+            max_depth,
+            skip_remotes,
+        } => {
+            app::sync::execute(&path, max_depth, skip_remotes)?;
         }
         Commands::Doctor {
             path,

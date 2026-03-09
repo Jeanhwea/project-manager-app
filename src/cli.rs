@@ -93,6 +93,9 @@ pub enum Commands {
             help = "Maximum depth to search for repositories"
         )]
         max_depth: Option<usize>,
+        /// Remotes to skip
+        #[arg(long, short, help = "Remotes to skip")]
+        skip_remotes: Vec<String>,
         /// Path to the directory to search for repositories, defaults to current directory
         #[arg(
             default_value = ".",
