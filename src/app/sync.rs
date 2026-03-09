@@ -103,7 +103,7 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
     if !skip_remotes.contains(&track_remote) {
         do_pull_repository(repo_path);
     } else {
-        println!("  跳过拉取，{} ({})", track_remote, track_remote_url);
+        println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
     }
 
     // 对每个远程仓库执行 git push
