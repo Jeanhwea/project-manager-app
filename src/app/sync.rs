@@ -76,7 +76,7 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
     // 获取当前分支关联的远程仓库
     let mut track_remote = "".to_string();
     let mut track_remote_url = "".to_string();
-    
+
     if let Ok(output) = CommandRunner::run_quiet_in_dir(
         "git",
         &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
