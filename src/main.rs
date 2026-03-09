@@ -17,7 +17,22 @@ fn main() -> Result<()> {
             max_depth,
             skip_remotes,
         } => {
-            app::sync::execute(&path, max_depth, skip_remotes)?;
+            // 处理逗号分隔的远程仓库名称
+            let mut processed_remotes = Vec::new();
+            for remote in skip_remotes {
+                if remote.contains(',') {
+                    // 分割逗号分隔的字符串
+                    let split_remotes: Vec<String> = remote
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                    processed_remotes.extend(split_remotes);
+                } else {
+                    processed_remotes.push(remote);
+                }
+            }
+            app::sync::execute(&path, max_depth, processed_remotes)?;
         }
         Commands::Doctor {
             path,
