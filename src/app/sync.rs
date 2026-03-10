@@ -49,11 +49,35 @@ pub fn execute(path: &str, max_depth: Option<usize>, skip_remotes: Vec<String>) 
         // 打印仓库信息
         do_info_repository(&repo_path);
 
+        // 检查工作目录是否干净
+        if !do_check_workdir_clean(&repo_path) {
+            // git status
+            CommandRunner::run_with_success_in_dir("git", &["status"], &repo_path)?;
+            println!(
+                "  无法同步不干净工作目录: {}",
+                utils::format_path(&repo_path).red()
+            );
+            continue;
+        }
+
         // 同步仓库
         do_sync_repository(&repo_path, skip_remotes.clone());
     }
 
     Ok(())
+}
+
+fn do_check_workdir_clean(repo_path: &Path) -> bool {
+    let Ok(output) =
+        CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], repo_path)
+    else {
+        return false;
+    };
+
+    let Ok(status) = String::from_utf8(output.stdout) else {
+        return false;
+    };
+    status.is_empty()
 }
 
 fn do_info_repository(repo_path: &Path) {
