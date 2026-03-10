@@ -145,17 +145,19 @@ fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
 
     let stdout = String::from_utf8(output.stdout).ok()?;
 
-    let current_branch = stdout
-        .lines()
-        .find(|line| line.starts_with("*"))?
-        .trim()
+    let lines: Vec<_> = stdout.lines().collect();
+
+    let current_branch = lines
+        .iter()
+        .find(|line| line.starts_with("* "))?
+        .trim_start_matches("* ")
         .to_string();
 
-    let local_branches = stdout
-        .lines()
+    let local_branches = lines
+        .iter()
+        .filter_map(|line| line.trim().starts_with("*"))
         .map(|line| line.trim().to_string())
-        .filter(|line| !line.starts_with("*"))
-        .collect::<Vec<_>>();
+        .collect();
 
     Some((current_branch, local_branches))
 }
