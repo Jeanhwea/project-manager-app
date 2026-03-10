@@ -155,7 +155,7 @@ fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
 
     let local_branches = lines
         .iter()
-        .filter_map(|line| line.trim().starts_with("*"))
+        .filter(|line| !line.starts_with("*"))
         .map(|line| line.trim().to_string())
         .collect();
 
