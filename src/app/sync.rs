@@ -102,7 +102,7 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
 
     // 拉取远端数据
     if !skip_remotes.contains(&track_remote) {
-        do_pull_repository(repo_path);
+        do_pull_all_local_branch(repo_path);
     } else {
         println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
         return;
@@ -140,7 +140,52 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     false
 }
 
-fn do_pull_repository(repo_path: &Path) {
+fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
+    let output = CommandRunner::run_quiet_in_dir("git", &["branch", "--list"], repo_path).ok()?;
+
+    let stdout = String::from_utf8(output.stdout).ok()?;
+
+    let current_branch = stdout
+        .lines()
+        .find(|line| line.starts_with("*"))?
+        .trim()
+        .to_string();
+
+    let local_branches = stdout
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.starts_with("*"))
+        .collect::<Vec<_>>();
+
+    Some((current_branch, local_branches))
+}
+
+fn do_pull_all_local_branch(repo_path: &Path) {
+    let (current_branch, local_branches) = match list_local_branches(repo_path) {
+        Some(result) => result,
+        None => return,
+    };
+    for branch in local_branches {
+        do_pull_repository(&branch, repo_path);
+    }
+
+    do_pull_repository(&current_branch, repo_path);
+}
+
+fn do_pull_repository(branch: &str, repo_path: &Path) {
+    // git checkout branch
+    if let Err(e) =
+        CommandRunner::run_with_success_in_dir("git", &["checkout", branch], repo_path)
+    {
+        println!(
+            "  切换分支失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
+        return;
+    }
+
+    // git pull
     if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path) {
         println!(
             "  同步仓库失败: {} - {}",
