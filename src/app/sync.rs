@@ -167,14 +167,23 @@ fn do_pull_all_local_branch(repo_path: &Path) {
         Some(result) => result,
         None => return,
     };
-    for branch in local_branches {
-        do_pull_repository(&branch, repo_path);
+
+    // 如果没有其它本地分支，直接拉取仓库
+    if local_branches.is_empty() {
+        do_pull_repository(repo_path);
+        return;
     }
 
-    do_pull_repository(&current_branch, repo_path);
+    // 拉取所有本地分支
+    for branch in local_branches {
+        do_pull_repository_branch(&branch, repo_path);
+    }
+
+    // 拉取当前分支
+    do_pull_repository_branch(&current_branch, repo_path);
 }
 
-fn do_pull_repository(branch: &str, repo_path: &Path) {
+fn do_pull_repository_branch(branch: &str, repo_path: &Path) {
     // git checkout branch
     if let Err(e) =
         CommandRunner::run_with_success_in_dir("git", &["checkout", branch], repo_path)
@@ -197,6 +206,15 @@ fn do_pull_repository(branch: &str, repo_path: &Path) {
     }
 }
 
+fn do_pull_repository(repo_path: &Path) {
+    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path) {
+        println!(
+            "  同步仓库失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
+    }
+}
 fn do_push_repository(repo_path: &Path, remote: &str) {
     // 推送所有分支
     if let Err(e) =
