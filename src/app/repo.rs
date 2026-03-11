@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+const DEFAULT_MAX_DEPTH: usize = 3;
+
 #[derive(PartialEq)]
 pub enum RepoType {
     Regular,
@@ -13,9 +15,13 @@ pub struct RepoInfo {
 }
 
 pub fn find_git_repositories(root_dir: &Path, max_depth: Option<usize>) -> Vec<RepoInfo> {
-    let mut repos = find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(3));
-    repos.retain(|repo| repo.repo_type == RepoType::Regular);
+    let repos =
+        find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(DEFAULT_MAX_DEPTH));
+
     repos
+        .into_iter()
+        .filter(|repo| repo.repo_type == RepoType::Regular)
+        .collect()
 }
 
 fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
