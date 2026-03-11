@@ -68,6 +68,7 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
 
     do_reinit_repo(project_dir, &project_name, &submodules)
 }
+
 fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
     let gitmodules_path = project_dir.join(".gitmodules");
 
