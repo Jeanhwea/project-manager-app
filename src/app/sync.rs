@@ -152,7 +152,9 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     }
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
         // println!("  解析远程URL: {} {} {}", protocol, host, path);
-        if protocol == "https" && (host == "github.com" || host == "githubfast.com") {
+        if protocol == "https"
+            && (host == "github.com" || host == "githubfast.com" || host == "gitee.com")
+        {
             return true;
         }
         if protocol == "git" && host == "gitee.com" && path.starts_with("red_base") {
