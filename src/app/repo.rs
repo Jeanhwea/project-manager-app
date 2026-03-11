@@ -13,10 +13,9 @@ pub struct RepoInfo {
 }
 
 pub fn find_git_repositories(root_dir: &Path, max_depth: Option<usize>) -> Vec<RepoInfo> {
-    find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(3))
-        .into_iter()
-        .filter(|repo| repo.repo_type == RepoType::Regular)
-        .collect()
+    let mut repos = find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(3));
+    repos.retain(|repo| repo.repo_type == RepoType::Regular);
+    repos
 }
 
 fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
@@ -47,13 +46,11 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
                 } else {
                     repos.extend(find_git_repositories_with_depth(&path, max_depth - 1));
                 }
-            } else if file_name_str == ".git" {
-                if let Some(parent) = path.parent() {
-                    repos.push(RepoInfo {
-                        path: parent.to_path_buf(),
-                        repo_type: RepoType::Submodule,
-                    });
-                }
+            } else if let Some(parent) = path.parent() {
+                repos.push(RepoInfo {
+                    path: parent.to_path_buf(),
+                    repo_type: RepoType::Submodule,
+                });
             }
         }
     }
