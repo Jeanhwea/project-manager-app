@@ -96,6 +96,14 @@ pub enum Commands {
         /// Remotes to skip
         #[arg(long, short, help = "Remotes to skip")]
         skip_remotes: Vec<String>,
+        /// Whether to pull all local branches
+        #[arg(
+            long,
+            short,
+            default_value = "false",
+            help = "Whether to pull all local branches"
+        )]
+        all_branch: bool,
         /// Path to the directory to search for repositories, defaults to current directory
         #[arg(
             default_value = ".",

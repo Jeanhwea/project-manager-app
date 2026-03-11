@@ -7,7 +7,12 @@ use std::path::Path;
 
 use super::repo::RepoType;
 
-pub fn execute(path: &str, max_depth: Option<usize>, skip_remotes: Vec<String>) -> Result<()> {
+pub fn execute(
+    path: &str,
+    max_depth: Option<usize>,
+    all_branch: bool,
+    skip_remotes: Vec<String>,
+) -> Result<()> {
     let root_dir = Path::new(path);
 
     if !root_dir.exists() {
@@ -61,7 +66,7 @@ pub fn execute(path: &str, max_depth: Option<usize>, skip_remotes: Vec<String>) 
         }
 
         // 同步仓库
-        do_sync_repository(&repo_path, skip_remotes.clone());
+        do_sync_repository(&repo_path, all_branch, skip_remotes.clone());
     }
 
     Ok(())
@@ -112,7 +117,7 @@ fn get_tracking_remote_info(
     Some((remote.to_string(), url.clone()))
 }
 
-fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
+fn do_sync_repository(repo_path: &Path, all_branch: bool, skip_remotes: Vec<String>) {
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
         return;
@@ -126,7 +131,11 @@ fn do_sync_repository(repo_path: &Path, skip_remotes: Vec<String>) {
 
     // 拉取远端数据
     if !skip_remotes.contains(&track_remote) {
-        do_pull_all_local_branch(repo_path);
+        if all_branch {
+            do_pull_all_local_branch(repo_path);
+        } else {
+            do_pull_repository(repo_path);
+        }
     } else {
         println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
         return;

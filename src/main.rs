@@ -17,6 +17,7 @@ fn main() -> Result<()> {
             path,
             max_depth,
             skip_remotes,
+            all_branch,
         } => {
             // 处理逗号分隔的远程仓库名称
             let mut processed_remotes = Vec::new();
@@ -33,7 +34,7 @@ fn main() -> Result<()> {
                     processed_remotes.push(remote);
                 }
             }
-            app::sync::execute(&path, max_depth, processed_remotes)?;
+            app::sync::execute(&path, max_depth, all_branch, processed_remotes)?;
         }
         Commands::Doctor {
             path,
