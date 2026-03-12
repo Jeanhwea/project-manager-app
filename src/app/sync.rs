@@ -5,7 +5,7 @@ use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
 
-use super::repo::RepoType;
+use super::repo::{RepoInfo, RepoType};
 
 pub fn execute(
     path: &str,
@@ -19,7 +19,16 @@ pub fn execute(
         anyhow::bail!("目录不存在: {}", path);
     }
 
-    let git_repos = super::repo::find_git_repositories(root_dir, max_depth);
+    let mut git_repos = super::repo::find_git_repositories(root_dir, max_depth);
+
+    if git_repos.is_empty() {
+        if let Some(top_level_dir) = git::get_top_level_dir() {
+            git_repos.push(RepoInfo {
+                path: top_level_dir.to_path_buf(),
+                repo_type: RepoType::Regular,
+            });
+        }
+    }
 
     if git_repos.is_empty() {
         println!("未找到git仓库");

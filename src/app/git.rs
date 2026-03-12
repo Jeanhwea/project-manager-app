@@ -2,6 +2,7 @@ use super::runner::CommandRunner;
 use super::version::compare_versions;
 use anyhow::{Context, Result};
 use std::path::Path;
+use std::path::PathBuf;
 
 const REDINF_PATH_PREFIXES: &[&str] = &["red_8/", "redtool/", "red_base/", "teampuzzle/"];
 
@@ -62,6 +63,19 @@ pub fn get_remote_list() -> Option<Vec<String>> {
     }
 
     Some(remotes)
+}
+
+pub fn get_top_level_dir() -> Option<PathBuf> {
+    let output = CommandRunner::run_quiet("git", &["rev-parse", "--show-toplevel"]).ok()?;
+
+    let top_level = String::from_utf8(output.stdout).ok()?;
+    let top_level = top_level.trim();
+
+    if top_level.is_empty() {
+        return None;
+    }
+
+    Some(PathBuf::from(top_level))
 }
 
 pub fn list_cached_changes() -> Result<()> {
