@@ -21,13 +21,13 @@ pub fn execute(
 
     let mut git_repos = super::repo::find_git_repositories(root_dir, max_depth);
 
-    if git_repos.is_empty() {
-        if let Some(top_level_dir) = git::get_top_level_dir() {
-            git_repos.push(RepoInfo {
-                path: top_level_dir.to_path_buf(),
-                repo_type: RepoType::Regular,
-            });
-        }
+    if git_repos.is_empty()
+        && let Some(top_level_dir) = git::get_top_level_dir()
+    {
+        git_repos.push(RepoInfo {
+            path: top_level_dir.to_path_buf(),
+            repo_type: RepoType::Regular,
+        });
     }
 
     if git_repos.is_empty() {
