@@ -139,15 +139,16 @@ fn do_sync_repository(repo_path: &Path, all_branch: bool, skip_remotes: Vec<Stri
     };
 
     // 拉取远端数据
-    if !skip_remotes.contains(&track_remote) {
-        if all_branch {
-            do_pull_all_local_branch(repo_path);
-        } else {
-            do_pull_repository(repo_path);
-        }
-    } else {
+    if skip_remotes.contains(&track_remote) {
         println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
         return;
+    }
+
+    // 拉取远端数据
+    if all_branch {
+        do_pull_all_local_branch(repo_path);
+    } else {
+        do_pull_repository(repo_path);
     }
 
     // 对每个远程仓库执行 git push
