@@ -21,7 +21,7 @@ pub fn execute(path: &str) -> Result<()> {
 fn do_init_snapshot(work_dir: &Path) -> Result<()> {
     CommandRunner::run_with_success_in_dir("git", &["init"], work_dir)?;
     CommandRunner::run_with_success_in_dir("git", &["add", "."], work_dir)?;
-    CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "0"], work_dir)?;
+    CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "init"], work_dir)?;
 
     Ok(())
 }
@@ -40,7 +40,7 @@ fn do_incremental_snapshot(work_dir: &Path) -> Result<()> {
 
     CommandRunner::run_with_success_in_dir(
         "git",
-        &["commit", "-m", &format!("{}", num_commit + 1)],
+        &["commit", "-m", &format!("snap: {}", num_commit + 1)],
         work_dir,
     )?;
 
