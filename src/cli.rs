@@ -148,4 +148,14 @@ pub enum Commands {
         #[arg(help = "Name of the project")]
         name: String,
     },
+    /// Snapshot a project
+    #[command(about = "Snapshot a project")]
+    Snap {
+        /// Path to the project to snapshot, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the project to snapshot, defaults to current directory"
+        )]
+        path: String,
+    },
 }

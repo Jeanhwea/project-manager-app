@@ -46,6 +46,9 @@ fn main() -> Result<()> {
         Commands::Fork { path, name } => {
             app::fork::execute(&path, &name)?;
         }
+        Commands::Snap { path } => {
+            app::snap::execute(&path)?;
+        }
     }
 
     Ok(())
