@@ -40,7 +40,7 @@ fn do_incremental_snapshot(work_dir: &Path) -> Result<()> {
 
     CommandRunner::run_with_success_in_dir(
         "git",
-        &["commit", "-m", &format!("snap: {}", num_commit + 1)],
+        &["commit", "-m", &format!("snap-{:06}", num_commit + 1)],
         work_dir,
     )?;
 
