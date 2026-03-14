@@ -15,9 +15,6 @@ pub fn execute(path: &str) -> Result<()> {
         do_incremental_snapshot(project_path)?;
     }
 
-    println!("项目快照: {}", path);
-    println!("功能待实现");
-
     Ok(())
 }
 
@@ -30,16 +27,17 @@ fn do_init_snapshot(work_dir: &Path) -> Result<()> {
 }
 
 fn do_incremental_snapshot(work_dir: &Path) -> Result<()> {
-    // git rev-list --count HEAD
-    let num_commit = CommandRunner::run_with_success_in_dir(
+    let output = CommandRunner::run_with_success_in_dir(
         "git",
         &["rev-list", "--count", "HEAD"],
         work_dir,
     )?;
-    let num_commit = num_commit.trim().parse::<usize>()?;
+    let num_commit = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse::<usize>()?;
 
     CommandRunner::run_with_success_in_dir("git", &["add", "."], work_dir)?;
-    
+
     CommandRunner::run_with_success_in_dir(
         "git",
         &["commit", "-m", &format!("{}", num_commit + 1)],
