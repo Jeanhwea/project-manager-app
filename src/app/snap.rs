@@ -10,7 +10,7 @@ pub fn execute(path: &str) -> Result<()> {
     }
 
     if !project_path.join(".git").exists() {
-        do_init_snapshot(project_path)?;
+        do_initialize_snapshot(project_path)?;
     } else {
         do_incremental_snapshot(project_path)?;
     }
@@ -18,7 +18,7 @@ pub fn execute(path: &str) -> Result<()> {
     Ok(())
 }
 
-fn do_init_snapshot(work_dir: &Path) -> Result<()> {
+fn do_initialize_snapshot(work_dir: &Path) -> Result<()> {
     CommandRunner::run_with_success_in_dir("git", &["init"], work_dir)?;
     CommandRunner::run_with_success_in_dir("git", &["add", "."], work_dir)?;
     CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "snap-000000"], work_dir)?;
