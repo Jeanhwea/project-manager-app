@@ -149,7 +149,11 @@ fn edit_cargo_toml_file(tag: &str, config_file: &str) -> Result<()> {
         }
     }
 
-    let new_config_content = lines.join("\n");
+    let mut new_config_content = lines.join("\n");
+
+    if config_content.ends_with('\n') {
+        new_config_content.push('\n');
+    }
 
     std::fs::write(config_file, new_config_content)
         .with_context(|| format!("无法写入 {}", config_file))?;
@@ -161,11 +165,26 @@ fn edit_pom_xml_file(tag: &str, config_file: &str) -> Result<()> {
     let config_content = std::fs::read_to_string(config_file)
         .with_context(|| format!("无法读取 {}", config_file))?;
 
-    let re = Regex::new(r#"<version>[0-9]+\.[0-9]+\.[0-9]+</version>"#).unwrap();
-    let new_config_content =
-        re.replace(&config_content, &format!(r#"<version>{}</version>"#, tag));
+    let version = tag.trim_start_matches('v');
+    let mut lines: Vec<String> = config_content.lines().map(|s| s.to_string()).collect();
+    let re = Regex::new(r#"<version>[^<]*</version>"#)?;
 
-    std::fs::write(config_file, new_config_content.to_string())
+    for line in &mut lines {
+        if line.trim().starts_with("<version>") {
+            *line = re
+                .replace(line, &format!(r#"<version>{}</version>"#, version))
+                .to_string();
+            break;
+        }
+    }
+
+    let mut new_config_content = lines.join("\n");
+
+    if config_content.ends_with('\n') {
+        new_config_content.push('\n');
+    }
+
+    std::fs::write(config_file, new_config_content)
         .with_context(|| format!("无法写入 {}", config_file))?;
 
     Ok(())
@@ -195,7 +214,6 @@ fn edit_pyproject_toml_file(tag: &str, config_file: &str) -> Result<()> {
 
     let mut new_config_content = lines.join("\n");
 
-    // 保留原始文件的最后换行符
     if config_content.ends_with('\n') {
         new_config_content.push('\n');
     }
@@ -249,7 +267,6 @@ fn edit_package_json_file(tag: &str, config_file: &str) -> Result<()> {
 
     let mut new_config_content = lines.join("\n");
 
-    // 保留原始文件的最后换行符
     if config_content.ends_with('\n') {
         new_config_content.push('\n');
     }
