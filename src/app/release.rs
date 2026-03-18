@@ -6,9 +6,9 @@ use regex::Regex;
 use std::path::Path;
 
 const CARGO_TOML_FILES: &[&str] = &["Cargo.toml", "src-tauri/Cargo.toml"];
-const POM_XML: &str = "pom.xml";
-const PYPROJECT_TOML: &str = "pyproject.toml";
-const PYTHON_VERSION_FILE: &str = "src/__version__.py";
+const POM_XML_FILES: &[&str] = &["pom.xml"];
+const PYPROJECT_TOML_FILES: &[&str] = &["pyproject.toml"];
+const PYTHON_VERSION_FILES: &[&str] = &["src/__version__.py"];
 const VERSION_FILES: &[&str] = &["version", "version.txt"];
 const PAGKAGE_JSON_FILES: &[&str] = &["package.json", "ui/package.json"];
 
@@ -60,11 +60,11 @@ pub fn release_config_file(tag: &str, config_file: &str) -> Result<()> {
 
     if CARGO_TOML_FILES.contains(&config_file) {
         edit_cargo_toml_file(tag, config_file)?;
-    } else if config_file == POM_XML {
+    } else if POM_XML_FILES.contains(&config_file) {
         edit_pom_xml_file(tag, config_file)?;
-    } else if config_file == PYPROJECT_TOML {
+    } else if PYPROJECT_TOML_FILES.contains(&config_file) {
         edit_pyproject_toml_file(tag, config_file)?;
-    } else if config_file == PYTHON_VERSION_FILE
+    } else if PYTHON_VERSION_FILES.contains(&config_file)
         || config_file == python_project_version_file.as_str()
     {
         edit_python_package_init_file(tag, config_file)?;
@@ -86,14 +86,20 @@ fn detect_config_file() -> Result<Vec<String>> {
             config_files.push(cargo_toml_file.to_string());
         }
     }
-    if Path::new(POM_XML).exists() {
-        config_files.push(POM_XML.to_string());
+    for pom_xml_file in POM_XML_FILES {
+        if Path::new(pom_xml_file).exists() {
+            config_files.push(pom_xml_file.to_string());
+        }
     }
-    if Path::new(PYPROJECT_TOML).exists() {
-        config_files.push(PYPROJECT_TOML.to_string());
+    for pyproject_toml_file in PYPROJECT_TOML_FILES {
+        if Path::new(pyproject_toml_file).exists() {
+            config_files.push(pyproject_toml_file.to_string());
+        }
     }
-    if Path::new(PYTHON_VERSION_FILE).exists() {
-        config_files.push(PYTHON_VERSION_FILE.to_string());
+    for python_version_file in PYTHON_VERSION_FILES {
+        if Path::new(python_version_file).exists() {
+            config_files.push(python_version_file.to_string());
+        }
     }
 
     for version_file in VERSION_FILES {
