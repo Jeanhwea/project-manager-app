@@ -229,7 +229,8 @@ fn edit_package_json_file(tag: &str, config_file: &str) -> Result<()> {
 
     for line in &mut lines {
         if line.trim().starts_with("\"version\": ") {
-            *line = format!("\"version\": \"{}\"", version);
+            let re = Regex::new(r#""version":\s*"[^"]*""#)?;
+            *line = re.replace(line, &format!(r#""version": "{}""#, version)).to_string();
             break;
         }
     }
