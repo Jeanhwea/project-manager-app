@@ -9,8 +9,8 @@ const CARGO_TOML: &str = "Cargo.toml";
 const POM_XML: &str = "pom.xml";
 const PYPROJECT_TOML: &str = "pyproject.toml";
 const PYTHON_VERSION_FILE: &str = "src/__version__.py";
-const VERSION_FILE: &str = "version";
-const VERSION_TEXT: &str = "version.txt";
+const VERSION_FILES: &[&str] = &["version", "version.txt"];
+const PAGKAGE_JSON_FILES: &[&str] = &["package.json", "ui/package.json"];
 
 pub fn execute(bump_type: &str) -> Result<()> {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
@@ -66,8 +66,10 @@ pub fn release_config_file(tag: &str, config_file: &str) -> Result<()> {
         edit_pyproject_toml_file(tag, config_file)?;
     } else if config_file == PYTHON_VERSION_FILE || config_file == python_project_version_file {
         edit_python_package_init_file(tag, config_file)?;
-    } else if config_file == VERSION_FILE || config_file == VERSION_TEXT {
+    } else if VERSION_FILES.contains(&config_file) {
         edit_version_text_file(tag, config_file)?;
+    } else if PAGKAGE_JSON_FILES.contains(&config_file) {
+        edit_package_json_file(tag, config_file)?;
     } else {
         anyhow::bail!("不支持的配置文件 {}", config_file);
     }
@@ -90,11 +92,16 @@ fn detect_config_file() -> Result<Vec<String>> {
         config_files.push(PYTHON_VERSION_FILE.to_string());
     }
 
-    if Path::new(VERSION_FILE).exists() {
-        config_files.push(VERSION_FILE.to_string());
+    for version_file in VERSION_FILES {
+        if Path::new(version_file).exists() {
+            config_files.push(version_file.to_string());
+        }
     }
-    if Path::new(VERSION_TEXT).exists() {
-        config_files.push(VERSION_TEXT.to_string());
+
+    for package_json_file in PAGKAGE_JSON_FILES {
+        if Path::new(package_json_file).exists() {
+            config_files.push(package_json_file.to_string());
+        }
     }
 
     let dir_name = utils::get_current_dir()?;
@@ -208,6 +215,34 @@ fn edit_version_text_file(tag: &str, config_file: &str) -> Result<()> {
     let version = tag.trim_start_matches('v');
 
     std::fs::write(config_file, version).with_context(|| format!("无法写入 {}", config_file))?;
+
+    Ok(())
+}
+
+fn edit_package_json_file(tag: &str, config_file: &str) -> Result<()> {
+    let version = tag.trim_start_matches('v');
+
+    let config_content = std::fs::read_to_string(config_file)
+        .with_context(|| format!("无法读取 {}", config_file))?;
+
+    let mut lines: Vec<String> = config_content.lines().map(|s| s.to_string()).collect();
+
+    for line in &mut lines {
+        if line.trim().starts_with("\"version\": ") {
+            *line = format!("\"version\": \"{}\"", version);
+            break;
+        }
+    }
+
+    let mut new_config_content = lines.join("\n");
+
+    // 保留原始文件的最后换行符
+    if config_content.ends_with('\n') {
+        new_config_content.push('\n');
+    }
+
+    std::fs::write(config_file, new_config_content)
+        .with_context(|| format!("无法写入 {}", config_file))?;
 
     Ok(())
 }
