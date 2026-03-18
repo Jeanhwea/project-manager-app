@@ -226,10 +226,10 @@ fn edit_package_json_file(tag: &str, config_file: &str) -> Result<()> {
         .with_context(|| format!("无法读取 {}", config_file))?;
 
     let mut lines: Vec<String> = config_content.lines().map(|s| s.to_string()).collect();
+    let re = Regex::new(r#""version":\s*"[^"]*""#)?;
 
     for line in &mut lines {
         if line.trim().starts_with("\"version\": ") {
-            let re = Regex::new(r#""version":\s*"[^"]*""#)?;
             *line = re
                 .replace(line, &format!(r#""version": "{}""#, version))
                 .to_string();
