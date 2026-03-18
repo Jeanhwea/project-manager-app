@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
 
-const CARGO_TOML: &str = "Cargo.toml";
+const CARGO_TOML_FILES: &[&str] = &["Cargo.toml", "src-tauri/Cargo.toml"];
 const POM_XML: &str = "pom.xml";
 const PYPROJECT_TOML: &str = "pyproject.toml";
 const PYTHON_VERSION_FILE: &str = "src/__version__.py";
@@ -58,13 +58,15 @@ pub fn release_config_file(tag: &str, config_file: &str) -> Result<()> {
     let dir_name = utils::get_current_dir()?;
     let python_project_version_file = format!("{}/__version__.py", dir_name);
 
-    if config_file == CARGO_TOML {
+    if CARGO_TOML_FILES.contains(&config_file) {
         edit_cargo_toml_file(tag, config_file)?;
     } else if config_file == POM_XML {
         edit_pom_xml_file(tag, config_file)?;
     } else if config_file == PYPROJECT_TOML {
         edit_pyproject_toml_file(tag, config_file)?;
-    } else if config_file == PYTHON_VERSION_FILE || config_file == python_project_version_file {
+    } else if config_file == PYTHON_VERSION_FILE
+        || config_file == python_project_version_file.as_str()
+    {
         edit_python_package_init_file(tag, config_file)?;
     } else if VERSION_FILES.contains(&config_file) {
         edit_version_text_file(tag, config_file)?;
@@ -79,8 +81,10 @@ pub fn release_config_file(tag: &str, config_file: &str) -> Result<()> {
 fn detect_config_file() -> Result<Vec<String>> {
     let mut config_files = Vec::new();
 
-    if Path::new(CARGO_TOML).exists() {
-        config_files.push(CARGO_TOML.to_string());
+    for cargo_toml_file in CARGO_TOML_FILES {
+        if Path::new(cargo_toml_file).exists() {
+            config_files.push(cargo_toml_file.to_string());
+        }
     }
     if Path::new(POM_XML).exists() {
         config_files.push(POM_XML.to_string());
