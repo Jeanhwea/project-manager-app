@@ -6,5 +6,135 @@
 #+OPTIONS: ^:nil
 
 
-* 项目管理
-1. 快速语义化版本管理
+* 简介
+
+=pma= (Project Manager Application) 是一个用 Rust 编写的命令行项目管理工具，用于批量管理
+Git 仓库。支持语义化版本发布、多仓库同步、仓库健康检查、模板项目 fork 和项目快照等功能。
+
+* 安装
+
+#+begin_src bash
+cargo build --release
+#+end_src
+
+编译产物位于 =target/release/pma= 。
+
+* 子命令
+
+** release (别名: re)
+
+语义化版本发布。自动检测项目中的配置文件，编辑版本号，提交并打标签，推送到所有远程仓库。
+
+#+begin_src bash
+pma release patch   # v0.1.0 -> v0.1.1
+pma release minor   # v0.1.0 -> v0.2.0
+pma release major   # v0.1.0 -> v1.0.0
+#+end_src
+
+支持的配置文件类型:
+- =Cargo.toml= / =src-tauri/Cargo.toml=
+- =pom.xml=
+- =pyproject.toml=
+- =package.json= / =ui/package.json=
+- =src/__version__.py= / =<project_name>/__version__.py=
+- =version= / =version.txt=
+
+注意: 只能在 =master= 分支上执行。
+
+** sync (别名: s)
+
+批量同步 Git 仓库，递归搜索指定目录下的所有 Git 仓库，执行 pull 和 push 操作。
+
+#+begin_src bash
+pma sync                              # 同步当前目录下的仓库
+pma sync /path/to/repos               # 同步指定目录
+pma sync -m 5                         # 设置最大搜索深度为 5
+pma sync -a                           # 拉取所有本地分支
+pma sync -s github,gitee              # 跳过指定远程仓库
+#+end_src
+
+| 参数             | 说明                       | 默认值 |
+|------------------+----------------------------+--------|
+| =path=           | 搜索目录                   | =.=    |
+| =-m, --max-depth= | 最大搜索深度               |      3 |
+| =-a, --all-branch= | 拉取所有本地分支           | false  |
+| =-s, --skip-remotes= | 跳过的远程仓库 (逗号分隔) | 无     |
+
+默认跳过 HTTPS 协议的 github.com、githubfast.com、gitee.com 的推送。
+
+** doctor
+
+仓库健康检查。遍历目录下的 Git 仓库，根据远程 URL 自动修正 remote 命名，可选执行 =git gc= 。
+
+#+begin_src bash
+pma doctor                    # 检查当前目录下的仓库
+pma doctor /path/to/repos     # 检查指定目录
+pma doctor --gc               # 同时执行 git gc
+pma doctor -m 5               # 设置最大搜索深度
+#+end_src
+
+remote 命名规则:
+- =github.com= / =githubfast.com= → =github=
+- =gitana.jeanhwea.io= → =gitana=
+- =gitee.com= (red 系列路径) → =redinf=
+- =gitee.com= (其他) → =gitee=
+- =192.168.0.110= → =avic=
+- 其他 → =origin=
+
+** fork
+
+从模板项目 fork 新项目。克隆模板仓库后重新初始化 Git 历史，处理子模块，并执行 =.pma.json=
+中定义的初始化动作。
+
+#+begin_src bash
+pma fork /path/to/template my-new-project
+#+end_src
+
+=.pma.json= 支持的动作:
+- =replace=: 在指定文件中替换字符串，支持占位符 =${PMA_PROJECT_NAME}= 、
+  =${PMA_PROJECT_NAME_KEBAB}= 、 =${PMA_PROJECT_NAME_PASCAL}=
+- =add-git-remote=: 添加 Git 远程仓库
+
+** snap
+
+项目快照。对指定目录执行增量 Git 提交，提交信息格式为 =snap-NNNNNN= 。如果目录尚未初始化
+Git 仓库，会自动执行 =git init= 。
+
+#+begin_src bash
+pma snap                  # 快照当前目录
+pma snap /path/to/project # 快照指定目录
+#+end_src
+
+* 项目结构
+
+#+begin_src
+src/
+├── main.rs          # 入口，CLI 分发
+├── cli.rs           # clap 命令定义
+├── utils.rs         # 工具函数
+└── app/
+    ├── mod.rs       # 模块导出
+    ├── runner.rs    # 外部命令执行封装
+    ├── git.rs       # Git 操作封装
+    ├── version.rs   # 语义化版本解析与比较
+    ├── repo.rs      # Git 仓库发现与遍历
+    ├── release.rs   # release 子命令实现
+    ├── sync.rs      # sync 子命令实现
+    ├── doctor.rs    # doctor 子命令实现
+    ├── fork.rs      # fork 子命令实现
+    └── snap.rs      # snap 子命令实现
+#+end_src
+
+* 开发
+
+#+begin_src bash
+cargo build              # 编译
+cargo run -- <subcommand> # 运行
+cargo test               # 测试
+#+end_src
+
+格式化代码:
+
+#+begin_src bash
+./fmt.cmd
+#+end_src
