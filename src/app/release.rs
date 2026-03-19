@@ -16,7 +16,12 @@ const CONFIG_FILE_CANDIDATES: &[(&[&str], ConfigFileType)] = &[
     (&["src/__version__.py"], ConfigFileType::PythonVersion),
     (&["version", "version.txt"], ConfigFileType::VersionText),
     (
-        &["package.json", "ui/package.json"],
+        &[
+            "package.json",
+            "apps/api/package.json",
+            "apps/web/package.json",
+            "ui/package.json",
+        ],
         ConfigFileType::PackageJson,
     ),
 ];
