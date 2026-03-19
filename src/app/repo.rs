@@ -20,6 +20,27 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: Option<usize>) -> Vec<R
     find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(DEFAULT_MAX_DEPTH))
 }
 
+/// 查找 git 仓库，如果未找到则尝试使用当前 git 工作区的顶层目录
+pub fn find_git_repositories_or_current(
+    root_dir: &Path,
+    max_depth: Option<usize>,
+) -> Vec<RepoInfo> {
+    let repos = find_git_repositories(root_dir, max_depth);
+    if !repos.is_empty() {
+        return repos;
+    }
+
+    // fallback: 当前目录本身可能就是 git 仓库
+    if let Some(top_level_dir) = super::git::get_top_level_dir() {
+        return vec![RepoInfo {
+            path: top_level_dir,
+            repo_type: RepoType::Regular,
+        }];
+    }
+
+    Vec::new()
+}
+
 fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
     let mut repos = Vec::new();
 
@@ -63,13 +84,14 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
 }
 
 /// 遍历仓库并对每个仓库执行回调，提供统一的进度输出和路径规范化
+/// 回调接收规范化后的绝对路径，跳过子模块
 pub fn for_each_repo<F>(
     path: &str,
     max_depth: Option<usize>,
     mut callback: F,
 ) -> anyhow::Result<()>
 where
-    F: FnMut(&RepoInfo, &Path, usize, usize) -> anyhow::Result<()>,
+    F: FnMut(&Path) -> anyhow::Result<()>,
 {
     let root_dir = Path::new(path);
 
@@ -103,7 +125,7 @@ where
             continue;
         }
 
-        callback(repo, &repo_path, index, total)?;
+        callback(&repo_path)?;
     }
 
     Ok(())

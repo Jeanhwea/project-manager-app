@@ -1,11 +1,10 @@
 use super::git;
+use super::repo::RepoType;
 use super::runner::CommandRunner;
 use crate::utils;
 use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
-
-use super::repo::{RepoInfo, RepoType};
 
 pub fn execute(
     path: &str,
@@ -19,16 +18,7 @@ pub fn execute(
         anyhow::bail!("目录不存在: {}", path);
     }
 
-    let mut git_repos = super::repo::find_git_repositories(root_dir, max_depth);
-
-    if git_repos.is_empty() {
-        if let Some(top_level_dir) = git::get_top_level_dir() {
-            git_repos.push(RepoInfo {
-                path: top_level_dir.to_path_buf(),
-                repo_type: RepoType::Regular,
-            });
-        }
-    }
+    let git_repos = super::repo::find_git_repositories_or_current(root_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");
@@ -39,22 +29,22 @@ pub fn execute(
         println!("跳过远程仓库: {:?}", skip_remotes);
     }
 
-    let total_repos = git_repos.len();
+    let total = git_repos.len();
 
-    for (repo_index, repo_info) in git_repos.iter().enumerate() {
-        let repo_path = repo_info
+    for (index, repo) in git_repos.iter().enumerate() {
+        let repo_path = repo
             .path
             .canonicalize()
-            .unwrap_or_else(|_| repo_info.path.clone());
+            .unwrap_or_else(|_| repo.path.clone());
 
-        let progress = format!("({}/{})", repo_index + 1, total_repos);
+        let progress = format!("({}/{})", index + 1, total);
         println!(
             "{}>> {}",
             progress.white().bold(),
             utils::format_path(&repo_path).cyan().underline(),
         );
 
-        if repo_info.repo_type == RepoType::Submodule {
+        if repo.repo_type == RepoType::Submodule {
             continue;
         }
 
@@ -79,7 +69,7 @@ fn is_workdir_clean(repo_path: &Path) -> bool {
     CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], repo_path)
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map_or(false, |s| s.is_empty())
+        .is_some_and(|s| s.is_empty())
 }
 
 fn do_info_repository(repo_path: &Path) {
@@ -123,7 +113,11 @@ fn do_sync_repository(repo_path: &Path, all_branch: bool, skip_remotes: &[String
     };
 
     if skip_remotes.contains(&track_remote) {
-        println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
+        println!(
+            "  跳过拉取 {} ({})",
+            track_remote,
+            track_remote_url.green()
+        );
         return;
     }
 
@@ -227,6 +221,12 @@ fn do_push_repository(repo_path: &Path, remote: &str) {
     {
         println!(
             "  推送分支失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
+    }
+    if let Err(e) =
+        CommandRunner::run_with_success_in_
             utils::format_path(repo_path).red(),
             e
         );
