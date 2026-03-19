@@ -19,22 +19,8 @@ fn main() -> Result<()> {
             skip_remotes,
             all_branch,
         } => {
-            // 处理逗号分隔的远程仓库名称
-            let mut processed_remotes = Vec::new();
-            for remote in skip_remotes {
-                if remote.contains(',') {
-                    // 分割逗号分隔的字符串
-                    let split_remotes: Vec<String> = remote
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                    processed_remotes.extend(split_remotes);
-                } else {
-                    processed_remotes.push(remote);
-                }
-            }
-            app::sync::execute(&path, max_depth, all_branch, processed_remotes)?;
+            let skip_remotes = parse_comma_separated(skip_remotes);
+            app::sync::execute(&path, max_depth, all_branch, skip_remotes)?;
         }
         Commands::Doctor {
             path,
@@ -52,4 +38,17 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// 处理逗号分隔的参数值，将 "a,b,c" 展开为 ["a", "b", "c"]
+fn parse_comma_separated(values: Vec<String>) -> Vec<String> {
+    values
+        .into_iter()
+        .flat_map(|v| {
+            v.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
