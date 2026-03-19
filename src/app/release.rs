@@ -1,6 +1,5 @@
 use super::git;
 use super::version::Version;
-use crate::utils;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
@@ -13,15 +12,10 @@ const CONFIG_FILE_CANDIDATES: &[(&[&str], ConfigFileType)] = &[
     ),
     (&["pom.xml"], ConfigFileType::PomXml),
     (&["pyproject.toml"], ConfigFileType::PyprojectToml),
-    (&["src/__version__.py"], ConfigFileType::PythonVersion),
+    (&["{}/__version__.py"], ConfigFileType::PythonVersion),
     (&["version", "version.txt"], ConfigFileType::VersionText),
     (
-        &[
-            "package.json",
-            "apps/api/package.json",
-            "apps/web/package.json",
-            "ui/package.json",
-        ],
+        &["package.json", "apps/{}/package.json", "ui/package.json"],
         ConfigFileType::PackageJson,
     ),
 ];
@@ -82,18 +76,17 @@ fn detect_config_files() -> Result<Vec<(String, ConfigFileType)>> {
     let mut result = Vec::new();
 
     for (candidates, file_type) in CONFIG_FILE_CANDIDATES {
-        for path in *candidates {
-            if Path::new(path).exists() {
-                result.push((path.to_string(), *file_type));
+        for pattern in *candidates {
+            if pattern.contains("{}") {
+                // 动态搜索: 将 {} 替换为当前目录下匹配的子目录
+                for path in expand_glob_pattern(pattern) {
+                    if Path::new(&path).exists() {
+                        result.push((path, *file_type));
+                    }
+                }
+            } else if Path::new(pattern).exists() {
+                result.push((pattern.to_string(), *file_type));
             }
-        }
-    }
-
-    // 动态 Python 版本文件: <project_name>/__version__.py
-    if let Ok(dir_name) = utils::get_current_dir() {
-        let dynamic_path = format!("{}/__version__.py", dir_name);
-        if Path::new(&dynamic_path).exists() {
-            result.push((dynamic_path, ConfigFileType::PythonVersion));
         }
     }
 
@@ -102,6 +95,41 @@ fn detect_config_files() -> Result<Vec<(String, ConfigFileType)>> {
     }
 
     Ok(result)
+}
+
+/// 展开含 `{}` 占位符的路径模式，搜索匹配的子目录
+fn expand_glob_pattern(pattern: &str) -> Vec<String> {
+    let mut results = Vec::new();
+    let (prefix, suffix) = match pattern.split_once("{}") {
+        Some(pair) => pair,
+        None => return results,
+    };
+
+    // 确定要扫描的目录（prefix 为空则扫描当前目录）
+    let scan_dir = if prefix.is_empty() {
+        ".".to_string()
+    } else {
+        prefix.trim_end_matches('/').to_string()
+    };
+
+    let entries = match std::fs::read_dir(&scan_dir) {
+        Ok(e) => e,
+        Err(_) => return results,
+    };
+
+    for entry in entries.flatten() {
+        if entry.path().is_dir() {
+            let dir_name = entry.file_name().to_string_lossy().to_string();
+            // 跳过隐藏目录和 node_modules
+            if dir_name.starts_with('.') || dir_name == "node_modules" {
+                continue;
+            }
+            let candidate = format!("{}{}{}", prefix, dir_name, suffix);
+            results.push(candidate);
+        }
+    }
+
+    results
 }
 
 fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType) -> Result<()> {
