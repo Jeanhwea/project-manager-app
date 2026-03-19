@@ -113,11 +113,7 @@ fn do_sync_repository(repo_path: &Path, all_branch: bool, skip_remotes: &[String
     };
 
     if skip_remotes.contains(&track_remote) {
-        println!(
-            "  跳过拉取 {} ({})",
-            track_remote,
-            track_remote_url.green()
-        );
+        println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
         return;
     }
 
@@ -221,12 +217,6 @@ fn do_push_repository(repo_path: &Path, remote: &str) {
     {
         println!(
             "  推送分支失败: {} - {}",
-            utils::format_path(repo_path).red(),
-            e
-        );
-    }
-    if let Err(e) =
-        CommandRunner::run_with_success_in_
             utils::format_path(repo_path).red(),
             e
         );
