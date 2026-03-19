@@ -1,5 +1,7 @@
+use crate::utils;
+use colored::Colorize;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const DEFAULT_MAX_DEPTH: usize = 3;
 
@@ -10,18 +12,33 @@ pub enum RepoType {
 }
 
 pub struct RepoInfo {
-    pub path: std::path::PathBuf,
+    pub path: PathBuf,
     pub repo_type: RepoType,
 }
 
 pub fn find_git_repositories(root_dir: &Path, max_depth: Option<usize>) -> Vec<RepoInfo> {
-    let repos =
-        find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(DEFAULT_MAX_DEPTH));
+    find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(DEFAULT_MAX_DEPTH))
+}
 
-    repos
-        .into_iter()
-        .filter(|repo| repo.repo_type == RepoType::Regular)
-        .collect()
+/// 查找 git 仓库，如果未找到则尝试使用当前 git 工作区的顶层目录
+pub fn find_git_repositories_or_current(
+    root_dir: &Path,
+    max_depth: Option<usize>,
+) -> Vec<RepoInfo> {
+    let repos = find_git_repositories(root_dir, max_depth);
+    if !repos.is_empty() {
+        return repos;
+    }
+
+    // fallback: 当前目录本身可能就是 git 仓库
+    if let Some(top_level_dir) = super::git::get_top_level_dir() {
+        return vec![RepoInfo {
+            path: top_level_dir,
+            repo_type: RepoType::Regular,
+        }];
+    }
+
+    Vec::new()
 }
 
 fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
@@ -31,35 +48,85 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
         return repos;
     }
 
-    if let Ok(entries) = fs::read_dir(root_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let file_name = entry.file_name();
-            let file_name_str = file_name.to_str().unwrap_or("");
+    let Ok(entries) = fs::read_dir(root_dir) else {
+        return repos;
+    };
 
-            if file_name_str == ".venv" {
-                continue;
-            }
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let file_name = entry.file_name();
+        let file_name_str = file_name.to_str().unwrap_or("");
 
-            if path.is_dir() {
-                if file_name_str == ".git" {
-                    if let Some(parent) = path.parent() {
-                        repos.push(RepoInfo {
-                            path: parent.to_path_buf(),
-                            repo_type: RepoType::Regular,
-                        });
-                    }
+        // 跳过虚拟环境目录
+        if file_name_str == ".venv" {
+            continue;
+        }
+
+        if file_name_str == ".git" {
+            if let Some(parent) = path.parent() {
+                let repo_type = if path.is_dir() {
+                    RepoType::Regular
                 } else {
-                    repos.extend(find_git_repositories_with_depth(&path, max_depth - 1));
-                }
-            } else if let Some(parent) = path.parent() {
+                    // .git 是文件时表示子模块
+                    RepoType::Submodule
+                };
                 repos.push(RepoInfo {
                     path: parent.to_path_buf(),
-                    repo_type: RepoType::Submodule,
+                    repo_type,
                 });
             }
+        } else if path.is_dir() {
+            repos.extend(find_git_repositories_with_depth(&path, max_depth - 1));
         }
     }
 
     repos
+}
+
+/// 遍历仓库并对每个仓库执行回调，提供统一的进度输出和路径规范化
+/// 回调接收规范化后的绝对路径，跳过子模块
+pub fn for_each_repo<F>(
+    path: &str,
+    max_depth: Option<usize>,
+    mut callback: F,
+) -> anyhow::Result<()>
+where
+    F: FnMut(&Path) -> anyhow::Result<()>,
+{
+    let root_dir = Path::new(path);
+
+    if !root_dir.exists() {
+        anyhow::bail!("目录不存在: {}", path);
+    }
+
+    let git_repos = find_git_repositories(root_dir, max_depth);
+
+    if git_repos.is_empty() {
+        println!("未找到git仓库");
+        return Ok(());
+    }
+
+    let total = git_repos.len();
+
+    for (index, repo) in git_repos.iter().enumerate() {
+        let repo_path = repo
+            .path
+            .canonicalize()
+            .unwrap_or_else(|_| repo.path.clone());
+
+        let progress = format!("({}/{})", index + 1, total);
+        println!(
+            "{}>> {}",
+            progress.white().bold(),
+            utils::format_path(&repo_path).cyan().underline(),
+        );
+
+        if repo.repo_type == RepoType::Submodule {
+            continue;
+        }
+
+        callback(&repo_path)?;
+    }
+
+    Ok(())
 }

@@ -1,11 +1,10 @@
 use super::git;
+use super::repo::RepoType;
 use super::runner::CommandRunner;
 use crate::utils;
 use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
-
-use super::repo::{RepoInfo, RepoType};
 
 pub fn execute(
     path: &str,
@@ -19,16 +18,7 @@ pub fn execute(
         anyhow::bail!("目录不存在: {}", path);
     }
 
-    let mut git_repos = super::repo::find_git_repositories(root_dir, max_depth);
-
-    if git_repos.is_empty()
-        && let Some(top_level_dir) = git::get_top_level_dir()
-    {
-        git_repos.push(RepoInfo {
-            path: top_level_dir.to_path_buf(),
-            repo_type: RepoType::Regular,
-        });
-    }
+    let git_repos = super::repo::find_git_repositories_or_current(root_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");
@@ -39,33 +29,28 @@ pub fn execute(
         println!("跳过远程仓库: {:?}", skip_remotes);
     }
 
-    let total_repos = git_repos.len();
+    let total = git_repos.len();
 
-    for (repo_index, repo_info) in git_repos.iter().enumerate() {
-        let repo_path = if let Ok(abs_path) = repo_info.path.canonicalize() {
-            abs_path
-        } else {
-            repo_info.path.clone()
-        };
+    for (index, repo) in git_repos.iter().enumerate() {
+        let repo_path = repo
+            .path
+            .canonicalize()
+            .unwrap_or_else(|_| repo.path.clone());
 
-        let progress = format!("({}/{})", repo_index + 1, total_repos);
+        let progress = format!("({}/{})", index + 1, total);
         println!(
             "{}>> {}",
             progress.white().bold(),
             utils::format_path(&repo_path).cyan().underline(),
         );
 
-        // 只对普通 git 仓库执行 git pull，跳过子模块
-        if repo_info.repo_type == RepoType::Submodule {
+        if repo.repo_type == RepoType::Submodule {
             continue;
         }
 
-        // 打印仓库信息
         do_info_repository(&repo_path);
 
-        // 检查工作目录是否干净
-        if !do_check_workdir_clean(&repo_path) {
-            // git status
+        if !is_workdir_clean(&repo_path) {
             CommandRunner::run_with_success_in_dir("git", &["status"], &repo_path)?;
             println!(
                 "  无法同步不干净工作目录: {}",
@@ -74,35 +59,25 @@ pub fn execute(
             continue;
         }
 
-        // 同步仓库
-        do_sync_repository(&repo_path, all_branch, skip_remotes.clone());
+        do_sync_repository(&repo_path, all_branch, &skip_remotes);
     }
 
     Ok(())
 }
 
-fn do_check_workdir_clean(repo_path: &Path) -> bool {
-    let Ok(output) =
-        CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], repo_path)
-    else {
-        return false;
-    };
-
-    let Ok(status) = String::from_utf8(output.stdout) else {
-        return false;
-    };
-    status.is_empty()
+fn is_workdir_clean(repo_path: &Path) -> bool {
+    CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], repo_path)
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .is_some_and(|s| s.is_empty())
 }
 
 fn do_info_repository(repo_path: &Path) {
-    // 打印本地分支
     if let Err(e) =
         CommandRunner::run_with_success_in_dir("git", &["branch", "--list"], repo_path)
     {
         println!("  无法获取分支信息: {}", e);
     }
-
-    // 打印远程仓库信息
     if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["remote", "-v"], repo_path) {
         println!("  无法获取远程信息: {}", e);
     }
@@ -126,51 +101,42 @@ fn get_tracking_remote_info(
     Some((remote.to_string(), url.clone()))
 }
 
-fn do_sync_repository(repo_path: &Path, all_branch: bool, skip_remotes: Vec<String>) {
+fn do_sync_repository(repo_path: &Path, all_branch: bool, skip_remotes: &[String]) {
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
         return;
     }
 
-    // 获取当前分支的跟踪远程仓库
-    let (track_remote, track_remote_url) = match get_tracking_remote_info(repo_path, &remotes) {
-        Some(info) => info,
-        None => return,
+    let Some((track_remote, track_remote_url)) = get_tracking_remote_info(repo_path, &remotes)
+    else {
+        return;
     };
 
-    // 拉取远端数据
     if skip_remotes.contains(&track_remote) {
         println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
         return;
     }
 
-    // 拉取远端数据
     if all_branch {
         do_pull_all_local_branch(repo_path);
     } else {
         do_pull_repository(repo_path);
     }
 
-    // 对每个远程仓库执行 git push
     for (remote, url) in remotes {
-        // 检测是否跳过推送
-        if should_skip_push(&remote, &url, &skip_remotes) {
+        if should_skip_push(&remote, &url, skip_remotes) {
             println!("  跳过推送 {} ({})", remote, url.green());
             continue;
         }
-
-        // 推送所有分支和标签
         do_push_repository(repo_path, &remote);
     }
 }
 
 fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
-    // 检查是否在跳过列表中
     if skip_remotes.iter().any(|s| s.as_str() == remote) {
         return true;
     }
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
-        // println!("  解析远程URL: {} {} {}", protocol, host, path);
         if protocol == "https"
             && (host == "github.com" || host == "githubfast.com" || host == "gitee.com")
         {
@@ -187,9 +153,7 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
 
 fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
     let output = CommandRunner::run_quiet_in_dir("git", &["branch", "--list"], repo_path).ok()?;
-
     let stdout = String::from_utf8(output.stdout).ok()?;
-
     let lines: Vec<_> = stdout.lines().collect();
 
     let current_branch = lines
@@ -208,28 +172,22 @@ fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
 }
 
 fn do_pull_all_local_branch(repo_path: &Path) {
-    let (current_branch, local_branches) = match list_local_branches(repo_path) {
-        Some(result) => result,
-        None => return,
+    let Some((current_branch, local_branches)) = list_local_branches(repo_path) else {
+        return;
     };
 
-    // 如果没有其它本地分支，直接拉取仓库
     if local_branches.is_empty() {
         do_pull_repository(repo_path);
         return;
     }
 
-    // 拉取所有本地分支
-    for branch in local_branches {
-        do_pull_repository_branch(&branch, repo_path);
+    for branch in &local_branches {
+        do_pull_repository_branch(branch, repo_path);
     }
-
-    // 拉取当前分支
     do_pull_repository_branch(&current_branch, repo_path);
 }
 
 fn do_pull_repository_branch(branch: &str, repo_path: &Path) {
-    // git checkout branch
     if let Err(e) =
         CommandRunner::run_with_success_in_dir("git", &["checkout", branch], repo_path)
     {
@@ -240,15 +198,7 @@ fn do_pull_repository_branch(branch: &str, repo_path: &Path) {
         );
         return;
     }
-
-    // git pull
-    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path) {
-        println!(
-            "  同步仓库失败: {} - {}",
-            utils::format_path(repo_path).red(),
-            e
-        );
-    }
+    do_pull_repository(repo_path);
 }
 
 fn do_pull_repository(repo_path: &Path) {
@@ -260,8 +210,8 @@ fn do_pull_repository(repo_path: &Path) {
         );
     }
 }
+
 fn do_push_repository(repo_path: &Path, remote: &str) {
-    // 推送所有分支
     if let Err(e) =
         CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], repo_path)
     {
@@ -271,8 +221,6 @@ fn do_push_repository(repo_path: &Path, remote: &str) {
             e
         );
     }
-
-    // 推送所有标签
     if let Err(e) =
         CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], repo_path)
     {
