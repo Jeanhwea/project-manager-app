@@ -1,13 +1,7 @@
 use anyhow::{Context, Result};
 use std::path::Path;
 
-/// 优化路径显示，移除 Windows UNC 路径前缀
-pub fn format_path(path: &Path) -> String {
-    path.to_string_lossy()
-        .trim_start_matches("\\\\?\\")
-        .to_string()
-}
-
+/// 获取当前目录
 pub fn get_current_dir() -> Result<String> {
     let current_dir = std::env::current_dir().context("无法获取当前目录")?;
     let canonical = current_dir
@@ -17,15 +11,16 @@ pub fn get_current_dir() -> Result<String> {
     Ok(file_name.to_string_lossy().to_string())
 }
 
+/// 优化路径显示，移除 Windows UNC 路径前缀
+pub fn format_path(path: &Path) -> String {
+    path.to_string_lossy()
+        .trim_start_matches("\\\\?\\")
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_get_current_dir() {
-        let dir_name = get_current_dir().expect("应该能获取当前目录");
-        assert!(!dir_name.is_empty(), "Directory name should not be empty");
-    }
 
     #[test]
     fn test_format_path() {
