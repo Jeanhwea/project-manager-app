@@ -8,24 +8,9 @@ pub fn format_path(path: &Path) -> String {
         .to_string()
 }
 
-pub fn get_current_dir() -> Result<String> {
-    let current_dir = std::env::current_dir().context("无法获取当前目录")?;
-    let canonical = current_dir
-        .canonicalize()
-        .context("无法规范化当前目录路径")?;
-    let file_name = canonical.file_name().context("无法获取当前目录名称")?;
-    Ok(file_name.to_string_lossy().to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_get_current_dir() {
-        let dir_name = get_current_dir().expect("应该能获取当前目录");
-        assert!(!dir_name.is_empty(), "Directory name should not be empty");
-    }
 
     #[test]
     fn test_format_path() {
