@@ -10,8 +10,11 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Release { bump_type } => {
-            app::release::execute(bump_type.as_str())?;
+        Commands::Release {
+            bump_type,
+            force_current_dir,
+        } => {
+            app::release::execute(bump_type.as_str(), force_current_dir)?;
         }
         Commands::Sync {
             path,

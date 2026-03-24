@@ -80,6 +80,13 @@ pub enum Commands {
             help = "Bump type: major, minor, patch"
         )]
         bump_type: BumpType,
+        /// Force using current directory instead of git root
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Force using current directory instead of git root"
+        )]
+        force_current_dir: bool,
     },
     /// Synchronize all code repositories
     #[command(visible_alias = "s")]
