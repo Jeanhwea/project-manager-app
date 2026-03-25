@@ -34,9 +34,9 @@ pub fn execute(bump_type: &str, force_current_dir: bool) -> Result<()> {
     // 除非指定 --force-current-dir，否则先切换到 git 仓库根目录
     if !force_current_dir
         && let Some(root) = git::get_top_level_dir()
+        && let Err(e) = std::env::set_current_dir(&root)
     {
-        std::env::set_current_dir(&root)
-            .with_context(|| format!("无法切换到 git 根目录: {}", root.display()))?;
+        eprintln!("警告: 无法切换到 git 根目录: {}, {}", root.display(), e);
     }
 
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
