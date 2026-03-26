@@ -30,7 +30,7 @@ enum ConfigFileType {
     PackageJson,
 }
 
-pub fn execute(bump_type: &str, force_current_dir: bool) -> Result<()> {
+pub fn execute(bump_type: &str, force_current_dir: bool, force: bool) -> Result<()> {
     // 除非指定 --force-current-dir，否则先切换到 git 仓库根目录
     if !force_current_dir
         && let Some(root) = git::get_top_level_dir()
@@ -40,7 +40,7 @@ pub fn execute(bump_type: &str, force_current_dir: bool) -> Result<()> {
     }
 
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
-    if current_branch != "master" {
+    if !force && current_branch != "master" {
         anyhow::bail!("只能在 master 分支上执行 release");
     }
 

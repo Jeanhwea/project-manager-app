@@ -87,6 +87,13 @@ pub enum Commands {
             help = "Force using current directory instead of git root"
         )]
         force_current_dir: bool,
+        /// Force release even if not on master branch
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Force release even if not on master branch"
+        )]
+        force: bool,
     },
     /// Synchronize all code repositories
     #[command(visible_alias = "s")]
