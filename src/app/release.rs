@@ -30,9 +30,9 @@ enum ConfigFileType {
     PackageJson,
 }
 
-pub fn execute(bump_type: &str, force_current_dir: bool, force: bool) -> Result<()> {
-    // 除非指定 --force-current-dir，否则先切换到 git 仓库根目录
-    if !force_current_dir
+pub fn execute(bump_type: &str, no_root: bool, force: bool) -> Result<()> {
+    // 除非指定 --no-root，否则先切换到 git 仓库根目录
+    if !no_root
         && let Some(root) = git::get_top_level_dir()
         && let Err(e) = std::env::set_current_dir(&root)
     {

@@ -12,10 +12,10 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Release {
             bump_type,
-            force_current_dir,
+            no_root,
             force,
         } => {
-            app::release::execute(bump_type.as_str(), force_current_dir, force)?;
+            app::release::execute(bump_type.as_str(), no_root, force)?;
         }
         Commands::Sync {
             path,

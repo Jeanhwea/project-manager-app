@@ -80,13 +80,13 @@ pub enum Commands {
             help = "Bump type: major, minor, patch"
         )]
         bump_type: BumpType,
-        /// Force using current directory instead of git root
+        /// Stay in current directory instead of switching to git root
         #[arg(
             long,
             default_value = "false",
-            help = "Force using current directory instead of git root"
+            help = "Stay in current directory instead of switching to git root"
         )]
-        force_current_dir: bool,
+        no_root: bool,
         /// Force release even if not on master branch
         #[arg(
             long,
