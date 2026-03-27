@@ -83,6 +83,7 @@ pub enum Commands {
         /// Stay in current directory instead of switching to git root
         #[arg(
             long,
+            short = 'n',
             default_value = "false",
             help = "Stay in current directory instead of switching to git root"
         )]
@@ -90,6 +91,7 @@ pub enum Commands {
         /// Force release even if not on master branch
         #[arg(
             long,
+            short,
             default_value = "false",
             help = "Force release even if not on master branch"
         )]
