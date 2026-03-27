@@ -18,10 +18,7 @@ const CONFIG_FILE_CANDIDATES: &[(&[&str], ConfigFileType)] = &[
         &["package.json", "apps/{}/package.json", "ui/package.json"],
         ConfigFileType::PackageJson,
     ),
-    (
-        &["CMakeLists.txt"],
-        ConfigFileType::CMakeLists,
-    ),
+    (&["CMakeLists.txt"], ConfigFileType::CMakeLists),
 ];
 
 #[derive(Clone, Copy)]
