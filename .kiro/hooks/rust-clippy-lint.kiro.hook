@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Rust Clippy Lint",
+  "description": "当 Rust 文件被编辑保存时，自动运行 cargo clippy 进行代码检查",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.rs"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cargo clippy --all-targets --all-features -- -D warnings"
+  }
+}
