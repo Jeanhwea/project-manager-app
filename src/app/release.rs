@@ -18,6 +18,10 @@ const CONFIG_FILE_CANDIDATES: &[(&[&str], ConfigFileType)] = &[
         &["package.json", "apps/{}/package.json", "ui/package.json"],
         ConfigFileType::PackageJson,
     ),
+    (
+        &["CMakeLists.txt"],
+        ConfigFileType::CMakeLists,
+    ),
 ];
 
 #[derive(Clone, Copy)]
@@ -28,6 +32,7 @@ enum ConfigFileType {
     PythonVersion,
     VersionText,
     PackageJson,
+    CMakeLists,
 }
 
 pub fn execute(bump_type: &str, no_root: bool, force: bool) -> Result<()> {
@@ -152,6 +157,14 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
             return edit_with_regex(config_file, tag, r#"__version__ = "[^"]*""#, |v| {
                 format!(r#"__version__ = "{}""#, v)
             });
+        }
+        ConfigFileType::CMakeLists => {
+            return edit_with_regex(
+                config_file,
+                tag,
+                r#"(project\s*\([^)]*?VERSION\s+)[0-9]+\.[0-9]+\.[0-9]+"#,
+                |v| format!("${{1}}{}", v),
+            );
         }
         _ => {}
     }
