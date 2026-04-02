@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 const GITHUB_API_URL: &str =
     "https://api.github.com/repos/Jeanhwea/project-manager-app/releases/latest";
+const GITHUB_PROXY_PREFIX: &str = "https://gh-proxy.org/";
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -81,6 +82,21 @@ fn fetch_latest_release() -> Result<Release> {
 }
 
 fn download_asset(url: &str) -> Result<Vec<u8>> {
+    match try_download(url) {
+        Ok(data) => return Ok(data),
+        Err(e) => {
+            eprintln!("{}", format!("直接下载失败: {}", e).yellow());
+            if url.starts_with("https://github.com/") {
+                let proxy_url = format!("{}{}", GITHUB_PROXY_PREFIX, url);
+                println!("{}", format!("尝试代理下载: {}", proxy_url).cyan());
+                return try_download(&proxy_url).context("代理下载也失败了");
+            }
+            return Err(e);
+        }
+    }
+}
+
+fn try_download(url: &str) -> Result<Vec<u8>> {
     let resp = ureq::get(url)
         .set("User-Agent", "pma-selfupdate")
         .call()
