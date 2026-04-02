@@ -175,7 +175,7 @@ pub enum Commands {
         path: String,
     },
     /// Self management commands
-    #[command(about = "Self management commands")]
+    #[command(name = "self", about = "Self management commands")]
     Self_ {
         #[command(subcommand)]
         command: SelfCommands,
