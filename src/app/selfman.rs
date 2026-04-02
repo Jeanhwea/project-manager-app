@@ -44,7 +44,12 @@ pub fn execute() -> Result<()> {
     println!("当前版本: {}", format!("v{}", current).yellow());
     println!("最新版本: {}", format!("v{}", latest).green());
 
-    if latest == current {
+    let latest_ver = semver::Version::parse(latest)
+        .with_context(|| format!("无法解析最新版本号: {}", latest))?;
+    let current_ver = semver::Version::parse(current)
+        .with_context(|| format!("无法解析当前版本号: {}", current))?;
+
+    if current_ver >= latest_ver {
         println!("{}", "已经是最新版本，无需更新。".green());
         return Ok(());
     }
