@@ -83,7 +83,7 @@ fn fetch_latest_release() -> Result<Release> {
 
 fn download_asset(url: &str) -> Result<Vec<u8>> {
     match try_download(url) {
-        Ok(data) => return Ok(data),
+        Ok(data) => Ok(data),
         Err(e) => {
             eprintln!("{}", format!("直接下载失败: {}", e).yellow());
             if url.starts_with("https://github.com/") {
@@ -91,7 +91,7 @@ fn download_asset(url: &str) -> Result<Vec<u8>> {
                 println!("{}", format!("尝试代理下载: {}", proxy_url).cyan());
                 return try_download(&proxy_url).context("代理下载也失败了");
             }
-            return Err(e);
+            Err(e)
         }
     }
 }
