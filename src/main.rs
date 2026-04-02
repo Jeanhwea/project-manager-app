@@ -41,10 +41,10 @@ fn main() -> Result<()> {
         }
         Commands::Self_ { command } => match command {
             SelfCommands::Update => {
-                app::self_update::execute()?;
+                app::selfman::execute()?;
             }
             SelfCommands::Version => {
-                app::self_update::show_version();
+                app::selfman::show_version();
             }
         },
     }
