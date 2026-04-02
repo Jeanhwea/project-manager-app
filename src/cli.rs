@@ -174,4 +174,22 @@ pub enum Commands {
         )]
         path: String,
     },
+    /// Self management commands
+    #[command(about = "Self management commands")]
+    Self_ {
+        #[command(subcommand)]
+        command: SelfCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SelfCommands {
+    /// Update to the latest version from GitHub releases
+    #[command(visible_alias = "up")]
+    #[command(about = "Update to the latest version from GitHub releases")]
+    Update,
+    /// Display the current version
+    #[command(visible_alias = "ver")]
+    #[command(about = "Display the current version")]
+    Version,
 }

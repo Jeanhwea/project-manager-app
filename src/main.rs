@@ -4,7 +4,7 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Commands};
+use cli::{Cli, Commands, SelfCommands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -39,6 +39,14 @@ fn main() -> Result<()> {
         Commands::Snap { path } => {
             app::snap::execute(&path)?;
         }
+        Commands::Self_ { command } => match command {
+            SelfCommands::Update => {
+                app::self_update::execute()?;
+            }
+            SelfCommands::Version => {
+                app::self_update::show_version();
+            }
+        },
     }
 
     Ok(())
