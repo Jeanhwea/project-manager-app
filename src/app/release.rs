@@ -15,7 +15,12 @@ const CONFIG_FILE_CANDIDATES: &[(&[&str], ConfigFileType)] = &[
     (&["{}/__version__.py"], ConfigFileType::PythonVersion),
     (&["version", "version.txt"], ConfigFileType::VersionText),
     (
-        &["package.json", "apps/{}/package.json", "ui/package.json"],
+        &[
+            "package.json",
+            "apps/{}/package.json",
+            "ui/package.json",
+            "src-tauri/tauri.conf.json",
+        ],
         ConfigFileType::PackageJson,
     ),
     (&["CMakeLists.txt"], ConfigFileType::CMakeLists),
