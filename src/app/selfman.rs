@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 const GITHUB_API_URL: &str =
     "https://api.github.com/repos/Jeanhwea/project-manager-app/releases/latest";
-const GITHUB_PROXY_PREFIX: &str = "https://gh.llkk.cc/";
+const GITHUB_PROXY_PREFIX: &str = "https://gh-proxy.org/";
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
