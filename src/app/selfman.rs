@@ -155,8 +155,6 @@ fn get_asset_name(tag: &str) -> Result<String> {
 }
 
 fn install_binary(data: &[u8], asset_name: &str, target: &PathBuf) -> Result<()> {
-    validate_archive(data, asset_name)?;
-
     let bin_name = if cfg!(windows) { "pma.exe" } else { "pma" };
 
     if asset_name.ends_with(".tar.gz") {
