@@ -62,7 +62,7 @@ pub fn execute() -> Result<()> {
         .with_context(|| format!("未找到适合当前平台的安装包: {}", asset_name))?;
 
     println!("下载 {}...", asset.name.cyan());
-    let data = download_asset(&asset.browser_download_url)?;
+    let data = download_asset(&asset.browser_download_url, &asset.name)?;
     println!("下载完成，大小: {} bytes", data.len());
 
     let current_exe = env::current_exe().context("无法获取当前可执行文件路径")?;
@@ -86,19 +86,47 @@ fn fetch_latest_release() -> Result<Release> {
     Ok(release)
 }
 
-fn download_asset(url: &str) -> Result<Vec<u8>> {
+fn download_asset(url: &str, asset_name: &str) -> Result<Vec<u8>> {
     match try_download(url) {
-        Ok(data) => Ok(data),
+        Ok(data) => {
+            if validate_archive(&data, asset_name).is_ok() {
+                return Ok(data);
+            }
+            eprintln!("{}", "直接下载的文件格式无效，尝试代理下载...".yellow());
+        }
         Err(e) => {
             eprintln!("{}", format!("直接下载失败: {}", e).yellow());
-            if url.starts_with("https://github.com/") {
-                let proxy_url = format!("{}{}", GITHUB_PROXY_PREFIX, url);
-                println!("{}", format!("尝试代理下载: {}", proxy_url).cyan());
-                return try_download(&proxy_url).context("代理下载也失败了");
-            }
-            Err(e)
         }
     }
+
+    if url.starts_with("https://github.com/") {
+        let proxy_url = format!("{}{}", GITHUB_PROXY_PREFIX, url);
+        println!("{}", format!("尝试代理下载: {}", proxy_url).cyan());
+        let data = try_download(&proxy_url).context("代理下载也失败了")?;
+        if validate_archive(&data, asset_name).is_ok() {
+            return Ok(data);
+        }
+        anyhow::bail!("代理下载的文件格式也无效，请手动下载: {}", url);
+    }
+
+    anyhow::bail!("下载失败，请手动下载: {}", url)
+}
+
+fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
+    if asset_name.ends_with(".zip") {
+        if data.len() < 4 || &data[..4] != b"PK\x03\x04" {
+            anyhow::bail!(
+                "下载的文件不是有效的 ZIP 格式（可能是 HTML 页面或损坏的数据），请检查网络或稍后重试"
+            );
+        }
+    } else if asset_name.ends_with(".tar.gz") {
+        if data.len() < 2 || &data[..2] != b"\x1f\x8b" {
+            anyhow::bail!(
+                "下载的文件不是有效的 tar.gz 格式（可能是 HTML 页面或损坏的数据），请检查网络或稍后重试"
+            );
+        }
+    }
+    Ok(())
 }
 
 fn try_download(url: &str) -> Result<Vec<u8>> {
@@ -127,6 +155,8 @@ fn get_asset_name(tag: &str) -> Result<String> {
 }
 
 fn install_binary(data: &[u8], asset_name: &str, target: &PathBuf) -> Result<()> {
+    validate_archive(data, asset_name)?;
+
     let bin_name = if cfg!(windows) { "pma.exe" } else { "pma" };
 
     if asset_name.ends_with(".tar.gz") {
