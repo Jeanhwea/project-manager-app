@@ -119,12 +119,10 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
                 "下载的文件不是有效的 ZIP 格式（可能是 HTML 页面或损坏的数据），请检查网络或稍后重试"
             );
         }
-    } else if asset_name.ends_with(".tar.gz") {
-        if data.len() < 2 || &data[..2] != b"\x1f\x8b" {
-            anyhow::bail!(
-                "下载的文件不是有效的 tar.gz 格式（可能是 HTML 页面或损坏的数据），请检查网络或稍后重试"
-            );
-        }
+    } else if asset_name.ends_with(".tar.gz") && (data.len() < 2 || &data[..2] != b"\x1f\x8b") {
+        anyhow::bail!(
+            "下载的文件不是有效的 tar.gz 格式（可能是 HTML 页面或损坏的数据），请检查网络或稍后重试"
+        );
     }
     Ok(())
 }
