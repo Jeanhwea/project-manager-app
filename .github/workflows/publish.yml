@@ -27,9 +27,6 @@ jobs:
           VERSION=$(echo "${{ github.event.workflow_run.head_branch }}" | sed 's/^v//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Update package versions
-        run: node npm/version.js ${{ steps.meta.outputs.version }}
-
       - name: Download release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
