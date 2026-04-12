@@ -103,6 +103,22 @@ fn fetch_latest_release() -> Result<Release> {
 }
 
 fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Result<Vec<u8>> {
+    // 支持通过环境变量指定自定义下载地址
+    if let Ok(custom_url) = env::var("PMA_DOWNLOAD_URL") {
+        println!("{}", format!("使用自定义下载地址: {}", custom_url).cyan());
+        match try_download(&custom_url) {
+            Ok(data) => {
+                if validate_archive(&data, asset_name).is_ok() {
+                    return Ok(data);
+                }
+                eprintln!("{}", "自定义地址下载的文件格式无效".yellow());
+            }
+            Err(e) => {
+                eprintln!("{}", format!("自定义地址下载失败: {}", e).yellow());
+            }
+        }
+    }
+
     // 优先通过 GitHub API 下载（Accept: application/octet-stream）
     println!("{}", "尝试通过 GitHub API 下载...".cyan());
     match try_download_api(api_url) {
@@ -148,7 +164,12 @@ fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Result<
         }
     }
 
-    anyhow::bail!("所有下载方式均失败，请手动下载: {}", browser_url)
+    anyhow::bail!(
+        "所有下载方式均失败，请手动下载: {}\n\
+         提示: 可设置 PMA_DOWNLOAD_URL 环境变量指定下载地址，\n\
+         或设置 GITHUB_TOKEN 环境变量提高 API 下载成功率",
+        browser_url
+    )
 }
 
 fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
