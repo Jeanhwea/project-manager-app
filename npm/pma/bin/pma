@@ -1,0 +1,41 @@
+#!/usr/bin/env node
+
+const { execFileSync } = require("child_process");
+const path = require("path");
+
+const PLATFORM_MAP = {
+  "win32-x64": "@jeansoft/pma-win32-x64",
+  "win32-arm64": "@jeansoft/pma-win32-arm64",
+  "linux-x64": "@jeansoft/pma-linux-x64",
+  "darwin-x64": "@jeansoft/pma-darwin-x64",
+  "darwin-arm64": "@jeansoft/pma-darwin-arm64",
+};
+
+const key = `${process.platform}-${process.arch}`;
+const pkg = PLATFORM_MAP[key];
+if (!pkg) {
+  console.error(`Unsupported platform: ${key}`);
+  process.exit(1);
+}
+
+const binName = process.platform === "win32" ? "pma.exe" : "pma";
+
+let binPath;
+try {
+  const pkgDir = path.dirname(require.resolve(`${pkg}/package.json`));
+  binPath = path.join(pkgDir, "bin", binName);
+} catch {
+  console.error(
+    `Platform package ${pkg} not found.\n` +
+      `Your platform (${key}) may not be supported.`
+  );
+  process.exit(1);
+}
+
+try {
+  const result = execFileSync(binPath, process.argv.slice(2), {
+    stdio: "inherit",
+  });
+} catch (e) {
+  process.exit(e.status || 1);
+}

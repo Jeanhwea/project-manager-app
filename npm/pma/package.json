@@ -11,12 +11,8 @@
     "pma": "bin/pma"
   },
   "files": [
-    "bin",
-    "index.js"
+    "bin"
   ],
-  "scripts": {
-    "postinstall": "node index.js"
-  },
   "optionalDependencies": {
     "@jeansoft/pma-win32-x64": "0.8.7",
     "@jeansoft/pma-win32-arm64": "0.8.7",
