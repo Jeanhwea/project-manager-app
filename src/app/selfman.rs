@@ -28,6 +28,7 @@ struct Release {
 struct Asset {
     name: String,
     browser_download_url: String,
+    url: String,
 }
 
 pub fn show_version() {
@@ -68,7 +69,7 @@ pub fn execute() -> Result<()> {
         .with_context(|| format!("未找到适合当前平台的安装包: {}", asset_name))?;
 
     println!("下载 {}...", asset.name.cyan());
-    let data = download_asset(&asset.browser_download_url, &asset.name)?;
+    let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)?;
     println!("下载完成，大小: {} bytes", data.len());
 
     let current_exe = env::current_exe().context("无法获取当前可执行文件路径")?;
@@ -92,8 +93,23 @@ fn fetch_latest_release() -> Result<Release> {
     Ok(release)
 }
 
-fn download_asset(url: &str, asset_name: &str) -> Result<Vec<u8>> {
-    match try_download(url) {
+fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Result<Vec<u8>> {
+    // 优先通过 GitHub API 下载（Accept: application/octet-stream）
+    println!("{}", "尝试通过 GitHub API 下载...".cyan());
+    match try_download_api(api_url) {
+        Ok(data) => {
+            if validate_archive(&data, asset_name).is_ok() {
+                return Ok(data);
+            }
+            eprintln!("{}", "API 下载的文件格式无效".yellow());
+        }
+        Err(e) => {
+            eprintln!("{}", format!("API 下载失败: {}", e).yellow());
+        }
+    }
+
+    // 直接下载 browser_download_url
+    match try_download(browser_url) {
         Ok(data) => {
             if validate_archive(&data, asset_name).is_ok() {
                 return Ok(data);
@@ -105,9 +121,9 @@ fn download_asset(url: &str, asset_name: &str) -> Result<Vec<u8>> {
         }
     }
 
-    if url.starts_with("https://github.com/") {
+    if browser_url.starts_with("https://github.com/") {
         for proxy in GITHUB_PROXIES {
-            let proxy_url = format!("{}{}", proxy, url);
+            let proxy_url = format!("{}{}", proxy, browser_url);
             println!("{}", format!("尝试代理: {}", proxy_url).cyan());
             match try_download(&proxy_url) {
                 Ok(data) => {
@@ -121,10 +137,9 @@ fn download_asset(url: &str, asset_name: &str) -> Result<Vec<u8>> {
                 }
             }
         }
-        anyhow::bail!("所有代理均下载失败，请手动下载: {}", url);
     }
 
-    anyhow::bail!("下载失败，请手动下载: {}", url)
+    anyhow::bail!("所有下载方式均失败，请手动下载: {}", browser_url)
 }
 
 fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
@@ -140,6 +155,20 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
         );
     }
     Ok(())
+}
+
+fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
+    let resp = ureq::get(api_url)
+        .set("User-Agent", "pma-selfupdate")
+        .set("Accept", "application/octet-stream")
+        .call()
+        .context("API 下载失败")?;
+
+    let mut data = Vec::new();
+    resp.into_reader()
+        .read_to_end(&mut data)
+        .context("读取下载内容失败")?;
+    Ok(data)
 }
 
 fn try_download(url: &str) -> Result<Vec<u8>> {
