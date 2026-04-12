@@ -209,19 +209,23 @@ fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
 
     let resp = req.call().context("API 下载失败")?;
 
+    let status = resp.status();
     let content_type = resp.content_type().to_string();
+    let content_len = resp
+        .header("Content-Length")
+        .unwrap_or("unknown")
+        .to_string();
+    let location = resp.header("Location").unwrap_or("").to_string();
+    eprintln!(
+        "  响应: status={}, content-type={}, content-length={}, location={}",
+        status, content_type, content_len, location
+    );
+
     let mut data = Vec::new();
     resp.into_reader()
         .read_to_end(&mut data)
         .context("读取下载内容失败")?;
 
-    if content_type.contains("text/html") || content_type.contains("application/json") {
-        anyhow::bail!(
-            "API 返回了非二进制内容 (Content-Type: {}), 大小: {} bytes",
-            content_type,
-            data.len()
-        );
-    }
     Ok(data)
 }
 
@@ -231,20 +235,23 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
         .call()
         .context("下载安装包失败")?;
 
+    let status = resp.status();
     let content_type = resp.content_type().to_string();
+    let content_len = resp
+        .header("Content-Length")
+        .unwrap_or("unknown")
+        .to_string();
+    let location = resp.header("Location").unwrap_or("").to_string();
+    eprintln!(
+        "  响应: status={}, content-type={}, content-length={}, location={}",
+        status, content_type, content_len, location
+    );
+
     let mut data = Vec::new();
     resp.into_reader()
         .read_to_end(&mut data)
         .context("读取下载内容失败")?;
 
-    if content_type.contains("text/html") {
-        let preview = String::from_utf8_lossy(&data[..data.len().min(200)]);
-        anyhow::bail!(
-            "返回了 HTML 页面而非二进制文件 (大小: {} bytes), 内容预览: {}",
-            data.len(),
-            preview
-        );
-    }
     Ok(data)
 }
 
