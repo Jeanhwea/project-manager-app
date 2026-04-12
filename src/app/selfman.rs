@@ -45,6 +45,10 @@ pub fn show_version() {
 }
 
 pub fn execute(force: bool) -> Result<()> {
+    if env::var("PMA_NPM_INSTALL").is_ok() {
+        anyhow::bail!("检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma");
+    }
+
     println!("{}", "检查最新版本...".cyan());
 
     let release = fetch_latest_release()?;

@@ -35,6 +35,7 @@ try {
 try {
   const result = execFileSync(binPath, process.argv.slice(2), {
     stdio: "inherit",
+    env: { ...process.env, PMA_NPM_INSTALL: "1" },
   });
 } catch (e) {
   process.exit(e.status || 1);
