@@ -771,7 +771,7 @@ dependencies = [
 
 [[package]]
 name = "project-manager-app"
-version = "0.8.9"
+version = "0.8.10"
 dependencies = [
  "anstyle",
  "anyhow",
