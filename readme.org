@@ -19,6 +19,14 @@
 
 * 安装
 
+通过 npm 安装:
+
+#+begin_src bash
+npm install -g @jeansoft/pma
+#+end_src
+
+通过源码编译:
+
 #+begin_src bash
 cargo build --release
 #+end_src
