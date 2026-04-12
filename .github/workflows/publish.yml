@@ -1,0 +1,77 @@
+name: Publish to npm
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Extract version
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(echo "${{ github.event.workflow_run.head_branch }}" | sed 's/^v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update package versions
+        run: node npm/version.js ${{ steps.meta.outputs.version }}
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.meta.outputs.version }}
+          mkdir -p artifacts
+          gh release download "v${VERSION}" --dir artifacts --repo ${{ github.repository }}
+
+      - name: Prepare platform packages
+        shell: bash
+        run: |
+          VERSION=${{ steps.meta.outputs.version }}
+
+          mkdir -p npm/pma-linux-x64/bin
+          tar -xzf artifacts/pma-linux-x86_64-v${VERSION}.tar.gz -C npm/pma-linux-x64/bin
+
+          mkdir -p npm/pma-win32-x64/bin
+          unzip -o artifacts/pma-windows-x86_64-v${VERSION}.zip -d npm/pma-win32-x64/bin
+
+          mkdir -p npm/pma-win32-arm64/bin
+          unzip -o artifacts/pma-windows-arm64-v${VERSION}.zip -d npm/pma-win32-arm64/bin
+
+          mkdir -p npm/pma-darwin-x64/bin
+          tar -xzf artifacts/pma-macos-x86_64-v${VERSION}.tar.gz -C npm/pma-darwin-x64/bin
+
+          mkdir -p npm/pma-darwin-arm64/bin
+          tar -xzf artifacts/pma-macos-arm64-v${VERSION}.tar.gz -C npm/pma-darwin-arm64/bin
+
+      - name: Publish platform packages
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for pkg in pma-linux-x64 pma-win32-x64 pma-win32-arm64 pma-darwin-x64 pma-darwin-arm64; do
+            cd npm/$pkg
+            npm publish --access public
+            cd ../..
+          done
+
+      - name: Publish main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd npm/pma
+          npm publish --access public
