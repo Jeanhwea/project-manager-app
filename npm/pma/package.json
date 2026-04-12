@@ -1,6 +1,6 @@
 {
   "name": "@jeansoft/pma",
-  "version": "0.8.10",
+  "version": "0.9.0",
   "description": "Project Manager Application - Git repository batch management tool",
   "license": "MIT",
   "repository": {
@@ -14,10 +14,10 @@
     "bin"
   ],
   "optionalDependencies": {
-    "@jeansoft/pma-win32-x64": "0.8.10",
-    "@jeansoft/pma-win32-arm64": "0.8.10",
-    "@jeansoft/pma-linux-x64": "0.8.10",
-    "@jeansoft/pma-darwin-x64": "0.8.10",
-    "@jeansoft/pma-darwin-arm64": "0.8.10"
+    "@jeansoft/pma-win32-x64": "0.9.0",
+    "@jeansoft/pma-win32-arm64": "0.9.0",
+    "@jeansoft/pma-linux-x64": "0.9.0",
+    "@jeansoft/pma-darwin-x64": "0.9.0",
+    "@jeansoft/pma-darwin-arm64": "0.9.0"
   }
 }
