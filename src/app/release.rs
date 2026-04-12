@@ -182,7 +182,7 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
             replace_in_section(&mut lines, "[package]", "version = ", || {
                 format!("version = \"{}\"", version)
             });
-            update_cargo_lock(config_file, version)?;
+            update_cargo_lock(config_file)?;
         }
         ConfigFileType::PyprojectToml => {
             replace_in_section(&mut lines, "[project]", "version = ", || {
@@ -262,52 +262,25 @@ fn write_lines(config_file: &str, lines: &[String], trailing_newline: bool) -> R
     Ok(())
 }
 
-fn update_cargo_lock(cargo_toml_path: &str, version: &str) -> Result<()> {
-    let toml_content = std::fs::read_to_string(cargo_toml_path)?;
-    let pkg_name = toml_content
-        .lines()
-        .skip_while(|l| l.trim() != "[package]")
-        .find(|l| l.trim().starts_with("name = "))
-        .and_then(|l| l.split('"').nth(1))
-        .map(|s| s.to_string());
-    let pkg_name = match pkg_name {
-        Some(n) => n,
-        None => return Ok(()),
-    };
-
-    let lock_path = Path::new(cargo_toml_path)
+fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
+    let dir = Path::new(cargo_toml_path)
         .parent()
-        .unwrap_or(Path::new("."))
-        .join("Cargo.lock");
+        .unwrap_or(Path::new("."));
+
+    let lock_path = dir.join("Cargo.lock");
     if !lock_path.exists() {
         return Ok(());
     }
 
-    let content = std::fs::read_to_string(&lock_path)
-        .with_context(|| format!("无法读取 {}", lock_path.display()))?;
-    let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
+    let status = std::process::Command::new("cargo")
+        .arg("generate-lockfile")
+        .current_dir(dir)
+        .status()
+        .context("无法执行 cargo generate-lockfile")?;
 
-    let mut i = 0;
-    while i < lines.len() {
-        if lines[i].trim() == "[[package]]"
-            && i + 1 < lines.len()
-            && lines[i + 1].trim() == format!("name = \"{}\"", pkg_name)
-            && i + 2 < lines.len()
-            && lines[i + 2].trim().starts_with("version = ")
-        {
-            lines[i + 2] = format!("version = \"{}\"", version);
-            break;
-        }
-        i += 1;
+    if !status.success() {
+        anyhow::bail!("cargo generate-lockfile 执行失败");
     }
-
-    let trailing = content.ends_with('\n');
-    let mut out = lines.join("\n");
-    if trailing {
-        out.push('\n');
-    }
-    std::fs::write(&lock_path, out)
-        .with_context(|| format!("无法写入 {}", lock_path.display()))?;
 
     let lock_str = lock_path.to_string_lossy().to_string();
     git::add_file(&lock_str)?;
