@@ -2,11 +2,11 @@ const fs = require("fs");
 const path = require("path");
 
 const PLATFORM_MAP = {
-  "win32-x64": "@aspect/pma-win32-x64",
-  "win32-arm64": "@aspect/pma-win32-arm64",
-  "linux-x64": "@aspect/pma-linux-x64",
-  "darwin-x64": "@aspect/pma-darwin-x64",
-  "darwin-arm64": "@aspect/pma-darwin-arm64",
+  "win32-x64": "@jeansoft/pma-win32-x64",
+  "win32-arm64": "@jeansoft/pma-win32-arm64",
+  "linux-x64": "@jeansoft/pma-linux-x64",
+  "darwin-x64": "@jeansoft/pma-darwin-x64",
+  "darwin-arm64": "@jeansoft/pma-darwin-arm64",
 };
 
 function getPlatformPackage() {

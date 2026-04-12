@@ -1,5 +1,5 @@
 {
-  "name": "@aspect/pma-darwin-x64",
+  "name": "@jeansoft/pma-darwin-x64",
   "version": "0.8.7",
   "description": "pma binary for macOS x64",
   "license": "MIT",

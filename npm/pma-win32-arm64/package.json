@@ -1,5 +1,5 @@
 {
-  "name": "@aspect/pma-win32-arm64",
+  "name": "@jeansoft/pma-win32-arm64",
   "version": "0.8.7",
   "description": "pma binary for Windows ARM64",
   "license": "MIT",
