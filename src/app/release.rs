@@ -25,6 +25,7 @@ const CONFIG_FILE_CANDIDATES: &[(&[&str], ConfigFileType)] = &[
         ConfigFileType::PackageJson,
     ),
     (&["CMakeLists.txt"], ConfigFileType::CMakeLists),
+    (&["Formula/pma.rb"], ConfigFileType::HomebrewFormula),
 ];
 
 #[derive(Clone, Copy)]
@@ -36,6 +37,7 @@ enum ConfigFileType {
     VersionText,
     PackageJson,
     CMakeLists,
+    HomebrewFormula,
 }
 
 pub fn execute(bump_type: &str, no_root: bool, force: bool) -> Result<()> {
@@ -169,6 +171,11 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
                 r#"(project\s*\([^)]*?VERSION\s+)[0-9]+\.[0-9]+\.[0-9]+"#,
                 |v| format!("${{1}}{}", v),
             );
+        }
+        ConfigFileType::HomebrewFormula => {
+            return edit_with_regex(config_file, tag, r#"version "[^"]*""#, |v| {
+                format!(r#"version "{}""#, v)
+            });
         }
         _ => {}
     }
