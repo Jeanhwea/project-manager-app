@@ -4,7 +4,42 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use std::path::Path;
 
+const REQUIRED_TOOLS: &[(&str, &str)] = &[("git", "版本控制工具，所有仓库操作的核心依赖")];
+
+fn check_command_exists(cmd: &str) -> bool {
+    std::process::Command::new(cmd)
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok()
+}
+
+fn check_dependencies() -> Result<()> {
+    println!("{}", "检查依赖工具...".cyan());
+
+    let mut missing = Vec::new();
+    for (cmd, desc) in REQUIRED_TOOLS {
+        if check_command_exists(cmd) {
+            println!("  {} {}", "✔".green(), cmd);
+        } else {
+            println!("  {} {} ({})", "✘".red(), cmd.red(), desc);
+            missing.push(*cmd);
+        }
+    }
+
+    if !missing.is_empty() {
+        anyhow::bail!("缺少必要的命令行工具: {}", missing.join(", "));
+    }
+
+    println!("{}", "所有依赖工具已就绪".green());
+    println!();
+    Ok(())
+}
+
 pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) -> Result<()> {
+    check_dependencies()?;
+
     super::repo::for_each_repo(path, max_depth, |repo_path| {
         if gc {
             do_git_garbage_collect(repo_path)?;
