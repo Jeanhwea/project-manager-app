@@ -1,0 +1,13 @@
+{
+  "name": "@aspect/pma-darwin-arm64",
+  "version": "0.8.7",
+  "description": "pma binary for macOS ARM64",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jeanhwea/project-manager-app"
+  },
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": ["bin"]
+}

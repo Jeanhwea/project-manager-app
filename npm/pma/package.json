@@ -1,0 +1,27 @@
+{
+  "name": "@aspect/pma",
+  "version": "0.8.7",
+  "description": "Project Manager Application - Git repository batch management tool",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jeanhwea/project-manager-app"
+  },
+  "bin": {
+    "pma": "bin/pma"
+  },
+  "files": [
+    "bin",
+    "index.js"
+  ],
+  "scripts": {
+    "postinstall": "node index.js"
+  },
+  "optionalDependencies": {
+    "@aspect/pma-win32-x64": "0.8.7",
+    "@aspect/pma-win32-arm64": "0.8.7",
+    "@aspect/pma-linux-x64": "0.8.7",
+    "@aspect/pma-darwin-x64": "0.8.7",
+    "@aspect/pma-darwin-arm64": "0.8.7"
+  }
+}
