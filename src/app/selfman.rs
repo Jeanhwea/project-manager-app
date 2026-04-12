@@ -41,7 +41,7 @@ pub fn show_version() {
     );
 }
 
-pub fn execute() -> Result<()> {
+pub fn execute(force: bool) -> Result<()> {
     println!("{}", "检查最新版本...".cyan());
 
     let release = fetch_latest_release()?;
@@ -56,9 +56,13 @@ pub fn execute() -> Result<()> {
     let current_ver = semver::Version::parse(current)
         .with_context(|| format!("无法解析当前版本号: {}", current))?;
 
-    if current_ver >= latest_ver {
+    if !force && current_ver >= latest_ver {
         println!("{}", "已经是最新版本，无需更新。".green());
         return Ok(());
+    }
+
+    if force && current_ver >= latest_ver {
+        println!("{}", "强制更新模式，继续更新...".yellow());
     }
 
     let asset_name = get_asset_name(&release.tag_name)?;

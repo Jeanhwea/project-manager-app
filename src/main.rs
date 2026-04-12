@@ -40,8 +40,8 @@ fn main() -> Result<()> {
             app::snap::execute(&path)?;
         }
         Commands::Self_ { command } => match command {
-            SelfCommands::Update => {
-                app::selfman::execute()?;
+            SelfCommands::Update { force } => {
+                app::selfman::execute(force)?;
             }
             SelfCommands::Version => {
                 app::selfman::show_version();
