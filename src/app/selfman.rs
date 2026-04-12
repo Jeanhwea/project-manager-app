@@ -104,45 +104,32 @@ fn fetch_latest_release() -> Result<Release> {
 }
 
 fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Result<Vec<u8>> {
-    if let Ok(custom_url) = env::var("PMA_DOWNLOAD_URL") {
-        match try_download(&custom_url) {
-            Ok(data) => {
-                if validate_archive(&data, asset_name).is_ok() {
-                    return Ok(data);
-                }
-            }
-            Err(_) => {}
-        }
+    if let Ok(custom_url) = env::var("PMA_DOWNLOAD_URL")
+        && let Ok(data) = try_download(&custom_url)
+        && validate_archive(&data, asset_name).is_ok()
+    {
+        return Ok(data);
     }
 
-    match try_download_api(api_url) {
-        Ok(data) => {
-            if validate_archive(&data, asset_name).is_ok() {
-                return Ok(data);
-            }
-        }
-        Err(_) => {}
+    if let Ok(data) = try_download_api(api_url)
+        && validate_archive(&data, asset_name).is_ok()
+    {
+        return Ok(data);
     }
 
-    match try_download(browser_url) {
-        Ok(data) => {
-            if validate_archive(&data, asset_name).is_ok() {
-                return Ok(data);
-            }
-        }
-        Err(_) => {}
+    if let Ok(data) = try_download(browser_url)
+        && validate_archive(&data, asset_name).is_ok()
+    {
+        return Ok(data);
     }
 
     if browser_url.starts_with("https://github.com/") {
         for proxy in GITHUB_PROXIES {
             let proxy_url = format!("{}{}", proxy, browser_url);
-            match try_download(&proxy_url) {
-                Ok(data) => {
-                    if validate_archive(&data, asset_name).is_ok() {
-                        return Ok(data);
-                    }
-                }
-                Err(_) => {}
+            if let Ok(data) = try_download(&proxy_url)
+                && validate_archive(&data, asset_name).is_ok()
+            {
+                return Ok(data);
             }
         }
     }
@@ -170,6 +157,46 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
     Ok(())
 }
 
+fn read_response_with_progress(resp: ureq::Response) -> Result<Vec<u8>> {
+    let total: u64 = resp
+        .header("Content-Length")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+
+    let pb = if total > 0 {
+        let pb = ProgressBar::new(total);
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template("{bar:40.cyan/blue} {bytes}/{total_bytes} ({eta})")
+                .unwrap()
+                .progress_chars("=>-"),
+        );
+        pb
+    } else {
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.cyan} {bytes}")
+                .unwrap(),
+        );
+        pb
+    };
+
+    let mut reader = resp.into_reader();
+    let mut data = Vec::with_capacity(total as usize);
+    let mut buf = [0u8; 8192];
+    loop {
+        let n = reader.read(&mut buf).context("读取下载内容失败")?;
+        if n == 0 {
+            break;
+        }
+        data.extend_from_slice(&buf[..n]);
+        pb.set_position(data.len() as u64);
+    }
+    pb.finish_and_clear();
+    Ok(data)
+}
+
 fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
     let mut req = ureq::get(api_url)
         .set("User-Agent", "pma-self-update")
@@ -180,12 +207,7 @@ fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
     }
 
     let resp = req.call().context("API 下载失败")?;
-    let mut data = Vec::new();
-    resp.into_reader()
-        .read_to_end(&mut data)
-        .context("读取下载内容失败")?;
-
-    Ok(data)
+    read_response_with_progress(resp)
 }
 
 fn try_download(url: &str) -> Result<Vec<u8>> {
@@ -194,12 +216,7 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
         .call()
         .context("下载安装包失败")?;
 
-    let mut data = Vec::new();
-    resp.into_reader()
-        .read_to_end(&mut data)
-        .context("读取下载内容失败")?;
-
-    Ok(data)
+    read_response_with_progress(resp)
 }
 
 fn get_asset_name(tag: &str) -> Result<String> {
