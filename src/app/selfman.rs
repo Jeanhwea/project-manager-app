@@ -76,7 +76,7 @@ pub fn execute(force: bool) -> Result<()> {
 
     println!("下载 {}...", asset.name.cyan());
     let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)?;
-    println!("下载完成，大小: {} bytes", data.len());
+    println!("{}", "下载完成".green());
 
     let current_exe = env::current_exe().context("无法获取当前可执行文件路径")?;
     install_binary(&data, &asset.name, &current_exe)?;
@@ -103,63 +103,45 @@ fn fetch_latest_release() -> Result<Release> {
 }
 
 fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Result<Vec<u8>> {
-    // 支持通过环境变量指定自定义下载地址
     if let Ok(custom_url) = env::var("PMA_DOWNLOAD_URL") {
-        println!("{}", format!("使用自定义下载地址: {}", custom_url).cyan());
         match try_download(&custom_url) {
             Ok(data) => {
                 if validate_archive(&data, asset_name).is_ok() {
                     return Ok(data);
                 }
-                eprintln!("{}", "自定义地址下载的文件格式无效".yellow());
             }
-            Err(e) => {
-                eprintln!("{}", format!("自定义地址下载失败: {}", e).yellow());
-            }
+            Err(_) => {}
         }
     }
 
-    // 优先通过 GitHub API 下载（Accept: application/octet-stream）
-    println!("{}", "尝试通过 GitHub API 下载...".cyan());
     match try_download_api(api_url) {
         Ok(data) => {
             if validate_archive(&data, asset_name).is_ok() {
                 return Ok(data);
             }
-            eprintln!("{}", "API 下载的文件格式无效".yellow());
         }
-        Err(e) => {
-            eprintln!("{}", format!("API 下载失败: {}", e).yellow());
-        }
+        Err(_) => {}
     }
 
-    // 直接下载 browser_download_url
     match try_download(browser_url) {
         Ok(data) => {
             if validate_archive(&data, asset_name).is_ok() {
                 return Ok(data);
             }
-            eprintln!("{}", "直接下载的文件格式无效，尝试代理下载...".yellow());
         }
-        Err(e) => {
-            eprintln!("{}", format!("直接下载失败: {}", e).yellow());
-        }
+        Err(_) => {}
     }
 
     if browser_url.starts_with("https://github.com/") {
         for proxy in GITHUB_PROXIES {
             let proxy_url = format!("{}{}", proxy, browser_url);
-            println!("{}", format!("尝试代理: {}", proxy_url).cyan());
             match try_download(&proxy_url) {
                 Ok(data) => {
                     if validate_archive(&data, asset_name).is_ok() {
                         return Ok(data);
                     }
-                    eprintln!("{}", format!("代理 {} 返回的文件格式无效", proxy).yellow());
                 }
-                Err(e) => {
-                    eprintln!("{}", format!("代理 {} 下载失败: {}", proxy, e).yellow());
-                }
+                Err(_) => {}
             }
         }
     }
@@ -182,17 +164,6 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
     };
 
     if !valid {
-        let preview = String::from_utf8_lossy(&data[..data.len().min(256)]);
-        eprintln!(
-            "{}",
-            format!(
-                "  文件校验失败: 大小={} bytes, 头部={:02x?}, 预览: {}",
-                data.len(),
-                &data[..data.len().min(16)],
-                preview.chars().take(200).collect::<String>()
-            )
-            .red()
-        );
         anyhow::bail!("下载的文件格式无效");
     }
     Ok(())
@@ -208,19 +179,6 @@ fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
     }
 
     let resp = req.call().context("API 下载失败")?;
-
-    let status = resp.status();
-    let content_type = resp.content_type().to_string();
-    let content_len = resp
-        .header("Content-Length")
-        .unwrap_or("unknown")
-        .to_string();
-    let location = resp.header("Location").unwrap_or("").to_string();
-    eprintln!(
-        "  响应: status={}, content-type={}, content-length={}, location={}",
-        status, content_type, content_len, location
-    );
-
     let mut data = Vec::new();
     resp.into_reader()
         .read_to_end(&mut data)
@@ -234,18 +192,6 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
         .set("User-Agent", "pma-self-update")
         .call()
         .context("下载安装包失败")?;
-
-    let status = resp.status();
-    let content_type = resp.content_type().to_string();
-    let content_len = resp
-        .header("Content-Length")
-        .unwrap_or("unknown")
-        .to_string();
-    let location = resp.header("Location").unwrap_or("").to_string();
-    eprintln!(
-        "  响应: status={}, content-type={}, content-length={}, location={}",
-        status, content_type, content_len, location
-    );
 
     let mut data = Vec::new();
     resp.into_reader()
