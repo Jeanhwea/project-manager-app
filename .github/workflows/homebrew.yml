@@ -1,0 +1,105 @@
+name: Update Homebrew Formula
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+jobs:
+  update-formula:
+    name: Update Homebrew Formula
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Extract version
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(echo "${{ github.event.workflow_run.head_branch }}" | sed 's/^v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download release assets and compute SHA256
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION=${{ steps.meta.outputs.version }}
+          mkdir -p artifacts
+
+          gh release download "v${VERSION}" --dir artifacts --repo ${{ github.repository }}
+
+          DARWIN_ARM64=$(sha256sum artifacts/pma-macos-arm64-v${VERSION}.tar.gz | awk '{print $1}')
+          DARWIN_X64=$(sha256sum artifacts/pma-macos-x86_64-v${VERSION}.tar.gz | awk '{print $1}')
+          LINUX_X64=$(sha256sum artifacts/pma-linux-x86_64-v${VERSION}.tar.gz | awk '{print $1}')
+
+          echo "darwin_arm64=$DARWIN_ARM64" >> $GITHUB_OUTPUT
+          echo "darwin_x64=$DARWIN_X64" >> $GITHUB_OUTPUT
+          echo "linux_x64=$LINUX_X64" >> $GITHUB_OUTPUT
+
+      - name: Generate formula
+        shell: bash
+        run: |
+          VERSION=${{ steps.meta.outputs.version }}
+          cat > Formula/pma.rb << 'FORMULA_EOF'
+          class Pma < Formula
+            desc "Git repository batch management tool"
+            homepage "https://github.com/Jeanhwea/project-manager-app"
+            version "VERSION_PLACEHOLDER"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/Jeanhwea/project-manager-app/releases/download/v#{version}/pma-macos-arm64-v#{version}.tar.gz"
+                sha256 "SHA_DARWIN_ARM64"
+              else
+                url "https://github.com/Jeanhwea/project-manager-app/releases/download/v#{version}/pma-macos-x86_64-v#{version}.tar.gz"
+                sha256 "SHA_DARWIN_X64"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/Jeanhwea/project-manager-app/releases/download/v#{version}/pma-linux-x86_64-v#{version}.tar.gz"
+              sha256 "SHA_LINUX_X64"
+            end
+
+            def install
+              bin.install "pma"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/pma --version")
+            end
+          end
+          FORMULA_EOF
+
+          sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" Formula/pma.rb
+          sed -i "s/SHA_DARWIN_ARM64/${{ steps.sha.outputs.darwin_arm64 }}/g" Formula/pma.rb
+          sed -i "s/SHA_DARWIN_X64/${{ steps.sha.outputs.darwin_x64 }}/g" Formula/pma.rb
+          sed -i "s/SHA_LINUX_X64/${{ steps.sha.outputs.linux_x64 }}/g" Formula/pma.rb
+
+          # 去掉 heredoc 缩进
+          sed -i 's/^          //' Formula/pma.rb
+
+      - name: Push updated formula to tap repo
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        shell: bash
+        run: |
+          VERSION=${{ steps.meta.outputs.version }}
+
+          git clone https://x-access-token:${TAP_TOKEN}@github.com/Jeanhwea/homebrew-tap.git tap-repo
+          mkdir -p tap-repo/Formula
+          cp Formula/pma.rb tap-repo/Formula/pma.rb
+
+          cd tap-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/pma.rb
+          git diff --cached --quiet || git commit -m "pma ${VERSION}"
+          git push

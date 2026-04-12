@@ -19,6 +19,13 @@
 
 * 安装
 
+通过 Homebrew 安装 (macOS/Linux):
+
+#+begin_src bash
+brew tap Jeanhwea/tap
+brew install pma
+#+end_src
+
 通过 npm 安装:
 
 #+begin_src bash
