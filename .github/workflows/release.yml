@@ -99,7 +99,7 @@ jobs:
       contents: write
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
@@ -134,7 +134,7 @@ jobs:
         run: node npm/version.js ${{ steps.meta.outputs.version }}
 
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
