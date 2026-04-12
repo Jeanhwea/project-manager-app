@@ -73,7 +73,7 @@ jobs:
           mkdir -p output
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} output/
           cd output
-          if [ "$(uname -s)" = "Windows_NT" ] || [ "$(uname -s)" = "MINGW"* ] || [ "$(uname -s)" = "CYGWIN"* ]; then
+          if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
             7z a -tzip ${{ steps.meta.outputs.archive }} ${{ matrix.artifact_name }}
           else
             tar -czf ${{ steps.meta.outputs.archive }} ${{ matrix.artifact_name }}
