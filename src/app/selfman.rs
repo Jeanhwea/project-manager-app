@@ -14,6 +14,8 @@ const GITHUB_PROXIES: &[&str] = &[
     "https://ghproxy.cc/",
     "https://gh-proxy.com/",
     "https://github.moeyy.xyz/",
+    "https://mirror.ghproxy.com/",
+    "https://ghproxy.net/",
 ];
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -87,12 +89,15 @@ pub fn execute(force: bool) -> Result<()> {
 }
 
 fn fetch_latest_release() -> Result<Release> {
-    let resp = ureq::get(GITHUB_API_URL)
+    let mut req = ureq::get(GITHUB_API_URL)
         .set("User-Agent", "pma-selfupdate")
-        .set("Accept", "application/vnd.github.v3+json")
-        .call()
-        .context("请求 GitHub API 失败")?;
+        .set("Accept", "application/vnd.github.v3+json");
 
+    if let Ok(token) = env::var("GITHUB_TOKEN") {
+        req = req.set("Authorization", &format!("Bearer {}", token));
+    }
+
+    let resp = req.call().context("请求 GitHub API 失败")?;
     let release: Release = resp.into_json().context("解析 release 信息失败")?;
     Ok(release)
 }
@@ -162,16 +167,29 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
 }
 
 fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
-    let resp = ureq::get(api_url)
+    let mut req = ureq::get(api_url)
         .set("User-Agent", "pma-self-update")
-        .set("Accept", "application/octet-stream")
-        .call()
-        .context("API 下载失败")?;
+        .set("Accept", "application/octet-stream");
 
+    if let Ok(token) = env::var("GITHUB_TOKEN") {
+        req = req.set("Authorization", &format!("Bearer {}", token));
+    }
+
+    let resp = req.call().context("API 下载失败")?;
+
+    let content_type = resp.content_type().to_string();
     let mut data = Vec::new();
     resp.into_reader()
         .read_to_end(&mut data)
         .context("读取下载内容失败")?;
+
+    if content_type.contains("text/html") || content_type.contains("application/json") {
+        anyhow::bail!(
+            "API 返回了非二进制内容 (Content-Type: {}), 大小: {} bytes",
+            content_type,
+            data.len()
+        );
+    }
     Ok(data)
 }
 
@@ -181,10 +199,20 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
         .call()
         .context("下载安装包失败")?;
 
+    let content_type = resp.content_type().to_string();
     let mut data = Vec::new();
     resp.into_reader()
         .read_to_end(&mut data)
         .context("读取下载内容失败")?;
+
+    if content_type.contains("text/html") {
+        let preview = String::from_utf8_lossy(&data[..data.len().min(200)]);
+        anyhow::bail!(
+            "返回了 HTML 页面而非二进制文件 (大小: {} bytes), 内容预览: {}",
+            data.len(),
+            preview
+        );
+    }
     Ok(data)
 }
 
