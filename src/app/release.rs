@@ -20,6 +20,7 @@ const CONFIG_FILE_CANDIDATES: &[(&[&str], ConfigFileType)] = &[
             "apps/{}/package.json",
             "ui/package.json",
             "src-tauri/tauri.conf.json",
+            "npm/{}/package.json",
         ],
         ConfigFileType::PackageJson,
     ),
@@ -202,6 +203,16 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
         }
         ConfigFileType::PackageJson => {
             let re = Regex::new(r#""version":\s*"[^"]*""#)?;
+            if config_file.starts_with("npm/") {
+                let re_dep = Regex::new(r#"("@jeansoft/pma[^"]*":\s*")[^"]*""#)?;
+                let new_content =
+                    re.replace_all(&content, &format!(r#""version": "{}""#, version));
+                let new_content =
+                    re_dep.replace_all(&new_content, &format!(r#"${{1}}{}""#, version));
+                std::fs::write(config_file, new_content.as_ref())
+                    .with_context(|| format!("无法写入 {}", config_file))?;
+                return Ok(());
+            }
             for line in &mut lines {
                 if line.trim().starts_with("\"version\": ") {
                     *line = re
