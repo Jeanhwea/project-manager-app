@@ -66,6 +66,7 @@ pub fn execute(bump_type: &str, no_root: bool, force: bool) -> Result<()> {
     let config_files = detect_config_files()?;
     for (file_path, file_type) in &config_files {
         edit_version_in_file(&new_tag, file_path, *file_type)?;
+        post_edit_version_file(file_path, *file_type)?;
         git::add_file(file_path)?;
     }
 
@@ -177,13 +178,11 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
     let version = tag.trim_start_matches('v');
     let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
-    let mut need_cargo_update = false;
     match file_type {
         ConfigFileType::CargoToml => {
             replace_in_section(&mut lines, "[package]", "version = ", || {
                 format!("version = \"{}\"", version)
             });
-            need_cargo_update = true;
         }
         ConfigFileType::PyprojectToml => {
             replace_in_section(&mut lines, "[project]", "version = ", || {
@@ -215,13 +214,14 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
         _ => unreachable!(),
     }
 
-    write_lines(config_file, &lines, content.ends_with('\n'))?;
+    write_lines(config_file, &lines, content.ends_with('\n'))
+}
 
-    if need_cargo_update {
-        update_cargo_lock(config_file)?;
+fn post_edit_version_file(config_file: &str, file_type: ConfigFileType) -> Result<()> {
+    match file_type {
+        ConfigFileType::CargoToml => update_cargo_lock(config_file),
+        _ => Ok(()),
     }
-
-    Ok(())
 }
 
 /// 在 TOML section 内替换匹配行
