@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use colored::*;
+use indicatif::{ProgressBar, ProgressStyle};
 use serde::Deserialize;
 use std::env;
 use std::fs;
