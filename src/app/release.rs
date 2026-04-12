@@ -177,12 +177,13 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
     let version = tag.trim_start_matches('v');
     let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
+    let mut need_cargo_update = false;
     match file_type {
         ConfigFileType::CargoToml => {
             replace_in_section(&mut lines, "[package]", "version = ", || {
                 format!("version = \"{}\"", version)
             });
-            update_cargo_lock(config_file)?;
+            need_cargo_update = true;
         }
         ConfigFileType::PyprojectToml => {
             replace_in_section(&mut lines, "[project]", "version = ", || {
@@ -214,7 +215,13 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
         _ => unreachable!(),
     }
 
-    write_lines(config_file, &lines, content.ends_with('\n'))
+    write_lines(config_file, &lines, content.ends_with('\n'))?;
+
+    if need_cargo_update {
+        update_cargo_lock(config_file)?;
+    }
+
+    Ok(())
 }
 
 /// 在 TOML section 内替换匹配行
