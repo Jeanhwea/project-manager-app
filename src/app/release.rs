@@ -262,6 +262,15 @@ fn write_lines(config_file: &str, lines: &[String], trailing_newline: bool) -> R
     Ok(())
 }
 
+fn check_command_exists(cmd: &str) -> bool {
+    std::process::Command::new(cmd)
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok()
+}
+
 fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     let parent = Path::new(cargo_toml_path)
         .parent()
@@ -275,6 +284,10 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     let lock_path = dir.join("Cargo.lock");
     if !lock_path.exists() {
         return Ok(());
+    }
+
+    if !check_command_exists("cargo") {
+        anyhow::bail!("未找到 cargo 命令，请先安装 Rust 工具链: https://rustup.rs");
     }
 
     let status = std::process::Command::new("cargo")
