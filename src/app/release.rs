@@ -278,13 +278,13 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     }
 
     let status = std::process::Command::new("cargo")
-        .arg("generate-lockfile")
+        .arg("update")
         .current_dir(dir)
         .status()
-        .context("无法执行 cargo generate-lockfile")?;
+        .context("无法执行 cargo update")?;
 
     if !status.success() {
-        anyhow::bail!("cargo generate-lockfile 执行失败");
+        anyhow::bail!("cargo update 执行失败");
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
