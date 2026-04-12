@@ -159,7 +159,7 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
 
 fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
     let resp = ureq::get(api_url)
-        .set("User-Agent", "pma-selfupdate")
+        .set("User-Agent", "pma-self-update")
         .set("Accept", "application/octet-stream")
         .call()
         .context("API 下载失败")?;
@@ -173,7 +173,7 @@ fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
 
 fn try_download(url: &str) -> Result<Vec<u8>> {
     let resp = ureq::get(url)
-        .set("User-Agent", "pma-selfupdate")
+        .set("User-Agent", "pma-self-update")
         .call()
         .context("下载安装包失败")?;
 
