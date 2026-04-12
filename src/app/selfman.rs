@@ -173,16 +173,27 @@ fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Result<
 }
 
 fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
-    if asset_name.ends_with(".zip") {
-        if data.len() < 4 || &data[..4] != b"PK\x03\x04" {
-            anyhow::bail!(
-                "下载的文件不是有效的 ZIP 格式（可能是 HTML 页面或损坏的数据），请检查网络或稍后重试"
-            );
-        }
-    } else if asset_name.ends_with(".tar.gz") && (data.len() < 2 || &data[..2] != b"\x1f\x8b") {
-        anyhow::bail!(
-            "下载的文件不是有效的 tar.gz 格式（可能是 HTML 页面或损坏的数据），请检查网络或稍后重试"
+    let valid = if asset_name.ends_with(".zip") {
+        data.len() >= 4 && &data[..4] == b"PK\x03\x04"
+    } else if asset_name.ends_with(".tar.gz") {
+        data.len() >= 2 && &data[..2] == b"\x1f\x8b"
+    } else {
+        true
+    };
+
+    if !valid {
+        let preview = String::from_utf8_lossy(&data[..data.len().min(256)]);
+        eprintln!(
+            "{}",
+            format!(
+                "  文件校验失败: 大小={} bytes, 头部={:02x?}, 预览: {}",
+                data.len(),
+                &data[..data.len().min(16)],
+                preview.chars().take(200).collect::<String>()
+            )
+            .red()
         );
+        anyhow::bail!("下载的文件格式无效");
     }
     Ok(())
 }
