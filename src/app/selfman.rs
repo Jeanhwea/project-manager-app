@@ -8,7 +8,13 @@ use std::path::PathBuf;
 
 const GITHUB_API_URL: &str =
     "https://api.github.com/repos/Jeanhwea/project-manager-app/releases/latest";
-const GITHUB_PROXY_PREFIX: &str = "https://gh-proxy.org/";
+const GITHUB_PROXIES: &[&str] = &[
+    "https://gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://ghproxy.cc/",
+    "https://gh-proxy.com/",
+    "https://github.moeyy.xyz/",
+];
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -100,13 +106,22 @@ fn download_asset(url: &str, asset_name: &str) -> Result<Vec<u8>> {
     }
 
     if url.starts_with("https://github.com/") {
-        let proxy_url = format!("{}{}", GITHUB_PROXY_PREFIX, url);
-        println!("{}", format!("尝试代理下载: {}", proxy_url).cyan());
-        let data = try_download(&proxy_url).context("代理下载也失败了")?;
-        if validate_archive(&data, asset_name).is_ok() {
-            return Ok(data);
+        for proxy in GITHUB_PROXIES {
+            let proxy_url = format!("{}{}", proxy, url);
+            println!("{}", format!("尝试代理: {}", proxy_url).cyan());
+            match try_download(&proxy_url) {
+                Ok(data) => {
+                    if validate_archive(&data, asset_name).is_ok() {
+                        return Ok(data);
+                    }
+                    eprintln!("{}", format!("代理 {} 返回的文件格式无效", proxy).yellow());
+                }
+                Err(e) => {
+                    eprintln!("{}", format!("代理 {} 下载失败: {}", proxy, e).yellow());
+                }
+            }
         }
-        anyhow::bail!("代理下载的文件格式也无效，请手动下载: {}", url);
+        anyhow::bail!("所有代理均下载失败，请手动下载: {}", url);
     }
 
     anyhow::bail!("下载失败，请手动下载: {}", url)
