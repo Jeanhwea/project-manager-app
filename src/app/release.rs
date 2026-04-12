@@ -263,9 +263,14 @@ fn write_lines(config_file: &str, lines: &[String], trailing_newline: bool) -> R
 }
 
 fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
-    let dir = Path::new(cargo_toml_path)
+    let parent = Path::new(cargo_toml_path)
         .parent()
         .unwrap_or(Path::new("."));
+    let dir = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
 
     let lock_path = dir.join("Cargo.lock");
     if !lock_path.exists() {
