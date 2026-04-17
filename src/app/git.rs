@@ -171,26 +171,33 @@ pub fn get_remote_info(work_dir: &Path) -> Vec<(String, String)> {
     remote_info
 }
 
-pub fn parse_git_remote_url(url: &str) -> Option<(String, String, String)> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitProtocol {
+    Ssh,
+    Https,
+    Http,
+}
+
+pub fn parse_git_remote_url(url: &str) -> Option<(GitProtocol, String, String)> {
     let url = url.trim();
     if url.is_empty() {
         return None;
     }
 
-    let protocol = if url.starts_with("git@") || url.starts_with("ssh://git@") {
-        "git".to_string()
+    let protocol = if url.starts_with("git@") || url.starts_with("ssh://") {
+        GitProtocol::Ssh
     } else if url.starts_with("https://") {
-        "https".to_string()
+        GitProtocol::Https
     } else if url.starts_with("http://") {
-        "http".to_string()
+        GitProtocol::Http
     } else {
         return None;
     };
 
     let (url, separator) = if url.starts_with("git@") {
         (url.replace("git@", ""), ':')
-    } else if url.starts_with("ssh://git@") {
-        (url.replace("ssh://git@", ""), '/')
+    } else if url.starts_with("ssh://") {
+        (url.replace("ssh://", ""), '/')
     } else if url.starts_with("https://") {
         (url.replace("https://", ""), '/')
     } else if url.starts_with("http://") {

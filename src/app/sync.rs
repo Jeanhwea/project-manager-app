@@ -1,4 +1,4 @@
-use super::git;
+use super::git::{self, GitProtocol};
 use super::repo::RepoType;
 use super::runner::CommandRunner;
 use crate::utils;
@@ -137,12 +137,12 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
         return true;
     }
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
-        if protocol == "https"
+        if protocol == GitProtocol::Https
             && (host == "github.com" || host == "githubfast.com" || host == "gitee.com")
         {
             return true;
         }
-        if protocol == "git" && host == "gitee.com" && path.starts_with("red_base") {
+        if protocol == GitProtocol::Ssh && host == "gitee.com" && path.starts_with("red_base") {
             return true;
         }
     } else {

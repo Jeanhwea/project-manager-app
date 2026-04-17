@@ -1,4 +1,4 @@
-use super::git;
+use super::git::{self, GitProtocol};
 use super::runner::CommandRunner;
 
 use anyhow::{Context, Result};
@@ -66,7 +66,7 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
 
     let submodules = get_submodules(project_dir)?;
 
-    do_reinit_repo(project_dir, &project_name, &submodules)
+    do_reinit_repo(project_dir, &project_name, &submodules, repo_url)
 }
 
 fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
@@ -220,10 +220,39 @@ fn resolve_placeholders(template: &str, project_name: &str) -> String {
         .replace("${PMA_PROJECT_NAME_PASCAL}", &project_name.to_pascal_case())
 }
 
+fn generate_new_remote_url(original_url: &str, project_name: &str) -> Option<String> {
+    if let Some((protocol, host, path)) = git::parse_git_remote_url(original_url) {
+        if let Some(last_slash_idx) = path.rfind('/') {
+            let prefix = &path[..last_slash_idx];
+            let new_path = format!("{}/{}.git", prefix, project_name);
+            match protocol {
+                GitProtocol::Ssh => {
+                    if original_url.starts_with("ssh://") {
+                        Some(format!("ssh://{}/{}", host, new_path))
+                    } else {
+                        Some(format!(
+                            "git@{host}:{new_path}",
+                            host = host,
+                            new_path = new_path
+                        ))
+                    }
+                }
+                GitProtocol::Https => Some(format!("https://{}/{}", host, new_path)),
+                GitProtocol::Http => Some(format!("http://{}/{}", host, new_path)),
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 fn do_reinit_repo(
     project_dir: &Path,
     project_name: &str,
     submodules: &[Submodule],
+    original_repo_path: &str,
 ) -> Result<()> {
     // delete .git directory
     std::fs::remove_dir_all(project_dir.join(".git"))?;
@@ -257,6 +286,25 @@ fn do_reinit_repo(
     }
 
     do_perform_actions(project_dir, project_name)?;
+
+    let original_repo_path = Path::new(original_repo_path);
+    let remotes = git::get_remote_info(original_repo_path);
+    for (remote_name, remote_url) in remotes {
+        if let Some(new_url) = generate_new_remote_url(&remote_url, project_name) {
+            CommandRunner::run_with_success_in_dir(
+                "git",
+                &["remote", "add", &remote_name, &new_url],
+                project_dir,
+            )
+            .with_context(|| {
+                format!(
+                    "无法添加 Git 远程仓库 {} 到 {}",
+                    remote_name,
+                    project_dir.display()
+                )
+            })?;
+        }
+    }
 
     CommandRunner::run_with_success_in_dir("git", &["add", "."], project_dir)
         .with_context(|| format!("无法添加所有文件到 Git 仓库 {}", project_dir.display()))?;
