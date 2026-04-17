@@ -1,4 +1,4 @@
-use super::git;
+use super::git::{self, GitProtocol};
 use super::runner::CommandRunner;
 
 use anyhow::{Context, Result};
@@ -225,8 +225,8 @@ fn generate_new_remote_url(original_url: &str, project_name: &str) -> Option<Str
         if let Some(last_slash_idx) = path.rfind('/') {
             let prefix = &path[..last_slash_idx];
             let new_path = format!("{}/{}.git", prefix, project_name);
-            match protocol.as_str() {
-                "git" => {
+            match protocol {
+                GitProtocol::Ssh => {
                     if original_url.starts_with("ssh://") {
                         Some(format!("ssh://{}/{}", host, new_path))
                     } else {
@@ -237,9 +237,8 @@ fn generate_new_remote_url(original_url: &str, project_name: &str) -> Option<Str
                         ))
                     }
                 }
-                "https" => Some(format!("https://{}/{}", host, new_path)),
-                "http" => Some(format!("http://{}/{}", host, new_path)),
-                _ => None,
+                GitProtocol::Https => Some(format!("https://{}/{}", host, new_path)),
+                GitProtocol::Http => Some(format!("http://{}/{}", host, new_path)),
             }
         } else {
             None
