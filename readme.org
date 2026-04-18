@@ -3,7 +3,6 @@
 #+EMAIL: hujinghui@buaa.edu.cn
 #+DATE: <2026-03-04 Wed>
 #+STARTUP: overview num indent
-#+OPTIONS: ^:nil
 
 
 * 简介
