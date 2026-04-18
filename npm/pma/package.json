@@ -2,7 +2,7 @@
   "name": "@jeansoft/pma",
   "version": "0.9.7",
   "description": "Project Manager Application - Git repository batch management tool",
-  "readme": "readme.org",
+  "readme": "readme.md",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -12,7 +12,8 @@
     "pma": "bin/pma"
   },
   "files": [
-    "bin"
+    "bin",
+    "readme.md"
   ],
   "optionalDependencies": {
     "@jeansoft/pma-win32-x64": "0.9.7",
