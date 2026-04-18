@@ -24,7 +24,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pandoc
 
       - name: Convert readme.org to readme.md
-        run: pandoc readme.org -o npm/pma/readme.md
+        run: pandoc readme.org --to=gfm -o npm/pma/readme.md
 
       - name: Extract version
         id: meta
