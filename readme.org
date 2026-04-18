@@ -43,6 +43,14 @@ cargo build --release
 
 #+begin_src bash
 pma release patch                     # 版本发布: v0.1.0 -> v0.1.1
+pma release minor                     # 版本发布: v0.1.1 -> v0.2.0
+pma release major                     # 版本发布: v0.2.0 -> v1.0.0
+
+# 简写
+pma re                                # pma release patch
+pma re mi                             # pma release minor
+pma re ma                             # pma release major
+
 pma sync                              # 同步当前目录下的仓库
 pma sync /path/to/repos -m 5 -a      # 指定目录，深度 5，拉取所有分支
 pma doctor --gc                       # 健康检查并执行 git gc
