@@ -20,28 +20,28 @@
 
 通过 Homebrew 安装 (macOS/Linux):
 
-#+begin_src bash
+#+BEGIN_SRC bash
 brew tap Jeanhwea/tap
 brew install pma
-#+end_src
+#+END_SRC
 
 通过 npm 安装:
 
-#+begin_src bash
+#+BEGIN_SRC bash
 npm install -g @jeansoft/pma
-#+end_src
+#+END_SRC
 
 通过源码编译:
 
-#+begin_src bash
+#+BEGIN_SRC bash
 cargo build --release
-#+end_src
+#+END_SRC
 
 编译产物位于 =target/release/pma= ，或者直接在 github release 页面下载二进制文件。
 
 * 用法
 
-#+begin_src bash
+#+BEGIN_SRC bash
 pma release patch                     # 版本发布: v0.1.0 -> v0.1.1
 pma release minor                     # 版本发布: v0.1.1 -> v0.2.0
 pma release major                     # 版本发布: v0.2.0 -> v1.0.0
@@ -56,13 +56,13 @@ pma sync /path/to/repos -m 5 -a      # 指定目录，深度 5，拉取所有分
 pma doctor --gc                       # 健康检查并执行 git gc
 pma fork /path/to/template my-project # 从模板 fork 新项目
 pma snap                              # 快照当前目录
-#+end_src
+#+END_SRC
 
 * 开发
 
-#+begin_src bash
+#+BEGIN_SRC bash
 cargo build              # 编译
 cargo run -- <subcommand> # 运行
 cargo test               # 测试
 ./fmt.cmd                # 格式化
-#+end_src
+#+END_SRC
