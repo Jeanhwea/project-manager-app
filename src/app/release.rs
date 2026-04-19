@@ -315,17 +315,38 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
         anyhow::bail!("未找到 cargo 命令，请先安装 Rust 工具链: https://rustup.rs");
     }
 
+    let pkg_name = read_cargo_package_name(cargo_toml_path)?;
     let status = std::process::Command::new("cargo")
-        .arg("update")
+        .args(["update", "--package", &pkg_name])
         .current_dir(dir)
         .status()
         .context("无法执行 cargo update")?;
 
     if !status.success() {
-        anyhow::bail!("cargo update 执行失败");
+        anyhow::bail!("cargo update --package {} 执行失败", pkg_name);
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
     git::add_file(&lock_str)?;
     Ok(())
+}
+
+fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
+    let content = std::fs::read_to_string(cargo_toml_path)
+        .with_context(|| format!("无法读取 {}", cargo_toml_path))?;
+    let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)?;
+    let mut in_package = false;
+    for line in content.lines() {
+        if line.trim() == "[package]" {
+            in_package = true;
+        } else if line.starts_with('[') {
+            in_package = false;
+        }
+        if in_package {
+            if let Some(caps) = re.captures(line) {
+                return Ok(caps[1].to_string());
+            }
+        }
+    }
+    anyhow::bail!("未在 {} 中找到 [package] name", cargo_toml_path)
 }
