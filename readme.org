@@ -74,21 +74,20 @@
 
 =pma release= 会自动检测项目中的版本文件并更新版本号，支持以下类型:
 
-| 文件类型         | 候选路径                                                                  |
-|------------------+---------------------------------------------------------------------------|
-| Cargo.toml       | =Cargo.toml=, =src-tauri/Cargo.toml=                                     |
-| pom.xml          | =pom.xml=                                                                 |
-| pyproject.toml   | =pyproject.toml=                                                          |
-| Python version   | ={}/__version__.py= (自动搜索子目录)                                     |
-| 纯文本版本       | =version=, =version.txt=                                                  |
-| package.json     | =package.json=, =apps/{}/package.json=, =ui/package.json=, =src-tauri/tauri.conf.json=, =npm/{}/package.json= |
-| CMakeLists.txt   | =CMakeLists.txt=                                                          |
-| Homebrew Formula | =Formula/pma.rb=                                                          |
+| 文件类型          | 候选路径                                                                                                      |
+|-------------------+---------------------------------------------------------------------------------------------------------------|
+| Cargo.toml        | =Cargo.toml=, =src-tauri/Cargo.toml=                                                                          |
+| pom.xml           | =pom.xml=                                                                                                     |
+| pyproject.toml    | =pyproject.toml=                                                                                              |
+| Python version    | ={}/__version__.py= (自动搜索子目录)                                                                          |
+| Text version file | =version=, =version.txt=                                                                                      |
+| package.json      | =package.json=, =apps/{}/package.json=, =ui/package.json=, =src-tauri/tauri.conf.json=, =npm/{}/package.json= |
+| CMakeLists.txt    | =CMakeLists.txt=                                                                                              |
+| Homebrew Formula  | =Formula/pma.rb=                                                                                              |
 
 其中 ={}= 表示通配符，会自动展开为当前目录下的子目录名。
 
 ** 版本文件示例
-
 *** Cargo.toml
 
 #+BEGIN_SRC toml
