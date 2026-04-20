@@ -69,3 +69,81 @@
   cargo test               # 测试
   ./fmt.cmd                # 格式化
 #+END_SRC
+
+* 支持的版本文件
+
+=pma release= 会自动检测项目中的版本文件并更新版本号，支持以下类型:
+
+| 文件类型         | 候选路径                                                                  |
+|------------------+---------------------------------------------------------------------------|
+| Cargo.toml       | =Cargo.toml=, =src-tauri/Cargo.toml=                                     |
+| pom.xml          | =pom.xml=                                                                 |
+| pyproject.toml   | =pyproject.toml=                                                          |
+| Python version   | ={}/__version__.py= (自动搜索子目录)                                     |
+| 纯文本版本       | =version=, =version.txt=                                                  |
+| package.json     | =package.json=, =apps/{}/package.json=, =ui/package.json=, =src-tauri/tauri.conf.json=, =npm/{}/package.json= |
+| CMakeLists.txt   | =CMakeLists.txt=                                                          |
+| Homebrew Formula | =Formula/pma.rb=                                                          |
+
+其中 ={}= 表示通配符，会自动展开为当前目录下的子目录名。
+
+** 版本文件示例
+
+*** Cargo.toml
+
+#+BEGIN_SRC toml
+  [package]
+  name = "my-app"
+  version = "1.2.3"
+#+END_SRC
+
+*** pom.xml
+
+#+BEGIN_SRC xml
+  <project>
+    <version>1.2.3</version>
+  </project>
+#+END_SRC
+
+*** pyproject.toml
+
+#+BEGIN_SRC toml
+  [project]
+  name = "my-app"
+  version = "1.2.3"
+#+END_SRC
+
+*** Python =__version__.py=
+
+#+BEGIN_SRC python
+  __version__ = "1.2.3"
+#+END_SRC
+
+*** version / version.txt
+
+#+BEGIN_SRC text
+  1.2.3
+#+END_SRC
+
+*** package.json
+
+#+BEGIN_SRC json
+  {
+    "name": "my-app",
+    "version": "1.2.3"
+  }
+#+END_SRC
+
+*** CMakeLists.txt
+
+#+BEGIN_SRC cmake
+  project(my-app VERSION 1.2.3)
+#+END_SRC
+
+*** Homebrew Formula
+
+#+BEGIN_SRC ruby
+  class MyApp < Formula
+    version "1.2.3"
+  end
+#+END_SRC
