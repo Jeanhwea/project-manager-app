@@ -52,7 +52,7 @@
   pma re ma                             # pma release major
 
   pma sync                              # 同步当前目录下的仓库
-  pma sync /path/to/repos -m 5 -a      # 指定目录，深度 5，拉取所有分支
+  pma sync -m 5 -a s /path/to/repos     # 指定目录，深度 5，拉取所有分支
   pma doctor --gc                       # 健康检查并执行 git gc
   pma fork /path/to/template my-project # 从模板 fork 新项目
   pma snap                              # 快照当前目录
