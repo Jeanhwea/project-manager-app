@@ -342,10 +342,8 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
         } else if line.starts_with('[') {
             in_package = false;
         }
-        if in_package {
-            if let Some(caps) = re.captures(line) {
-                return Ok(caps[1].to_string());
-            }
+        if in_package && let Some(caps) = re.captures(line) {
+            return Ok(caps[1].to_string());
         }
     }
     anyhow::bail!("未在 {} 中找到 [package] name", cargo_toml_path)
