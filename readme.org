@@ -56,6 +56,9 @@
   pma doctor --gc                       # 健康检查并执行 git gc
   pma fork /path/to/template my-project # 从模板 fork 新项目
   pma snap                              # 快照当前目录
+
+  # 自动更新
+  pma self update
 #+END_SRC
 
 * 开发
