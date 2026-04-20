@@ -37,7 +37,7 @@
   cargo build --release
 #+END_SRC
 
-编译产物位于 =target/release/pma= ，或者直接在 github release 页面下载二进制文件。
+编译产物位于 =target/release/pma= ，或者直接在 github [[https://github.com/Jeanhwea/project-manager-app/releases][release]] 页面下载二进制文件。
 
 * 用法
 
