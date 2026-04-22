@@ -1,6 +1,6 @@
 {
   "name": "@jeansoft/pma-win32-arm64",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "pma binary for Windows ARM64",
   "license": "MIT",
   "repository": {

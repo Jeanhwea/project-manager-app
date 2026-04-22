@@ -1,7 +1,7 @@
 class Pma < Formula
   desc "Git repository batch management tool"
   homepage "https://github.com/Jeanhwea/project-manager-app"
-  version "1.0.0"
+  version "1.0.1"
   license "MIT"
 
   on_macos do
