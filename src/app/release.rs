@@ -40,7 +40,7 @@ enum ConfigFileType {
     HomebrewFormula,
 }
 
-pub fn execute(bump_type: &str, no_root: bool, force: bool) -> Result<()> {
+pub fn execute(bump_type: &str, no_root: bool, force: bool, skip_push: bool) -> Result<()> {
     // 除非指定 --no-root，否则先切换到 git 仓库根目录
     if !no_root
         && let Some(root) = git::get_top_level_dir()
@@ -77,13 +77,15 @@ pub fn execute(bump_type: &str, no_root: bool, force: bool) -> Result<()> {
     git::commit(&new_tag)?;
     git::create_tag(&new_tag)?;
 
-    if let Some(remotes) = git::get_remote_list() {
-        for remote in remotes {
-            if let Err(e) = git::push_tag(&remote, &new_tag) {
-                eprintln!("警告: 推送标签失败: {}", e);
-            }
-            if let Err(e) = git::push_branch(&remote, &current_branch) {
-                eprintln!("警告: 推送分支失败: {}", e);
+    if !skip_push {
+        if let Some(remotes) = git::get_remote_list() {
+            for remote in remotes {
+                if let Err(e) = git::push_tag(&remote, &new_tag) {
+                    eprintln!("警告: 推送标签失败: {}", e);
+                }
+                if let Err(e) = git::push_branch(&remote, &current_branch) {
+                    eprintln!("警告: 推送分支失败: {}", e);
+                }
             }
         }
     }

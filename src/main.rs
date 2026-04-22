@@ -14,8 +14,9 @@ fn main() -> Result<()> {
             bump_type,
             no_root,
             force,
+            skip_push,
         } => {
-            app::release::execute(bump_type.as_str(), no_root, force)?;
+            app::release::execute(bump_type.as_str(), no_root, force, skip_push)?;
         }
         Commands::Sync {
             path,

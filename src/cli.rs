@@ -96,6 +96,13 @@ pub enum Commands {
             help = "Force release even if not on master branch"
         )]
         force: bool,
+        /// Skip pushing tags and branches to remotes
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Skip pushing tags and branches to remotes"
+        )]
+        skip_push: bool,
     },
     /// Synchronize all code repositories
     #[command(visible_alias = "s")]
