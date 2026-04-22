@@ -146,6 +146,14 @@ pub enum Commands {
             help = "Whether to perform garbage collection"
         )]
         gc: bool,
+        /// Whether to rename remotes to their canonical names
+        #[arg(
+            long,
+            short,
+            default_value = "false",
+            help = "Whether to rename remotes to their canonical names"
+        )]
+        rename: bool,
         /// Path to the directory to search for repositories, defaults to current directory
         #[arg(
             default_value = ".",

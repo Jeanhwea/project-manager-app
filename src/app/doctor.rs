@@ -37,7 +37,7 @@ fn check_dependencies() -> Result<()> {
     Ok(())
 }
 
-pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) -> Result<()> {
+pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool) -> Result<()> {
     check_dependencies()?;
 
     super::repo::for_each_repo(path, max_depth, |repo_path| {
@@ -45,17 +45,19 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool) -> Result<()> {
             do_git_garbage_collect(repo_path)?;
         }
 
-        for (remote_name, remote_url) in git::get_remote_info(repo_path) {
-            if let Some(new_name) = git::get_remote_name_by_url(&remote_url)
-                && new_name != remote_name
-            {
-                println!(
-                    "  {} => {}: {}",
-                    remote_name.yellow(),
-                    new_name.yellow(),
-                    remote_url
-                );
-                do_rename_git_remote(repo_path, &remote_name, &new_name)?;
+        if rename {
+            for (remote_name, remote_url) in git::get_remote_info(repo_path) {
+                if let Some(new_name) = git::get_remote_name_by_url(&remote_url)
+                    && new_name != remote_name
+                {
+                    println!(
+                        "  {} => {}: {}",
+                        remote_name.yellow(),
+                        new_name.yellow(),
+                        remote_url
+                    );
+                    do_rename_git_remote(repo_path, &remote_name, &new_name)?;
+                }
             }
         }
 

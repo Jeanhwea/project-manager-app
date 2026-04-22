@@ -30,8 +30,9 @@ fn main() -> Result<()> {
             path,
             max_depth,
             gc,
+            rename,
         } => {
-            app::doctor::execute(&path, max_depth, gc)?;
+            app::doctor::execute(&path, max_depth, gc, rename)?;
         }
         Commands::Fork { path, name } => {
             app::fork::execute(&path, &name)?;
