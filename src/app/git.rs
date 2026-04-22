@@ -237,10 +237,31 @@ pub fn get_remote_name_by_url(url: &str) -> Option<String> {
         } else {
             "gitee".to_string()
         }
-    } else if host.starts_with("192.168.0.110") {
-        "avic".to_string()
+    } else if is_private_ip(&host) {
+        "private".to_string()
     } else {
         "origin".to_string()
     };
     Some(remote_name)
+}
+
+fn is_private_ip(host: &str) -> bool {
+    // Strip optional port (e.g. "192.168.1.1:3000")
+    let ip_part = host.split(':').next().unwrap_or(host);
+
+    let octets: Vec<u8> = ip_part
+        .split('.')
+        .filter_map(|s| s.parse::<u8>().ok())
+        .collect();
+
+    if octets.len() != 4 {
+        return false;
+    }
+
+    match (octets[0], octets[1]) {
+        (10, _) => true,                                      // 10.0.0.0/8
+        (172, second) if (16..=31).contains(&second) => true, // 172.16.0.0/12
+        (192, 168) => true,                                   // 192.168.0.0/16
+        _ => false,
+    }
 }
