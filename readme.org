@@ -62,12 +62,11 @@
 #+END_SRC
 
 * 开发
-
 #+BEGIN_SRC bash
-  cargo build              # 编译
+  cargo build               # 编译
   cargo run -- <subcommand> # 运行
-  cargo test               # 测试
-  ./fmt.cmd                # 格式化
+  cargo test                # 测试
+  ./fmt.cmd                 # 格式化
 #+END_SRC
 
 * 支持的版本文件
