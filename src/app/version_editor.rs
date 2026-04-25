@@ -90,6 +90,33 @@ impl PomXmlEditor {
         }
         false
     }
+
+    fn find_parent_end_tag(content: &str) -> Result<usize, VersionEditError> {
+        // Find the position right after </parent>
+        let end_tag = "</parent>";
+        if let Some(pos) = content.find(end_tag) {
+            Ok(pos + end_tag.len())
+        } else {
+            Err(VersionEditError::ParseError {
+                file: "pom.xml".to_string(),
+                reason: "Could not find </parent> tag".to_string(),
+            })
+        }
+    }
+
+    fn detect_indent_before_parent(content: &str, parent_end: usize) -> String {
+        // Look backwards from </parent> to find the indentation
+        let before_end = &content[..parent_end];
+        
+        // Find the start of the line containing </parent>
+        let line_start = before_end.rfind('\n').map(|p| p + 1).unwrap_or(0);
+        let indent: String = before_end[line_start..]
+            .chars()
+            .take_while(|c| c.is_whitespace() && *c != '\n' && *c != '\r')
+            .collect();
+        
+        indent
+    }
 }
 
 impl ConfigEditor for PomXmlEditor {
@@ -136,15 +163,55 @@ impl ConfigEditor for PomXmlEditor {
 
     fn edit(
         &self,
-        _content: &str,
-        _location: &VersionLocation,
-        _new_version: &str,
+        content: &str,
+        location: &VersionLocation,
+        new_version: &str,
     ) -> Result<String, VersionEditError> {
-        todo!("Will be implemented in task 2.3")
+        if let Some(ref pos) = location.project_version {
+            // Case 1: Project version exists - replace it
+            let mut result = String::new();
+            result.push_str(&content[..pos.start]);
+            result.push_str(new_version);
+            result.push_str(&content[pos.end..]);
+            Ok(result)
+        } else if location.parent_version.is_some() {
+            // Case 2: No project version but has parent version - insert after </parent>
+            let parent_end = Self::find_parent_end_tag(content)?;
+            let mut result = String::new();
+            result.push_str(&content[..parent_end]);
+            
+            // Detect indentation style from parent element
+            let indent = Self::detect_indent_before_parent(content, parent_end);
+            result.push_str(&format!("\n{}<version>{}</version>", indent, new_version));
+            result.push_str(&content[parent_end..]);
+            Ok(result)
+        } else {
+            // No version found at all
+            Err(VersionEditError::VersionNotFound {
+                file: "pom.xml".to_string(),
+                hint: "pom.xml 未找到项目版本。如果这是继承自父 POM 的项目，请手动添加 <version> 标签。".to_string(),
+            })
+        }
     }
 
-    fn validate(&self, _original: &str, _edited: &str) -> Result<(), VersionEditError> {
-        todo!("Will be implemented in task 2.3")
+    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+        // Check that the edited content is valid XML
+        if roxmltree::Document::parse(edited).is_err() {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "pom.xml".to_string(),
+            });
+        }
+
+        // Check newline style preservation
+        let original_has_crlf = original.contains("\r\n");
+        let edited_has_crlf = edited.contains("\r\n");
+        if original_has_crlf != edited_has_crlf && original_has_crlf {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "pom.xml".to_string(),
+            });
+        }
+
+        Ok(())
     }
 }
 
@@ -277,5 +344,85 @@ mod tests {
         let editor = PomXmlEditor;
         let result = editor.parse(content);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_edit_pom_with_project_version() {
+        let content = r#"
+<project>
+    <parent>
+        <version>1.0.0</version>
+    </parent>
+    <version>2.0.0</version>
+    <dependencies>
+        <dependency>
+            <version>3.0.0</version>
+        </dependency>
+    </dependencies>
+</project>
+"#;
+        let editor = PomXmlEditor;
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.1.0").unwrap();
+
+        assert!(edited.contains("<version>2.1.0</version>"));
+        assert!(edited.contains("<version>1.0.0</version>")); // parent unchanged
+        assert!(edited.contains("<version>3.0.0</version>")); // dependency unchanged
+    }
+
+    #[test]
+    fn test_edit_pom_insert_after_parent() {
+        let content = r#"
+<project>
+    <parent>
+        <version>1.0.0</version>
+    </parent>
+</project>
+"#;
+        let editor = PomXmlEditor;
+        let location = editor.parse(content).unwrap();
+        assert!(location.project_version.is_none());
+        assert!(location.parent_version.is_some());
+
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+        assert!(edited.contains("</parent>\n    <version>2.0.0</version>"));
+        assert!(edited.contains("<version>1.0.0</version>")); // parent unchanged
+    }
+
+    #[test]
+    fn test_edit_pom_no_version_error() {
+        let content = r#"
+<project>
+    <groupId>com.example</groupId>
+    <artifactId>test</artifactId>
+</project>
+"#;
+        let editor = PomXmlEditor;
+        let location = editor.parse(content).unwrap();
+        let result = editor.edit(content, &location, "2.0.0");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_valid_xml() {
+        let content = r#"
+<project>
+    <version>1.0.0</version>
+</project>
+"#;
+        let editor = PomXmlEditor;
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+        assert!(editor.validate(content, &edited).is_ok());
+    }
+
+    #[test]
+    fn test_validate_preserves_crlf() {
+        let content = "<project>\r\n    <version>1.0.0</version>\r\n</project>\r\n";
+        let editor = PomXmlEditor;
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+        assert!(edited.contains("\r\n"));
+        assert!(editor.validate(content, &edited).is_ok());
     }
 }
