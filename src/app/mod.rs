@@ -8,3 +8,4 @@ pub mod selfman;
 pub mod snap;
 pub mod sync;
 pub mod version;
+pub mod version_editor;

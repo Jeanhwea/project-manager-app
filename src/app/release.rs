@@ -1,5 +1,10 @@
 use super::git;
 use super::version::Version;
+use super::version_editor::{
+    CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor, PackageJsonEditor,
+    PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionEditError, VersionTextEditor,
+    write_with_backup,
+};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
@@ -215,87 +220,90 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
 }
 
 fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType) -> Result<()> {
-    match file_type {
-        ConfigFileType::VersionText => {
-            let version = tag.trim_start_matches('v');
-            std::fs::write(config_file, version)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
-        }
-        ConfigFileType::PythonVersion => {
-            return edit_with_regex(config_file, tag, r#"__version__ = "[^"]*""#, |v| {
-                format!(r#"__version__ = "{}""#, v)
-            });
-        }
-        ConfigFileType::CMakeLists => {
-            return edit_with_regex(
-                config_file,
-                tag,
-                r#"(project\s*\([^)]*?VERSION\s+)[0-9]+\.[0-9]+\.[0-9]+"#,
-                |v| format!("${{1}}{}", v),
-            );
-        }
-        ConfigFileType::HomebrewFormula => {
-            return edit_with_regex(config_file, tag, r#"version "[^"]*""#, |v| {
-                format!(r#"version "{}""#, v)
-            });
-        }
-        _ => {}
-    }
-
-    // 基于行的版本替换（Cargo.toml, pom.xml, pyproject.toml, package.json）
+    let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file)
         .with_context(|| format!("无法读取 {}", config_file))?;
-    let version = tag.trim_start_matches('v');
-    let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
-    match file_type {
+    let edited = match file_type {
+        ConfigFileType::PomXml => {
+            edit_with_editor(&PomXmlEditor, &content, config_file, version)?
+        }
         ConfigFileType::CargoToml => {
-            replace_in_section(&mut lines, "[package]", "version = ", || {
-                format!("version = \"{}\"", version)
-            });
+            edit_with_editor(&CargoTomlEditor, &content, config_file, version)?
         }
         ConfigFileType::PyprojectToml => {
-            replace_in_section(&mut lines, "[project]", "version = ", || {
-                format!("version = \"{}\"", version)
-            });
-        }
-        ConfigFileType::PomXml => {
-            let re = Regex::new(r#"<version>[^<]*</version>"#)?;
-            for line in &mut lines {
-                if line.trim().starts_with("<version>") {
-                    *line = re
-                        .replace(line, &format!(r#"<version>{}</version>"#, version))
-                        .to_string();
-                    break;
-                }
-            }
+            edit_with_editor(&PyprojectEditor, &content, config_file, version)?
         }
         ConfigFileType::PackageJson => {
-            let re = Regex::new(r#""version":\s*"[^"]*""#)?;
-            if config_file.starts_with("npm/") {
-                let re_dep = Regex::new(r#"("@jeansoft/pma[^"]*":\s*")[^"]*""#)?;
-                let new_content =
-                    re.replace_all(&content, &format!(r#""version": "{}""#, version));
-                let new_content =
-                    re_dep.replace_all(&new_content, &format!(r#"${{1}}{}""#, version));
-                std::fs::write(config_file, new_content.as_ref())
-                    .with_context(|| format!("无法写入 {}", config_file))?;
-                return Ok(());
-            }
-            for line in &mut lines {
-                if line.trim().starts_with("\"version\": ") {
-                    *line = re
-                        .replace(line, &format!(r#""version": "{}""#, version))
-                        .to_string();
-                    break;
-                }
-            }
+            let in_npm_dir = config_file.starts_with("npm/");
+            edit_with_editor(
+                &PackageJsonEditor { in_npm_dir },
+                &content,
+                config_file,
+                version,
+            )?
         }
-        _ => unreachable!(),
-    }
+        ConfigFileType::VersionText => {
+            edit_with_editor(&VersionTextEditor, &content, config_file, version)?
+        }
+        ConfigFileType::PythonVersion => {
+            edit_with_editor(&PythonVersionEditor, &content, config_file, version)?
+        }
+        ConfigFileType::CMakeLists => {
+            edit_with_editor(&CMakeListsEditor, &content, config_file, version)?
+        }
+        ConfigFileType::HomebrewFormula => {
+            edit_with_editor(&HomebrewFormulaEditor, &content, config_file, version)?
+        }
+    };
 
-    write_lines(config_file, &lines, content.ends_with('\n'))
+    write_with_backup(config_file, &edited).map_err(|e| anyhow::anyhow!("{}", e))?;
+    Ok(())
+}
+
+fn edit_with_editor<E: ConfigEditor>(
+    editor: &E,
+    content: &str,
+    config_file: &str,
+    version: &str,
+) -> Result<String> {
+    let location = editor
+        .parse(content)
+        .map_err(|e| map_edit_error(e, config_file))?;
+
+    let edited = editor
+        .edit(content, &location, version)
+        .map_err(|e| map_edit_error(e, config_file))?;
+
+    editor
+        .validate(content, &edited)
+        .map_err(|e| map_edit_error(e, config_file))?;
+
+    Ok(edited)
+}
+
+fn map_edit_error(e: VersionEditError, config_file: &str) -> anyhow::Error {
+    match e {
+        VersionEditError::FileNotFound(_) => {
+            anyhow::anyhow!("文件不存在: {}", config_file)
+        }
+        VersionEditError::ParseError { reason, .. } => {
+            anyhow::anyhow!(
+                "解析 {} 失败: {}。请检查文件格式是否正确。",
+                config_file,
+                reason
+            )
+        }
+        VersionEditError::VersionNotFound { hint, .. } => {
+            anyhow::anyhow!("{}", hint)
+        }
+        VersionEditError::WriteError { reason, .. } => {
+            anyhow::anyhow!("写入 {} 失败: {}", config_file, reason)
+        }
+        VersionEditError::FormatPreservationError { .. } => {
+            anyhow::anyhow!("编辑 {} 后格式验证失败，已取消修改。", config_file)
+        }
+    }
 }
 
 fn post_edit_version_file(config_file: &str, file_type: ConfigFileType) -> Result<()> {
@@ -303,51 +311,6 @@ fn post_edit_version_file(config_file: &str, file_type: ConfigFileType) -> Resul
         ConfigFileType::CargoToml => update_cargo_lock(config_file),
         _ => Ok(()),
     }
-}
-
-/// 在 TOML section 内替换匹配行
-fn replace_in_section<F>(lines: &mut [String], section: &str, prefix: &str, replacement: F)
-where
-    F: FnOnce() -> String,
-{
-    let mut in_section = false;
-    for line in lines.iter_mut() {
-        if line.trim() == section {
-            in_section = true;
-        } else if line.starts_with('[') && !line.trim().is_empty() {
-            in_section = false;
-        }
-        if in_section && line.trim().starts_with(prefix) {
-            *line = replacement();
-            break;
-        }
-    }
-}
-
-/// 使用正则表达式替换整个文件内容
-fn edit_with_regex(
-    config_file: &str,
-    tag: &str,
-    pattern: &str,
-    replacement_fn: impl FnOnce(&str) -> String,
-) -> Result<()> {
-    let version = tag.trim_start_matches('v');
-    let content = std::fs::read_to_string(config_file)
-        .with_context(|| format!("无法读取 {}", config_file))?;
-    let re = Regex::new(pattern)?;
-    let new_content = re.replace(&content, &replacement_fn(version));
-    std::fs::write(config_file, new_content.as_ref())
-        .with_context(|| format!("无法写入 {}", config_file))?;
-    Ok(())
-}
-
-fn write_lines(config_file: &str, lines: &[String], trailing_newline: bool) -> Result<()> {
-    let mut content = lines.join("\n");
-    if trailing_newline {
-        content.push('\n');
-    }
-    std::fs::write(config_file, content).with_context(|| format!("无法写入 {}", config_file))?;
-    Ok(())
 }
 
 fn check_command_exists(cmd: &str) -> bool {
