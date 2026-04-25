@@ -1121,6 +1121,268 @@ impl ConfigEditor for PackageJsonEditor {
     }
 }
 
+// VersionTextEditor - for simple text files containing only the version string
+
+pub struct VersionTextEditor;
+
+impl ConfigEditor for VersionTextEditor {
+    fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
+        let trimmed = content.trim();
+        if trimmed.is_empty() {
+            return Err(VersionEditError::VersionNotFound {
+                file: "version text file".to_string(),
+                hint: "版本文件为空。".to_string(),
+            });
+        }
+
+        // The entire content (trimmed) is the version
+        let start = content.find(trimmed).unwrap_or(0);
+        let end = start + trimmed.len();
+        let line = 1;
+
+        Ok(VersionLocation {
+            project_version: Some(VersionPosition { start, end, line }),
+            parent_version: None,
+            is_workspace_root: false,
+            dependency_refs: Vec::new(),
+        })
+    }
+
+    fn edit(
+        &self,
+        _content: &str,
+        _location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String, VersionEditError> {
+        Ok(new_version.to_string())
+    }
+
+    fn validate(&self, _original: &str, _edited: &str) -> Result<(), VersionEditError> {
+        // Simple text file, no format to preserve
+        Ok(())
+    }
+}
+
+// PythonVersionEditor - for Python files with __version__ = "x.y.z" pattern
+
+pub struct PythonVersionEditor;
+
+impl PythonVersionEditor {
+    fn find_version_position(content: &str) -> Option<VersionPosition> {
+        let version_pattern = regex::Regex::new(r#"__version__\s*=\s*"[^"]*""#).ok()?;
+        if let Some(m) = version_pattern.find(content) {
+            let start = m.start();
+            let end = m.end();
+            let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
+            return Some(VersionPosition { start, end, line });
+        }
+        None
+    }
+}
+
+impl ConfigEditor for PythonVersionEditor {
+    fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
+        let project_version = Self::find_version_position(content);
+
+        if project_version.is_none() {
+            return Err(VersionEditError::VersionNotFound {
+                file: "Python version file".to_string(),
+                hint: "未找到 __version__ 变量定义。".to_string(),
+            });
+        }
+
+        Ok(VersionLocation {
+            project_version,
+            parent_version: None,
+            is_workspace_root: false,
+            dependency_refs: Vec::new(),
+        })
+    }
+
+    fn edit(
+        &self,
+        content: &str,
+        location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String, VersionEditError> {
+        if let Some(ref pos) = location.project_version {
+            let mut result = String::new();
+            result.push_str(&content[..pos.start]);
+            result.push_str(&format!(r#"__version__ = "{}""#, new_version));
+            result.push_str(&content[pos.end..]);
+            Ok(result)
+        } else {
+            Err(VersionEditError::VersionNotFound {
+                file: "Python version file".to_string(),
+                hint: "未找到 __version__ 变量定义。".to_string(),
+            })
+        }
+    }
+
+    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+        // Check newline style preservation
+        let original_has_crlf = original.contains("\r\n");
+        let edited_has_crlf = edited.contains("\r\n");
+        if original_has_crlf != edited_has_crlf && original_has_crlf {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "Python version file".to_string(),
+            });
+        }
+        Ok(())
+    }
+}
+
+// CMakeListsEditor - for CMake files with project(... VERSION x.y.z) pattern
+
+pub struct CMakeListsEditor;
+
+impl CMakeListsEditor {
+    fn find_version_position(content: &str) -> Option<VersionPosition> {
+        // Match project(... VERSION x.y.z ...) pattern
+        let version_pattern = regex::Regex::new(r#"project\s*\([^)]*?VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)"#).ok()?;
+        if let Some(caps) = version_pattern.captures(content) {
+            // Get the version number capture group
+            if let Some(version_match) = caps.get(1) {
+                let start = version_match.start();
+                let end = version_match.end();
+                let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
+                return Some(VersionPosition { start, end, line });
+            }
+        }
+        None
+    }
+}
+
+impl ConfigEditor for CMakeListsEditor {
+    fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
+        let project_version = Self::find_version_position(content);
+
+        if project_version.is_none() {
+            return Err(VersionEditError::VersionNotFound {
+                file: "CMakeLists.txt".to_string(),
+                hint: "未找到 project(VERSION ...) 声明。".to_string(),
+            });
+        }
+
+        Ok(VersionLocation {
+            project_version,
+            parent_version: None,
+            is_workspace_root: false,
+            dependency_refs: Vec::new(),
+        })
+    }
+
+    fn edit(
+        &self,
+        content: &str,
+        location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String, VersionEditError> {
+        if let Some(ref pos) = location.project_version {
+            let mut result = String::new();
+            result.push_str(&content[..pos.start]);
+            result.push_str(new_version);
+            result.push_str(&content[pos.end..]);
+            Ok(result)
+        } else {
+            Err(VersionEditError::VersionNotFound {
+                file: "CMakeLists.txt".to_string(),
+                hint: "未找到 project(VERSION ...) 声明。".to_string(),
+            })
+        }
+    }
+
+    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+        // Check newline style preservation
+        let original_has_crlf = original.contains("\r\n");
+        let edited_has_crlf = edited.contains("\r\n");
+        if original_has_crlf != edited_has_crlf && original_has_crlf {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "CMakeLists.txt".to_string(),
+            });
+        }
+        Ok(())
+    }
+}
+
+// HomebrewFormulaEditor - for Ruby files with version "x.y.z" pattern
+
+pub struct HomebrewFormulaEditor;
+
+impl HomebrewFormulaEditor {
+    fn find_version_position(content: &str) -> Option<VersionPosition> {
+        // Match version "x.y.z" pattern in Homebrew formula
+        let version_pattern = regex::Regex::new(r#"version\s+"[^"]*""#).ok()?;
+        if let Some(m) = version_pattern.find(content) {
+            // Find the position of just the version string inside the quotes
+            let match_str = m.as_str();
+            let start = m.start();
+            
+            // Find the opening quote
+            if let Some(quote_pos) = match_str.find('"') {
+                let version_start = start + quote_pos + 1;
+                let version_end = match_str.rfind('"')?;
+                let end = start + version_end;
+                let line = content[..version_start].chars().filter(|&c| c == '\n').count() + 1;
+                return Some(VersionPosition { start: version_start, end, line });
+            }
+        }
+        None
+    }
+}
+
+impl ConfigEditor for HomebrewFormulaEditor {
+    fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
+        let project_version = Self::find_version_position(content);
+
+        if project_version.is_none() {
+            return Err(VersionEditError::VersionNotFound {
+                file: "Homebrew formula".to_string(),
+                hint: "未找到 version 声明。".to_string(),
+            });
+        }
+
+        Ok(VersionLocation {
+            project_version,
+            parent_version: None,
+            is_workspace_root: false,
+            dependency_refs: Vec::new(),
+        })
+    }
+
+    fn edit(
+        &self,
+        content: &str,
+        location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String, VersionEditError> {
+        if let Some(ref pos) = location.project_version {
+            let mut result = String::new();
+            result.push_str(&content[..pos.start]);
+            result.push_str(new_version);
+            result.push_str(&content[pos.end..]);
+            Ok(result)
+        } else {
+            Err(VersionEditError::VersionNotFound {
+                file: "Homebrew formula".to_string(),
+                hint: "未找到 version 声明。".to_string(),
+            })
+        }
+    }
+
+    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+        // Check newline style preservation
+        let original_has_crlf = original.contains("\r\n");
+        let edited_has_crlf = edited.contains("\r\n");
+        if original_has_crlf != edited_has_crlf && original_has_crlf {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "Homebrew formula".to_string(),
+            });
+        }
+        Ok(())
+    }
+}
+
 // PackageJsonEditor tests
 
 #[test]
@@ -1260,5 +1522,279 @@ fn test_validate_package_json_preserves_crlf() {
     let location = editor.parse(content).unwrap();
     let edited = editor.edit(content, &location, "2.0.0").unwrap();
     assert!(edited.contains("\r\n"));
+    assert!(editor.validate(content, &edited).is_ok());
+}
+
+// VersionTextEditor tests
+
+#[test]
+fn test_parse_version_text() {
+    let content = "1.0.0\n";
+    let editor = VersionTextEditor;
+    let location = editor.parse(content).unwrap();
+
+    assert!(location.project_version.is_some());
+    let pos = location.project_version.unwrap();
+    assert_eq!(&content[pos.start..pos.end], "1.0.0");
+}
+
+#[test]
+fn test_parse_version_text_empty() {
+    let content = "";
+    let editor = VersionTextEditor;
+    let result = editor.parse(content);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_edit_version_text() {
+    let content = "1.0.0";
+    let editor = VersionTextEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+    assert_eq!(edited, "2.0.0");
+}
+
+#[test]
+fn test_validate_version_text() {
+    let content = "1.0.0";
+    let editor = VersionTextEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+    assert!(editor.validate(content, &edited).is_ok());
+}
+
+// PythonVersionEditor tests
+
+#[test]
+fn test_parse_python_version() {
+    let content = r#"__version__ = "1.0.0""#;
+    let editor = PythonVersionEditor;
+    let location = editor.parse(content).unwrap();
+
+    assert!(location.project_version.is_some());
+}
+
+#[test]
+fn test_parse_python_version_with_whitespace() {
+    let content = r#"__version__  =  "1.0.0""#;
+    let editor = PythonVersionEditor;
+    let location = editor.parse(content).unwrap();
+
+    assert!(location.project_version.is_some());
+}
+
+#[test]
+fn test_parse_python_version_in_file() {
+    let content = r#"
+"""Module docstring."""
+
+__version__ = "1.0.0"
+
+def main():
+    pass
+"#;
+    let editor = PythonVersionEditor;
+    let location = editor.parse(content).unwrap();
+
+    assert!(location.project_version.is_some());
+}
+
+#[test]
+fn test_parse_python_version_not_found() {
+    let content = r#"VERSION = "1.0.0""#;
+    let editor = PythonVersionEditor;
+    let result = editor.parse(content);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_edit_python_version() {
+    let content = r#"__version__ = "1.0.0""#;
+    let editor = PythonVersionEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+    assert!(edited.contains(r#"__version__ = "2.0.0""#));
+}
+
+#[test]
+fn test_edit_python_version_preserves_surrounding() {
+    let content = r#"
+"""Module docstring."""
+
+__version__ = "1.0.0"
+
+def main():
+    pass
+"#;
+    let editor = PythonVersionEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+    assert!(edited.contains(r#"__version__ = "2.0.0""#));
+    assert!(edited.contains("Module docstring"));
+    assert!(edited.contains("def main():"));
+}
+
+#[test]
+fn test_validate_python_version() {
+    let content = r#"__version__ = "1.0.0""#;
+    let editor = PythonVersionEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+    assert!(editor.validate(content, &edited).is_ok());
+}
+
+// CMakeListsEditor tests
+
+#[test]
+fn test_parse_cmake_version() {
+    let content = r#"cmake_minimum_required(VERSION 3.10)
+project(MyProject VERSION 1.0.0)
+
+add_executable(myapp main.cpp)
+"#;
+    let editor = CMakeListsEditor;
+    let location = editor.parse(content).unwrap();
+
+    assert!(location.project_version.is_some());
+    let pos = location.project_version.unwrap();
+    assert_eq!(&content[pos.start..pos.end], "1.0.0");
+}
+
+#[test]
+fn test_parse_cmake_version_with_description() {
+    let content = r#"project(MyProject VERSION 1.2.3 DESCRIPTION "My App")"#;
+    let editor = CMakeListsEditor;
+    let location = editor.parse(content).unwrap();
+
+    assert!(location.project_version.is_some());
+    let pos = location.project_version.unwrap();
+    assert_eq!(&content[pos.start..pos.end], "1.2.3");
+}
+
+#[test]
+fn test_parse_cmake_version_not_found() {
+    let content = r#"cmake_minimum_required(VERSION 3.10)
+project(MyProject)
+
+add_executable(myapp main.cpp)
+"#;
+    let editor = CMakeListsEditor;
+    let result = editor.parse(content);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_edit_cmake_version() {
+    let content = r#"project(MyProject VERSION 1.0.0)"#;
+    let editor = CMakeListsEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+    assert!(edited.contains("VERSION 2.0.0"));
+}
+
+#[test]
+fn test_edit_cmake_version_preserves_surrounding() {
+    let content = r#"cmake_minimum_required(VERSION 3.10)
+project(MyProject VERSION 1.0.0 LANGUAGES CXX)
+
+add_executable(myapp main.cpp)
+"#;
+    let editor = CMakeListsEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+    assert!(edited.contains("VERSION 2.0.0"));
+    assert!(edited.contains("cmake_minimum_required"));
+    assert!(edited.contains("LANGUAGES CXX"));
+    assert!(edited.contains("add_executable"));
+}
+
+#[test]
+fn test_validate_cmake_version() {
+    let content = r#"project(MyProject VERSION 1.0.0)"#;
+    let editor = CMakeListsEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+    assert!(editor.validate(content, &edited).is_ok());
+}
+
+// HomebrewFormulaEditor tests
+
+#[test]
+fn test_parse_homebrew_version() {
+    let content = r#"
+class Pma < Formula
+  desc "Project Manager App"
+  homepage "https://example.com"
+  version "1.0.0"
+
+  depends_on "rust" => :build
+end
+"#;
+    let editor = HomebrewFormulaEditor;
+    let location = editor.parse(content).unwrap();
+
+    assert!(location.project_version.is_some());
+    let pos = location.project_version.unwrap();
+    assert_eq!(&content[pos.start..pos.end], "1.0.0");
+}
+
+#[test]
+fn test_parse_homebrew_version_not_found() {
+    let content = r#"
+class Pma < Formula
+  desc "Project Manager App"
+  homepage "https://example.com"
+
+  depends_on "rust" => :build
+end
+"#;
+    let editor = HomebrewFormulaEditor;
+    let result = editor.parse(content);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_edit_homebrew_version() {
+    let content = r#"version "1.0.0""#;
+    let editor = HomebrewFormulaEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+    assert!(edited.contains(r#"version "2.0.0""#));
+}
+
+#[test]
+fn test_edit_homebrew_version_preserves_surrounding() {
+    let content = r#"
+class Pma < Formula
+  desc "Project Manager App"
+  homepage "https://example.com"
+  version "1.0.0"
+
+  depends_on "rust" => :build
+end
+"#;
+    let editor = HomebrewFormulaEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+    assert!(edited.contains(r#"version "2.0.0""#));
+    assert!(edited.contains("class Pma < Formula"));
+    assert!(edited.contains("desc \"Project Manager App\""));
+    assert!(edited.contains("depends_on"));
+}
+
+#[test]
+fn test_validate_homebrew_version() {
+    let content = r#"version "1.0.0""#;
+    let editor = HomebrewFormulaEditor;
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
     assert!(editor.validate(content, &edited).is_ok());
 }

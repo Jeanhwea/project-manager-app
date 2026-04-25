@@ -1,11 +1,10 @@
 use super::git;
 use super::version::Version;
 use super::version_editor::{
-    CargoTomlEditor, ConfigEditor, PackageJsonEditor, PomXmlEditor, PyprojectEditor,
-    VersionEditError,
+    CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor, PackageJsonEditor,
+    PomXmlEditor, PythonVersionEditor, PyprojectEditor, VersionEditError, VersionTextEditor,
 };
 use anyhow::{Context, Result};
-use regex::Regex;
 use std::path::Path;
 
 /// 配置文件类型及其对应的候选路径
@@ -328,61 +327,98 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
                 .with_context(|| format!("无法写入 {}", config_file))?;
             return Ok(());
         }
-        _ => {}
-    }
-
-    // Legacy logic for unrefactored file types
-    match file_type {
         ConfigFileType::VersionText => {
-            std::fs::write(config_file, version)
+            let editor = VersionTextEditor;
+            let location = editor.parse(&content).map_err(|e| match e {
+                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                _ => anyhow::anyhow!("未知错误: {:?}", e),
+            })?;
+            let edited = editor
+                .edit(&content, &location, version)
+                .map_err(|e| match e {
+                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
+                })?;
+            editor.validate(&content, &edited).map_err(|e| match e {
+                VersionEditError::FormatPreservationError { .. } => {
+                    anyhow::anyhow!("格式验证失败: {}", config_file)
+                }
+                _ => anyhow::anyhow!("验证失败: {:?}", e),
+            })?;
+            std::fs::write(config_file, edited)
                 .with_context(|| format!("无法写入 {}", config_file))?;
             return Ok(());
         }
         ConfigFileType::PythonVersion => {
-            return edit_with_regex(config_file, tag, r#"__version__ = "[^"]*""#, |v| {
-                format!(r#"__version__ = "{}""#, v)
-            });
+            let editor = PythonVersionEditor;
+            let location = editor.parse(&content).map_err(|e| match e {
+                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                _ => anyhow::anyhow!("未知错误: {:?}", e),
+            })?;
+            let edited = editor
+                .edit(&content, &location, version)
+                .map_err(|e| match e {
+                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
+                })?;
+            editor.validate(&content, &edited).map_err(|e| match e {
+                VersionEditError::FormatPreservationError { .. } => {
+                    anyhow::anyhow!("格式验证失败: {}", config_file)
+                }
+                _ => anyhow::anyhow!("验证失败: {:?}", e),
+            })?;
+            std::fs::write(config_file, edited)
+                .with_context(|| format!("无法写入 {}", config_file))?;
+            return Ok(());
         }
         ConfigFileType::CMakeLists => {
-            return edit_with_regex(
-                config_file,
-                tag,
-                r#"(project\s*\([^)]*?VERSION\s+)[0-9]+\.[0-9]+\.[0-9]+"#,
-                |v| format!("${{1}}{}", v),
-            );
+            let editor = CMakeListsEditor;
+            let location = editor.parse(&content).map_err(|e| match e {
+                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                _ => anyhow::anyhow!("未知错误: {:?}", e),
+            })?;
+            let edited = editor
+                .edit(&content, &location, version)
+                .map_err(|e| match e {
+                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
+                })?;
+            editor.validate(&content, &edited).map_err(|e| match e {
+                VersionEditError::FormatPreservationError { .. } => {
+                    anyhow::anyhow!("格式验证失败: {}", config_file)
+                }
+                _ => anyhow::anyhow!("验证失败: {:?}", e),
+            })?;
+            std::fs::write(config_file, edited)
+                .with_context(|| format!("无法写入 {}", config_file))?;
+            return Ok(());
         }
         ConfigFileType::HomebrewFormula => {
-            return edit_with_regex(config_file, tag, r#"version "[^"]*""#, |v| {
-                format!(r#"version "{}""#, v)
-            });
+            let editor = HomebrewFormulaEditor;
+            let location = editor.parse(&content).map_err(|e| match e {
+                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                _ => anyhow::anyhow!("未知错误: {:?}", e),
+            })?;
+            let edited = editor
+                .edit(&content, &location, version)
+                .map_err(|e| match e {
+                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
+                })?;
+            editor.validate(&content, &edited).map_err(|e| match e {
+                VersionEditError::FormatPreservationError { .. } => {
+                    anyhow::anyhow!("格式验证失败: {}", config_file)
+                }
+                _ => anyhow::anyhow!("验证失败: {:?}", e),
+            })?;
+            std::fs::write(config_file, edited)
+                .with_context(|| format!("无法写入 {}", config_file))?;
+            return Ok(());
         }
-        _ => unreachable!(),
     }
 }
 
 fn post_edit_version_file(config_file: &str, file_type: ConfigFileType) -> Result<()> {
-    match file_type {
-        ConfigFileType::CargoToml => update_cargo_lock(config_file),
-        _ => Ok(()),
-    }
-}
-
-/// 使用正则表达式替换整个文件内容
-fn edit_with_regex(
-    config_file: &str,
-    tag: &str,
-    pattern: &str,
-    replacement_fn: impl FnOnce(&str) -> String,
-) -> Result<()> {
-    let version = tag.trim_start_matches('v');
-    let content = std::fs::read_to_string(config_file)
-        .with_context(|| format!("无法读取 {}", config_file))?;
-    let re = Regex::new(pattern)?;
-    let new_content = re.replace(&content, &replacement_fn(version));
-    std::fs::write(config_file, new_content.as_ref())
-        .with_context(|| format!("无法写入 {}", config_file))?;
-    Ok(())
-}
 
 fn check_command_exists(cmd: &str) -> bool {
     std::process::Command::new(cmd)
