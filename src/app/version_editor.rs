@@ -942,3 +942,295 @@ version = "1.0.0"
         assert!(editor.validate(content, &edited).is_ok());
     }
 }
+
+pub struct PackageJsonEditor {
+    pub in_npm_dir: bool,
+}
+
+impl PackageJsonEditor {
+    fn find_version_position(content: &str, value: &serde_json::Value) -> Option<VersionPosition> {
+        let obj = value.as_object()?;
+        if !obj.contains_key("version") {
+            return None;
+        }
+
+        // Find "version": "value" pattern in content
+        let version_pattern = regex::Regex::new(r#""version"\s*:\s*"[^"]*""#).ok()?;
+        if let Some(m) = version_pattern.find(content) {
+            let start = m.start();
+            let end = m.end();
+            let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
+            return Some(VersionPosition { start, end, line });
+        }
+
+        None
+    }
+
+    fn find_dependency_refs(content: &str, value: &serde_json::Value) -> Vec<DependencyRef> {
+        let mut refs = Vec::new();
+        let obj = match value.as_object() {
+            Some(o) => o,
+            None => return refs,
+        };
+
+        let dep_sections = ["dependencies", "devDependencies", "optionalDependencies"];
+
+        for section in dep_sections {
+            if let Some(deps) = obj.get(section).and_then(|d| d.as_object()) {
+                for key in deps.keys() {
+                    if key.starts_with("@jeansoft/pma") {
+                        // Find the key: "value" pattern for this dependency
+                        let pattern = regex::Regex::new(&format!(
+                            r#""{}"\s*:\s*"[^"]*""#,
+                            regex::escape(key)
+                        )).ok();
+
+                        if let Some(re) = pattern {
+                            if let Some(m) = re.find(content) {
+                                let start = m.start();
+                                let end = m.end();
+                                let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
+                                refs.push(DependencyRef {
+                                    name_pattern: key.clone(),
+                                    position: VersionPosition { start, end, line },
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        refs
+    }
+}
+
+impl ConfigEditor for PackageJsonEditor {
+    fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
+        let value: serde_json::Value = serde_json::from_str(content).map_err(|e| VersionEditError::ParseError {
+            file: "package.json".to_string(),
+            reason: e.to_string(),
+        })?;
+
+        let project_version = Self::find_version_position(content, &value);
+
+        if project_version.is_none() {
+            return Err(VersionEditError::VersionNotFound {
+                file: "package.json".to_string(),
+                hint: "package.json 未找到顶层 version 字段。".to_string(),
+            });
+        }
+
+        let dependency_refs = if self.in_npm_dir {
+            Self::find_dependency_refs(content, &value)
+        } else {
+            Vec::new()
+        };
+
+        Ok(VersionLocation {
+            project_version,
+            parent_version: None,
+            is_workspace_root: false,
+            dependency_refs,
+        })
+    }
+
+    fn edit(
+        &self,
+        content: &str,
+        location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String, VersionEditError> {
+        let mut result = content.to_string();
+
+        // First, update the top-level version
+        if location.project_version.is_some() {
+            let version_pattern = regex::Regex::new(r#""version"\s*:\s*"[^"]*""#)
+                .map_err(|_| VersionEditError::ParseError {
+                    file: "package.json".to_string(),
+                    reason: "Failed to create version pattern".to_string(),
+                })?;
+
+            let new_version_str = format!(r#""version": "{}""#, new_version);
+            result = version_pattern.replace(&result, &new_version_str).to_string();
+        }
+
+        // Then, update dependency refs if in npm/ directory
+        for dep_ref in &location.dependency_refs {
+            let pattern = regex::Regex::new(&format!(
+                r#""{}"\s*:\s*"[^"]*""#,
+                regex::escape(&dep_ref.name_pattern)
+            )).map_err(|_| VersionEditError::ParseError {
+                file: "package.json".to_string(),
+                reason: "Failed to create dependency pattern".to_string(),
+            })?;
+
+            let new_dep_str = format!(r#""{}": "{}""#, dep_ref.name_pattern, new_version);
+            result = pattern.replace(&result, &new_dep_str).to_string();
+        }
+
+        Ok(result)
+    }
+
+    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+        // Check that the edited content is valid JSON
+        if serde_json::from_str::<serde_json::Value>(edited).is_err() {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "package.json".to_string(),
+            });
+        }
+
+        // Check newline style preservation
+        let original_has_crlf = original.contains("\r\n");
+        let edited_has_crlf = edited.contains("\r\n");
+        if original_has_crlf != edited_has_crlf && original_has_crlf {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "package.json".to_string(),
+            });
+        }
+
+        Ok(())
+    }
+}
+
+    // PackageJsonEditor tests
+
+    #[test]
+    fn test_parse_package_json_version() {
+        let content = r#"{
+    "name": "test-package",
+    "version": "1.0.0"
+}"#;
+        let editor = PackageJsonEditor { in_npm_dir: false };
+        let location = editor.parse(content).unwrap();
+
+        assert!(location.project_version.is_some());
+        assert!(location.dependency_refs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_package_json_npm_dir() {
+        let content = r#"{
+    "name": "@jeansoft/pma",
+    "version": "1.0.0",
+    "optionalDependencies": {
+        "@jeansoft/pma-win32-x64": "1.0.0",
+        "@jeansoft/pma-darwin-arm64": "1.0.0"
+    }
+}"#;
+        let editor = PackageJsonEditor { in_npm_dir: true };
+        let location = editor.parse(content).unwrap();
+
+        assert!(location.project_version.is_some());
+        assert_eq!(location.dependency_refs.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_package_json_not_npm_dir() {
+        let content = r#"{
+    "name": "@jeansoft/pma",
+    "version": "1.0.0",
+    "optionalDependencies": {
+        "@jeansoft/pma-win32-x64": "1.0.0"
+    }
+}"#;
+        let editor = PackageJsonEditor { in_npm_dir: false };
+        let location = editor.parse(content).unwrap();
+
+        assert!(location.project_version.is_some());
+        assert!(location.dependency_refs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_package_json_no_version() {
+        let content = r#"{
+    "name": "test-package"
+}"#;
+        let editor = PackageJsonEditor { in_npm_dir: false };
+        let result = editor.parse(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_package_json_invalid_json() {
+        let content = r#"{
+    "name": "test-package",
+    "version": "1.0.0"
+"#;
+        let editor = PackageJsonEditor { in_npm_dir: false };
+        let result = editor.parse(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_edit_package_json_version() {
+        let content = r#"{
+    "name": "test-package",
+    "version": "1.0.0"
+}"#;
+        let editor = PackageJsonEditor { in_npm_dir: false };
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+        assert!(edited.contains(r#""version": "2.0.0""#));
+    }
+
+    #[test]
+    fn test_edit_package_json_npm_dir() {
+        let content = r#"{
+    "name": "@jeansoft/pma",
+    "version": "1.0.0",
+    "optionalDependencies": {
+        "@jeansoft/pma-win32-x64": "1.0.0",
+        "@jeansoft/pma-darwin-arm64": "1.0.0"
+    }
+}"#;
+        let editor = PackageJsonEditor { in_npm_dir: true };
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+        assert!(edited.contains(r#""version": "2.0.0""#));
+        assert!(edited.contains(r#""@jeansoft/pma-win32-x64": "2.0.0""#));
+        assert!(edited.contains(r#""@jeansoft/pma-darwin-arm64": "2.0.0""#));
+    }
+
+    #[test]
+    fn test_edit_package_json_preserves_other_deps() {
+        let content = r#"{
+    "name": "@jeansoft/pma",
+    "version": "1.0.0",
+    "dependencies": {
+        "other-package": "3.0.0"
+    },
+    "optionalDependencies": {
+        "@jeansoft/pma-win32-x64": "1.0.0"
+    }
+}"#;
+        let editor = PackageJsonEditor { in_npm_dir: true };
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+        assert!(edited.contains(r#""other-package": "3.0.0""#));
+    }
+
+    #[test]
+    fn test_validate_package_json_valid() {
+        let content = r#"{
+    "name": "test-package",
+    "version": "1.0.0"
+}"#;
+        let editor = PackageJsonEditor { in_npm_dir: false };
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+        assert!(editor.validate(content, &edited).is_ok());
+    }
+
+    #[test]
+    fn test_validate_package_json_preserves_crlf() {
+        let content = "{\r\n    \"name\": \"test-package\",\r\n    \"version\": \"1.0.0\"\r\n}\r\n";
+        let editor = PackageJsonEditor { in_npm_dir: false };
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+        assert!(edited.contains("\r\n"));
+        assert!(editor.validate(content, &edited).is_ok());
+    }
