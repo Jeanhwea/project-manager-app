@@ -43,7 +43,11 @@ impl std::fmt::Display for VersionEditError {
                 write!(f, "文件不存在: {}", file)
             }
             VersionEditError::ParseError { file, reason } => {
-                write!(f, "解析 {} 失败: {}。请检查文件格式是否正确。", file, reason)
+                write!(
+                    f,
+                    "解析 {} 失败: {}。请检查文件格式是否正确。",
+                    file, reason
+                )
             }
             VersionEditError::VersionNotFound { file, hint } => {
                 write!(f, "{} 未找到版本字段。{}", file, hint)
@@ -1304,7 +1308,8 @@ pub struct CMakeListsEditor;
 impl CMakeListsEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
         // Match project(... VERSION x.y.z ...) pattern
-        let version_pattern = regex::Regex::new(r#"project\s*\([^)]*?VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)"#).ok()?;
+        let version_pattern =
+            regex::Regex::new(r#"project\s*\([^)]*?VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)"#).ok()?;
         if let Some(caps) = version_pattern.captures(content) {
             // Get the version number capture group
             if let Some(version_match) = caps.get(1) {
@@ -1382,14 +1387,22 @@ impl HomebrewFormulaEditor {
             // Find the position of just the version string inside the quotes
             let match_str = m.as_str();
             let start = m.start();
-            
+
             // Find the opening quote
             if let Some(quote_pos) = match_str.find('"') {
                 let version_start = start + quote_pos + 1;
                 let version_end = match_str.rfind('"')?;
                 let end = start + version_end;
-                let line = content[..version_start].chars().filter(|&c| c == '\n').count() + 1;
-                return Some(VersionPosition { start: version_start, end, line });
+                let line = content[..version_start]
+                    .chars()
+                    .filter(|&c| c == '\n')
+                    .count()
+                    + 1;
+                return Some(VersionPosition {
+                    start: version_start,
+                    end,
+                    line,
+                });
             }
         }
         None
@@ -1933,10 +1946,7 @@ fn test_write_with_backup_success() {
     drop(file);
 
     // Write new content
-    let result = write_with_backup(
-        &test_file.to_string_lossy(),
-        "new content"
-    );
+    let result = write_with_backup(&test_file.to_string_lossy(), "new content");
     assert!(result.is_ok());
 
     // Verify content was written
@@ -1957,10 +1967,7 @@ fn test_write_with_backup_nonexistent_file() {
     let test_file = temp_dir.join("pma_test_nonexistent_12345.txt");
 
     // Should fail for non-existent file
-    let result = write_with_backup(
-        &test_file.to_string_lossy(),
-        "new content"
-    );
+    let result = write_with_backup(&test_file.to_string_lossy(), "new content");
     assert!(result.is_err());
 
     if let Err(VersionEditError::WriteError { reason, .. }) = result {

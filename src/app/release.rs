@@ -1,9 +1,9 @@
 use super::git;
 use super::version::Version;
 use super::version_editor::{
-    write_with_backup, CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor,
-    PackageJsonEditor, PomXmlEditor, PythonVersionEditor, PyprojectEditor, VersionEditError,
-    VersionTextEditor,
+    CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor, PackageJsonEditor,
+    PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionEditError, VersionTextEditor,
+    write_with_backup,
 };
 use anyhow::{Context, Result};
 use regex::Regex;
@@ -267,17 +267,17 @@ fn edit_with_editor<E: ConfigEditor>(
     config_file: &str,
     version: &str,
 ) -> Result<String> {
-    let location = editor.parse(content).map_err(|e| {
-        map_edit_error(e, config_file)
-    })?;
+    let location = editor
+        .parse(content)
+        .map_err(|e| map_edit_error(e, config_file))?;
 
-    let edited = editor.edit(content, &location, version).map_err(|e| {
-        map_edit_error(e, config_file)
-    })?;
+    let edited = editor
+        .edit(content, &location, version)
+        .map_err(|e| map_edit_error(e, config_file))?;
 
-    editor.validate(content, &edited).map_err(|e| {
-        map_edit_error(e, config_file)
-    })?;
+    editor
+        .validate(content, &edited)
+        .map_err(|e| map_edit_error(e, config_file))?;
 
     Ok(edited)
 }
@@ -288,7 +288,11 @@ fn map_edit_error(e: VersionEditError, config_file: &str) -> anyhow::Error {
             anyhow::anyhow!("文件不存在: {}", config_file)
         }
         VersionEditError::ParseError { reason, .. } => {
-            anyhow::anyhow!("解析 {} 失败: {}。请检查文件格式是否正确。", config_file, reason)
+            anyhow::anyhow!(
+                "解析 {} 失败: {}。请检查文件格式是否正确。",
+                config_file,
+                reason
+            )
         }
         VersionEditError::VersionNotFound { hint, .. } => {
             anyhow::anyhow!("{}", hint)
