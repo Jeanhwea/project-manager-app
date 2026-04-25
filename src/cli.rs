@@ -80,6 +80,9 @@ pub enum Commands {
             help = "Bump type: major, minor, patch"
         )]
         bump_type: BumpType,
+        /// Files to update version (auto-detect if not specified)
+        #[arg(help = "Files to update version (auto-detect if not specified)")]
+        files: Vec<String>,
         /// Stay in current directory instead of switching to git root
         #[arg(
             long,

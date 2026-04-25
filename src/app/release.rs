@@ -40,7 +40,13 @@ enum ConfigFileType {
     HomebrewFormula,
 }
 
-pub fn execute(bump_type: &str, no_root: bool, force: bool, skip_push: bool) -> Result<()> {
+pub fn execute(
+    bump_type: &str,
+    files: &[String],
+    no_root: bool,
+    force: bool,
+    skip_push: bool,
+) -> Result<()> {
     // 除非指定 --no-root，否则先切换到 git 仓库根目录
     if !no_root
         && let Some(root) = git::get_top_level_dir()
@@ -66,7 +72,18 @@ pub fn execute(bump_type: &str, no_root: bool, force: bool, skip_push: bool) -> 
     let new_version = version.bump(bump_type);
     let new_tag = new_version.to_tag();
 
-    let config_files = detect_config_files()?;
+    let config_files = if files.is_empty() {
+        detect_config_files()?
+    } else {
+        files
+            .iter()
+            .map(|f| {
+                let file_type = detect_file_type(f)?;
+                Ok((f.clone(), file_type))
+            })
+            .collect::<Result<Vec<_>>>()?
+    };
+
     for (file_path, file_type) in &config_files {
         edit_version_in_file(&new_tag, file_path, *file_type)?;
         post_edit_version_file(file_path, *file_type)?;
@@ -89,6 +106,38 @@ pub fn execute(bump_type: &str, no_root: bool, force: bool, skip_push: bool) -> 
     }
 
     Ok(())
+}
+
+fn detect_file_type(file_path: &str) -> Result<ConfigFileType> {
+    let path = Path::new(file_path);
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+    let parent_dir = path
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+
+    let file_type = match file_name {
+        "Cargo.toml" => ConfigFileType::CargoToml,
+        "pom.xml" => ConfigFileType::PomXml,
+        "pyproject.toml" => ConfigFileType::PyprojectToml,
+        "__version__.py" => ConfigFileType::PythonVersion,
+        "version" | "version.txt" => ConfigFileType::VersionText,
+        "package.json" => ConfigFileType::PackageJson,
+        "tauri.conf.json" => ConfigFileType::PackageJson,
+        "CMakeLists.txt" => ConfigFileType::CMakeLists,
+        "pma.rb" if parent_dir == "Formula" => ConfigFileType::HomebrewFormula,
+        _ => {
+            if file_name.ends_with(".py") {
+                ConfigFileType::PythonVersion
+            } else {
+                anyhow::bail!("无法识别文件类型: {}", file_path);
+            }
+        }
+    };
+
+    Ok(file_type)
 }
 
 fn detect_config_files() -> Result<Vec<(String, ConfigFileType)>> {
