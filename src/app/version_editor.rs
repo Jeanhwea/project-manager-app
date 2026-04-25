@@ -19,16 +19,19 @@ pub struct VersionLocation {
 pub struct VersionPosition {
     pub start: usize,
     pub end: usize,
+    #[allow(dead_code)]
     pub line: usize,
 }
 
 pub struct DependencyRef {
     pub name_pattern: String,
+    #[allow(dead_code)]
     pub position: VersionPosition,
 }
 
 #[derive(Debug)]
 pub enum VersionEditError {
+    #[allow(dead_code)]
     FileNotFound(String),
     ParseError { file: String, reason: String },
     VersionNotFound { file: String, hint: String },
@@ -117,7 +120,7 @@ impl PomXmlEditor {
         let full_text = element.document().input_text();
 
         // Find the text content position within the element
-        let element_start: usize = range.start.into();
+        let element_start: usize = range.start;
         let element_text = &full_text[element_start..];
 
         // Find where the text content starts (after >)
@@ -212,16 +215,12 @@ impl ConfigEditor for PomXmlEditor {
 
         for node in root.descendants() {
             if node.tag_name().name() == "version" {
-                if Self::is_inside_parent_element(&node) {
-                    if parent_version.is_none() {
-                        parent_version = Self::find_element_position(content, &node);
-                    }
+                if Self::is_inside_parent_element(&node) && parent_version.is_none() {
+                    parent_version = Self::find_element_position(content, &node);
                 } else if Self::is_inside_dependencies_element(&node) {
                     // Skip dependency versions
-                } else if Self::is_direct_child_of_project(&node) {
-                    if project_version.is_none() {
-                        project_version = Self::find_element_position(content, &node);
-                    }
+                } else if Self::is_direct_child_of_project(&node) && project_version.is_none() {
+                    project_version = Self::find_element_position(content, &node);
                 }
             }
         }
@@ -394,10 +393,10 @@ impl ConfigEditor for CargoTomlEditor {
             }
         })?;
 
-        if let Some(package) = doc.get_mut("package") {
-            if let Some(table) = package.as_table_like_mut() {
-                table.insert("version", toml_edit::value(new_version));
-            }
+        if let Some(package) = doc.get_mut("package")
+            && let Some(table) = package.as_table_like_mut()
+        {
+            table.insert("version", toml_edit::value(new_version));
         }
 
         Ok(doc.to_string())
@@ -435,8 +434,8 @@ impl PyprojectEditor {
         let mut current: Option<&toml_edit::Item> = None;
         for key in section_path {
             current = match current {
-                None => doc.get(*key),
-                Some(item) => item.get(*key),
+                None => doc.get(key),
+                Some(item) => item.get(key),
             };
         }
 
@@ -497,22 +496,20 @@ impl ConfigEditor for PyprojectEditor {
         }
 
         // Priority 2: Check [tool.poetry] section
-        if doc.contains_key("tool") {
-            if let Some(tool) = doc.get("tool") {
-                if let Some(tool_table) = tool.as_table_like() {
-                    if tool_table.contains_key("poetry") {
-                        let project_version =
-                            Self::find_version_in_section(content, &doc, &["tool", "poetry"]);
-                        if project_version.is_some() {
-                            return Ok(VersionLocation {
-                                project_version,
-                                parent_version: None,
-                                is_workspace_root: false,
-                                dependency_refs: Vec::new(),
-                            });
-                        }
-                    }
-                }
+        if doc.contains_key("tool")
+            && let Some(tool) = doc.get("tool")
+            && let Some(tool_table) = tool.as_table_like()
+            && tool_table.contains_key("poetry")
+        {
+            let project_version =
+                Self::find_version_in_section(content, &doc, &["tool", "poetry"]);
+            if project_version.is_some() {
+                return Ok(VersionLocation {
+                    project_version,
+                    parent_version: None,
+                    is_workspace_root: false,
+                    dependency_refs: Vec::new(),
+                });
             }
         }
 
@@ -537,33 +534,26 @@ impl ConfigEditor for PyprojectEditor {
         })?;
 
         // Try [project] section first (PEP 621)
-        if doc.contains_key("project") {
-            if let Some(project) = doc.get_mut("project") {
-                if let Some(table) = project.as_table_like_mut() {
-                    if table.contains_key("version") {
-                        table.insert("version", toml_edit::value(new_version));
-                        return Ok(doc.to_string());
-                    }
-                }
-            }
+        if doc.contains_key("project")
+            && let Some(project) = doc.get_mut("project")
+            && let Some(table) = project.as_table_like_mut()
+            && table.contains_key("version")
+        {
+            table.insert("version", toml_edit::value(new_version));
+            return Ok(doc.to_string());
         }
 
         // Try [tool.poetry] section
-        if doc.contains_key("tool") {
-            if let Some(tool) = doc.get_mut("tool") {
-                if let Some(tool_table) = tool.as_table_like_mut() {
-                    if tool_table.contains_key("poetry") {
-                        if let Some(poetry) = tool_table.get_mut("poetry") {
-                            if let Some(poetry_table) = poetry.as_table_like_mut() {
-                                if poetry_table.contains_key("version") {
-                                    poetry_table.insert("version", toml_edit::value(new_version));
-                                    return Ok(doc.to_string());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        if doc.contains_key("tool")
+            && let Some(tool) = doc.get_mut("tool")
+            && let Some(tool_table) = tool.as_table_like_mut()
+            && tool_table.contains_key("poetry")
+            && let Some(poetry) = tool_table.get_mut("poetry")
+            && let Some(poetry_table) = poetry.as_table_like_mut()
+            && poetry_table.contains_key("version")
+        {
+            poetry_table.insert("version", toml_edit::value(new_version));
+            return Ok(doc.to_string());
         }
 
         Err(VersionEditError::VersionNotFound {
@@ -1075,17 +1065,17 @@ impl PackageJsonEditor {
                         ))
                         .ok();
 
-                        if let Some(re) = pattern {
-                            if let Some(m) = re.find(content) {
-                                let start = m.start();
-                                let end = m.end();
-                                let line =
-                                    content[..start].chars().filter(|&c| c == '\n').count() + 1;
-                                refs.push(DependencyRef {
-                                    name_pattern: key.clone(),
-                                    position: VersionPosition { start, end, line },
-                                });
-                            }
+                        if let Some(re) = pattern
+                            && let Some(m) = re.find(content)
+                        {
+                            let start = m.start();
+                            let end = m.end();
+                            let line =
+                                content[..start].chars().filter(|&c| c == '\n').count() + 1;
+                            refs.push(DependencyRef {
+                                name_pattern: key.clone(),
+                                position: VersionPosition { start, end, line },
+                            });
                         }
                     }
                 }
