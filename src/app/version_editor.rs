@@ -39,15 +39,18 @@ pub enum VersionEditError {
 pub struct PomXmlEditor;
 
 impl PomXmlEditor {
-    fn find_element_position(content: &str, element: &roxmltree::Node) -> Option<VersionPosition> {
+    fn find_element_position(
+        content: &str,
+        element: &roxmltree::Node,
+    ) -> Option<VersionPosition> {
         let range = element.range();
         let text = element.text()?;
         let full_text = element.document().input_text();
-        
+
         // Find the text content position within the element
         let element_start: usize = range.start.into();
         let element_text = &full_text[element_start..];
-        
+
         // Find where the text content starts (after >)
         if let Some(text_start_offset) = element_text.find('>') {
             let text_start = element_start + text_start_offset + 1;
@@ -107,24 +110,25 @@ impl PomXmlEditor {
     fn detect_indent_before_parent(content: &str, parent_end: usize) -> String {
         // Look backwards from </parent> to find the indentation
         let before_end = &content[..parent_end];
-        
+
         // Find the start of the line containing </parent>
         let line_start = before_end.rfind('\n').map(|p| p + 1).unwrap_or(0);
         let indent: String = before_end[line_start..]
             .chars()
             .take_while(|c| c.is_whitespace() && *c != '\n' && *c != '\r')
             .collect();
-        
+
         indent
     }
 }
 
 impl ConfigEditor for PomXmlEditor {
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
-        let doc = roxmltree::Document::parse(content).map_err(|e| VersionEditError::ParseError {
-            file: "pom.xml".to_string(),
-            reason: e.to_string(),
-        })?;
+        let doc =
+            roxmltree::Document::parse(content).map_err(|e| VersionEditError::ParseError {
+                file: "pom.xml".to_string(),
+                reason: e.to_string(),
+            })?;
 
         let root = doc.root_element();
         if root.tag_name().name() != "project" {
@@ -179,7 +183,7 @@ impl ConfigEditor for PomXmlEditor {
             let parent_end = Self::find_parent_end_tag(content)?;
             let mut result = String::new();
             result.push_str(&content[..parent_end]);
-            
+
             // Detect indentation style from parent element
             let indent = Self::detect_indent_before_parent(content, parent_end);
             result.push_str(&format!("\n{}<version>{}</version>", indent, new_version));
@@ -218,43 +222,48 @@ impl ConfigEditor for PomXmlEditor {
 pub struct CargoTomlEditor;
 
 impl CargoTomlEditor {
-    fn find_version_position(content: &str, doc: &toml_edit::DocumentMut) -> Option<VersionPosition> {
+    fn find_version_position(
+        content: &str,
+        doc: &toml_edit::DocumentMut,
+    ) -> Option<VersionPosition> {
         let package = doc.get("package")?.as_table_like()?;
-        
+
         // Check if version key exists
         if !package.contains_key("version") {
             return None;
         }
-        
+
         // Find the version in the raw content
         // Look for 'version = "value"' pattern in [package] section
         let version_pattern = regex::Regex::new(r#"version\s*=\s*"[^"]*""#).ok()?;
-        
+
         // Find the [package] section start
         let package_start = content.find("[package]")?;
         let package_end = content[package_start..]
             .find("\n[")
             .map(|p| package_start + p)
             .unwrap_or(content.len());
-        
+
         let package_section = &content[package_start..package_end];
-        
+
         if let Some(m) = version_pattern.find(package_section) {
             let start = package_start + m.start();
             let end = package_start + m.end();
             let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
             return Some(VersionPosition { start, end, line });
         }
-        
+
         None
     }
 }
 
 impl ConfigEditor for CargoTomlEditor {
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
-        let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| VersionEditError::ParseError {
-            file: "Cargo.toml".to_string(),
-            reason: e.to_string(),
+        let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
+            VersionEditError::ParseError {
+                file: "Cargo.toml".to_string(),
+                reason: e.to_string(),
+            }
         })?;
 
         // Check if [package] section exists
@@ -304,13 +313,16 @@ impl ConfigEditor for CargoTomlEditor {
         if location.is_workspace_root {
             return Err(VersionEditError::VersionNotFound {
                 file: "Cargo.toml".to_string(),
-                hint: "Cargo.toml 是 workspace 根文件，无项目版本。请指定具体的 member package。".to_string(),
+                hint: "Cargo.toml 是 workspace 根文件，无项目版本。请指定具体的 member package。"
+                    .to_string(),
             });
         }
 
-        let mut doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| VersionEditError::ParseError {
-            file: "Cargo.toml".to_string(),
-            reason: e.to_string(),
+        let mut doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
+            VersionEditError::ParseError {
+                file: "Cargo.toml".to_string(),
+                reason: e.to_string(),
+            }
         })?;
 
         if let Some(package) = doc.get_mut("package") {
@@ -395,9 +407,11 @@ impl PyprojectEditor {
 
 impl ConfigEditor for PyprojectEditor {
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
-        let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| VersionEditError::ParseError {
-            file: "pyproject.toml".to_string(),
-            reason: e.to_string(),
+        let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
+            VersionEditError::ParseError {
+                file: "pyproject.toml".to_string(),
+                reason: e.to_string(),
+            }
         })?;
 
         // Priority 1: Check [project] section (PEP 621)
@@ -418,7 +432,8 @@ impl ConfigEditor for PyprojectEditor {
             if let Some(tool) = doc.get("tool") {
                 if let Some(tool_table) = tool.as_table_like() {
                     if tool_table.contains_key("poetry") {
-                        let project_version = Self::find_version_in_section(content, &doc, &["tool", "poetry"]);
+                        let project_version =
+                            Self::find_version_in_section(content, &doc, &["tool", "poetry"]);
                         if project_version.is_some() {
                             return Ok(VersionLocation {
                                 project_version,
@@ -445,9 +460,11 @@ impl ConfigEditor for PyprojectEditor {
         _location: &VersionLocation,
         new_version: &str,
     ) -> Result<String, VersionEditError> {
-        let mut doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| VersionEditError::ParseError {
-            file: "pyproject.toml".to_string(),
-            reason: e.to_string(),
+        let mut doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
+            VersionEditError::ParseError {
+                file: "pyproject.toml".to_string(),
+                reason: e.to_string(),
+            }
         })?;
 
         // Try [project] section first (PEP 621)
@@ -948,7 +965,10 @@ pub struct PackageJsonEditor {
 }
 
 impl PackageJsonEditor {
-    fn find_version_position(content: &str, value: &serde_json::Value) -> Option<VersionPosition> {
+    fn find_version_position(
+        content: &str,
+        value: &serde_json::Value,
+    ) -> Option<VersionPosition> {
         let obj = value.as_object()?;
         if !obj.contains_key("version") {
             return None;
@@ -983,13 +1003,15 @@ impl PackageJsonEditor {
                         let pattern = regex::Regex::new(&format!(
                             r#""{}"\s*:\s*"[^"]*""#,
                             regex::escape(key)
-                        )).ok();
+                        ))
+                        .ok();
 
                         if let Some(re) = pattern {
                             if let Some(m) = re.find(content) {
                                 let start = m.start();
                                 let end = m.end();
-                                let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
+                                let line =
+                                    content[..start].chars().filter(|&c| c == '\n').count() + 1;
                                 refs.push(DependencyRef {
                                     name_pattern: key.clone(),
                                     position: VersionPosition { start, end, line },
@@ -1007,10 +1029,11 @@ impl PackageJsonEditor {
 
 impl ConfigEditor for PackageJsonEditor {
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
-        let value: serde_json::Value = serde_json::from_str(content).map_err(|e| VersionEditError::ParseError {
-            file: "package.json".to_string(),
-            reason: e.to_string(),
-        })?;
+        let value: serde_json::Value =
+            serde_json::from_str(content).map_err(|e| VersionEditError::ParseError {
+                file: "package.json".to_string(),
+                reason: e.to_string(),
+            })?;
 
         let project_version = Self::find_version_position(content, &value);
 
@@ -1045,14 +1068,18 @@ impl ConfigEditor for PackageJsonEditor {
 
         // First, update the top-level version
         if location.project_version.is_some() {
-            let version_pattern = regex::Regex::new(r#""version"\s*:\s*"[^"]*""#)
-                .map_err(|_| VersionEditError::ParseError {
-                    file: "package.json".to_string(),
-                    reason: "Failed to create version pattern".to_string(),
+            let version_pattern =
+                regex::Regex::new(r#""version"\s*:\s*"[^"]*""#).map_err(|_| {
+                    VersionEditError::ParseError {
+                        file: "package.json".to_string(),
+                        reason: "Failed to create version pattern".to_string(),
+                    }
                 })?;
 
             let new_version_str = format!(r#""version": "{}""#, new_version);
-            result = version_pattern.replace(&result, &new_version_str).to_string();
+            result = version_pattern
+                .replace(&result, &new_version_str)
+                .to_string();
         }
 
         // Then, update dependency refs if in npm/ directory
@@ -1060,7 +1087,8 @@ impl ConfigEditor for PackageJsonEditor {
             let pattern = regex::Regex::new(&format!(
                 r#""{}"\s*:\s*"[^"]*""#,
                 regex::escape(&dep_ref.name_pattern)
-            )).map_err(|_| VersionEditError::ParseError {
+            ))
+            .map_err(|_| VersionEditError::ParseError {
                 file: "package.json".to_string(),
                 reason: "Failed to create dependency pattern".to_string(),
             })?;
@@ -1093,24 +1121,24 @@ impl ConfigEditor for PackageJsonEditor {
     }
 }
 
-    // PackageJsonEditor tests
+// PackageJsonEditor tests
 
-    #[test]
-    fn test_parse_package_json_version() {
-        let content = r#"{
+#[test]
+fn test_parse_package_json_version() {
+    let content = r#"{
     "name": "test-package",
     "version": "1.0.0"
 }"#;
-        let editor = PackageJsonEditor { in_npm_dir: false };
-        let location = editor.parse(content).unwrap();
+    let editor = PackageJsonEditor { in_npm_dir: false };
+    let location = editor.parse(content).unwrap();
 
-        assert!(location.project_version.is_some());
-        assert!(location.dependency_refs.is_empty());
-    }
+    assert!(location.project_version.is_some());
+    assert!(location.dependency_refs.is_empty());
+}
 
-    #[test]
-    fn test_parse_package_json_npm_dir() {
-        let content = r#"{
+#[test]
+fn test_parse_package_json_npm_dir() {
+    let content = r#"{
     "name": "@jeansoft/pma",
     "version": "1.0.0",
     "optionalDependencies": {
@@ -1118,66 +1146,66 @@ impl ConfigEditor for PackageJsonEditor {
         "@jeansoft/pma-darwin-arm64": "1.0.0"
     }
 }"#;
-        let editor = PackageJsonEditor { in_npm_dir: true };
-        let location = editor.parse(content).unwrap();
+    let editor = PackageJsonEditor { in_npm_dir: true };
+    let location = editor.parse(content).unwrap();
 
-        assert!(location.project_version.is_some());
-        assert_eq!(location.dependency_refs.len(), 2);
-    }
+    assert!(location.project_version.is_some());
+    assert_eq!(location.dependency_refs.len(), 2);
+}
 
-    #[test]
-    fn test_parse_package_json_not_npm_dir() {
-        let content = r#"{
+#[test]
+fn test_parse_package_json_not_npm_dir() {
+    let content = r#"{
     "name": "@jeansoft/pma",
     "version": "1.0.0",
     "optionalDependencies": {
         "@jeansoft/pma-win32-x64": "1.0.0"
     }
 }"#;
-        let editor = PackageJsonEditor { in_npm_dir: false };
-        let location = editor.parse(content).unwrap();
+    let editor = PackageJsonEditor { in_npm_dir: false };
+    let location = editor.parse(content).unwrap();
 
-        assert!(location.project_version.is_some());
-        assert!(location.dependency_refs.is_empty());
-    }
+    assert!(location.project_version.is_some());
+    assert!(location.dependency_refs.is_empty());
+}
 
-    #[test]
-    fn test_parse_package_json_no_version() {
-        let content = r#"{
+#[test]
+fn test_parse_package_json_no_version() {
+    let content = r#"{
     "name": "test-package"
 }"#;
-        let editor = PackageJsonEditor { in_npm_dir: false };
-        let result = editor.parse(content);
-        assert!(result.is_err());
-    }
+    let editor = PackageJsonEditor { in_npm_dir: false };
+    let result = editor.parse(content);
+    assert!(result.is_err());
+}
 
-    #[test]
-    fn test_parse_package_json_invalid_json() {
-        let content = r#"{
+#[test]
+fn test_parse_package_json_invalid_json() {
+    let content = r#"{
     "name": "test-package",
     "version": "1.0.0"
 "#;
-        let editor = PackageJsonEditor { in_npm_dir: false };
-        let result = editor.parse(content);
-        assert!(result.is_err());
-    }
+    let editor = PackageJsonEditor { in_npm_dir: false };
+    let result = editor.parse(content);
+    assert!(result.is_err());
+}
 
-    #[test]
-    fn test_edit_package_json_version() {
-        let content = r#"{
+#[test]
+fn test_edit_package_json_version() {
+    let content = r#"{
     "name": "test-package",
     "version": "1.0.0"
 }"#;
-        let editor = PackageJsonEditor { in_npm_dir: false };
-        let location = editor.parse(content).unwrap();
-        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+    let editor = PackageJsonEditor { in_npm_dir: false };
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
 
-        assert!(edited.contains(r#""version": "2.0.0""#));
-    }
+    assert!(edited.contains(r#""version": "2.0.0""#));
+}
 
-    #[test]
-    fn test_edit_package_json_npm_dir() {
-        let content = r#"{
+#[test]
+fn test_edit_package_json_npm_dir() {
+    let content = r#"{
     "name": "@jeansoft/pma",
     "version": "1.0.0",
     "optionalDependencies": {
@@ -1185,18 +1213,18 @@ impl ConfigEditor for PackageJsonEditor {
         "@jeansoft/pma-darwin-arm64": "1.0.0"
     }
 }"#;
-        let editor = PackageJsonEditor { in_npm_dir: true };
-        let location = editor.parse(content).unwrap();
-        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+    let editor = PackageJsonEditor { in_npm_dir: true };
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
 
-        assert!(edited.contains(r#""version": "2.0.0""#));
-        assert!(edited.contains(r#""@jeansoft/pma-win32-x64": "2.0.0""#));
-        assert!(edited.contains(r#""@jeansoft/pma-darwin-arm64": "2.0.0""#));
-    }
+    assert!(edited.contains(r#""version": "2.0.0""#));
+    assert!(edited.contains(r#""@jeansoft/pma-win32-x64": "2.0.0""#));
+    assert!(edited.contains(r#""@jeansoft/pma-darwin-arm64": "2.0.0""#));
+}
 
-    #[test]
-    fn test_edit_package_json_preserves_other_deps() {
-        let content = r#"{
+#[test]
+fn test_edit_package_json_preserves_other_deps() {
+    let content = r#"{
     "name": "@jeansoft/pma",
     "version": "1.0.0",
     "dependencies": {
@@ -1206,31 +1234,31 @@ impl ConfigEditor for PackageJsonEditor {
         "@jeansoft/pma-win32-x64": "1.0.0"
     }
 }"#;
-        let editor = PackageJsonEditor { in_npm_dir: true };
-        let location = editor.parse(content).unwrap();
-        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+    let editor = PackageJsonEditor { in_npm_dir: true };
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
 
-        assert!(edited.contains(r#""other-package": "3.0.0""#));
-    }
+    assert!(edited.contains(r#""other-package": "3.0.0""#));
+}
 
-    #[test]
-    fn test_validate_package_json_valid() {
-        let content = r#"{
+#[test]
+fn test_validate_package_json_valid() {
+    let content = r#"{
     "name": "test-package",
     "version": "1.0.0"
 }"#;
-        let editor = PackageJsonEditor { in_npm_dir: false };
-        let location = editor.parse(content).unwrap();
-        let edited = editor.edit(content, &location, "2.0.0").unwrap();
-        assert!(editor.validate(content, &edited).is_ok());
-    }
+    let editor = PackageJsonEditor { in_npm_dir: false };
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+    assert!(editor.validate(content, &edited).is_ok());
+}
 
-    #[test]
-    fn test_validate_package_json_preserves_crlf() {
-        let content = "{\r\n    \"name\": \"test-package\",\r\n    \"version\": \"1.0.0\"\r\n}\r\n";
-        let editor = PackageJsonEditor { in_npm_dir: false };
-        let location = editor.parse(content).unwrap();
-        let edited = editor.edit(content, &location, "2.0.0").unwrap();
-        assert!(edited.contains("\r\n"));
-        assert!(editor.validate(content, &edited).is_ok());
-    }
+#[test]
+fn test_validate_package_json_preserves_crlf() {
+    let content = "{\r\n    \"name\": \"test-package\",\r\n    \"version\": \"1.0.0\"\r\n}\r\n";
+    let editor = PackageJsonEditor { in_npm_dir: false };
+    let location = editor.parse(content).unwrap();
+    let edited = editor.edit(content, &location, "2.0.0").unwrap();
+    assert!(edited.contains("\r\n"));
+    assert!(editor.validate(content, &edited).is_ok());
+}
