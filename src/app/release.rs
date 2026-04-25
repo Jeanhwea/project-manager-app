@@ -5,6 +5,7 @@ use super::version_editor::{
     PomXmlEditor, PythonVersionEditor, PyprojectEditor, VersionEditError, VersionTextEditor,
 };
 use anyhow::{Context, Result};
+use regex::Regex;
 use std::path::Path;
 
 /// 配置文件类型及其对应的候选路径
@@ -419,6 +420,11 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
 }
 
 fn post_edit_version_file(config_file: &str, file_type: ConfigFileType) -> Result<()> {
+    match file_type {
+        ConfigFileType::CargoToml => update_cargo_lock(config_file),
+        _ => Ok(()),
+    }
+}
 
 fn check_command_exists(cmd: &str) -> bool {
     std::process::Command::new(cmd)
