@@ -47,6 +47,20 @@ pub fn execute(
     force: bool,
     skip_push: bool,
 ) -> Result<()> {
+    // 在切换目录前，将相对路径转换为绝对路径
+    let files: Vec<String> = files
+        .iter()
+        .map(|f| {
+            if Path::new(f).is_absolute() {
+                f.clone()
+            } else {
+                std::fs::canonicalize(f)
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| f.clone())
+            }
+        })
+        .collect();
+
     // 除非指定 --no-root，否则先切换到 git 仓库根目录
     if !no_root
         && let Some(root) = git::get_top_level_dir()
