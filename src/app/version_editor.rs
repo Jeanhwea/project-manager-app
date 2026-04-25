@@ -36,6 +36,71 @@ pub enum VersionEditError {
     FormatPreservationError { file: String },
 }
 
+impl std::fmt::Display for VersionEditError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VersionEditError::FileNotFound(file) => {
+                write!(f, "文件不存在: {}", file)
+            }
+            VersionEditError::ParseError { file, reason } => {
+                write!(f, "解析 {} 失败: {}。请检查文件格式是否正确。", file, reason)
+            }
+            VersionEditError::VersionNotFound { file, hint } => {
+                write!(f, "{} 未找到版本字段。{}", file, hint)
+            }
+            VersionEditError::WriteError { file, reason } => {
+                write!(f, "写入 {} 失败: {}。已从备份恢复原文件。", file, reason)
+            }
+            VersionEditError::FormatPreservationError { file } => {
+                write!(f, "编辑 {} 后格式验证失败，已取消修改。", file)
+            }
+        }
+    }
+}
+
+impl std::error::Error for VersionEditError {}
+
+impl From<std::io::Error> for VersionEditError {
+    fn from(err: std::io::Error) -> Self {
+        VersionEditError::WriteError {
+            file: String::new(),
+            reason: err.to_string(),
+        }
+    }
+}
+
+/// 原子性写入文件：先创建备份，写入失败时恢复备份
+pub fn write_with_backup(path: &str, content: &str) -> Result<(), VersionEditError> {
+    let backup_path = format!("{}.bak", path);
+
+    // 1. 创建备份
+    std::fs::copy(path, &backup_path).map_err(|e| VersionEditError::WriteError {
+        file: path.to_string(),
+        reason: format!("无法创建备份: {}", e),
+    })?;
+
+    // 2. 尝试写入
+    match std::fs::write(path, content) {
+        Ok(_) => {
+            // 写入成功，删除备份
+            let _ = std::fs::remove_file(&backup_path);
+            Ok(())
+        }
+        Err(e) => {
+            // 3. 写入失败，恢复备份
+            let restore_result = std::fs::rename(&backup_path, path);
+            Err(VersionEditError::WriteError {
+                file: path.to_string(),
+                reason: if restore_result.is_ok() {
+                    format!("{} (已从备份恢复)", e)
+                } else {
+                    format!("{} (备份恢复也失败)", e)
+                },
+            })
+        }
+    }
+}
+
 pub struct PomXmlEditor;
 
 impl PomXmlEditor {
@@ -1797,4 +1862,110 @@ fn test_validate_homebrew_version() {
     let location = editor.parse(content).unwrap();
     let edited = editor.edit(content, &location, "2.0.0").unwrap();
     assert!(editor.validate(content, &edited).is_ok());
+}
+
+// Error handling tests
+
+#[test]
+fn test_error_display_file_not_found() {
+    let error = VersionEditError::FileNotFound("test.txt".to_string());
+    let msg = format!("{}", error);
+    assert!(msg.contains("文件不存在"));
+    assert!(msg.contains("test.txt"));
+}
+
+#[test]
+fn test_error_display_parse_error() {
+    let error = VersionEditError::ParseError {
+        file: "pom.xml".to_string(),
+        reason: "invalid XML".to_string(),
+    };
+    let msg = format!("{}", error);
+    assert!(msg.contains("解析 pom.xml 失败"));
+    assert!(msg.contains("invalid XML"));
+    assert!(msg.contains("请检查文件格式是否正确"));
+}
+
+#[test]
+fn test_error_display_version_not_found() {
+    let error = VersionEditError::VersionNotFound {
+        file: "Cargo.toml".to_string(),
+        hint: "未找到 [package] section".to_string(),
+    };
+    let msg = format!("{}", error);
+    assert!(msg.contains("Cargo.toml 未找到版本字段"));
+    assert!(msg.contains("未找到 [package] section"));
+}
+
+#[test]
+fn test_error_display_write_error() {
+    let error = VersionEditError::WriteError {
+        file: "test.txt".to_string(),
+        reason: "permission denied".to_string(),
+    };
+    let msg = format!("{}", error);
+    assert!(msg.contains("写入 test.txt 失败"));
+    assert!(msg.contains("permission denied"));
+    assert!(msg.contains("已从备份恢复原文件"));
+}
+
+#[test]
+fn test_error_display_format_preservation_error() {
+    let error = VersionEditError::FormatPreservationError {
+        file: "package.json".to_string(),
+    };
+    let msg = format!("{}", error);
+    assert!(msg.contains("编辑 package.json 后格式验证失败"));
+    assert!(msg.contains("已取消修改"));
+}
+
+// Atomic write tests
+
+#[test]
+fn test_write_with_backup_success() {
+    use std::io::Write;
+    let temp_dir = std::env::temp_dir();
+    let test_file = temp_dir.join("pma_test_write_backup.txt");
+
+    // Create initial file
+    let mut file = std::fs::File::create(&test_file).unwrap();
+    file.write_all(b"original content").unwrap();
+    drop(file);
+
+    // Write new content
+    let result = write_with_backup(
+        &test_file.to_string_lossy(),
+        "new content"
+    );
+    assert!(result.is_ok());
+
+    // Verify content was written
+    let content = std::fs::read_to_string(&test_file).unwrap();
+    assert_eq!(content, "new content");
+
+    // Verify backup was removed
+    let backup_path = format!("{}.bak", test_file.to_string_lossy());
+    assert!(!std::path::Path::new(&backup_path).exists());
+
+    // Cleanup
+    let _ = std::fs::remove_file(&test_file);
+}
+
+#[test]
+fn test_write_with_backup_nonexistent_file() {
+    let temp_dir = std::env::temp_dir();
+    let test_file = temp_dir.join("pma_test_nonexistent_12345.txt");
+
+    // Should fail for non-existent file
+    let result = write_with_backup(
+        &test_file.to_string_lossy(),
+        "new content"
+    );
+    assert!(result.is_err());
+
+    if let Err(VersionEditError::WriteError { reason, .. }) = result {
+        assert!(reason.contains("无法创建备份"));
+    } else {
+        panic!("Expected WriteError");
+    }
 }

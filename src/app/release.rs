@@ -1,8 +1,9 @@
 use super::git;
 use super::version::Version;
 use super::version_editor::{
-    CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor, PackageJsonEditor,
-    PomXmlEditor, PythonVersionEditor, PyprojectEditor, VersionEditError, VersionTextEditor,
+    write_with_backup, CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor,
+    PackageJsonEditor, PomXmlEditor, PythonVersionEditor, PyprojectEditor, VersionEditError,
+    VersionTextEditor,
 };
 use anyhow::{Context, Result};
 use regex::Regex;
@@ -223,198 +224,80 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
     let content = std::fs::read_to_string(config_file)
         .with_context(|| format!("无法读取 {}", config_file))?;
 
-    // Use new editors for refactored file types
-    match file_type {
+    let edited = match file_type {
         ConfigFileType::PomXml => {
-            let editor = PomXmlEditor;
-            let location = editor.parse(&content).map_err(|e| match e {
-                VersionEditError::ParseError { reason, .. } => {
-                    anyhow::anyhow!("解析 {} 失败: {}", config_file, reason)
-                }
-                VersionEditError::VersionNotFound { hint, .. } => {
-                    anyhow::anyhow!("{}", hint)
-                }
-                _ => anyhow::anyhow!("未知错误: {:?}", e),
-            })?;
-            let edited = editor
-                .edit(&content, &location, version)
-                .map_err(|e| match e {
-                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
-                })?;
-            editor.validate(&content, &edited).map_err(|e| match e {
-                VersionEditError::FormatPreservationError { .. } => {
-                    anyhow::anyhow!("格式验证失败: {}", config_file)
-                }
-                _ => anyhow::anyhow!("验证失败: {:?}", e),
-            })?;
-            std::fs::write(config_file, edited)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
+            edit_with_editor(&PomXmlEditor, &content, config_file, version)?
         }
         ConfigFileType::CargoToml => {
-            let editor = CargoTomlEditor;
-            let location = editor.parse(&content).map_err(|e| match e {
-                VersionEditError::ParseError { reason, .. } => {
-                    anyhow::anyhow!("解析 {} 失败: {}", config_file, reason)
-                }
-                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                _ => anyhow::anyhow!("未知错误: {:?}", e),
-            })?;
-            let edited = editor
-                .edit(&content, &location, version)
-                .map_err(|e| match e {
-                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
-                })?;
-            editor.validate(&content, &edited).map_err(|e| match e {
-                VersionEditError::FormatPreservationError { .. } => {
-                    anyhow::anyhow!("格式验证失败: {}", config_file)
-                }
-                _ => anyhow::anyhow!("验证失败: {:?}", e),
-            })?;
-            std::fs::write(config_file, edited)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
+            edit_with_editor(&CargoTomlEditor, &content, config_file, version)?
         }
         ConfigFileType::PyprojectToml => {
-            let editor = PyprojectEditor;
-            let location = editor.parse(&content).map_err(|e| match e {
-                VersionEditError::ParseError { reason, .. } => {
-                    anyhow::anyhow!("解析 {} 失败: {}", config_file, reason)
-                }
-                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                _ => anyhow::anyhow!("未知错误: {:?}", e),
-            })?;
-            let edited = editor
-                .edit(&content, &location, version)
-                .map_err(|e| match e {
-                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
-                })?;
-            editor.validate(&content, &edited).map_err(|e| match e {
-                VersionEditError::FormatPreservationError { .. } => {
-                    anyhow::anyhow!("格式验证失败: {}", config_file)
-                }
-                _ => anyhow::anyhow!("验证失败: {:?}", e),
-            })?;
-            std::fs::write(config_file, edited)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
+            edit_with_editor(&PyprojectEditor, &content, config_file, version)?
         }
         ConfigFileType::PackageJson => {
             let in_npm_dir = config_file.starts_with("npm/");
-            let editor = PackageJsonEditor { in_npm_dir };
-            let location = editor.parse(&content).map_err(|e| match e {
-                VersionEditError::ParseError { reason, .. } => {
-                    anyhow::anyhow!("解析 {} 失败: {}", config_file, reason)
-                }
-                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                _ => anyhow::anyhow!("未知错误: {:?}", e),
-            })?;
-            let edited = editor
-                .edit(&content, &location, version)
-                .map_err(|e| match e {
-                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
-                })?;
-            editor.validate(&content, &edited).map_err(|e| match e {
-                VersionEditError::FormatPreservationError { .. } => {
-                    anyhow::anyhow!("格式验证失败: {}", config_file)
-                }
-                _ => anyhow::anyhow!("验证失败: {:?}", e),
-            })?;
-            std::fs::write(config_file, edited)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
+            edit_with_editor(
+                &PackageJsonEditor { in_npm_dir },
+                &content,
+                config_file,
+                version,
+            )?
         }
         ConfigFileType::VersionText => {
-            let editor = VersionTextEditor;
-            let location = editor.parse(&content).map_err(|e| match e {
-                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                _ => anyhow::anyhow!("未知错误: {:?}", e),
-            })?;
-            let edited = editor
-                .edit(&content, &location, version)
-                .map_err(|e| match e {
-                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
-                })?;
-            editor.validate(&content, &edited).map_err(|e| match e {
-                VersionEditError::FormatPreservationError { .. } => {
-                    anyhow::anyhow!("格式验证失败: {}", config_file)
-                }
-                _ => anyhow::anyhow!("验证失败: {:?}", e),
-            })?;
-            std::fs::write(config_file, edited)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
+            edit_with_editor(&VersionTextEditor, &content, config_file, version)?
         }
         ConfigFileType::PythonVersion => {
-            let editor = PythonVersionEditor;
-            let location = editor.parse(&content).map_err(|e| match e {
-                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                _ => anyhow::anyhow!("未知错误: {:?}", e),
-            })?;
-            let edited = editor
-                .edit(&content, &location, version)
-                .map_err(|e| match e {
-                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
-                })?;
-            editor.validate(&content, &edited).map_err(|e| match e {
-                VersionEditError::FormatPreservationError { .. } => {
-                    anyhow::anyhow!("格式验证失败: {}", config_file)
-                }
-                _ => anyhow::anyhow!("验证失败: {:?}", e),
-            })?;
-            std::fs::write(config_file, edited)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
+            edit_with_editor(&PythonVersionEditor, &content, config_file, version)?
         }
         ConfigFileType::CMakeLists => {
-            let editor = CMakeListsEditor;
-            let location = editor.parse(&content).map_err(|e| match e {
-                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                _ => anyhow::anyhow!("未知错误: {:?}", e),
-            })?;
-            let edited = editor
-                .edit(&content, &location, version)
-                .map_err(|e| match e {
-                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
-                })?;
-            editor.validate(&content, &edited).map_err(|e| match e {
-                VersionEditError::FormatPreservationError { .. } => {
-                    anyhow::anyhow!("格式验证失败: {}", config_file)
-                }
-                _ => anyhow::anyhow!("验证失败: {:?}", e),
-            })?;
-            std::fs::write(config_file, edited)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
+            edit_with_editor(&CMakeListsEditor, &content, config_file, version)?
         }
         ConfigFileType::HomebrewFormula => {
-            let editor = HomebrewFormulaEditor;
-            let location = editor.parse(&content).map_err(|e| match e {
-                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                _ => anyhow::anyhow!("未知错误: {:?}", e),
-            })?;
-            let edited = editor
-                .edit(&content, &location, version)
-                .map_err(|e| match e {
-                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
-                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
-                })?;
-            editor.validate(&content, &edited).map_err(|e| match e {
-                VersionEditError::FormatPreservationError { .. } => {
-                    anyhow::anyhow!("格式验证失败: {}", config_file)
-                }
-                _ => anyhow::anyhow!("验证失败: {:?}", e),
-            })?;
-            std::fs::write(config_file, edited)
-                .with_context(|| format!("无法写入 {}", config_file))?;
-            return Ok(());
+            edit_with_editor(&HomebrewFormulaEditor, &content, config_file, version)?
+        }
+    };
+
+    write_with_backup(config_file, &edited).map_err(|e| anyhow::anyhow!("{}", e))?;
+    Ok(())
+}
+
+fn edit_with_editor<E: ConfigEditor>(
+    editor: &E,
+    content: &str,
+    config_file: &str,
+    version: &str,
+) -> Result<String> {
+    let location = editor.parse(content).map_err(|e| {
+        map_edit_error(e, config_file)
+    })?;
+
+    let edited = editor.edit(content, &location, version).map_err(|e| {
+        map_edit_error(e, config_file)
+    })?;
+
+    editor.validate(content, &edited).map_err(|e| {
+        map_edit_error(e, config_file)
+    })?;
+
+    Ok(edited)
+}
+
+fn map_edit_error(e: VersionEditError, config_file: &str) -> anyhow::Error {
+    match e {
+        VersionEditError::FileNotFound(_) => {
+            anyhow::anyhow!("文件不存在: {}", config_file)
+        }
+        VersionEditError::ParseError { reason, .. } => {
+            anyhow::anyhow!("解析 {} 失败: {}。请检查文件格式是否正确。", config_file, reason)
+        }
+        VersionEditError::VersionNotFound { hint, .. } => {
+            anyhow::anyhow!("{}", hint)
+        }
+        VersionEditError::WriteError { reason, .. } => {
+            anyhow::anyhow!("写入 {} 失败: {}", config_file, reason)
+        }
+        VersionEditError::FormatPreservationError { .. } => {
+            anyhow::anyhow!("编辑 {} 后格式验证失败，已取消修改。", config_file)
         }
     }
 }
