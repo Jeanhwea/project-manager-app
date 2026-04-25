@@ -1,5 +1,9 @@
 use super::git;
 use super::version::Version;
+use super::version_editor::{
+    CargoTomlEditor, ConfigEditor, PackageJsonEditor, PomXmlEditor, PyprojectEditor,
+    VersionEditError,
+};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
@@ -215,9 +219,121 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
 }
 
 fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType) -> Result<()> {
+    let version = tag.trim_start_matches('v');
+    let content = std::fs::read_to_string(config_file)
+        .with_context(|| format!("无法读取 {}", config_file))?;
+
+    // Use new editors for refactored file types
+    match file_type {
+        ConfigFileType::PomXml => {
+            let editor = PomXmlEditor;
+            let location = editor.parse(&content).map_err(|e| match e {
+                VersionEditError::ParseError { reason, .. } => {
+                    anyhow::anyhow!("解析 {} 失败: {}", config_file, reason)
+                }
+                VersionEditError::VersionNotFound { hint, .. } => {
+                    anyhow::anyhow!("{}", hint)
+                }
+                _ => anyhow::anyhow!("未知错误: {:?}", e),
+            })?;
+            let edited = editor
+                .edit(&content, &location, version)
+                .map_err(|e| match e {
+                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
+                })?;
+            editor.validate(&content, &edited).map_err(|e| match e {
+                VersionEditError::FormatPreservationError { .. } => {
+                    anyhow::anyhow!("格式验证失败: {}", config_file)
+                }
+                _ => anyhow::anyhow!("验证失败: {:?}", e),
+            })?;
+            std::fs::write(config_file, edited)
+                .with_context(|| format!("无法写入 {}", config_file))?;
+            return Ok(());
+        }
+        ConfigFileType::CargoToml => {
+            let editor = CargoTomlEditor;
+            let location = editor.parse(&content).map_err(|e| match e {
+                VersionEditError::ParseError { reason, .. } => {
+                    anyhow::anyhow!("解析 {} 失败: {}", config_file, reason)
+                }
+                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                _ => anyhow::anyhow!("未知错误: {:?}", e),
+            })?;
+            let edited = editor
+                .edit(&content, &location, version)
+                .map_err(|e| match e {
+                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
+                })?;
+            editor.validate(&content, &edited).map_err(|e| match e {
+                VersionEditError::FormatPreservationError { .. } => {
+                    anyhow::anyhow!("格式验证失败: {}", config_file)
+                }
+                _ => anyhow::anyhow!("验证失败: {:?}", e),
+            })?;
+            std::fs::write(config_file, edited)
+                .with_context(|| format!("无法写入 {}", config_file))?;
+            return Ok(());
+        }
+        ConfigFileType::PyprojectToml => {
+            let editor = PyprojectEditor;
+            let location = editor.parse(&content).map_err(|e| match e {
+                VersionEditError::ParseError { reason, .. } => {
+                    anyhow::anyhow!("解析 {} 失败: {}", config_file, reason)
+                }
+                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                _ => anyhow::anyhow!("未知错误: {:?}", e),
+            })?;
+            let edited = editor
+                .edit(&content, &location, version)
+                .map_err(|e| match e {
+                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
+                })?;
+            editor.validate(&content, &edited).map_err(|e| match e {
+                VersionEditError::FormatPreservationError { .. } => {
+                    anyhow::anyhow!("格式验证失败: {}", config_file)
+                }
+                _ => anyhow::anyhow!("验证失败: {:?}", e),
+            })?;
+            std::fs::write(config_file, edited)
+                .with_context(|| format!("无法写入 {}", config_file))?;
+            return Ok(());
+        }
+        ConfigFileType::PackageJson => {
+            let in_npm_dir = config_file.starts_with("npm/");
+            let editor = PackageJsonEditor { in_npm_dir };
+            let location = editor.parse(&content).map_err(|e| match e {
+                VersionEditError::ParseError { reason, .. } => {
+                    anyhow::anyhow!("解析 {} 失败: {}", config_file, reason)
+                }
+                VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                _ => anyhow::anyhow!("未知错误: {:?}", e),
+            })?;
+            let edited = editor
+                .edit(&content, &location, version)
+                .map_err(|e| match e {
+                    VersionEditError::VersionNotFound { hint, .. } => anyhow::anyhow!("{}", hint),
+                    _ => anyhow::anyhow!("编辑失败: {:?}", e),
+                })?;
+            editor.validate(&content, &edited).map_err(|e| match e {
+                VersionEditError::FormatPreservationError { .. } => {
+                    anyhow::anyhow!("格式验证失败: {}", config_file)
+                }
+                _ => anyhow::anyhow!("验证失败: {:?}", e),
+            })?;
+            std::fs::write(config_file, edited)
+                .with_context(|| format!("无法写入 {}", config_file))?;
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    // Legacy logic for unrefactored file types
     match file_type {
         ConfigFileType::VersionText => {
-            let version = tag.trim_start_matches('v');
             std::fs::write(config_file, version)
                 .with_context(|| format!("无法写入 {}", config_file))?;
             return Ok(());
@@ -240,87 +356,14 @@ fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType)
                 format!(r#"version "{}""#, v)
             });
         }
-        _ => {}
-    }
-
-    // 基于行的版本替换（Cargo.toml, pom.xml, pyproject.toml, package.json）
-    let content = std::fs::read_to_string(config_file)
-        .with_context(|| format!("无法读取 {}", config_file))?;
-    let version = tag.trim_start_matches('v');
-    let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-
-    match file_type {
-        ConfigFileType::CargoToml => {
-            replace_in_section(&mut lines, "[package]", "version = ", || {
-                format!("version = \"{}\"", version)
-            });
-        }
-        ConfigFileType::PyprojectToml => {
-            replace_in_section(&mut lines, "[project]", "version = ", || {
-                format!("version = \"{}\"", version)
-            });
-        }
-        ConfigFileType::PomXml => {
-            let re = Regex::new(r#"<version>[^<]*</version>"#)?;
-            for line in &mut lines {
-                if line.trim().starts_with("<version>") {
-                    *line = re
-                        .replace(line, &format!(r#"<version>{}</version>"#, version))
-                        .to_string();
-                    break;
-                }
-            }
-        }
-        ConfigFileType::PackageJson => {
-            let re = Regex::new(r#""version":\s*"[^"]*""#)?;
-            if config_file.starts_with("npm/") {
-                let re_dep = Regex::new(r#"("@jeansoft/pma[^"]*":\s*")[^"]*""#)?;
-                let new_content =
-                    re.replace_all(&content, &format!(r#""version": "{}""#, version));
-                let new_content =
-                    re_dep.replace_all(&new_content, &format!(r#"${{1}}{}""#, version));
-                std::fs::write(config_file, new_content.as_ref())
-                    .with_context(|| format!("无法写入 {}", config_file))?;
-                return Ok(());
-            }
-            for line in &mut lines {
-                if line.trim().starts_with("\"version\": ") {
-                    *line = re
-                        .replace(line, &format!(r#""version": "{}""#, version))
-                        .to_string();
-                    break;
-                }
-            }
-        }
         _ => unreachable!(),
     }
-
-    write_lines(config_file, &lines, content.ends_with('\n'))
 }
 
 fn post_edit_version_file(config_file: &str, file_type: ConfigFileType) -> Result<()> {
     match file_type {
         ConfigFileType::CargoToml => update_cargo_lock(config_file),
         _ => Ok(()),
-    }
-}
-
-/// 在 TOML section 内替换匹配行
-fn replace_in_section<F>(lines: &mut [String], section: &str, prefix: &str, replacement: F)
-where
-    F: FnOnce() -> String,
-{
-    let mut in_section = false;
-    for line in lines.iter_mut() {
-        if line.trim() == section {
-            in_section = true;
-        } else if line.starts_with('[') && !line.trim().is_empty() {
-            in_section = false;
-        }
-        if in_section && line.trim().starts_with(prefix) {
-            *line = replacement();
-            break;
-        }
     }
 }
 
@@ -338,15 +381,6 @@ fn edit_with_regex(
     let new_content = re.replace(&content, &replacement_fn(version));
     std::fs::write(config_file, new_content.as_ref())
         .with_context(|| format!("无法写入 {}", config_file))?;
-    Ok(())
-}
-
-fn write_lines(config_file: &str, lines: &[String], trailing_newline: bool) -> Result<()> {
-    let mut content = lines.join("\n");
-    if trailing_newline {
-        content.push('\n');
-    }
-    std::fs::write(config_file, content).with_context(|| format!("无法写入 {}", config_file))?;
     Ok(())
 }
 
