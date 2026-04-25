@@ -33,10 +33,21 @@ pub struct DependencyRef {
 pub enum VersionEditError {
     #[allow(dead_code)]
     FileNotFound(String),
-    ParseError { file: String, reason: String },
-    VersionNotFound { file: String, hint: String },
-    WriteError { file: String, reason: String },
-    FormatPreservationError { file: String },
+    ParseError {
+        file: String,
+        reason: String,
+    },
+    VersionNotFound {
+        file: String,
+        hint: String,
+    },
+    WriteError {
+        file: String,
+        reason: String,
+    },
+    FormatPreservationError {
+        file: String,
+    },
 }
 
 impl std::fmt::Display for VersionEditError {
