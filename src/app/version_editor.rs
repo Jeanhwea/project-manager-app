@@ -343,6 +343,170 @@ impl ConfigEditor for CargoTomlEditor {
     }
 }
 
+pub struct PyprojectEditor;
+
+impl PyprojectEditor {
+    fn find_version_in_section(
+        content: &str,
+        doc: &toml_edit::DocumentMut,
+        section_path: &[&str],
+    ) -> Option<VersionPosition> {
+        let mut current: Option<&toml_edit::Item> = None;
+        for key in section_path {
+            current = match current {
+                None => doc.get(*key),
+                Some(item) => item.get(*key),
+            };
+        }
+
+        let table = current?.as_table_like()?;
+        if !table.contains_key("version") {
+            return None;
+        }
+
+        // Build section header string for searching
+        let section_header = if section_path.len() == 1 {
+            format!("[{}]", section_path[0])
+        } else {
+            format!("[{}]", section_path.join("."))
+        };
+
+        // Find the section in content
+        let section_start = content.find(&section_header)?;
+        let section_end = content[section_start..]
+            .find("\n[")
+            .map(|p| section_start + p)
+            .unwrap_or(content.len());
+
+        let section_content = &content[section_start..section_end];
+
+        // Find version = "value" pattern
+        let version_pattern = regex::Regex::new(r#"version\s*=\s*"[^"]*""#).ok()?;
+        if let Some(m) = version_pattern.find(section_content) {
+            let start = section_start + m.start();
+            let end = section_start + m.end();
+            let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
+            return Some(VersionPosition { start, end, line });
+        }
+
+        None
+    }
+}
+
+impl ConfigEditor for PyprojectEditor {
+    fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
+        let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| VersionEditError::ParseError {
+            file: "pyproject.toml".to_string(),
+            reason: e.to_string(),
+        })?;
+
+        // Priority 1: Check [project] section (PEP 621)
+        if doc.contains_key("project") {
+            let project_version = Self::find_version_in_section(content, &doc, &["project"]);
+            if project_version.is_some() {
+                return Ok(VersionLocation {
+                    project_version,
+                    parent_version: None,
+                    is_workspace_root: false,
+                    dependency_refs: Vec::new(),
+                });
+            }
+        }
+
+        // Priority 2: Check [tool.poetry] section
+        if doc.contains_key("tool") {
+            if let Some(tool) = doc.get("tool") {
+                if let Some(tool_table) = tool.as_table_like() {
+                    if tool_table.contains_key("poetry") {
+                        let project_version = Self::find_version_in_section(content, &doc, &["tool", "poetry"]);
+                        if project_version.is_some() {
+                            return Ok(VersionLocation {
+                                project_version,
+                                parent_version: None,
+                                is_workspace_root: false,
+                                dependency_refs: Vec::new(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // No version found
+        Err(VersionEditError::VersionNotFound {
+            file: "pyproject.toml".to_string(),
+            hint: "pyproject.toml 未找到版本字段。请确保文件包含 [project] 或 [tool.poetry] section。".to_string(),
+        })
+    }
+
+    fn edit(
+        &self,
+        content: &str,
+        _location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String, VersionEditError> {
+        let mut doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| VersionEditError::ParseError {
+            file: "pyproject.toml".to_string(),
+            reason: e.to_string(),
+        })?;
+
+        // Try [project] section first (PEP 621)
+        if doc.contains_key("project") {
+            if let Some(project) = doc.get_mut("project") {
+                if let Some(table) = project.as_table_like_mut() {
+                    if table.contains_key("version") {
+                        table.insert("version", toml_edit::value(new_version));
+                        return Ok(doc.to_string());
+                    }
+                }
+            }
+        }
+
+        // Try [tool.poetry] section
+        if doc.contains_key("tool") {
+            if let Some(tool) = doc.get_mut("tool") {
+                if let Some(tool_table) = tool.as_table_like_mut() {
+                    if tool_table.contains_key("poetry") {
+                        if let Some(poetry) = tool_table.get_mut("poetry") {
+                            if let Some(poetry_table) = poetry.as_table_like_mut() {
+                                if poetry_table.contains_key("version") {
+                                    poetry_table.insert("version", toml_edit::value(new_version));
+                                    return Ok(doc.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Err(VersionEditError::VersionNotFound {
+            file: "pyproject.toml".to_string(),
+            hint: "pyproject.toml 未找到版本字段。".to_string(),
+        })
+    }
+
+    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+        // Check that the edited content is valid TOML
+        if edited.parse::<toml_edit::DocumentMut>().is_err() {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "pyproject.toml".to_string(),
+            });
+        }
+
+        // Check newline style preservation
+        let original_has_crlf = original.contains("\r\n");
+        let edited_has_crlf = edited.contains("\r\n");
+        if original_has_crlf != edited_has_crlf && original_has_crlf {
+            return Err(VersionEditError::FormatPreservationError {
+                file: "pyproject.toml".to_string(),
+            });
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -646,6 +810,133 @@ name = "test"
 version = "1.0.0"
 "#;
         let editor = CargoTomlEditor;
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+        assert!(editor.validate(content, &edited).is_ok());
+    }
+
+    // PyprojectEditor tests
+
+    #[test]
+    fn test_parse_pyproject_pep621() {
+        let content = r#"
+[project]
+name = "myproject"
+version = "1.0.0"
+
+[project.dependencies]
+python = "^3.8"
+"#;
+        let editor = PyprojectEditor;
+        let location = editor.parse(content).unwrap();
+
+        assert!(location.project_version.is_some());
+    }
+
+    #[test]
+    fn test_parse_pyproject_poetry() {
+        let content = r#"
+[tool.poetry]
+name = "myproject"
+version = "1.0.0"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+"#;
+        let editor = PyprojectEditor;
+        let location = editor.parse(content).unwrap();
+
+        assert!(location.project_version.is_some());
+    }
+
+    #[test]
+    fn test_parse_pyproject_pep621_priority() {
+        // When both [project] and [tool.poetry] exist, [project] takes priority
+        let content = r#"
+[project]
+name = "myproject"
+version = "1.0.0"
+
+[tool.poetry]
+name = "myproject"
+version = "2.0.0"
+"#;
+        let editor = PyprojectEditor;
+        let location = editor.parse(content).unwrap();
+
+        assert!(location.project_version.is_some());
+        // Verify it's the [project] version (1.0.0)
+        let pos = location.project_version.unwrap();
+        let version_text = &content[pos.start..pos.end];
+        assert!(version_text.contains("1.0.0"));
+    }
+
+    #[test]
+    fn test_parse_pyproject_no_version() {
+        let content = r#"
+[project]
+name = "myproject"
+"#;
+        let editor = PyprojectEditor;
+        let result = editor.parse(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_pyproject_no_section() {
+        let content = r#"
+[build-system]
+requires = ["setuptools"]
+"#;
+        let editor = PyprojectEditor;
+        let result = editor.parse(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_edit_pyproject_pep621() {
+        let content = r#"
+[project]
+name = "myproject"
+version = "1.0.0"
+
+[project.dependencies]
+requests = "2.28.0"
+"#;
+        let editor = PyprojectEditor;
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+        assert!(edited.contains("version = \"2.0.0\""));
+        assert!(edited.contains("requests = \"2.28.0\"")); // dependency unchanged
+    }
+
+    #[test]
+    fn test_edit_pyproject_poetry() {
+        let content = r#"
+[tool.poetry]
+name = "myproject"
+version = "1.0.0"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+"#;
+        let editor = PyprojectEditor;
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "1.1.0").unwrap();
+
+        assert!(edited.contains("version = \"1.1.0\""));
+        assert!(edited.contains("python = \"^3.8\"")); // dependency unchanged
+    }
+
+    #[test]
+    fn test_validate_pyproject_valid_toml() {
+        let content = r#"
+[project]
+name = "myproject"
+version = "1.0.0"
+"#;
+        let editor = PyprojectEditor;
         let location = editor.parse(content).unwrap();
         let edited = editor.edit(content, &location, "2.0.0").unwrap();
         assert!(editor.validate(content, &edited).is_ok());
