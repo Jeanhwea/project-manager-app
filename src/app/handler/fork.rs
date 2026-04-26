@@ -2,6 +2,7 @@ use crate::app::common::git::{self, GitProtocol};
 use crate::app::common::runner::CommandRunner;
 
 use anyhow::{Context, Result};
+use colored::Colorize;
 use heck::{ToKebabCase, ToPascalCase};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -32,7 +33,7 @@ struct Submodule {
     url: String,
 }
 
-pub fn execute(path: &str, name: &str) -> Result<()> {
+pub fn execute(path: &str, name: &str, dry_run: bool) -> Result<()> {
     let root_dir = Path::new(path);
 
     if !root_dir.exists() {
@@ -49,6 +50,44 @@ pub fn execute(path: &str, name: &str) -> Result<()> {
 
     if project_dir.exists() {
         anyhow::bail!("项目目录已存在: {}", project_dir.display());
+    }
+
+    if dry_run {
+        println!("{}", "[DRY-RUN] 将要执行的操作:".green().bold());
+        println!("  {} clone {} {}", "[DRY-RUN]".yellow(), root_dir.display(), name);
+        println!("  {} 删除 .git 目录", "[DRY-RUN]".yellow());
+        println!("  {} git init", "[DRY-RUN]".yellow());
+
+        let submodules = get_submodules(root_dir)?;
+        for submodule in &submodules {
+            println!(
+                "  {} git submodule add {} {}",
+                "[DRY-RUN]".yellow(),
+                submodule.url,
+                submodule.path
+            );
+        }
+
+        let pma_config = root_dir.join(".pma.json");
+        if pma_config.exists() {
+            println!("  {} 执行 .pma.json 中的动作", "[DRY-RUN]".yellow());
+        }
+
+        let remotes = git::get_remote_info(root_dir);
+        for (remote_name, remote_url) in remotes {
+            if let Some(new_url) = generate_new_remote_url(&remote_url, name) {
+                println!(
+                    "  {} git remote add {} {}",
+                    "[DRY-RUN]".yellow(),
+                    remote_name,
+                    new_url
+                );
+            }
+        }
+
+        println!("  {} git add .", "[DRY-RUN]".yellow());
+        println!("  {} git commit -m v0.0.0", "[DRY-RUN]".yellow());
+        return Ok(());
     }
 
     let repo_url = repo_dir.to_string_lossy();

@@ -11,6 +11,7 @@ pub fn execute(
     max_depth: Option<usize>,
     all_branch: bool,
     skip_remotes: Vec<String>,
+    dry_run: bool,
 ) -> Result<()> {
     let root_dir = Path::new(path);
 
@@ -32,6 +33,10 @@ pub fn execute(
 
     let total = git_repos.len();
 
+    if dry_run {
+        println!("{}", "[DRY-RUN] 将要同步的仓库:".green().bold());
+    }
+
     for (index, repo) in git_repos.iter().enumerate() {
         let repo_path = repo
             .path
@@ -50,6 +55,11 @@ pub fn execute(
         }
 
         do_info_repository(&repo_path);
+
+        if dry_run {
+            print_sync_plan(&repo_path, all_branch, &skip_remotes);
+            continue;
+        }
 
         if !is_workdir_clean(&repo_path) {
             CommandRunner::run_with_success_in_dir("git", &["status"], &repo_path)?;
@@ -230,5 +240,41 @@ fn do_push_repository(repo_path: &Path, remote: &str) {
             utils::format_path(repo_path).red(),
             e
         );
+    }
+}
+
+fn print_sync_plan(repo_path: &Path, all_branch: bool, skip_remotes: &[String]) {
+    let remotes = git::get_remote_info(repo_path);
+    if remotes.is_empty() {
+        println!("  {}", "无远程仓库".yellow());
+        return;
+    }
+
+    let Some((track_remote, track_remote_url)) = get_tracking_remote_info(repo_path, &remotes)
+    else {
+        println!("  {}", "无跟踪分支信息".yellow());
+        return;
+    };
+
+    if skip_remotes.contains(&track_remote) {
+        println!(
+            "  {} pull {} ({})",
+            "[SKIP]".dimmed(),
+            track_remote,
+            track_remote_url.green()
+        );
+    } else if all_branch {
+        println!("  {} pull (all branches)", "[DRY-RUN]".yellow());
+    } else {
+        println!("  {} pull", "[DRY-RUN]".yellow());
+    }
+
+    for (remote, url) in remotes {
+        if should_skip_push(&remote, &url, skip_remotes) {
+            println!("  {} push {} ({})", "[SKIP]".dimmed(), remote, url.green());
+            continue;
+        }
+        println!("  {} push {} --all", "[DRY-RUN]".yellow(), remote);
+        println!("  {} push {} --tags", "[DRY-RUN]".yellow(), remote);
     }
 }

@@ -143,6 +143,13 @@ pub enum Commands {
             help = "Path to the directory to search for repositories, defaults to current directory"
         )]
         path: String,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
     },
     /// Diagnostic project health
     #[command(about = "Diagnostic project health")]
@@ -177,6 +184,13 @@ pub enum Commands {
             help = "Path to the directory to search for repositories, defaults to current directory"
         )]
         path: String,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
     },
     /// Fork a new project from a template
     #[command(about = "Fork a new project from a template")]
@@ -188,6 +202,14 @@ pub enum Commands {
         /// Name of the project
         #[arg(help = "Name of the project")]
         name: String,
+
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
     },
     /// Snapshot a project
     #[command(about = "Snapshot a project")]
@@ -198,6 +220,13 @@ pub enum Commands {
             help = "Path to the project to snapshot, defaults to current directory"
         )]
         path: String,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
     },
     /// Self management commands
     #[command(name = "self", about = "Self management commands")]

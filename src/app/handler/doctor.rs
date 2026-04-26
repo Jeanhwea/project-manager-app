@@ -37,12 +37,16 @@ fn check_dependencies() -> Result<()> {
     Ok(())
 }
 
-pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool) -> Result<()> {
+pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool, dry_run: bool) -> Result<()> {
     check_dependencies()?;
 
     crate::app::common::repo::for_each_repo(path, max_depth, |repo_path| {
         if gc {
-            do_git_garbage_collect(repo_path)?;
+            if dry_run {
+                println!("  {} git gc", "[DRY-RUN]".yellow());
+            } else {
+                do_git_garbage_collect(repo_path)?;
+            }
         }
 
         if rename {
@@ -56,7 +60,11 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool) -> 
                         new_name.yellow(),
                         remote_url
                     );
-                    do_rename_git_remote(repo_path, &remote_name, &new_name)?;
+                    if dry_run {
+                        println!("  {} git remote rename {} {}", "[DRY-RUN]".yellow(), remote_name, new_name);
+                    } else {
+                        do_rename_git_remote(repo_path, &remote_name, &new_name)?;
+                    }
                 }
             }
         }

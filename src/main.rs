@@ -32,23 +32,25 @@ fn main() -> Result<()> {
             max_depth,
             skip_remotes,
             all_branch,
+            dry_run,
         } => {
             let skip_remotes = parse_comma_separated(skip_remotes);
-            app::handler::sync::execute(&path, max_depth, all_branch, skip_remotes)?;
+            app::handler::sync::execute(&path, max_depth, all_branch, skip_remotes, dry_run)?;
         }
         Commands::Doctor {
             path,
             max_depth,
             gc,
             rename,
+            dry_run,
         } => {
-            app::handler::doctor::execute(&path, max_depth, gc, rename)?;
+            app::handler::doctor::execute(&path, max_depth, gc, rename, dry_run)?;
         }
-        Commands::Fork { path, name } => {
-            app::handler::fork::execute(&path, &name)?;
+        Commands::Fork { path, name, dry_run } => {
+            app::handler::fork::execute(&path, &name, dry_run)?;
         }
-        Commands::Snap { path } => {
-            app::handler::snap::execute(&path)?;
+        Commands::Snap { path, dry_run } => {
+            app::handler::snap::execute(&path, dry_run)?;
         }
         Commands::Self_ { command } => match command {
             SelfCommands::Update { force } => {

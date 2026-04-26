@@ -1,12 +1,40 @@
 use crate::app::common::runner::CommandRunner;
 use anyhow::Result;
+use colored::Colorize;
 use std::path::Path;
 
-pub fn execute(path: &str) -> Result<()> {
+pub fn execute(path: &str, dry_run: bool) -> Result<()> {
     let project_path = Path::new(path);
 
     if !project_path.exists() {
         anyhow::bail!("项目路径不存在: {}", path);
+    }
+
+    if dry_run {
+        if !project_path.join(".git").exists() {
+            println!("{}", "[DRY-RUN] 将要执行的操作:".green().bold());
+            println!("  {} git init", "[DRY-RUN]".yellow());
+            println!("  {} git add .", "[DRY-RUN]".yellow());
+            println!("  {} git commit -m snap-000000", "[DRY-RUN]".yellow());
+        } else {
+            let output = CommandRunner::run_with_success_in_dir(
+                "git",
+                &["rev-list", "--count", "HEAD"],
+                project_path,
+            )?;
+            let num_commit = String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .parse::<usize>()?;
+
+            println!("{}", "[DRY-RUN] 将要执行的操作:".green().bold());
+            println!("  {} git add .", "[DRY-RUN]".yellow());
+            println!(
+                "  {} git commit -m snap-{:06}",
+                "[DRY-RUN]".yellow(),
+                num_commit
+            );
+        }
+        return Ok(());
     }
 
     if !project_path.join(".git").exists() {
