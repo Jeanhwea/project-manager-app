@@ -13,7 +13,7 @@ const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("src-tauri/Cargo.toml", false),
     ("pom.xml", false),
     ("pyproject.toml", false),
-    ("__version__.py", true),
+    ("{}/__version__.py", true),
     ("version", false),
     ("version.txt", false),
     ("package.json", false),
