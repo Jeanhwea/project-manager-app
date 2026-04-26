@@ -1,10 +1,10 @@
-use super::git;
-use super::version::Version;
 use super::editor::{
     CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor, PackageJsonEditor,
     PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionEditError, VersionTextEditor,
     write_with_backup,
 };
+use super::git;
+use super::version::Version;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;

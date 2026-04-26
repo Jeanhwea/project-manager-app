@@ -1,4 +1,4 @@
-use super::{ConfigEditor, DependencyRef, VersionEditError, VersionLocation, VersionPosition};
+use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
 
 pub struct PomXmlEditor;
 
