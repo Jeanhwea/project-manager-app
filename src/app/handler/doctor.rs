@@ -1,5 +1,5 @@
-use super::git;
-use super::runner::CommandRunner;
+use crate::app::common::git;
+use crate::app::common::runner::CommandRunner;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use std::path::Path;
@@ -40,7 +40,7 @@ fn check_dependencies() -> Result<()> {
 pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool) -> Result<()> {
     check_dependencies()?;
 
-    super::repo::for_each_repo(path, max_depth, |repo_path| {
+    crate::app::common::repo::for_each_repo(path, max_depth, |repo_path| {
         if gc {
             do_git_garbage_collect(repo_path)?;
         }

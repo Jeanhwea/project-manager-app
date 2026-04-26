@@ -1,5 +1,5 @@
-use super::git::{self, GitProtocol};
-use super::runner::CommandRunner;
+use crate::app::common::git::{self, GitProtocol};
+use crate::app::common::runner::CommandRunner;
 
 use anyhow::{Context, Result};
 use heck::{ToKebabCase, ToPascalCase};

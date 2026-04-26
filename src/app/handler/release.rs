@@ -1,10 +1,10 @@
-use super::editor::{
+use crate::app::common::editor::{
     CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor, PackageJsonEditor,
     PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionEditError, VersionTextEditor,
     write_with_backup,
 };
-use super::git;
-use super::version::Version;
+use crate::app::common::git;
+use crate::app::common::version::Version;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
