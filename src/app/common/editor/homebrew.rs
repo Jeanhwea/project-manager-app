@@ -1,4 +1,6 @@
-use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use super::{
+    ConfigEditor, VersionEditError, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct HomebrewFormulaEditor;
@@ -77,7 +79,7 @@ impl ConfigEditor for HomebrewFormulaEditor {
             result.push_str(&content[..pos.start]);
             result.push_str(new_version);
             result.push_str(&content[pos.end..]);
-            Ok(result)
+            Ok(preserve_line_endings(content, result))
         } else {
             Err(VersionEditError::VersionNotFound {
                 file: "Homebrew formula".to_string(),
@@ -86,14 +88,7 @@ impl ConfigEditor for HomebrewFormulaEditor {
         }
     }
 
-    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
-        let original_has_crlf = original.contains("\r\n");
-        let edited_has_crlf = edited.contains("\r\n");
-        if original_has_crlf != edited_has_crlf && original_has_crlf {
-            return Err(VersionEditError::FormatPreservationError {
-                file: "Homebrew formula".to_string(),
-            });
-        }
+    fn validate(&self, _original: &str, _edited: &str) -> Result<(), VersionEditError> {
         Ok(())
     }
 }

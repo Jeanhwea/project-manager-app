@@ -1,4 +1,6 @@
-use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use super::{
+    ConfigEditor, VersionEditError, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct PomXmlEditor;
@@ -146,7 +148,7 @@ impl ConfigEditor for PomXmlEditor {
             result.push_str(&content[..pos.start]);
             result.push_str(new_version);
             result.push_str(&content[pos.end..]);
-            Ok(result)
+            Ok(preserve_line_endings(content, result))
         } else if location.parent_version.is_some() {
             let parent_end = Self::find_parent_end_tag(content)?;
             let mut result = String::new();
@@ -155,7 +157,7 @@ impl ConfigEditor for PomXmlEditor {
             let indent = Self::detect_indent_before_parent(content, parent_end);
             result.push_str(&format!("\n{}<version>{}</version>", indent, new_version));
             result.push_str(&content[parent_end..]);
-            Ok(result)
+            Ok(preserve_line_endings(content, result))
         } else {
             Err(VersionEditError::VersionNotFound {
                 file: "pom.xml".to_string(),
@@ -164,21 +166,12 @@ impl ConfigEditor for PomXmlEditor {
         }
     }
 
-    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+    fn validate(&self, _original: &str, edited: &str) -> Result<(), VersionEditError> {
         if roxmltree::Document::parse(edited).is_err() {
             return Err(VersionEditError::FormatPreservationError {
                 file: "pom.xml".to_string(),
             });
         }
-
-        let original_has_crlf = original.contains("\r\n");
-        let edited_has_crlf = edited.contains("\r\n");
-        if original_has_crlf != edited_has_crlf && original_has_crlf {
-            return Err(VersionEditError::FormatPreservationError {
-                file: "pom.xml".to_string(),
-            });
-        }
-
         Ok(())
     }
 }

@@ -138,3 +138,16 @@ pub fn write_with_backup(path: &str, content: &str) -> Result<(), VersionEditErr
         }
     }
 }
+
+pub fn preserve_line_endings(original: &str, edited: String) -> String {
+    let original_has_crlf = original.contains("\r\n");
+    let edited_has_crlf = edited.contains("\r\n");
+
+    if original_has_crlf && !edited_has_crlf {
+        edited.replace("\n", "\r\n")
+    } else if !original_has_crlf && edited_has_crlf {
+        edited.replace("\r\n", "\n")
+    } else {
+        edited
+    }
+}

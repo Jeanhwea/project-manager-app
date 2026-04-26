@@ -1,4 +1,6 @@
-use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use super::{
+    ConfigEditor, VersionEditError, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct CargoTomlEditor;
@@ -122,24 +124,16 @@ impl ConfigEditor for CargoTomlEditor {
             table.insert("version", toml_edit::value(new_version));
         }
 
-        Ok(doc.to_string())
+        let edited = doc.to_string();
+        Ok(preserve_line_endings(content, edited))
     }
 
-    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+    fn validate(&self, _original: &str, edited: &str) -> Result<(), VersionEditError> {
         if edited.parse::<toml_edit::DocumentMut>().is_err() {
             return Err(VersionEditError::FormatPreservationError {
                 file: "Cargo.toml".to_string(),
             });
         }
-
-        let original_has_crlf = original.contains("\r\n");
-        let edited_has_crlf = edited.contains("\r\n");
-        if original_has_crlf != edited_has_crlf && original_has_crlf {
-            return Err(VersionEditError::FormatPreservationError {
-                file: "Cargo.toml".to_string(),
-            });
-        }
-
         Ok(())
     }
 }
