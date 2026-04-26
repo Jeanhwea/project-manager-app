@@ -16,6 +16,7 @@ fn main() -> Result<()> {
             no_root,
             force,
             skip_push,
+            dry_run,
         } => {
             app::handler::release::execute(
                 bump_type.as_str(),
@@ -23,6 +24,7 @@ fn main() -> Result<()> {
                 no_root,
                 force,
                 skip_push,
+                dry_run,
             )?;
         }
         Commands::Sync {

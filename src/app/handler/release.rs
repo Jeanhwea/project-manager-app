@@ -5,6 +5,7 @@ use crate::app::common::editor::{
 use crate::app::common::git;
 use crate::app::common::version::Version;
 use anyhow::{Context, Result};
+use colored::Colorize;
 use regex::Regex;
 use std::path::Path;
 
@@ -42,6 +43,7 @@ pub fn execute(
     no_root: bool,
     force: bool,
     skip_push: bool,
+    dry_run: bool,
 ) -> Result<()> {
     let files: Vec<String> = files
         .iter()
@@ -80,6 +82,13 @@ pub fn execute(
     let new_version = version.bump(bump_type);
     let new_tag = new_version.to_tag();
 
+    println!(
+        "{} {} -> {}",
+        "版本变更:".green().bold(),
+        current_tag.cyan(),
+        new_tag.yellow().bold()
+    );
+
     let registry = create_editor_registry();
 
     let config_files = if files.is_empty() {
@@ -96,6 +105,26 @@ pub fn execute(
             })
             .collect::<Result<Vec<_>>>()?
     };
+
+    if dry_run {
+        println!("\n{}", "[DRY-RUN] 将要修改的文件:".green().bold());
+        for (file_path, editor) in &config_files {
+            print_file_diff(&registry, editor.as_ref(), &new_tag, file_path)?;
+        }
+        println!("\n{}", "[DRY-RUN] 将要执行的操作:".green().bold());
+        println!("  - git add <files>");
+        println!("  - git commit -m \"{}\"", new_tag);
+        println!("  - git tag {}", new_tag);
+        if !skip_push {
+            if let Some(remotes) = git::get_remote_list() {
+                for remote in remotes {
+                    println!("  - git push {} {}", remote, new_tag);
+                    println!("  - git push {} {}", remote, current_branch);
+                }
+            }
+        }
+        return Ok(());
+    }
 
     for (file_path, editor) in &config_files {
         edit_version_in_file(&registry, editor.as_ref(), &new_tag, file_path)?;
@@ -286,4 +315,66 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
         }
     }
     anyhow::bail!("未在 {} 中找到 [package] name", cargo_toml_path)
+}
+
+fn print_file_diff(
+    registry: &EditorRegistry,
+    editor: &dyn crate::app::common::editor::ConfigEditor,
+    tag: &str,
+    config_file: &str,
+) -> Result<()> {
+    let version = tag.trim_start_matches('v');
+    let content = std::fs::read_to_string(config_file)
+        .with_context(|| format!("无法读取 {}", config_file))?;
+
+    let in_npm_dir = config_file.starts_with("npm/");
+    if editor.name() == "package_json" {
+        let pkg_editor = PackageJsonEditor { in_npm_dir };
+        compute_and_print_diff(registry, &pkg_editor, &content, config_file, version)
+    } else {
+        compute_and_print_diff(registry, editor, &content, config_file, version)
+    }
+}
+
+fn compute_and_print_diff(
+    registry: &EditorRegistry,
+    editor: &dyn crate::app::common::editor::ConfigEditor,
+    content: &str,
+    config_file: &str,
+    version: &str,
+) -> Result<()> {
+    let edited = registry.edit_version(editor, content, version)?;
+
+    println!("\n  {}", config_file.blue().underline());
+
+    let old_lines: Vec<&str> = content.lines().collect();
+    let new_lines: Vec<&str> = edited.lines().collect();
+
+    let mut line_num = 1;
+    let mut changes = Vec::new();
+
+    for (old_line, new_line) in old_lines.iter().zip(new_lines.iter()) {
+        if old_line != new_line {
+            changes.push((line_num, *old_line, *new_line));
+        }
+        line_num += 1;
+    }
+
+    if old_lines.len() != new_lines.len() {
+        let max_len = old_lines.len().max(new_lines.len());
+        for i in old_lines.len()..max_len {
+            if i < new_lines.len() {
+                changes.push((i + 1, "", new_lines[i]));
+            }
+        }
+    }
+
+    for (num, old, new) in changes {
+        println!("    {} {}", format!("L{}:", num).dimmed(), "-".red());
+        println!("      {}", old.red());
+        println!("    {} {}", format!("L{}:", num).dimmed(), "+".green());
+        println!("      {}", new.green());
+    }
+
+    Ok(())
 }

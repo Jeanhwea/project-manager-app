@@ -106,6 +106,13 @@ pub enum Commands {
             help = "Skip pushing tags and branches to remotes"
         )]
         skip_push: bool,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
     },
     /// Synchronize all code repositories
     #[command(visible_alias = "s")]
