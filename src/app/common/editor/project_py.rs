@@ -1,4 +1,6 @@
-use super::{preserve_line_endings, ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use super::{
+    ConfigEditor, VersionEditError, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct PythonVersionEditor;
