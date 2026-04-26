@@ -9,8 +9,6 @@
 
 =pma= 是一个用 Rust 编写的命令行工具，用于批量管理 Git 仓库。
 
-[[https://github.com/Jeanhwea/project-manager-app/actions/workflows/release.yml][https://github.com/Jeanhwea/project-manager-app/actions/workflows/release.yml/badge.svg]]
-
 主要功能:
 - =release= (=re=): 语义化版本发布，自动编辑版本号、提交、打标签、推送
 - =sync= (=s=): 批量同步目录下的 Git 仓库 (pull + push)
