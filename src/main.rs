@@ -17,7 +17,13 @@ fn main() -> Result<()> {
             force,
             skip_push,
         } => {
-            app::release::execute(bump_type.as_str(), &files, no_root, force, skip_push)?;
+            app::handler::release::execute(
+                bump_type.as_str(),
+                &files,
+                no_root,
+                force,
+                skip_push,
+            )?;
         }
         Commands::Sync {
             path,
@@ -26,7 +32,7 @@ fn main() -> Result<()> {
             all_branch,
         } => {
             let skip_remotes = parse_comma_separated(skip_remotes);
-            app::sync::execute(&path, max_depth, all_branch, skip_remotes)?;
+            app::handler::sync::execute(&path, max_depth, all_branch, skip_remotes)?;
         }
         Commands::Doctor {
             path,
@@ -34,20 +40,20 @@ fn main() -> Result<()> {
             gc,
             rename,
         } => {
-            app::doctor::execute(&path, max_depth, gc, rename)?;
+            app::handler::doctor::execute(&path, max_depth, gc, rename)?;
         }
         Commands::Fork { path, name } => {
-            app::fork::execute(&path, &name)?;
+            app::handler::fork::execute(&path, &name)?;
         }
         Commands::Snap { path } => {
-            app::snap::execute(&path)?;
+            app::handler::snap::execute(&path)?;
         }
         Commands::Self_ { command } => match command {
             SelfCommands::Update { force } => {
-                app::selfman::execute(force)?;
+                app::handler::selfman::execute(force)?;
             }
             SelfCommands::Version => {
-                app::selfman::show_version();
+                app::handler::selfman::show_version();
             }
         },
     }

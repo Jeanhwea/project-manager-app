@@ -1,6 +1,6 @@
-use super::git::{self, GitProtocol};
-use super::repo::RepoType;
-use super::runner::CommandRunner;
+use crate::app::common::git::{self, GitProtocol};
+use crate::app::common::repo::RepoType;
+use crate::app::common::runner::CommandRunner;
 use crate::utils;
 use anyhow::Result;
 use colored::Colorize;
@@ -18,7 +18,8 @@ pub fn execute(
         anyhow::bail!("目录不存在: {}", path);
     }
 
-    let git_repos = super::repo::find_git_repositories_or_current(root_dir, max_depth);
+    let git_repos =
+        crate::app::common::repo::find_git_repositories_or_current(root_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");

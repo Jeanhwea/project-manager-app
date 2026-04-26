@@ -1,4 +1,4 @@
-use super::runner::CommandRunner;
+use crate::app::common::runner::CommandRunner;
 use anyhow::Result;
 use std::path::Path;
 
