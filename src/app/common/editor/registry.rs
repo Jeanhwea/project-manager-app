@@ -35,6 +35,7 @@ impl EditorRegistry {
         self
     }
 
+    #[allow(dead_code)]
     pub fn get(&self, name: &str) -> Option<Arc<dyn ConfigEditor>> {
         self.editors.get(name).cloned()
     }
@@ -87,6 +88,7 @@ impl EditorRegistry {
         Ok(edited)
     }
 
+    #[allow(dead_code)]
     pub fn list(&self) -> Vec<&'static str> {
         self.editors.keys().copied().collect()
     }
@@ -108,6 +110,7 @@ impl VersionLocation {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_version(mut self, start: usize, end: usize, line: usize) -> Self {
         self.project_version = Some(super::VersionPosition { start, end, line });
         self
