@@ -18,7 +18,8 @@ pub fn execute(
         anyhow::bail!("目录不存在: {}", path);
     }
 
-    let git_repos = crate::app::common::repo::find_git_repositories_or_current(root_dir, max_depth);
+    let git_repos =
+        crate::app::common::repo::find_git_repositories_or_current(root_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");

@@ -7,13 +7,13 @@ impl CMakeListsEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
         let version_pattern =
             regex::Regex::new(r#"project\s*\([^)]*?VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)"#).ok()?;
-        if let Some(caps) = version_pattern.captures(content) {
-            if let Some(version_match) = caps.get(1) {
-                let start = version_match.start();
-                let end = version_match.end();
-                let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
-                return Some(VersionPosition { start, end, line });
-            }
+        if let Some(caps) = version_pattern.captures(content)
+            && let Some(version_match) = caps.get(1)
+        {
+            let start = version_match.start();
+            let end = version_match.end();
+            let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
+            return Some(VersionPosition { start, end, line });
         }
         None
     }

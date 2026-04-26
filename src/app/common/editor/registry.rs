@@ -1,5 +1,5 @@
 use super::{ConfigEditor, VersionLocation};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -19,7 +19,11 @@ impl EditorRegistry {
 
     pub fn register(mut self, editor: impl ConfigEditor + 'static) -> Self {
         let name = editor.name();
-        let patterns: Vec<String> = editor.file_patterns().iter().map(|s| s.to_string()).collect();
+        let patterns: Vec<String> = editor
+            .file_patterns()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
 
         let editor_arc: Arc<dyn ConfigEditor> = Arc::new(editor);
 

@@ -41,7 +41,10 @@ impl ConfigEditor for HomebrewFormulaEditor {
 
     fn matches_file(&self, path: &Path) -> bool {
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let parent = path.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str());
+        let parent = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str());
         file_name == "pma.rb" && parent == Some("Formula")
     }
 

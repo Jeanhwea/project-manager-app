@@ -1,6 +1,6 @@
 use crate::app::common::editor::{
-    write_with_backup, CMakeListsEditor, CargoTomlEditor, EditorRegistry, HomebrewFormulaEditor,
-    PackageJsonEditor, PomXmlEditor, PythonVersionEditor, PyprojectEditor, VersionTextEditor,
+    CMakeListsEditor, CargoTomlEditor, EditorRegistry, HomebrewFormulaEditor, PackageJsonEditor,
+    PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionTextEditor, write_with_backup,
 };
 use crate::app::common::git;
 use crate::app::common::version::Version;
@@ -89,9 +89,9 @@ pub fn execute(
             .iter()
             .map(|f| {
                 let path = Path::new(f);
-                let editor = registry.detect_editor(path).with_context(|| {
-                    format!("无法识别文件类型: {}", f)
-                })?;
+                let editor = registry
+                    .detect_editor(path)
+                    .with_context(|| format!("无法识别文件类型: {}", f))?;
                 Ok((f.clone(), editor))
             })
             .collect::<Result<Vec<_>>>()?
@@ -121,22 +121,29 @@ pub fn execute(
     Ok(())
 }
 
-fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<(String, std::sync::Arc<dyn crate::app::common::editor::ConfigEditor>)>> {
+fn detect_config_files(
+    registry: &EditorRegistry,
+) -> Result<
+    Vec<(
+        String,
+        std::sync::Arc<dyn crate::app::common::editor::ConfigEditor>,
+    )>,
+> {
     let mut result = Vec::new();
 
     for (pattern, _is_dynamic) in CONFIG_FILE_CANDIDATES {
         if pattern.contains("{}") {
             for path in expand_glob_pattern(pattern) {
-                if Path::new(&path).exists() {
-                    if let Some(editor) = registry.detect_editor(Path::new(&path)) {
-                        result.push((path, editor));
-                    }
+                if Path::new(&path).exists()
+                    && let Some(editor) = registry.detect_editor(Path::new(&path))
+                {
+                    result.push((path, editor));
                 }
             }
-        } else if Path::new(pattern).exists() {
-            if let Some(editor) = registry.detect_editor(Path::new(pattern)) {
-                result.push((pattern.to_string(), editor));
-            }
+        } else if Path::new(pattern).exists()
+            && let Some(editor) = registry.detect_editor(Path::new(pattern))
+        {
+            result.push((pattern.to_string(), editor));
         }
     }
 
@@ -190,11 +197,12 @@ fn edit_version_in_file(
         .with_context(|| format!("无法读取 {}", config_file))?;
 
     let in_npm_dir = config_file.starts_with("npm/");
-    let editor: Box<dyn crate::app::common::editor::ConfigEditor> = if editor.name() == "package_json" {
-        Box::new(PackageJsonEditor { in_npm_dir })
-    } else {
-        return do_edit(registry, editor, &content, config_file, version);
-    };
+    let editor: Box<dyn crate::app::common::editor::ConfigEditor> =
+        if editor.name() == "package_json" {
+            Box::new(PackageJsonEditor { in_npm_dir })
+        } else {
+            return do_edit(registry, editor, &content, config_file, version);
+        };
 
     do_edit(registry, editor.as_ref(), &content, config_file, version)
 }

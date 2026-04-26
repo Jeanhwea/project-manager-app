@@ -17,7 +17,13 @@ fn main() -> Result<()> {
             force,
             skip_push,
         } => {
-            app::handler::release::execute(bump_type.as_str(), &files, no_root, force, skip_push)?;
+            app::handler::release::execute(
+                bump_type.as_str(),
+                &files,
+                no_root,
+                force,
+                skip_push,
+            )?;
         }
         Commands::Sync {
             path,
