@@ -1,8 +1,7 @@
 use crate::app::common::git::{self, GitProtocol};
-use crate::app::common::runner::CommandRunner;
+use crate::app::common::runner::{CommandRunner, DryRunContext};
 
 use anyhow::{Context, Result};
-use colored::Colorize;
 use heck::{ToKebabCase, ToPascalCase};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -52,49 +51,43 @@ pub fn execute(path: &str, name: &str, dry_run: bool) -> Result<()> {
         anyhow::bail!("项目目录已存在: {}", project_dir.display());
     }
 
-    if dry_run {
-        println!("{}", "[DRY-RUN] 将要执行的操作:".green().bold());
-        println!("  {} clone {} {}", "[DRY-RUN]".yellow(), root_dir.display(), name);
-        println!("  {} 删除 .git 目录", "[DRY-RUN]".yellow());
-        println!("  {} git init", "[DRY-RUN]".yellow());
+    let ctx = DryRunContext::new(dry_run);
 
-        let submodules = get_submodules(root_dir)?;
+    if ctx.is_dry_run() {
+        ctx.print_header("[DRY-RUN] 将要执行的操作:");
+        ctx.print_message(&format!("clone {} {}", root_dir.display(), name));
+        ctx.print_message("删除 .git 目录");
+    }
+
+    let submodules = get_submodules(root_dir)?;
+
+    if ctx.is_dry_run() {
         for submodule in &submodules {
-            println!(
-                "  {} git submodule add {} {}",
-                "[DRY-RUN]".yellow(),
-                submodule.url,
-                submodule.path
-            );
+            ctx.print_message(&format!("git submodule add {} {}", submodule.url, submodule.path));
         }
 
         let pma_config = root_dir.join(".pma.json");
         if pma_config.exists() {
-            println!("  {} 执行 .pma.json 中的动作", "[DRY-RUN]".yellow());
+            ctx.print_message("执行 .pma.json 中的动作");
         }
 
         let remotes = git::get_remote_info(root_dir);
         for (remote_name, remote_url) in remotes {
             if let Some(new_url) = generate_new_remote_url(&remote_url, name) {
-                println!(
-                    "  {} git remote add {} {}",
-                    "[DRY-RUN]".yellow(),
-                    remote_name,
-                    new_url
-                );
+                ctx.print_message(&format!("git remote add {} {}", remote_name, new_url));
             }
         }
 
-        println!("  {} git add .", "[DRY-RUN]".yellow());
-        println!("  {} git commit -m v0.0.0", "[DRY-RUN]".yellow());
+        ctx.print_message("git add .");
+        ctx.print_message("git commit -m v0.0.0");
         return Ok(());
     }
 
     let repo_url = repo_dir.to_string_lossy();
-    do_init_project(repo_url.as_ref(), &project_dir)
+    do_init_project(&ctx, repo_url.as_ref(), &project_dir)
 }
 
-fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
+fn do_init_project(ctx: &DryRunContext, repo_url: &str, project_dir: &Path) -> Result<()> {
     let project_name = project_dir
         .file_name()
         .unwrap_or_default()
@@ -105,7 +98,7 @@ fn do_init_project(repo_url: &str, project_dir: &Path) -> Result<()> {
 
     let submodules = get_submodules(project_dir)?;
 
-    do_reinit_repo(project_dir, &project_name, &submodules, repo_url)
+    do_reinit_repo(ctx, project_dir, &project_name, &submodules, repo_url)
 }
 
 fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
@@ -165,7 +158,7 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>> {
     Ok(submodules)
 }
 
-fn do_perform_actions(project_dir: &Path, project_name: &str) -> Result<()> {
+fn do_perform_actions(ctx: &DryRunContext, project_dir: &Path, project_name: &str) -> Result<()> {
     let pma_config = project_dir.join(".pma.json");
     if !pma_config.exists() {
         return Ok(());
@@ -184,24 +177,26 @@ fn do_perform_actions(project_dir: &Path, project_name: &str) -> Result<()> {
                 str_new,
                 files,
             } => {
-                do_replace_action(project_dir, &str_old, &str_new, &files, project_name)?;
+                do_replace_action(ctx, project_dir, &str_old, &str_new, &files, project_name)?;
             }
             Action::AddGitRemote {
                 remote_name,
                 remote_url,
             } => {
-                do_add_git_remote_action(project_dir, &remote_name, &remote_url, project_name)?;
+                do_add_git_remote_action(ctx, project_dir, &remote_name, &remote_url, project_name)?;
             }
         }
     }
 
-    // delete .pma.json file
-    std::fs::remove_file(pma_config)?;
+    if !ctx.is_dry_run() {
+        std::fs::remove_file(pma_config)?;
+    }
 
     Ok(())
 }
 
 fn do_replace_action(
+    ctx: &DryRunContext,
     project_dir: &Path,
     str_old: &str,
     str_new: &str,
@@ -213,6 +208,11 @@ fn do_replace_action(
     for file_path in files {
         let full_path = project_dir.join(file_path);
         if !full_path.exists() {
+            continue;
+        }
+
+        if ctx.is_dry_run() {
+            ctx.print_message(&format!("替换文件 {} 中的内容", file_path));
             continue;
         }
 
@@ -229,6 +229,7 @@ fn do_replace_action(
 }
 
 fn do_add_git_remote_action(
+    ctx: &DryRunContext,
     project_dir: &Path,
     remote_name: &str,
     remote_url: &str,
@@ -236,10 +237,10 @@ fn do_add_git_remote_action(
 ) -> Result<()> {
     let remote_url = resolve_placeholders(remote_url, project_name);
 
-    CommandRunner::run_with_success_in_dir(
+    ctx.run_in_dir(
         "git",
         &["remote", "add", remote_name, &remote_url],
-        project_dir,
+        Some(project_dir),
     )
     .with_context(|| {
         format!(
@@ -288,32 +289,32 @@ fn generate_new_remote_url(original_url: &str, project_name: &str) -> Option<Str
 }
 
 fn do_reinit_repo(
+    ctx: &DryRunContext,
     project_dir: &Path,
     project_name: &str,
     submodules: &[Submodule],
     original_repo_path: &str,
 ) -> Result<()> {
-    // delete .git directory
-    std::fs::remove_dir_all(project_dir.join(".git"))?;
+    if !ctx.is_dry_run() {
+        std::fs::remove_dir_all(project_dir.join(".git"))?;
 
-    // delete .gitmodules file
-    if project_dir.join(".gitmodules").exists() {
-        std::fs::remove_file(project_dir.join(".gitmodules"))?;
+        if project_dir.join(".gitmodules").exists() {
+            std::fs::remove_file(project_dir.join(".gitmodules"))?;
+        }
+
+        for submodule in submodules {
+            std::fs::remove_dir_all(project_dir.join(&submodule.path))?;
+        }
     }
 
-    // delete git submodule directory
-    for submodule in submodules {
-        std::fs::remove_dir_all(project_dir.join(&submodule.path))?;
-    }
-
-    CommandRunner::run_with_success_in_dir("git", &["init"], project_dir)
+    ctx.run_in_dir("git", &["init"], Some(project_dir))
         .with_context(|| format!("无法初始化 Git 仓库到 {}", project_dir.display()))?;
 
     for submodule in submodules {
-        CommandRunner::run_with_success_in_dir(
+        ctx.run_in_dir(
             "git",
             &["submodule", "add", &submodule.url, &submodule.path],
-            project_dir,
+            Some(project_dir),
         )
         .with_context(|| {
             format!(
@@ -324,16 +325,16 @@ fn do_reinit_repo(
         })?;
     }
 
-    do_perform_actions(project_dir, project_name)?;
+    do_perform_actions(ctx, project_dir, project_name)?;
 
     let original_repo_path = Path::new(original_repo_path);
     let remotes = git::get_remote_info(original_repo_path);
     for (remote_name, remote_url) in remotes {
         if let Some(new_url) = generate_new_remote_url(&remote_url, project_name) {
-            CommandRunner::run_with_success_in_dir(
+            ctx.run_in_dir(
                 "git",
                 &["remote", "add", &remote_name, &new_url],
-                project_dir,
+                Some(project_dir),
             )
             .with_context(|| {
                 format!(
@@ -345,10 +346,10 @@ fn do_reinit_repo(
         }
     }
 
-    CommandRunner::run_with_success_in_dir("git", &["add", "."], project_dir)
+    ctx.run_in_dir("git", &["add", "."], Some(project_dir))
         .with_context(|| format!("无法添加所有文件到 Git 仓库 {}", project_dir.display()))?;
 
-    CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "v0.0.0"], project_dir)
+    ctx.run_in_dir("git", &["commit", "-m", "v0.0.0"], Some(project_dir))
         .with_context(|| format!("无法提交初始化提交到 Git 仓库 {}", project_dir.display()))?;
 
     Ok(())

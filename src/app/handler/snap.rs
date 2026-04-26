@@ -1,60 +1,37 @@
-use crate::app::common::runner::CommandRunner;
+use crate::app::common::runner::{CommandRunner, DryRunContext};
 use anyhow::Result;
-use colored::Colorize;
 use std::path::Path;
 
 pub fn execute(path: &str, dry_run: bool) -> Result<()> {
     let project_path = Path::new(path);
+    let ctx = DryRunContext::new(dry_run);
 
     if !project_path.exists() {
         anyhow::bail!("项目路径不存在: {}", path);
     }
 
-    if dry_run {
-        if !project_path.join(".git").exists() {
-            println!("{}", "[DRY-RUN] 将要执行的操作:".green().bold());
-            println!("  {} git init", "[DRY-RUN]".yellow());
-            println!("  {} git add .", "[DRY-RUN]".yellow());
-            println!("  {} git commit -m snap-000000", "[DRY-RUN]".yellow());
-        } else {
-            let output = CommandRunner::run_with_success_in_dir(
-                "git",
-                &["rev-list", "--count", "HEAD"],
-                project_path,
-            )?;
-            let num_commit = String::from_utf8_lossy(&output.stdout)
-                .trim()
-                .parse::<usize>()?;
-
-            println!("{}", "[DRY-RUN] 将要执行的操作:".green().bold());
-            println!("  {} git add .", "[DRY-RUN]".yellow());
-            println!(
-                "  {} git commit -m snap-{:06}",
-                "[DRY-RUN]".yellow(),
-                num_commit
-            );
-        }
-        return Ok(());
+    if ctx.is_dry_run() {
+        ctx.print_header("[DRY-RUN] 将要执行的操作:");
     }
 
     if !project_path.join(".git").exists() {
-        do_initialize_snapshot(project_path)?;
+        do_initialize_snapshot(&ctx, project_path)?;
     } else {
-        do_incremental_snapshot(project_path)?;
+        do_incremental_snapshot(&ctx, project_path)?;
     }
 
     Ok(())
 }
 
-fn do_initialize_snapshot(work_dir: &Path) -> Result<()> {
-    CommandRunner::run_with_success_in_dir("git", &["init"], work_dir)?;
-    CommandRunner::run_with_success_in_dir("git", &["add", "."], work_dir)?;
-    CommandRunner::run_with_success_in_dir("git", &["commit", "-m", "snap-000000"], work_dir)?;
+fn do_initialize_snapshot(ctx: &DryRunContext, work_dir: &Path) -> Result<()> {
+    ctx.run_in_dir("git", &["init"], Some(work_dir))?;
+    ctx.run_in_dir("git", &["add", "."], Some(work_dir))?;
+    ctx.run_in_dir("git", &["commit", "-m", "snap-000000"], Some(work_dir))?;
 
     Ok(())
 }
 
-fn do_incremental_snapshot(work_dir: &Path) -> Result<()> {
+fn do_incremental_snapshot(ctx: &DryRunContext, work_dir: &Path) -> Result<()> {
     let output = CommandRunner::run_with_success_in_dir(
         "git",
         &["rev-list", "--count", "HEAD"],
@@ -64,12 +41,11 @@ fn do_incremental_snapshot(work_dir: &Path) -> Result<()> {
         .trim()
         .parse::<usize>()?;
 
-    CommandRunner::run_with_success_in_dir("git", &["add", "."], work_dir)?;
-
-    CommandRunner::run_with_success_in_dir(
+    ctx.run_in_dir("git", &["add", "."], Some(work_dir))?;
+    ctx.run_in_dir(
         "git",
         &["commit", "-m", &format!("snap-{:06}", num_commit)],
-        work_dir,
+        Some(work_dir),
     )?;
 
     Ok(())

@@ -3,7 +3,85 @@ use colored::*;
 use std::path::Path;
 use std::process::{Command, Output};
 
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+
 pub struct CommandRunner;
+
+pub struct DryRunContext {
+    dry_run: bool,
+}
+
+impl DryRunContext {
+    pub fn new(dry_run: bool) -> Self {
+        Self { dry_run }
+    }
+
+    pub fn is_dry_run(&self) -> bool {
+        self.dry_run
+    }
+
+    #[allow(dead_code)]
+    pub fn run(&self, program: &str, args: &[&str]) -> Result<()> {
+        self.run_in_dir(program, args, None)
+    }
+
+    pub fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
+        if self.dry_run {
+            self.print_dry_run_command(program, args, dir);
+            return Ok(());
+        }
+
+        if let Some(d) = dir {
+            CommandRunner::run_with_success_in_dir(program, args, d)?;
+        } else {
+            CommandRunner::run_with_success(program, args)?;
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn run_quiet_in_dir(&self, program: &str, args: &[&str], dir: &Path) -> Result<Output> {
+        if self.dry_run {
+            self.print_dry_run_command(program, args, Some(dir));
+            return Ok(Output {
+                status: std::process::ExitStatus::from_raw(0),
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+            });
+        }
+        CommandRunner::run_quiet_in_dir(program, args, dir)
+    }
+
+    fn print_dry_run_command(&self, program: &str, args: &[&str], dir: Option<&Path>) {
+        let args_str = args.join(" ");
+        if let Some(d) = dir {
+            println!(
+                "  {} {} {} (in {})",
+                "[DRY-RUN]".yellow(),
+                program.cyan(),
+                args_str,
+                d.display().to_string().dimmed()
+            );
+        } else {
+            println!("  {} {} {}", "[DRY-RUN]".yellow(), program.cyan(), args_str);
+        }
+    }
+
+    pub fn print_message(&self, msg: &str) {
+        if self.dry_run {
+            println!("  {} {}", "[DRY-RUN]".yellow(), msg);
+        }
+    }
+
+    pub fn print_header(&self, msg: &str) {
+        if self.dry_run {
+            println!("{}", msg.green().bold());
+        }
+    }
+}
 
 impl CommandRunner {
     pub fn run_quiet(program: &str, args: &[&str]) -> Result<Output> {

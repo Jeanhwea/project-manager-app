@@ -1,6 +1,6 @@
 use crate::app::common::git::{self, GitProtocol};
 use crate::app::common::repo::RepoType;
-use crate::app::common::runner::CommandRunner;
+use crate::app::common::runner::{CommandRunner, DryRunContext};
 use crate::utils;
 use anyhow::Result;
 use colored::Colorize;
@@ -32,9 +32,10 @@ pub fn execute(
     }
 
     let total = git_repos.len();
+    let ctx = DryRunContext::new(dry_run);
 
-    if dry_run {
-        println!("{}", "[DRY-RUN] 将要同步的仓库:".green().bold());
+    if ctx.is_dry_run() {
+        ctx.print_header("[DRY-RUN] 将要同步的仓库:");
     }
 
     for (index, repo) in git_repos.iter().enumerate() {
@@ -56,12 +57,7 @@ pub fn execute(
 
         do_info_repository(&repo_path);
 
-        if dry_run {
-            print_sync_plan(&repo_path, all_branch, &skip_remotes);
-            continue;
-        }
-
-        if !is_workdir_clean(&repo_path) {
+        if !ctx.is_dry_run() && !is_workdir_clean(&repo_path) {
             CommandRunner::run_with_success_in_dir("git", &["status"], &repo_path)?;
             println!(
                 "  无法同步不干净工作目录: {}",
@@ -70,7 +66,7 @@ pub fn execute(
             continue;
         }
 
-        do_sync_repository(&repo_path, all_branch, &skip_remotes);
+        do_sync_repository(&ctx, &repo_path, all_branch, &skip_remotes);
     }
 
     Ok(())
@@ -112,34 +108,60 @@ fn get_tracking_remote_info(
     Some((remote.to_string(), url.clone()))
 }
 
-fn do_sync_repository(repo_path: &Path, all_branch: bool, skip_remotes: &[String]) {
+fn do_sync_repository(
+    ctx: &DryRunContext,
+    repo_path: &Path,
+    all_branch: bool,
+    skip_remotes: &[String],
+) {
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
+        if ctx.is_dry_run() {
+            println!("  {}", "无远程仓库".yellow());
+        }
         return;
     }
 
     let Some((track_remote, track_remote_url)) = get_tracking_remote_info(repo_path, &remotes)
     else {
+        if ctx.is_dry_run() {
+            println!("  {}", "无跟踪分支信息".yellow());
+        }
         return;
     };
 
     if skip_remotes.contains(&track_remote) {
-        println!("  跳过拉取 {} ({})", track_remote, track_remote_url.green());
-        return;
-    }
-
-    if all_branch {
-        do_pull_all_local_branch(repo_path);
+        println!(
+            "  {} pull {} ({})",
+            "[SKIP]".dimmed(),
+            track_remote,
+            track_remote_url.green()
+        );
+    } else if all_branch {
+        if ctx.is_dry_run() {
+            println!("  {} pull (all branches)", "[DRY-RUN]".yellow());
+        } else {
+            do_pull_all_local_branch(repo_path);
+        }
     } else {
-        do_pull_repository(repo_path);
+        if ctx.is_dry_run() {
+            println!("  {} pull", "[DRY-RUN]".yellow());
+        } else {
+            do_pull_repository(repo_path);
+        }
     }
 
     for (remote, url) in remotes {
         if should_skip_push(&remote, &url, skip_remotes) {
-            println!("  跳过推送 {} ({})", remote, url.green());
+            println!("  {} push {} ({})", "[SKIP]".dimmed(), remote, url.green());
             continue;
         }
-        do_push_repository(repo_path, &remote);
+        if ctx.is_dry_run() {
+            println!("  {} push {} --all", "[DRY-RUN]".yellow(), remote);
+            println!("  {} push {} --tags", "[DRY-RUN]".yellow(), remote);
+        } else {
+            do_push_repository(repo_path, &remote);
+        }
     }
 }
 
@@ -240,41 +262,5 @@ fn do_push_repository(repo_path: &Path, remote: &str) {
             utils::format_path(repo_path).red(),
             e
         );
-    }
-}
-
-fn print_sync_plan(repo_path: &Path, all_branch: bool, skip_remotes: &[String]) {
-    let remotes = git::get_remote_info(repo_path);
-    if remotes.is_empty() {
-        println!("  {}", "无远程仓库".yellow());
-        return;
-    }
-
-    let Some((track_remote, track_remote_url)) = get_tracking_remote_info(repo_path, &remotes)
-    else {
-        println!("  {}", "无跟踪分支信息".yellow());
-        return;
-    };
-
-    if skip_remotes.contains(&track_remote) {
-        println!(
-            "  {} pull {} ({})",
-            "[SKIP]".dimmed(),
-            track_remote,
-            track_remote_url.green()
-        );
-    } else if all_branch {
-        println!("  {} pull (all branches)", "[DRY-RUN]".yellow());
-    } else {
-        println!("  {} pull", "[DRY-RUN]".yellow());
-    }
-
-    for (remote, url) in remotes {
-        if should_skip_push(&remote, &url, skip_remotes) {
-            println!("  {} push {} ({})", "[SKIP]".dimmed(), remote, url.green());
-            continue;
-        }
-        println!("  {} push {} --all", "[DRY-RUN]".yellow(), remote);
-        println!("  {} push {} --tags", "[DRY-RUN]".yellow(), remote);
     }
 }

@@ -1,5 +1,5 @@
 use crate::app::common::git;
-use crate::app::common::runner::CommandRunner;
+use crate::app::common::runner::DryRunContext;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use std::path::Path;
@@ -40,13 +40,11 @@ fn check_dependencies() -> Result<()> {
 pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool, dry_run: bool) -> Result<()> {
     check_dependencies()?;
 
+    let ctx = DryRunContext::new(dry_run);
+
     crate::app::common::repo::for_each_repo(path, max_depth, |repo_path| {
         if gc {
-            if dry_run {
-                println!("  {} git gc", "[DRY-RUN]".yellow());
-            } else {
-                do_git_garbage_collect(repo_path)?;
-            }
+            do_git_garbage_collect(&ctx, repo_path)?;
         }
 
         if rename {
@@ -60,11 +58,7 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool, dry
                         new_name.yellow(),
                         remote_url
                     );
-                    if dry_run {
-                        println!("  {} git remote rename {} {}", "[DRY-RUN]".yellow(), remote_name, new_name);
-                    } else {
-                        do_rename_git_remote(repo_path, &remote_name, &new_name)?;
-                    }
+                    do_rename_git_remote(&ctx, repo_path, &remote_name, &new_name)?;
                 }
             }
         }
@@ -73,12 +67,11 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool, dry
     })
 }
 
-fn do_rename_git_remote(repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
+fn do_rename_git_remote(ctx: &DryRunContext, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
     let existing_remotes = git::get_remote_info(repo_path);
     let conflict = existing_remotes.iter().find(|(name, _)| name == new_name);
 
     if let Some((_, conflict_url)) = conflict {
-        // Target name already taken — rename the existing one first based on its URL
         let alt_name = git::get_remote_name_by_url(conflict_url)
             .unwrap_or_else(|| format!("{}-old", new_name));
 
@@ -92,25 +85,25 @@ fn do_rename_git_remote(repo_path: &Path, old_name: &str, new_name: &str) -> Res
         }
 
         println!("  {} => {}", new_name.yellow(), alt_name.yellow(),);
-        CommandRunner::run_with_success_in_dir(
+        ctx.run_in_dir(
             "git",
             &["remote", "rename", new_name, &alt_name],
-            repo_path,
+            Some(repo_path),
         )
         .with_context(|| format!("无法重命名远程仓库 {} -> {}", new_name, alt_name))?;
     }
 
-    CommandRunner::run_with_success_in_dir(
+    ctx.run_in_dir(
         "git",
         &["remote", "rename", old_name, new_name],
-        repo_path,
+        Some(repo_path),
     )
     .with_context(|| format!("无法重命名远程仓库 {} -> {}", old_name, new_name))?;
     Ok(())
 }
 
-fn do_git_garbage_collect(repo_path: &Path) -> Result<()> {
-    CommandRunner::run_with_success_in_dir("git", &["gc"], repo_path)
+fn do_git_garbage_collect(ctx: &DryRunContext, repo_path: &Path) -> Result<()> {
+    ctx.run_in_dir("git", &["gc"], Some(repo_path))
         .with_context(|| "无法执行 git gc")?;
     Ok(())
 }
