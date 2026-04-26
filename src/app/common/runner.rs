@@ -111,14 +111,12 @@ impl DryRunContext {
         let old_lines: Vec<&str> = old_content.lines().collect();
         let new_lines: Vec<&str> = new_content.lines().collect();
 
-        let mut line_num = 1;
         let mut changes = Vec::new();
 
-        for (old_line, new_line) in old_lines.iter().zip(new_lines.iter()) {
+        for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter())) {
             if old_line != new_line {
                 changes.push((line_num, *old_line, *new_line));
             }
-            line_num += 1;
         }
 
         if old_lines.len() != new_lines.len() {

@@ -118,12 +118,10 @@ pub fn execute(
         ctx.print_message("git add <files>");
         ctx.print_message(&format!("git commit -m \"{}\"", new_tag));
         ctx.print_message(&format!("git tag {}", new_tag));
-        if !skip_push {
-            if let Some(remotes) = git::get_remote_list() {
-                for remote in remotes {
-                    ctx.print_message(&format!("git push {} {}", remote, new_tag));
-                    ctx.print_message(&format!("git push {} {}", remote, current_branch));
-                }
+        if !skip_push && let Some(remotes) = git::get_remote_list() {
+            for remote in remotes {
+                ctx.print_message(&format!("git push {} {}", remote, new_tag));
+                ctx.print_message(&format!("git push {} {}", remote, current_branch));
             }
         }
         return Ok(());
