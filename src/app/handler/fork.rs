@@ -63,7 +63,10 @@ pub fn execute(path: &str, name: &str, dry_run: bool) -> Result<()> {
 
     if ctx.is_dry_run() {
         for submodule in &submodules {
-            ctx.print_message(&format!("git submodule add {} {}", submodule.url, submodule.path));
+            ctx.print_message(&format!(
+                "git submodule add {} {}",
+                submodule.url, submodule.path
+            ));
         }
 
         let pma_config = root_dir.join(".pma.json");
@@ -183,7 +186,13 @@ fn do_perform_actions(ctx: &DryRunContext, project_dir: &Path, project_name: &st
                 remote_name,
                 remote_url,
             } => {
-                do_add_git_remote_action(ctx, project_dir, &remote_name, &remote_url, project_name)?;
+                do_add_git_remote_action(
+                    ctx,
+                    project_dir,
+                    &remote_name,
+                    &remote_url,
+                    project_name,
+                )?;
             }
         }
     }

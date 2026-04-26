@@ -3,10 +3,10 @@ use colored::*;
 use std::path::Path;
 use std::process::{Command, Output};
 
-#[cfg(windows)]
-use std::os::windows::process::ExitStatusExt;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
 
 pub struct CommandRunner;
 
@@ -79,6 +79,62 @@ impl DryRunContext {
     pub fn print_header(&self, msg: &str) {
         if self.dry_run {
             println!("{}", msg.green().bold());
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn edit_file<F>(&self, file_path: &str, edit_fn: F) -> Result<()>
+    where
+        F: FnOnce(&str) -> Result<String>,
+    {
+        let content = std::fs::read_to_string(file_path)
+            .with_context(|| format!("无法读取 {}", file_path))?;
+
+        if self.dry_run {
+            let edited = edit_fn(&content)?;
+            self.print_file_diff(file_path, &content, &edited);
+            return Ok(());
+        }
+
+        let edited = edit_fn(&content)?;
+        std::fs::write(file_path, &edited).with_context(|| format!("无法写入 {}", file_path))?;
+        Ok(())
+    }
+
+    pub fn print_file_diff(&self, file_path: &str, old_content: &str, new_content: &str) {
+        if !self.dry_run {
+            return;
+        }
+
+        println!("\n  {}", file_path.blue().underline());
+
+        let old_lines: Vec<&str> = old_content.lines().collect();
+        let new_lines: Vec<&str> = new_content.lines().collect();
+
+        let mut line_num = 1;
+        let mut changes = Vec::new();
+
+        for (old_line, new_line) in old_lines.iter().zip(new_lines.iter()) {
+            if old_line != new_line {
+                changes.push((line_num, *old_line, *new_line));
+            }
+            line_num += 1;
+        }
+
+        if old_lines.len() != new_lines.len() {
+            let max_len = old_lines.len().max(new_lines.len());
+            for i in old_lines.len()..max_len {
+                if i < new_lines.len() {
+                    changes.push((i + 1, "", new_lines[i]));
+                }
+            }
+        }
+
+        for (num, old, new) in changes {
+            println!("    {} {}", format!("L{}:", num).dimmed(), "-".red());
+            println!("      {}", old.red());
+            println!("    {} {}", format!("L{}:", num).dimmed(), "+".green());
+            println!("      {}", new.green());
         }
     }
 }

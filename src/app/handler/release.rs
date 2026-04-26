@@ -3,6 +3,7 @@ use crate::app::common::editor::{
     PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionTextEditor, write_with_backup,
 };
 use crate::app::common::git;
+use crate::app::common::runner::DryRunContext;
 use crate::app::common::version::Version;
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -45,6 +46,8 @@ pub fn execute(
     skip_push: bool,
     dry_run: bool,
 ) -> Result<()> {
+    let ctx = DryRunContext::new(dry_run);
+
     let files: Vec<String> = files
         .iter()
         .map(|f| {
@@ -106,20 +109,20 @@ pub fn execute(
             .collect::<Result<Vec<_>>>()?
     };
 
-    if dry_run {
-        println!("\n{}", "[DRY-RUN] 将要修改的文件:".green().bold());
+    if ctx.is_dry_run() {
+        ctx.print_header("\n[DRY-RUN] 将要修改的文件:");
         for (file_path, editor) in &config_files {
-            print_file_diff(&registry, editor.as_ref(), &new_tag, file_path)?;
+            print_file_diff(&ctx, &registry, editor.as_ref(), &new_tag, file_path)?;
         }
-        println!("\n{}", "[DRY-RUN] 将要执行的操作:".green().bold());
-        println!("  - git add <files>");
-        println!("  - git commit -m \"{}\"", new_tag);
-        println!("  - git tag {}", new_tag);
+        ctx.print_header("\n[DRY-RUN] 将要执行的操作:");
+        ctx.print_message("git add <files>");
+        ctx.print_message(&format!("git commit -m \"{}\"", new_tag));
+        ctx.print_message(&format!("git tag {}", new_tag));
         if !skip_push {
             if let Some(remotes) = git::get_remote_list() {
                 for remote in remotes {
-                    println!("  - git push {} {}", remote, new_tag);
-                    println!("  - git push {} {}", remote, current_branch);
+                    ctx.print_message(&format!("git push {} {}", remote, new_tag));
+                    ctx.print_message(&format!("git push {} {}", remote, current_branch));
                 }
             }
         }
@@ -318,6 +321,7 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
 }
 
 fn print_file_diff(
+    ctx: &DryRunContext,
     registry: &EditorRegistry,
     editor: &dyn crate::app::common::editor::ConfigEditor,
     tag: &str,
@@ -330,50 +334,11 @@ fn print_file_diff(
     let in_npm_dir = config_file.starts_with("npm/");
     if editor.name() == "package_json" {
         let pkg_editor = PackageJsonEditor { in_npm_dir };
-        compute_and_print_diff(registry, &pkg_editor, &content, config_file, version)
+        let edited = registry.edit_version(&pkg_editor, &content, version)?;
+        ctx.print_file_diff(config_file, &content, &edited);
     } else {
-        compute_and_print_diff(registry, editor, &content, config_file, version)
-    }
-}
-
-fn compute_and_print_diff(
-    registry: &EditorRegistry,
-    editor: &dyn crate::app::common::editor::ConfigEditor,
-    content: &str,
-    config_file: &str,
-    version: &str,
-) -> Result<()> {
-    let edited = registry.edit_version(editor, content, version)?;
-
-    println!("\n  {}", config_file.blue().underline());
-
-    let old_lines: Vec<&str> = content.lines().collect();
-    let new_lines: Vec<&str> = edited.lines().collect();
-
-    let mut line_num = 1;
-    let mut changes = Vec::new();
-
-    for (old_line, new_line) in old_lines.iter().zip(new_lines.iter()) {
-        if old_line != new_line {
-            changes.push((line_num, *old_line, *new_line));
-        }
-        line_num += 1;
-    }
-
-    if old_lines.len() != new_lines.len() {
-        let max_len = old_lines.len().max(new_lines.len());
-        for i in old_lines.len()..max_len {
-            if i < new_lines.len() {
-                changes.push((i + 1, "", new_lines[i]));
-            }
-        }
-    }
-
-    for (num, old, new) in changes {
-        println!("    {} {}", format!("L{}:", num).dimmed(), "-".red());
-        println!("      {}", old.red());
-        println!("    {} {}", format!("L{}:", num).dimmed(), "+".green());
-        println!("      {}", new.green());
+        let edited = registry.edit_version(editor, &content, version)?;
+        ctx.print_file_diff(config_file, &content, &edited);
     }
 
     Ok(())

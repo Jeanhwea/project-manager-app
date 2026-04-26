@@ -37,7 +37,13 @@ fn check_dependencies() -> Result<()> {
     Ok(())
 }
 
-pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool, dry_run: bool) -> Result<()> {
+pub fn execute(
+    path: &str,
+    max_depth: Option<usize>,
+    gc: bool,
+    rename: bool,
+    dry_run: bool,
+) -> Result<()> {
     check_dependencies()?;
 
     let ctx = DryRunContext::new(dry_run);
@@ -67,7 +73,12 @@ pub fn execute(path: &str, max_depth: Option<usize>, gc: bool, rename: bool, dry
     })
 }
 
-fn do_rename_git_remote(ctx: &DryRunContext, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
+fn do_rename_git_remote(
+    ctx: &DryRunContext,
+    repo_path: &Path,
+    old_name: &str,
+    new_name: &str,
+) -> Result<()> {
     let existing_remotes = git::get_remote_info(repo_path);
     let conflict = existing_remotes.iter().find(|(name, _)| name == new_name);
 

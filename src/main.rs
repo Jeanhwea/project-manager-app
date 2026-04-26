@@ -46,7 +46,11 @@ fn main() -> Result<()> {
         } => {
             app::handler::doctor::execute(&path, max_depth, gc, rename, dry_run)?;
         }
-        Commands::Fork { path, name, dry_run } => {
+        Commands::Fork {
+            path,
+            name,
+            dry_run,
+        } => {
             app::handler::fork::execute(&path, &name, dry_run)?;
         }
         Commands::Snap { path, dry_run } => {
