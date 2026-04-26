@@ -1,4 +1,5 @@
 pub mod doctor;
+pub mod editor;
 pub mod fork;
 pub mod git;
 pub mod release;
@@ -8,4 +9,3 @@ pub mod selfman;
 pub mod snap;
 pub mod sync;
 pub mod version;
-pub mod version_editor;

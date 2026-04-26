@@ -1,6 +1,6 @@
 use super::git;
 use super::version::Version;
-use super::version_editor::{
+use super::editor::{
     CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor, PackageJsonEditor,
     PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionEditError, VersionTextEditor,
     write_with_backup,
