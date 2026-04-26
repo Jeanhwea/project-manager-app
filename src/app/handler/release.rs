@@ -27,6 +27,16 @@ const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Formula/pma.rb", false),
 ];
 
+type ConfigFileEntry = (
+    String,
+    std::sync::Arc<dyn crate::app::common::editor::ConfigEditor>,
+);
+
+struct GitState {
+    current_branch: String,
+    new_tag: String,
+}
+
 fn create_editor_registry() -> EditorRegistry {
     EditorRegistry::new()
         .register(CargoTomlEditor)
@@ -47,8 +57,21 @@ pub fn execute(
     dry_run: bool,
 ) -> Result<()> {
     let ctx = DryRunContext::new(dry_run);
+    let resolved_files = resolve_file_paths(files);
+    switch_to_git_root(no_root);
+    let state = validate_git_state(force, bump_type)?;
+    let registry = create_editor_registry();
+    let config_files = resolve_config_files(&registry, &resolved_files)?;
 
-    let files: Vec<String> = files
+    if ctx.is_dry_run() {
+        execute_dry_run(&ctx, &registry, &config_files, &state, skip_push)
+    } else {
+        execute_release(&registry, &config_files, &state, skip_push)
+    }
+}
+
+fn resolve_file_paths(files: &[String]) -> Vec<String> {
+    files
         .iter()
         .map(|f| {
             if Path::new(f).is_absolute() {
@@ -59,22 +82,25 @@ pub fn execute(
                     .unwrap_or_else(|_| f.clone())
             }
         })
-        .collect();
+        .collect()
+}
 
+fn switch_to_git_root(no_root: bool) {
     if !no_root
         && let Some(root) = git::get_top_level_dir()
         && let Err(e) = std::env::set_current_dir(&root)
     {
         eprintln!("警告: 无法切换到 git 根目录: {}, {}", root.display(), e);
     }
+}
 
+fn validate_git_state(force: bool, bump_type: &str) -> Result<GitState> {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
     if !force && current_branch != "master" {
         anyhow::bail!("只能在 master 分支上执行 release");
     }
 
     let current_tag = git::get_current_version().unwrap_or_else(|| "v0.0.0".to_string());
-
     let rev_current_tag = git::get_rev_revision(&current_tag)?;
     let rev_head = git::get_rev_revision("HEAD")?;
     if rev_current_tag == rev_head {
@@ -92,73 +118,118 @@ pub fn execute(
         new_tag.yellow().bold()
     );
 
-    let registry = create_editor_registry();
+    Ok(GitState {
+        current_branch,
+        new_tag,
+    })
+}
 
-    let config_files = if files.is_empty() {
-        detect_config_files(&registry)?
-    } else {
-        files
-            .iter()
-            .map(|f| {
-                let path = Path::new(f);
-                let editor = registry
-                    .detect_editor(path)
-                    .with_context(|| format!("无法识别文件类型: {}", f))?;
-                Ok((f.clone(), editor))
-            })
-            .collect::<Result<Vec<_>>>()?
-    };
-
-    if ctx.is_dry_run() {
-        ctx.print_header("\n[DRY-RUN] 将要修改的文件:");
-        for (file_path, editor) in &config_files {
-            print_file_diff(&ctx, &registry, editor.as_ref(), &new_tag, file_path)?;
-        }
-        ctx.print_header("\n[DRY-RUN] 将要执行的操作:");
-        ctx.print_message("git add <files>");
-        ctx.print_message(&format!("git commit -m \"{}\"", new_tag));
-        ctx.print_message(&format!("git tag {}", new_tag));
-        if !skip_push && let Some(remotes) = git::get_remote_list() {
-            for remote in remotes {
-                ctx.print_message(&format!("git push {} {}", remote, new_tag));
-                ctx.print_message(&format!("git push {} {}", remote, current_branch));
-            }
-        }
-        return Ok(());
+fn resolve_config_files(
+    registry: &EditorRegistry,
+    files: &[String],
+) -> Result<Vec<ConfigFileEntry>> {
+    if files.is_empty() {
+        return detect_config_files(registry);
     }
 
-    for (file_path, editor) in &config_files {
-        edit_version_in_file(&registry, editor.as_ref(), &new_tag, file_path)?;
+    files
+        .iter()
+        .map(|f| {
+            let path = Path::new(f);
+            let editor = registry
+                .detect_editor(path)
+                .with_context(|| format!("无法识别文件类型: {}", f))?;
+            Ok((f.clone(), editor))
+        })
+        .collect()
+}
+
+fn execute_dry_run(
+    ctx: &DryRunContext,
+    registry: &EditorRegistry,
+    config_files: &[ConfigFileEntry],
+    state: &GitState,
+    skip_push: bool,
+) -> Result<()> {
+    ctx.print_header("\n[DRY-RUN] 将要修改的文件:");
+    for (file_path, editor) in config_files {
+        print_file_diff(ctx, registry, editor.as_ref(), &state.new_tag, file_path)?;
+    }
+
+    ctx.print_header("\n[DRY-RUN] 将要执行的操作:");
+    ctx.print_message("git add <files>");
+    ctx.print_message(&format!("git commit -m \"{}\"", state.new_tag));
+    ctx.print_message(&format!("git tag {}", state.new_tag));
+    print_push_plan(ctx, &state.current_branch, &state.new_tag, skip_push);
+    Ok(())
+}
+
+fn execute_release(
+    registry: &EditorRegistry,
+    config_files: &[ConfigFileEntry],
+    state: &GitState,
+    skip_push: bool,
+) -> Result<()> {
+    for (file_path, editor) in config_files {
+        edit_version_in_file(registry, editor.as_ref(), &state.new_tag, file_path)?;
         post_edit_version_file(file_path)?;
         git::add_file(file_path)?;
     }
 
     git::list_cached_changes()?;
-    git::commit(&new_tag)?;
-    git::create_tag(&new_tag)?;
+    git::commit(&state.new_tag)?;
+    git::create_tag(&state.new_tag)?;
+    push_to_remotes(skip_push, &state.current_branch, &state.new_tag);
+    Ok(())
+}
 
+fn print_push_plan(ctx: &DryRunContext, current_branch: &str, new_tag: &str, skip_push: bool) {
     if !skip_push && let Some(remotes) = git::get_remote_list() {
         for remote in remotes {
-            if let Err(e) = git::push_tag(&remote, &new_tag) {
+            ctx.print_message(&format!("git push {} {}", remote, new_tag));
+            ctx.print_message(&format!("git push {} {}", remote, current_branch));
+        }
+    }
+}
+
+fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) {
+    if skip_push {
+        return;
+    }
+    if let Some(remotes) = git::get_remote_list() {
+        for remote in remotes {
+            if let Err(e) = git::push_tag(&remote, new_tag) {
                 eprintln!("警告: 推送标签失败: {}", e);
             }
-            if let Err(e) = git::push_branch(&remote, &current_branch) {
+            if let Err(e) = git::push_branch(&remote, current_branch) {
                 eprintln!("警告: 推送分支失败: {}", e);
             }
         }
     }
-
-    Ok(())
 }
 
-fn detect_config_files(
+fn compute_edited_content(
     registry: &EditorRegistry,
-) -> Result<
-    Vec<(
-        String,
-        std::sync::Arc<dyn crate::app::common::editor::ConfigEditor>,
-    )>,
-> {
+    editor: &dyn crate::app::common::editor::ConfigEditor,
+    tag: &str,
+    config_file: &str,
+) -> Result<(String, String)> {
+    let version = tag.trim_start_matches('v');
+    let content = std::fs::read_to_string(config_file)
+        .with_context(|| format!("无法读取 {}", config_file))?;
+
+    let in_npm_dir = config_file.starts_with("npm/");
+    let edited = if editor.name() == "package_json" {
+        let pkg_editor = PackageJsonEditor { in_npm_dir };
+        registry.edit_version(&pkg_editor, &content, version)?
+    } else {
+        registry.edit_version(editor, &content, version)?
+    };
+
+    Ok((content, edited))
+}
+
+fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>> {
     let mut result = Vec::new();
 
     for (pattern, _is_dynamic) in CONFIG_FILE_CANDIDATES {
@@ -222,29 +293,7 @@ fn edit_version_in_file(
     tag: &str,
     config_file: &str,
 ) -> Result<()> {
-    let version = tag.trim_start_matches('v');
-    let content = std::fs::read_to_string(config_file)
-        .with_context(|| format!("无法读取 {}", config_file))?;
-
-    let in_npm_dir = config_file.starts_with("npm/");
-    let editor: Box<dyn crate::app::common::editor::ConfigEditor> =
-        if editor.name() == "package_json" {
-            Box::new(PackageJsonEditor { in_npm_dir })
-        } else {
-            return do_edit(registry, editor, &content, config_file, version);
-        };
-
-    do_edit(registry, editor.as_ref(), &content, config_file, version)
-}
-
-fn do_edit(
-    registry: &EditorRegistry,
-    editor: &dyn crate::app::common::editor::ConfigEditor,
-    content: &str,
-    config_file: &str,
-    version: &str,
-) -> Result<()> {
-    let edited = registry.edit_version(editor, content, version)?;
+    let (_original, edited) = compute_edited_content(registry, editor, tag, config_file)?;
     write_with_backup(config_file, &edited).map_err(|e| anyhow::anyhow!("{}", e))?;
     Ok(())
 }
@@ -325,19 +374,7 @@ fn print_file_diff(
     tag: &str,
     config_file: &str,
 ) -> Result<()> {
-    let version = tag.trim_start_matches('v');
-    let content = std::fs::read_to_string(config_file)
-        .with_context(|| format!("无法读取 {}", config_file))?;
-
-    let in_npm_dir = config_file.starts_with("npm/");
-    if editor.name() == "package_json" {
-        let pkg_editor = PackageJsonEditor { in_npm_dir };
-        let edited = registry.edit_version(&pkg_editor, &content, version)?;
-        ctx.print_file_diff(config_file, &content, &edited);
-    } else {
-        let edited = registry.edit_version(editor, &content, version)?;
-        ctx.print_file_diff(config_file, &content, &edited);
-    }
-
+    let (original, edited) = compute_edited_content(registry, editor, tag, config_file)?;
+    ctx.print_file_diff(config_file, &original, &edited);
     Ok(())
 }
