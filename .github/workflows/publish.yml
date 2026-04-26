@@ -33,6 +33,26 @@ jobs:
           VERSION=$(echo "${{ github.event.workflow_run.head_branch }}" | sed 's/^v//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Update package versions
+        shell: bash
+        run: |
+          VERSION=${{ steps.meta.outputs.version }}
+          
+          # Update all platform packages
+          for pkg in pma-linux-x64 pma-win32-x64 pma-win32-arm64 pma-darwin-x64 pma-darwin-arm64; do
+            cd npm/$pkg
+            npm version $VERSION --no-git-tag-version --allow-same-version
+            cd ../..
+          done
+          
+          # Update main package and its optionalDependencies
+          cd npm/pma
+          npm version $VERSION --no-git-tag-version --allow-same-version
+          # Update optionalDependencies versions using jq
+          tmp=$(mktemp)
+          jq --arg v "$VERSION" '.optionalDependencies |= with_entries(.value = $v)' package.json > "$tmp" && mv "$tmp" package.json
+          cd ../..
+
       - name: Download release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
