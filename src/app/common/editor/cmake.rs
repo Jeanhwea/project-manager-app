@@ -1,4 +1,5 @@
 use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
 
 pub struct CMakeListsEditor;
 
@@ -19,6 +20,21 @@ impl CMakeListsEditor {
 }
 
 impl ConfigEditor for CMakeListsEditor {
+    fn name(&self) -> &'static str {
+        "cmake"
+    }
+
+    fn file_patterns(&self) -> &[&str] {
+        &["CMakeLists.txt"]
+    }
+
+    fn matches_file(&self, path: &Path) -> bool {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "CMakeLists.txt")
+            .unwrap_or(false)
+    }
+
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
         let project_version = Self::find_version_position(content);
 

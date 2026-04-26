@@ -1,4 +1,5 @@
 use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
 
 pub struct CargoTomlEditor;
 
@@ -35,6 +36,21 @@ impl CargoTomlEditor {
 }
 
 impl ConfigEditor for CargoTomlEditor {
+    fn name(&self) -> &'static str {
+        "cargo_toml"
+    }
+
+    fn file_patterns(&self) -> &[&str] {
+        &["Cargo.toml"]
+    }
+
+    fn matches_file(&self, path: &Path) -> bool {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "Cargo.toml")
+            .unwrap_or(false)
+    }
+
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
         let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
             VersionEditError::ParseError {

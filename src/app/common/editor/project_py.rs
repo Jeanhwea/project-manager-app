@@ -1,4 +1,5 @@
 use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
 
 pub struct PythonVersionEditor;
 
@@ -16,6 +17,21 @@ impl PythonVersionEditor {
 }
 
 impl ConfigEditor for PythonVersionEditor {
+    fn name(&self) -> &'static str {
+        "python_version"
+    }
+
+    fn file_patterns(&self) -> &[&str] {
+        &["__version__.py"]
+    }
+
+    fn matches_file(&self, path: &Path) -> bool {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "__version__.py" || n.ends_with(".py"))
+            .unwrap_or(false)
+    }
+
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
         let project_version = Self::find_version_position(content);
 

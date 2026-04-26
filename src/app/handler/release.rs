@@ -1,7 +1,6 @@
 use crate::app::common::editor::{
-    CMakeListsEditor, CargoTomlEditor, ConfigEditor, HomebrewFormulaEditor, PackageJsonEditor,
-    PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionEditError, VersionTextEditor,
-    write_with_backup,
+    write_with_backup, CMakeListsEditor, CargoTomlEditor, EditorRegistry, HomebrewFormulaEditor,
+    PackageJsonEditor, PomXmlEditor, PythonVersionEditor, PyprojectEditor, VersionTextEditor,
 };
 use crate::app::common::git;
 use crate::app::common::version::Version;
@@ -9,40 +8,32 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
 
-/// 配置文件类型及其对应的候选路径
-const CONFIG_FILE_CANDIDATES: &[(&[&str], ConfigFileType)] = &[
-    (
-        &["Cargo.toml", "src-tauri/Cargo.toml"],
-        ConfigFileType::CargoToml,
-    ),
-    (&["pom.xml"], ConfigFileType::PomXml),
-    (&["pyproject.toml"], ConfigFileType::PyprojectToml),
-    (&["{}/__version__.py"], ConfigFileType::PythonVersion),
-    (&["version", "version.txt"], ConfigFileType::VersionText),
-    (
-        &[
-            "package.json",
-            "apps/{}/package.json",
-            "ui/package.json",
-            "src-tauri/tauri.conf.json",
-            "npm/{}/package.json",
-        ],
-        ConfigFileType::PackageJson,
-    ),
-    (&["CMakeLists.txt"], ConfigFileType::CMakeLists),
-    (&["Formula/pma.rb"], ConfigFileType::HomebrewFormula),
+const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
+    ("Cargo.toml", false),
+    ("src-tauri/Cargo.toml", false),
+    ("pom.xml", false),
+    ("pyproject.toml", false),
+    ("__version__.py", true),
+    ("version", false),
+    ("version.txt", false),
+    ("package.json", false),
+    ("apps/{}/package.json", true),
+    ("ui/package.json", false),
+    ("src-tauri/tauri.conf.json", false),
+    ("npm/{}/package.json", true),
+    ("CMakeLists.txt", false),
+    ("Formula/pma.rb", false),
 ];
 
-#[derive(Clone, Copy)]
-enum ConfigFileType {
-    CargoToml,
-    PomXml,
-    PyprojectToml,
-    PythonVersion,
-    VersionText,
-    PackageJson,
-    CMakeLists,
-    HomebrewFormula,
+fn create_editor_registry() -> EditorRegistry {
+    EditorRegistry::new()
+        .register(CargoTomlEditor)
+        .register(PomXmlEditor)
+        .register(PyprojectEditor)
+        .register(VersionTextEditor)
+        .register(CMakeListsEditor)
+        .register(HomebrewFormulaEditor)
+        .register(PythonVersionEditor)
 }
 
 pub fn execute(
@@ -52,7 +43,6 @@ pub fn execute(
     force: bool,
     skip_push: bool,
 ) -> Result<()> {
-    // 在切换目录前，将相对路径转换为绝对路径
     let files: Vec<String> = files
         .iter()
         .map(|f| {
@@ -66,7 +56,6 @@ pub fn execute(
         })
         .collect();
 
-    // 除非指定 --no-root，否则先切换到 git 仓库根目录
     if !no_root
         && let Some(root) = git::get_top_level_dir()
         && let Err(e) = std::env::set_current_dir(&root)
@@ -91,21 +80,26 @@ pub fn execute(
     let new_version = version.bump(bump_type);
     let new_tag = new_version.to_tag();
 
+    let registry = create_editor_registry();
+
     let config_files = if files.is_empty() {
-        detect_config_files()?
+        detect_config_files(&registry)?
     } else {
         files
             .iter()
             .map(|f| {
-                let file_type = detect_file_type(f)?;
-                Ok((f.clone(), file_type))
+                let path = Path::new(f);
+                let editor = registry.detect_editor(path).with_context(|| {
+                    format!("无法识别文件类型: {}", f)
+                })?;
+                Ok((f.clone(), editor))
             })
             .collect::<Result<Vec<_>>>()?
     };
 
-    for (file_path, file_type) in &config_files {
-        edit_version_in_file(&new_tag, file_path, *file_type)?;
-        post_edit_version_file(file_path, *file_type)?;
+    for (file_path, editor) in &config_files {
+        edit_version_in_file(&registry, editor.as_ref(), &new_tag, file_path)?;
+        post_edit_version_file(file_path)?;
         git::add_file(file_path)?;
     }
 
@@ -127,52 +121,21 @@ pub fn execute(
     Ok(())
 }
 
-fn detect_file_type(file_path: &str) -> Result<ConfigFileType> {
-    let path = Path::new(file_path);
-    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-    let parent_dir = path
-        .parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
-
-    let file_type = match file_name {
-        "Cargo.toml" => ConfigFileType::CargoToml,
-        "pom.xml" => ConfigFileType::PomXml,
-        "pyproject.toml" => ConfigFileType::PyprojectToml,
-        "__version__.py" => ConfigFileType::PythonVersion,
-        "version" | "version.txt" => ConfigFileType::VersionText,
-        "package.json" => ConfigFileType::PackageJson,
-        "tauri.conf.json" => ConfigFileType::PackageJson,
-        "CMakeLists.txt" => ConfigFileType::CMakeLists,
-        "pma.rb" if parent_dir == "Formula" => ConfigFileType::HomebrewFormula,
-        _ => {
-            if file_name.ends_with(".py") {
-                ConfigFileType::PythonVersion
-            } else {
-                anyhow::bail!("无法识别文件类型: {}", file_path);
-            }
-        }
-    };
-
-    Ok(file_type)
-}
-
-fn detect_config_files() -> Result<Vec<(String, ConfigFileType)>> {
+fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<(String, std::sync::Arc<dyn crate::app::common::editor::ConfigEditor>)>> {
     let mut result = Vec::new();
 
-    for (candidates, file_type) in CONFIG_FILE_CANDIDATES {
-        for pattern in *candidates {
-            if pattern.contains("{}") {
-                // 动态搜索: 将 {} 替换为当前目录下匹配的子目录
-                for path in expand_glob_pattern(pattern) {
-                    if Path::new(&path).exists() {
-                        result.push((path, *file_type));
+    for (pattern, _is_dynamic) in CONFIG_FILE_CANDIDATES {
+        if pattern.contains("{}") {
+            for path in expand_glob_pattern(pattern) {
+                if Path::new(&path).exists() {
+                    if let Some(editor) = registry.detect_editor(Path::new(&path)) {
+                        result.push((path, editor));
                     }
                 }
-            } else if Path::new(pattern).exists() {
-                result.push((pattern.to_string(), *file_type));
+            }
+        } else if Path::new(pattern).exists() {
+            if let Some(editor) = registry.detect_editor(Path::new(pattern)) {
+                result.push((pattern.to_string(), editor));
             }
         }
     }
@@ -184,7 +147,6 @@ fn detect_config_files() -> Result<Vec<(String, ConfigFileType)>> {
     Ok(result)
 }
 
-/// 展开含 `{}` 占位符的路径模式，搜索匹配的子目录
 fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     let mut results = Vec::new();
     let (prefix, suffix) = match pattern.split_once("{}") {
@@ -192,7 +154,6 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
         None => return results,
     };
 
-    // 确定要扫描的目录（prefix 为空则扫描当前目录）
     let scan_dir = if prefix.is_empty() {
         ".".to_string()
     } else {
@@ -207,7 +168,6 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     for entry in entries.flatten() {
         if entry.path().is_dir() {
             let dir_name = entry.file_name().to_string_lossy().to_string();
-            // 跳过隐藏目录和 node_modules
             if dir_name.starts_with('.') || dir_name == "node_modules" {
                 continue;
             }
@@ -219,98 +179,43 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     results
 }
 
-fn edit_version_in_file(tag: &str, config_file: &str, file_type: ConfigFileType) -> Result<()> {
+fn edit_version_in_file(
+    registry: &EditorRegistry,
+    editor: &dyn crate::app::common::editor::ConfigEditor,
+    tag: &str,
+    config_file: &str,
+) -> Result<()> {
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file)
         .with_context(|| format!("无法读取 {}", config_file))?;
 
-    let edited = match file_type {
-        ConfigFileType::PomXml => {
-            edit_with_editor(&PomXmlEditor, &content, config_file, version)?
-        }
-        ConfigFileType::CargoToml => {
-            edit_with_editor(&CargoTomlEditor, &content, config_file, version)?
-        }
-        ConfigFileType::PyprojectToml => {
-            edit_with_editor(&PyprojectEditor, &content, config_file, version)?
-        }
-        ConfigFileType::PackageJson => {
-            let in_npm_dir = config_file.starts_with("npm/");
-            edit_with_editor(
-                &PackageJsonEditor { in_npm_dir },
-                &content,
-                config_file,
-                version,
-            )?
-        }
-        ConfigFileType::VersionText => {
-            edit_with_editor(&VersionTextEditor, &content, config_file, version)?
-        }
-        ConfigFileType::PythonVersion => {
-            edit_with_editor(&PythonVersionEditor, &content, config_file, version)?
-        }
-        ConfigFileType::CMakeLists => {
-            edit_with_editor(&CMakeListsEditor, &content, config_file, version)?
-        }
-        ConfigFileType::HomebrewFormula => {
-            edit_with_editor(&HomebrewFormulaEditor, &content, config_file, version)?
-        }
+    let in_npm_dir = config_file.starts_with("npm/");
+    let editor: Box<dyn crate::app::common::editor::ConfigEditor> = if editor.name() == "package_json" {
+        Box::new(PackageJsonEditor { in_npm_dir })
+    } else {
+        return do_edit(registry, editor, &content, config_file, version);
     };
 
+    do_edit(registry, editor.as_ref(), &content, config_file, version)
+}
+
+fn do_edit(
+    registry: &EditorRegistry,
+    editor: &dyn crate::app::common::editor::ConfigEditor,
+    content: &str,
+    config_file: &str,
+    version: &str,
+) -> Result<()> {
+    let edited = registry.edit_version(editor, content, version)?;
     write_with_backup(config_file, &edited).map_err(|e| anyhow::anyhow!("{}", e))?;
     Ok(())
 }
 
-fn edit_with_editor<E: ConfigEditor>(
-    editor: &E,
-    content: &str,
-    config_file: &str,
-    version: &str,
-) -> Result<String> {
-    let location = editor
-        .parse(content)
-        .map_err(|e| map_edit_error(e, config_file))?;
-
-    let edited = editor
-        .edit(content, &location, version)
-        .map_err(|e| map_edit_error(e, config_file))?;
-
-    editor
-        .validate(content, &edited)
-        .map_err(|e| map_edit_error(e, config_file))?;
-
-    Ok(edited)
-}
-
-fn map_edit_error(e: VersionEditError, config_file: &str) -> anyhow::Error {
-    match e {
-        VersionEditError::FileNotFound(_) => {
-            anyhow::anyhow!("文件不存在: {}", config_file)
-        }
-        VersionEditError::ParseError { reason, .. } => {
-            anyhow::anyhow!(
-                "解析 {} 失败: {}。请检查文件格式是否正确。",
-                config_file,
-                reason
-            )
-        }
-        VersionEditError::VersionNotFound { hint, .. } => {
-            anyhow::anyhow!("{}", hint)
-        }
-        VersionEditError::WriteError { reason, .. } => {
-            anyhow::anyhow!("写入 {} 失败: {}", config_file, reason)
-        }
-        VersionEditError::FormatPreservationError { .. } => {
-            anyhow::anyhow!("编辑 {} 后格式验证失败，已取消修改。", config_file)
-        }
+fn post_edit_version_file(config_file: &str) -> Result<()> {
+    if config_file.ends_with("Cargo.toml") {
+        update_cargo_lock(config_file)?;
     }
-}
-
-fn post_edit_version_file(config_file: &str, file_type: ConfigFileType) -> Result<()> {
-    match file_type {
-        ConfigFileType::CargoToml => update_cargo_lock(config_file),
-        _ => Ok(()),
-    }
+    Ok(())
 }
 
 fn check_command_exists(cmd: &str) -> bool {

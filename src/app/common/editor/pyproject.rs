@@ -1,4 +1,5 @@
 use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
 
 pub struct PyprojectEditor;
 
@@ -48,6 +49,21 @@ impl PyprojectEditor {
 }
 
 impl ConfigEditor for PyprojectEditor {
+    fn name(&self) -> &'static str {
+        "pyproject"
+    }
+
+    fn file_patterns(&self) -> &[&str] {
+        &["pyproject.toml"]
+    }
+
+    fn matches_file(&self, path: &Path) -> bool {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "pyproject.toml")
+            .unwrap_or(false)
+    }
+
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
         let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
             VersionEditError::ParseError {

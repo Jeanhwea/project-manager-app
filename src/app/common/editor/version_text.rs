@@ -1,8 +1,24 @@
 use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
 
 pub struct VersionTextEditor;
 
 impl ConfigEditor for VersionTextEditor {
+    fn name(&self) -> &'static str {
+        "version_text"
+    }
+
+    fn file_patterns(&self) -> &[&str] {
+        &["version", "version.txt"]
+    }
+
+    fn matches_file(&self, path: &Path) -> bool {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "version" || n == "version.txt")
+            .unwrap_or(false)
+    }
+
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
         let trimmed = content.trim();
         if trimmed.is_empty() {

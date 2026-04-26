@@ -1,4 +1,5 @@
 use super::{ConfigEditor, DependencyRef, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
 
 pub struct PackageJsonEditor {
     pub in_npm_dir: bool,
@@ -66,6 +67,21 @@ impl PackageJsonEditor {
 }
 
 impl ConfigEditor for PackageJsonEditor {
+    fn name(&self) -> &'static str {
+        "package_json"
+    }
+
+    fn file_patterns(&self) -> &[&str] {
+        &["package.json", "tauri.conf.json"]
+    }
+
+    fn matches_file(&self, path: &Path) -> bool {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "package.json" || n == "tauri.conf.json")
+            .unwrap_or(false)
+    }
+
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
         let value: serde_json::Value =
             serde_json::from_str(content).map_err(|e| VersionEditError::ParseError {

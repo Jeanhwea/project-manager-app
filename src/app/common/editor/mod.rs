@@ -5,6 +5,7 @@ mod package_json;
 mod pom_xml;
 mod project_py;
 mod pyproject;
+mod registry;
 mod version_text;
 
 pub use cargo_toml::CargoTomlEditor;
@@ -14,9 +15,15 @@ pub use package_json::PackageJsonEditor;
 pub use pom_xml::PomXmlEditor;
 pub use project_py::PythonVersionEditor;
 pub use pyproject::PyprojectEditor;
+pub use registry::EditorRegistry;
 pub use version_text::VersionTextEditor;
 
-pub trait ConfigEditor {
+use std::path::Path;
+
+pub trait ConfigEditor: Send + Sync {
+    fn name(&self) -> &'static str;
+    fn file_patterns(&self) -> &[&str];
+    fn matches_file(&self, path: &Path) -> bool;
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError>;
     fn edit(
         &self,

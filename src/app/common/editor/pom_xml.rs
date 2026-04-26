@@ -1,4 +1,5 @@
 use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
 
 pub struct PomXmlEditor;
 
@@ -82,6 +83,21 @@ impl PomXmlEditor {
 }
 
 impl ConfigEditor for PomXmlEditor {
+    fn name(&self) -> &'static str {
+        "pom_xml"
+    }
+
+    fn file_patterns(&self) -> &[&str] {
+        &["pom.xml"]
+    }
+
+    fn matches_file(&self, path: &Path) -> bool {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "pom.xml")
+            .unwrap_or(false)
+    }
+
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
         let doc =
             roxmltree::Document::parse(content).map_err(|e| VersionEditError::ParseError {

@@ -1,4 +1,5 @@
 use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
 
 pub struct HomebrewFormulaEditor;
 
@@ -30,6 +31,20 @@ impl HomebrewFormulaEditor {
 }
 
 impl ConfigEditor for HomebrewFormulaEditor {
+    fn name(&self) -> &'static str {
+        "homebrew"
+    }
+
+    fn file_patterns(&self) -> &[&str] {
+        &["Formula/pma.rb"]
+    }
+
+    fn matches_file(&self, path: &Path) -> bool {
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let parent = path.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str());
+        file_name == "pma.rb" && parent == Some("Formula")
+    }
+
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
         let project_version = Self::find_version_position(content);
 

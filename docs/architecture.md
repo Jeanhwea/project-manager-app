@@ -35,6 +35,7 @@ flowchart TB
             version["version"]
         end
         subgraph C2["editor"]
+            registry["registry"]
             pom_xml["pom_xml"]
             cargo_toml["cargo_toml"]
             pyproject["pyproject"]
@@ -47,8 +48,18 @@ flowchart TB
         COMMON_DESC["基础设施层，提供可复用的核心能力"]
     end
 
+    subgraph Core["Core Layer (app/core/)"]
+        direction TB
+        command["Command trait"]
+        context["CommandContext"]
+        cmd_registry["CommandRegistry"]
+        CORE_DESC["核心抽象层，定义扩展接口"]
+    end
+
     CLI --> Handler
     Handler --> Common
+    Handler -.-> Core
+    Common --> Core
 ```
 
 ## 模块设计
@@ -340,19 +351,100 @@ CommandRunner::run_with_success("git", &["tag", tag])
     .with_context(|| format!("无法创建标签 {}", tag))?;
 ```
 
-## 扩展性
+## 扩展性设计
+
+### 核心扩展机制
+
+#### 1. ConfigEditor Trait
+
+所有配置文件编辑器实现统一的 trait：
+
+```rust
+pub trait ConfigEditor: Send + Sync {
+    fn name(&self) -> &'static str;
+    fn file_patterns(&self) -> &[&str];
+    fn matches_file(&self, path: &Path) -> bool;
+    fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError>;
+    fn edit(&self, content: &str, location: &VersionLocation, new_version: &str) -> Result<String, VersionEditError>;
+    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError>;
+}
+```
+
+#### 2. EditorRegistry
+
+编辑器注册表支持动态注册和自动检测：
+
+```rust
+let registry = EditorRegistry::new()
+    .register(CargoTomlEditor)
+    .register(PomXmlEditor)
+    .register(PyprojectEditor)
+    // ... 更多编辑器
+    ;
+
+// 自动检测文件类型
+let editor = registry.detect_editor(Path::new("Cargo.toml"));
+
+// 编辑版本
+let edited = registry.edit_version(editor.as_ref(), content, "1.0.0")?;
+```
+
+#### 3. Command Trait (预留)
+
+为未来统一命令接口预留：
+
+```rust
+pub trait Command {
+    fn name(&self) -> &'static str;
+    fn execute(&self, ctx: &CommandContext) -> Result<()>;
+}
+```
 
 ### 添加新的配置文件编辑器
 
 1. 在 `src/app/common/editor/` 下创建新文件
 2. 实现 `ConfigEditor` trait
 3. 在 `editor/mod.rs` 中导出
+4. 在 `release.rs` 的 `create_editor_registry()` 中注册
+
+**示例**：
+
+```rust
+// src/app/common/editor/my_config.rs
+use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use std::path::Path;
+
+pub struct MyConfigEditor;
+
+impl ConfigEditor for MyConfigEditor {
+    fn name(&self) -> &'static str { "my_config" }
+    fn file_patterns(&self) -> &[&str] { &["my.config"] }
+    fn matches_file(&self, path: &Path) -> bool {
+        path.file_name().and_then(|n| n.to_str()) == Some("my.config")
+    }
+    fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError> {
+        // 解析逻辑
+    }
+    fn edit(&self, content: &str, location: &VersionLocation, new_version: &str) -> Result<String, VersionEditError> {
+        // 编辑逻辑
+    }
+    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+        // 验证逻辑
+    }
+}
+```
 
 ### 添加新的命令
 
 1. 在 `src/cli.rs` 中定义命令结构
 2. 在 `src/app/handler/` 下创建新模块
 3. 在 `src/main.rs` 中添加路由
+
+### 文件检测优先级
+
+1. **模式匹配**: 根据文件名和路径匹配 `file_patterns()`
+2. **自定义匹配**: 调用 `matches_file()` 进行复杂匹配
+3. **后备检测**: 遍历所有注册的编辑器
 
 ## 依赖关系
 
