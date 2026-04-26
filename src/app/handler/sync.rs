@@ -1,5 +1,4 @@
-use crate::app::common::git::{self, GitProtocol};
-use crate::app::common::repo::RepoType;
+use crate::app::common::git::{self, GitProtocol, RepoType};
 use crate::app::common::runner::{CommandRunner, DryRunContext};
 use crate::utils;
 use anyhow::Result;
@@ -20,7 +19,7 @@ pub fn execute(
     }
 
     let git_repos =
-        crate::app::common::repo::find_git_repositories_or_current(root_dir, max_depth);
+        crate::app::common::git::find_git_repositories_or_current(root_dir, max_depth);
 
     if git_repos.is_empty() {
         println!("未找到git仓库");

@@ -20,7 +20,6 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: Option<usize>) -> Vec<R
     find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(DEFAULT_MAX_DEPTH))
 }
 
-/// 查找 git 仓库，如果未找到则尝试使用当前 git 工作区的顶层目录
 pub fn find_git_repositories_or_current(
     root_dir: &Path,
     max_depth: Option<usize>,
@@ -30,8 +29,7 @@ pub fn find_git_repositories_or_current(
         return repos;
     }
 
-    // fallback: 当前目录本身可能就是 git 仓库
-    if let Some(top_level_dir) = super::git::get_top_level_dir() {
+    if let Some(top_level_dir) = super::command::get_top_level_dir() {
         return vec![RepoInfo {
             path: top_level_dir,
             repo_type: RepoType::Regular,
@@ -57,7 +55,6 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
         let file_name = entry.file_name();
         let file_name_str = file_name.to_str().unwrap_or("");
 
-        // 跳过虚拟环境目录
         if file_name_str == ".venv" {
             continue;
         }
@@ -67,7 +64,6 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
                 let repo_type = if path.is_dir() {
                     RepoType::Regular
                 } else {
-                    // .git 是文件时表示子模块
                     RepoType::Submodule
                 };
                 repos.push(RepoInfo {
@@ -83,8 +79,6 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
     repos
 }
 
-/// 遍历仓库并对每个仓库执行回调，提供统一的进度输出和路径规范化
-/// 回调接收规范化后的绝对路径，跳过子模块
 pub fn for_each_repo<F>(
     path: &str,
     max_depth: Option<usize>,

@@ -48,7 +48,7 @@ pub fn execute(
 
     let ctx = DryRunContext::new(dry_run);
 
-    crate::app::common::repo::for_each_repo(path, max_depth, |repo_path| {
+    crate::app::common::git::for_each_repo(path, max_depth, |repo_path| {
         if gc {
             do_git_garbage_collect(&ctx, repo_path)?;
         }
