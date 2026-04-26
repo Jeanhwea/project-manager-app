@@ -1,4 +1,7 @@
-use super::{ConfigEditor, DependencyRef, VersionEditError, VersionLocation, VersionPosition};
+use super::{
+    ConfigEditor, DependencyRef, VersionEditError, VersionLocation, VersionPosition,
+    preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct PackageJsonEditor {
@@ -149,24 +152,15 @@ impl ConfigEditor for PackageJsonEditor {
             result = pattern.replace(&result, &new_dep_str).to_string();
         }
 
-        Ok(result)
+        Ok(preserve_line_endings(content, result))
     }
 
-    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+    fn validate(&self, _original: &str, edited: &str) -> Result<(), VersionEditError> {
         if serde_json::from_str::<serde_json::Value>(edited).is_err() {
             return Err(VersionEditError::FormatPreservationError {
                 file: "package.json".to_string(),
             });
         }
-
-        let original_has_crlf = original.contains("\r\n");
-        let edited_has_crlf = edited.contains("\r\n");
-        if original_has_crlf != edited_has_crlf && original_has_crlf {
-            return Err(VersionEditError::FormatPreservationError {
-                file: "package.json".to_string(),
-            });
-        }
-
         Ok(())
     }
 }

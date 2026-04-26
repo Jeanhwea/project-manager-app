@@ -1,4 +1,4 @@
-use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use super::{preserve_line_endings, ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
 use std::path::Path;
 
 pub struct PythonVersionEditor;
@@ -61,7 +61,7 @@ impl ConfigEditor for PythonVersionEditor {
             result.push_str(&content[..pos.start]);
             result.push_str(&format!(r#"__version__ = "{}""#, new_version));
             result.push_str(&content[pos.end..]);
-            Ok(result)
+            Ok(preserve_line_endings(content, result))
         } else {
             Err(VersionEditError::VersionNotFound {
                 file: "Python version file".to_string(),
@@ -70,14 +70,7 @@ impl ConfigEditor for PythonVersionEditor {
         }
     }
 
-    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
-        let original_has_crlf = original.contains("\r\n");
-        let edited_has_crlf = edited.contains("\r\n");
-        if original_has_crlf != edited_has_crlf && original_has_crlf {
-            return Err(VersionEditError::FormatPreservationError {
-                file: "Python version file".to_string(),
-            });
-        }
+    fn validate(&self, _original: &str, _edited: &str) -> Result<(), VersionEditError> {
         Ok(())
     }
 }

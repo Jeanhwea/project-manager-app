@@ -1,4 +1,4 @@
-use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use super::{preserve_line_endings, ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
 use std::path::Path;
 
 pub struct VersionTextEditor;
@@ -42,11 +42,11 @@ impl ConfigEditor for VersionTextEditor {
 
     fn edit(
         &self,
-        _content: &str,
+        content: &str,
         _location: &VersionLocation,
         new_version: &str,
     ) -> Result<String, VersionEditError> {
-        Ok(new_version.to_string())
+        Ok(preserve_line_endings(content, new_version.to_string()))
     }
 
     fn validate(&self, _original: &str, _edited: &str) -> Result<(), VersionEditError> {

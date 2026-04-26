@@ -1,4 +1,6 @@
-use super::{ConfigEditor, VersionEditError, VersionLocation, VersionPosition};
+use super::{
+    ConfigEditor, VersionEditError, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct PyprojectEditor;
@@ -126,7 +128,8 @@ impl ConfigEditor for PyprojectEditor {
             && table.contains_key("version")
         {
             table.insert("version", toml_edit::value(new_version));
-            return Ok(doc.to_string());
+            let edited = doc.to_string();
+            return Ok(preserve_line_endings(content, edited));
         }
 
         if doc.contains_key("tool")
@@ -138,7 +141,8 @@ impl ConfigEditor for PyprojectEditor {
             && poetry_table.contains_key("version")
         {
             poetry_table.insert("version", toml_edit::value(new_version));
-            return Ok(doc.to_string());
+            let edited = doc.to_string();
+            return Ok(preserve_line_endings(content, edited));
         }
 
         Err(VersionEditError::VersionNotFound {
@@ -147,21 +151,12 @@ impl ConfigEditor for PyprojectEditor {
         })
     }
 
-    fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError> {
+    fn validate(&self, _original: &str, edited: &str) -> Result<(), VersionEditError> {
         if edited.parse::<toml_edit::DocumentMut>().is_err() {
             return Err(VersionEditError::FormatPreservationError {
                 file: "pyproject.toml".to_string(),
             });
         }
-
-        let original_has_crlf = original.contains("\r\n");
-        let edited_has_crlf = edited.contains("\r\n");
-        if original_has_crlf != edited_has_crlf && original_has_crlf {
-            return Err(VersionEditError::FormatPreservationError {
-                file: "pyproject.toml".to_string(),
-            });
-        }
-
         Ok(())
     }
 }
