@@ -155,7 +155,7 @@ fn print_ahead_behind(repo_path: &Path) {
         None => return,
     };
 
-    let upstream = format!("{}@{{upstream}}", branch);
+    let upstream = format!("{}@{{upstream}}...HEAD", branch);
     let output = match CommandRunner::run_quiet_in_dir(
         "git",
         &["rev-list", "--count", "--left-right", &upstream],
