@@ -129,20 +129,20 @@ fn do_sync_repository(
 
     if skip_remotes.contains(&track_remote) {
         println!(
-            "  {} pull {} ({})",
+            "  {} git pull {} ({})",
             "[SKIP]".dimmed(),
             track_remote,
             track_remote_url.green()
         );
     } else if all_branch {
         if ctx.is_dry_run() {
-            println!("  {} pull (all branches)", "[DRY-RUN]".yellow());
+            println!("  {} git pull (all branches)", "[DRY-RUN]".yellow());
         } else {
             do_pull_all_local_branch(repo_path);
         }
     } else {
         if ctx.is_dry_run() {
-            println!("  {} pull", "[DRY-RUN]".yellow());
+            println!("  {} git pull", "[DRY-RUN]".yellow());
         } else {
             do_pull_repository(repo_path);
         }
@@ -150,12 +150,17 @@ fn do_sync_repository(
 
     for (remote, url) in remotes {
         if should_skip_push(&remote, &url, skip_remotes) {
-            println!("  {} push {} ({})", "[SKIP]".dimmed(), remote, url.green());
+            println!(
+                "  {} git push {} ({})",
+                "[SKIP]".dimmed(),
+                remote,
+                url.green()
+            );
             continue;
         }
         if ctx.is_dry_run() {
-            println!("  {} push {} --all", "[DRY-RUN]".yellow(), remote);
-            println!("  {} push {} --tags", "[DRY-RUN]".yellow(), remote);
+            println!("  {} git push {} --all", "[DRY-RUN]".yellow(), remote);
+            println!("  {} git push {} --tags", "[DRY-RUN]".yellow(), remote);
         } else {
             do_push_repository(repo_path, &remote);
         }
