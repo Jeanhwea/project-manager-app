@@ -159,6 +159,9 @@ fn execute_dry_run(
     }
 
     ctx.print_header("\n[DRY-RUN] 将要执行的操作:");
+    for (file_path, _editor) in config_files {
+        print_lock_update_plan(ctx, file_path);
+    }
     ctx.print_message("git add <files>");
     ctx.print_message(&format!("git commit -m \"{}\"", state.new_tag));
     ctx.print_message(&format!("git tag {}", state.new_tag));
@@ -190,6 +193,26 @@ fn print_push_plan(ctx: &DryRunContext, current_branch: &str, new_tag: &str, ski
         for remote in remotes {
             ctx.print_message(&format!("git push {} {}", remote, new_tag));
             ctx.print_message(&format!("git push {} {}", remote, current_branch));
+        }
+    }
+}
+
+fn print_lock_update_plan(ctx: &DryRunContext, config_file: &str) {
+    let parent = Path::new(config_file).parent().unwrap_or(Path::new("."));
+    let dir = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+
+    if config_file.ends_with("Cargo.toml") && dir.join("Cargo.lock").exists() {
+        ctx.print_message("cargo update --package <name>");
+    } else if config_file.ends_with("package.json") {
+        if dir.join("package-lock.json").exists() {
+            ctx.print_message("npm install --package-lock-only");
+        }
+        if dir.join("pnpm-lock.yaml").exists() {
+            ctx.print_message("pnpm install --lockfile-only");
         }
     }
 }
@@ -303,6 +326,9 @@ fn edit_version_in_file(
 fn post_edit_version_file(config_file: &str) -> Result<()> {
     if config_file.ends_with("Cargo.toml") {
         update_cargo_lock(config_file)?;
+    } else if config_file.ends_with("package.json") {
+        update_npm_lock(config_file)?;
+        update_pnpm_lock(config_file)?;
     }
     Ok(())
 }
@@ -344,6 +370,76 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
 
     if !status.success() {
         anyhow::bail!("cargo update --package {} 执行失败", pkg_name);
+    }
+
+    let lock_str = lock_path.to_string_lossy().to_string();
+    git::add_file(&lock_str)?;
+    Ok(())
+}
+
+fn update_npm_lock(package_json_path: &str) -> Result<()> {
+    let parent = Path::new(package_json_path)
+        .parent()
+        .unwrap_or(Path::new("."));
+    let dir = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+
+    let lock_path = dir.join("package-lock.json");
+    if !lock_path.exists() {
+        return Ok(());
+    }
+
+    if !check_command_exists("npm") {
+        eprintln!("警告: 未找到 npm 命令，跳过 package-lock.json 更新");
+        return Ok(());
+    }
+
+    let status = std::process::Command::new("npm")
+        .args(["install", "--package-lock-only"])
+        .current_dir(dir)
+        .status()
+        .context("无法执行 npm install --package-lock-only")?;
+
+    if !status.success() {
+        anyhow::bail!("npm install --package-lock-only 执行失败");
+    }
+
+    let lock_str = lock_path.to_string_lossy().to_string();
+    git::add_file(&lock_str)?;
+    Ok(())
+}
+
+fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
+    let parent = Path::new(package_json_path)
+        .parent()
+        .unwrap_or(Path::new("."));
+    let dir = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+
+    let lock_path = dir.join("pnpm-lock.yaml");
+    if !lock_path.exists() {
+        return Ok(());
+    }
+
+    if !check_command_exists("pnpm") {
+        eprintln!("警告: 未找到 pnpm 命令，跳过 pnpm-lock.yaml 更新");
+        return Ok(());
+    }
+
+    let status = std::process::Command::new("pnpm")
+        .args(["install", "--lockfile-only"])
+        .current_dir(dir)
+        .status()
+        .context("无法执行 pnpm install --lockfile-only")?;
+
+    if !status.success() {
+        anyhow::bail!("pnpm install --lockfile-only 执行失败");
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
