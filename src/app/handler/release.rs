@@ -431,7 +431,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
     let status = run_command("npm", &["install", "--package-lock-only"], &lock_dir)?;
 
     if !status.success() {
-        anyhow::bail!("npm install --package-lock-only 执行失败");
+        eprintln!("npm install --package-lock-only 执行失败");
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
@@ -464,7 +464,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     let status = run_command("pnpm", &["install", "--lockfile-only"], &lock_dir)?;
 
     if !status.success() {
-        anyhow::bail!("pnpm install --lockfile-only 执行失败");
+        eprintln!("pnpm install --lockfile-only 执行失败");
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
