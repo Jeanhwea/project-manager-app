@@ -410,23 +410,25 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
     let parent = Path::new(package_json_path)
         .parent()
         .unwrap_or(Path::new("."));
-    let dir = if parent.as_os_str().is_empty() {
+    let pkg_dir = if parent.as_os_str().is_empty() {
         Path::new(".")
     } else {
         parent
     };
 
-    let lock_path = dir.join("package-lock.json");
-    if !lock_path.exists() {
+    let lock_dir = find_lock_dir(pkg_dir, "package-lock.json");
+    let Some(lock_dir) = lock_dir else {
         return Ok(());
-    }
+    };
+
+    let lock_path = lock_dir.join("package-lock.json");
 
     if !check_command_exists("npm") {
         eprintln!("警告: 未找到 npm 命令，跳过 package-lock.json 更新");
         return Ok(());
     }
 
-    let status = run_command("npm", &["install", "--package-lock-only"], dir)?;
+    let status = run_command("npm", &["install", "--package-lock-only"], &lock_dir)?;
 
     if !status.success() {
         anyhow::bail!("npm install --package-lock-only 执行失败");
@@ -441,23 +443,25 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     let parent = Path::new(package_json_path)
         .parent()
         .unwrap_or(Path::new("."));
-    let dir = if parent.as_os_str().is_empty() {
+    let pkg_dir = if parent.as_os_str().is_empty() {
         Path::new(".")
     } else {
         parent
     };
 
-    let lock_path = dir.join("pnpm-lock.yaml");
-    if !lock_path.exists() {
+    let lock_dir = find_lock_dir(pkg_dir, "pnpm-lock.yaml");
+    let Some(lock_dir) = lock_dir else {
         return Ok(());
-    }
+    };
+
+    let lock_path = lock_dir.join("pnpm-lock.yaml");
 
     if !check_command_exists("pnpm") {
         eprintln!("警告: 未找到 pnpm 命令，跳过 pnpm-lock.yaml 更新");
         return Ok(());
     }
 
-    let status = run_command("pnpm", &["install", "--lockfile-only"], dir)?;
+    let status = run_command("pnpm", &["install", "--lockfile-only"], &lock_dir)?;
 
     if !status.success() {
         anyhow::bail!("pnpm install --lockfile-only 执行失败");
@@ -466,6 +470,17 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     let lock_str = lock_path.to_string_lossy().to_string();
     git::add_file(&lock_str)?;
     Ok(())
+}
+
+fn find_lock_dir(pkg_dir: &Path, lock_file: &str) -> Option<std::path::PathBuf> {
+    if pkg_dir.join(lock_file).exists() {
+        return Some(pkg_dir.to_path_buf());
+    }
+    let cwd = std::env::current_dir().ok()?;
+    if cwd.join(lock_file).exists() {
+        return Some(cwd);
+    }
+    None
 }
 
 fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
