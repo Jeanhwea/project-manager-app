@@ -37,6 +37,7 @@ fn create_editor_registry() -> EditorRegistry {
         .register(CMakeListsEditor)
         .register(HomebrewFormulaEditor)
         .register(PythonVersionEditor)
+        .register(PackageJsonEditor { in_npm_dir: false })
 }
 
 pub fn execute(
