@@ -10,8 +10,8 @@ pub fn canonicalize_path(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
     #[cfg(windows)]
     {
         let path_str = canonicalized.to_string_lossy();
-        if path_str.starts_with(r"\\?\") {
-            Ok(PathBuf::from(&path_str[4..]))
+        if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
+            Ok(PathBuf::from(stripped))
         } else {
             Ok(canonicalized)
         }
