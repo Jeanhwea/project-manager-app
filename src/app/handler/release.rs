@@ -358,7 +358,7 @@ fn run_command(cmd: &str, args: &[&str], dir: &Path) -> Result<std::process::Exi
     #[cfg(windows)]
     {
         let mut all_args = vec!["/C", cmd];
-        all_args.extend(args.iter().map(|s| *s));
+        all_args.extend(args.iter().copied());
         std::process::Command::new("cmd")
             .args(&all_args)
             .current_dir(dir)
