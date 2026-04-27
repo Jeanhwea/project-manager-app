@@ -38,8 +38,8 @@ pub fn execute(
     }
 
     for (index, repo) in git_repos.iter().enumerate() {
-        let repo_path = utils::canonicalize_path(&repo.path)
-            .unwrap_or_else(|_| repo.path.clone());
+        let repo_path =
+            utils::canonicalize_path(&repo.path).unwrap_or_else(|_| repo.path.clone());
 
         let progress = format!("({}/{})", index + 1, total);
         println!(

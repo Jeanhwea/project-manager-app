@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
 /// 规范化路径，处理 Windows UNC 路径前缀
-/// 
+///
 /// Windows 上 `std::fs::canonicalize` 会返回 `\\?\` 前缀的 UNC 路径，
 /// 这可能导致路径比较和文件类型检测失败。此函数会移除该前缀。
 pub fn canonicalize_path(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
     let canonicalized = std::fs::canonicalize(path.as_ref())?;
-    
+
     #[cfg(windows)]
     {
         let path_str = canonicalized.to_string_lossy();
@@ -16,7 +16,7 @@ pub fn canonicalize_path(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
             Ok(canonicalized)
         }
     }
-    
+
     #[cfg(not(windows))]
     {
         Ok(canonicalized)
