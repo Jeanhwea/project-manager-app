@@ -334,12 +334,45 @@ fn post_edit_version_file(config_file: &str) -> Result<()> {
 }
 
 fn check_command_exists(cmd: &str) -> bool {
-    std::process::Command::new(cmd)
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok()
+    #[cfg(windows)]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", cmd, "--version"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok()
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new(cmd)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok()
+    }
+}
+
+fn run_command(cmd: &str, args: &[&str], dir: &Path) -> Result<std::process::ExitStatus> {
+    #[cfg(windows)]
+    {
+        let mut all_args = vec!["/C", cmd];
+        all_args.extend(args.iter().map(|s| *s));
+        std::process::Command::new("cmd")
+            .args(&all_args)
+            .current_dir(dir)
+            .status()
+            .context(format!("无法执行 {} {}", cmd, args.join(" ")))
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new(cmd)
+            .args(args)
+            .current_dir(dir)
+            .status()
+            .context(format!("无法执行 {} {}", cmd, args.join(" ")))
+    }
 }
 
 fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
@@ -362,11 +395,7 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     }
 
     let pkg_name = read_cargo_package_name(cargo_toml_path)?;
-    let status = std::process::Command::new("cargo")
-        .args(["update", "--package", &pkg_name])
-        .current_dir(dir)
-        .status()
-        .context("无法执行 cargo update")?;
+    let status = run_command("cargo", &["update", "--package", &pkg_name], dir)?;
 
     if !status.success() {
         anyhow::bail!("cargo update --package {} 执行失败", pkg_name);
@@ -397,11 +426,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
         return Ok(());
     }
 
-    let status = std::process::Command::new("npm")
-        .args(["install", "--package-lock-only"])
-        .current_dir(dir)
-        .status()
-        .context("无法执行 npm install --package-lock-only")?;
+    let status = run_command("npm", &["install", "--package-lock-only"], dir)?;
 
     if !status.success() {
         anyhow::bail!("npm install --package-lock-only 执行失败");
@@ -432,11 +457,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
         return Ok(());
     }
 
-    let status = std::process::Command::new("pnpm")
-        .args(["install", "--lockfile-only"])
-        .current_dir(dir)
-        .status()
-        .context("无法执行 pnpm install --lockfile-only")?;
+    let status = run_command("pnpm", &["install", "--lockfile-only"], dir)?;
 
     if !status.success() {
         anyhow::bail!("pnpm install --lockfile-only 执行失败");
