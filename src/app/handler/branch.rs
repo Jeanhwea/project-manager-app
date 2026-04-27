@@ -101,7 +101,7 @@ fn list_branches(repo_path: &Path) {
             if Some(branch.as_str()) == current.as_deref() {
                 println!("    {} {}", "*".green(), branch.yellow());
             } else {
-                println!("    {} {}", " ", branch);
+                println!("     {}", branch);
             }
         }
     }
