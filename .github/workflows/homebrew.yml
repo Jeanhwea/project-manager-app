@@ -46,6 +46,7 @@ jobs:
         shell: bash
         run: |
           VERSION=${{ steps.meta.outputs.version }}
+          mkdir -p Formula
           cat > Formula/pma.rb << 'FORMULA_EOF'
           class Pma < Formula
             desc "Git repository batch management tool"
