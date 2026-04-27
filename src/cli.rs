@@ -228,11 +228,101 @@ pub enum Commands {
         )]
         dry_run: bool,
     },
+    /// Show status of all code repositories
+    #[command(visible_alias = "st")]
+    #[command(about = "Show status of all code repositories")]
+    Status {
+        /// Maximum depth to search for repositories
+        #[arg(
+            long,
+            short,
+            default_value = "3",
+            help = "Maximum depth to search for repositories"
+        )]
+        max_depth: Option<usize>,
+        /// Show short status (branch + clean/dirty only)
+        #[arg(
+            long,
+            short,
+            default_value = "false",
+            help = "Show short status (branch + clean/dirty only)"
+        )]
+        short: bool,
+        /// Path to the directory to search for repositories, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the directory to search for repositories, defaults to current directory"
+        )]
+        path: String,
+    },
+    /// Manage branches across repositories
+    #[command(visible_alias = "br")]
+    #[command(about = "Manage branches across repositories")]
+    Branch {
+        #[command(subcommand)]
+        command: BranchCommands,
+    },
     /// Self management commands
     #[command(name = "self", about = "Self management commands")]
     Self_ {
         #[command(subcommand)]
         command: SelfCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum BranchCommands {
+    /// List branches across all repositories
+    #[command(visible_alias = "ls")]
+    #[command(about = "List branches across all repositories")]
+    List {
+        /// Maximum depth to search for repositories
+        #[arg(
+            long,
+            short,
+            default_value = "3",
+            help = "Maximum depth to search for repositories"
+        )]
+        max_depth: Option<usize>,
+        /// Path to the directory to search for repositories, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the directory to search for repositories, defaults to current directory"
+        )]
+        path: String,
+    },
+    /// Clean merged branches across all repositories
+    #[command(about = "Clean merged branches across all repositories")]
+    Clean {
+        /// Maximum depth to search for repositories
+        #[arg(
+            long,
+            short,
+            default_value = "3",
+            help = "Maximum depth to search for repositories"
+        )]
+        max_depth: Option<usize>,
+        /// Also delete remote merged branches
+        #[arg(
+            long,
+            short,
+            default_value = "false",
+            help = "Also delete remote merged branches"
+        )]
+        remote: bool,
+        /// Path to the directory to search for repositories, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the directory to search for repositories, defaults to current directory"
+        )]
+        path: String,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
     },
 }
 

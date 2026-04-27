@@ -4,7 +4,7 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Commands, SelfCommands};
+use cli::{BranchCommands, Cli, Commands, SelfCommands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -56,6 +56,26 @@ fn main() -> Result<()> {
         Commands::Snap { path, dry_run } => {
             app::handler::snap::execute(&path, dry_run)?;
         }
+        Commands::Status {
+            path,
+            max_depth,
+            short,
+        } => {
+            app::handler::status::execute(&path, max_depth, short)?;
+        }
+        Commands::Branch { command } => match command {
+            BranchCommands::List { path, max_depth } => {
+                app::handler::branch::execute_list(&path, max_depth)?;
+            }
+            BranchCommands::Clean {
+                path,
+                max_depth,
+                remote,
+                dry_run,
+            } => {
+                app::handler::branch::execute_clean(&path, max_depth, remote, dry_run)?;
+            }
+        },
         Commands::Self_ { command } => match command {
             SelfCommands::Update { force } => {
                 app::handler::selfman::execute(force)?;
