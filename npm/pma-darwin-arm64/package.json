@@ -1,6 +1,6 @@
 {
   "name": "@jeansoft/pma-darwin-arm64",
-  "version": "1.0.0",
+  "version": "1.0.7",
   "description": "pma binary for macOS ARM64",
   "license": "MIT",
   "repository": {
