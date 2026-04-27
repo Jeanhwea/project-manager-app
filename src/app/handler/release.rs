@@ -5,6 +5,7 @@ use crate::app::common::editor::{
 use crate::app::common::git;
 use crate::app::common::runner::DryRunContext;
 use crate::app::common::version::Version;
+use crate::utils;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use regex::Regex;
@@ -54,7 +55,7 @@ pub fn execute(
             if Path::new(f).is_absolute() {
                 f.clone()
             } else {
-                std::fs::canonicalize(f)
+                utils::canonicalize_path(f)
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_else(|_| f.clone())
             }
