@@ -55,14 +55,14 @@ pub fn execute_login(
         user.username.yellow()
     );
 
-    let mut cfg = config::load();
+    let mut gitlab_cfg = config::load_gitlab();
 
     let protocol_str = match protocol {
         CloneProtocol::Ssh => "ssh",
         CloneProtocol::Https => "https",
     };
 
-    if let Some(existing) = cfg.gitlab.servers.iter_mut().find(|s| s.url == resolved_url) {
+    if let Some(existing) = gitlab_cfg.servers.iter_mut().find(|s| s.url == resolved_url) {
         existing.token = token.to_string();
         existing.protocol = protocol_str.to_string();
         println!(
@@ -71,7 +71,7 @@ pub fn execute_login(
             resolved_url.cyan()
         );
     } else {
-        cfg.gitlab.servers.push(config::GitLabServer {
+        gitlab_cfg.servers.push(config::GitLabServer {
             url: resolved_url.clone(),
             token: token.to_string(),
             protocol: protocol_str.to_string(),
@@ -83,12 +83,12 @@ pub fn execute_login(
         );
     }
 
-    config::save(&cfg)?;
+    config::save_gitlab(&gitlab_cfg)?;
 
     println!(
         "{} 配置文件: {}",
         "位置:".dimmed(),
-        config::config_path().display()
+        config::gitlab_config_path().display()
     );
 
     Ok(())
@@ -275,12 +275,12 @@ fn resolve_gitlab_config(
     token: Option<&str>,
     protocol: Option<&CloneProtocol>,
 ) -> Result<(String, String, CloneProtocol)> {
-    let cfg = config::load();
+    let gitlab_cfg = config::load_gitlab();
 
     if let Some(s) = server {
         let resolved_url = resolve_base_url(s);
 
-        let saved = cfg.gitlab.servers.iter().find(|srv| srv.url == resolved_url);
+        let saved = gitlab_cfg.servers.iter().find(|srv| srv.url == resolved_url);
 
         let resolved_token = token
             .map(|t| t.to_string())
@@ -297,7 +297,7 @@ fn resolve_gitlab_config(
         return Ok((resolved_url, resolved_token, resolved_protocol));
     }
 
-    if cfg.gitlab.servers.is_empty() {
+    if gitlab_cfg.servers.is_empty() {
         let default_url = "https://gitlab.com".to_string();
         let resolved_token = token
             .map(|t| t.to_string())
@@ -306,8 +306,8 @@ fn resolve_gitlab_config(
         return Ok((default_url, resolved_token, resolved_protocol));
     }
 
-    if cfg.gitlab.servers.len() == 1 {
-        let srv = &cfg.gitlab.servers[0];
+    if gitlab_cfg.servers.len() == 1 {
+        let srv = &gitlab_cfg.servers[0];
         let resolved_token = token
             .map(|t| t.to_string())
             .unwrap_or_else(|| srv.token.clone());
@@ -321,7 +321,7 @@ fn resolve_gitlab_config(
     }
 
     println!("{}", "已配置的 GitLab 服务器:".cyan());
-    for (i, srv) in cfg.gitlab.servers.iter().enumerate() {
+    for (i, srv) in gitlab_cfg.servers.iter().enumerate() {
         println!(
             "  {} {} ({})",
             format!("[{}]", i + 1).yellow(),

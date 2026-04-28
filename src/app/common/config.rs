@@ -1,3 +1,4 @@
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
@@ -10,8 +11,6 @@ pub struct AppConfig {
     pub remote: RemoteConfig,
     #[serde(default)]
     pub sync: SyncConfig,
-    #[serde(default)]
-    pub gitlab: GitLabConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,8 +160,8 @@ fn default_gitlab_protocol() -> String {
     "ssh".to_string()
 }
 
-pub fn config_path() -> PathBuf {
-    if let Ok(path) = env::var("PMA_CONFIG") {
+pub fn config_dir() -> PathBuf {
+    if let Ok(path) = env::var("PMA_CONFIG_DIR") {
         return PathBuf::from(path);
     }
 
@@ -170,10 +169,92 @@ pub fn config_path() -> PathBuf {
         .or_else(|_| env::var("USERPROFILE"))
         .unwrap_or_else(|_| ".".to_string());
 
+    PathBuf::from(home).join(".pma")
+}
+
+pub fn config_path() -> PathBuf {
+    config_dir().join("config.toml")
+}
+
+pub fn gitlab_config_path() -> PathBuf {
+    config_dir().join("gitlab.toml")
+}
+
+fn legacy_config_path() -> PathBuf {
+    let home = env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+
     PathBuf::from(home).join(".pma.toml")
 }
 
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct LegacyAppConfig {
+    #[serde(default)]
+    repository: RepositoryConfig,
+    #[serde(default)]
+    remote: RemoteConfig,
+    #[serde(default)]
+    sync: SyncConfig,
+    #[serde(default)]
+    gitlab: GitLabConfig,
+}
+
+fn migrate_legacy_config() {
+    let legacy = legacy_config_path();
+    if !legacy.exists() {
+        return;
+    }
+
+    let dir = config_dir();
+    if dir.exists() {
+        return;
+    }
+
+    if let Ok(content) = std::fs::read_to_string(&legacy) {
+        let legacy_cfg: LegacyAppConfig = match toml::from_str(&content) {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+
+        if let Err(e) = std::fs::create_dir_all(&dir) {
+            eprintln!("警告: 无法创建配置目录 ({}): {}", dir.display(), e);
+            return;
+        }
+
+        let main_cfg = AppConfig {
+            repository: legacy_cfg.repository,
+            remote: legacy_cfg.remote,
+            sync: legacy_cfg.sync,
+        };
+
+        if let Ok(toml_str) = toml::to_string_pretty(&main_cfg) {
+            let _ = std::fs::write(config_path(), toml_str);
+        }
+
+        if !legacy_cfg.gitlab.servers.is_empty()
+            && let Ok(toml_str) = toml::to_string_pretty(&legacy_cfg.gitlab)
+        {
+            let _ = std::fs::write(gitlab_config_path(), toml_str);
+        }
+
+        let backup_path = legacy.with_extension("toml.bak");
+        if let Err(e) = std::fs::rename(&legacy, &backup_path) {
+            eprintln!("警告: 无法备份旧配置文件: {}", e);
+        } else {
+            println!(
+                "{} 旧配置已迁移到 {}，备份于 {}",
+                "迁移:".yellow(),
+                dir.display(),
+                backup_path.display()
+            );
+        }
+    }
+}
+
 pub fn load() -> AppConfig {
+    migrate_legacy_config();
+
     let path = config_path();
     if !path.exists() {
         return AppConfig::default();
@@ -194,7 +275,42 @@ pub fn load() -> AppConfig {
 
 #[allow(dead_code)]
 pub fn save(config: &AppConfig) -> anyhow::Result<()> {
+    let dir = config_dir();
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)?;
+    }
     let path = config_path();
+    let content = toml::to_string_pretty(config)?;
+    std::fs::write(&path, content)?;
+    Ok(())
+}
+
+pub fn load_gitlab() -> GitLabConfig {
+    migrate_legacy_config();
+
+    let path = gitlab_config_path();
+    if !path.exists() {
+        return GitLabConfig::default();
+    }
+
+    match std::fs::read_to_string(&path) {
+        Ok(content) => toml::from_str(&content).unwrap_or_else(|e| {
+            eprintln!("警告: GitLab 配置文件解析失败 ({}): {}", path.display(), e);
+            GitLabConfig::default()
+        }),
+        Err(e) => {
+            eprintln!("警告: 无法读取 GitLab 配置文件 ({}): {}", path.display(), e);
+            GitLabConfig::default()
+        }
+    }
+}
+
+pub fn save_gitlab(config: &GitLabConfig) -> anyhow::Result<()> {
+    let dir = config_dir();
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)?;
+    }
+    let path = gitlab_config_path();
     let content = toml::to_string_pretty(config)?;
     std::fs::write(&path, content)?;
     Ok(())
@@ -226,5 +342,16 @@ path_prefix_name = "redinf"
 [sync]
 # Skip pushing to these hosts when using HTTPS protocol
 skip_push_hosts = ["github.com", "githubfast.com", "gitee.com"]
+"#
+}
+
+pub fn default_gitlab_config_content() -> &'static str {
+    r#"# GitLab server credentials
+# Use `pma gitlab login` to add servers
+#
+# [[servers]]
+# url = "https://gitlab.com"
+# token = "glpat-xxxx"
+# protocol = "ssh"
 "#
 }
