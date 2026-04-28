@@ -1,7 +1,7 @@
 mod command;
 mod remote;
-mod repo;
+mod repository;
 
 pub use command::*;
 pub use remote::*;
-pub use repo::*;
+pub use repository::*;
