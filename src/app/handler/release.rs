@@ -375,6 +375,25 @@ fn run_command(cmd: &str, args: &[&str], dir: &Path) -> Result<std::process::Exi
     }
 }
 
+fn is_gitignored(file_path: &Path) -> bool {
+    let Some(file_name) = file_path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    let Some(parent) = file_path.parent() else {
+        return false;
+    };
+
+    let Ok(output) = crate::app::common::runner::CommandRunner::run_quiet_in_dir(
+        "git",
+        &["check-ignore", file_name],
+        parent,
+    ) else {
+        return false;
+    };
+
+    output.status.success()
+}
+
 fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     let parent = Path::new(cargo_toml_path)
         .parent()
@@ -387,6 +406,11 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
 
     let lock_path = dir.join("Cargo.lock");
     if !lock_path.exists() {
+        return Ok(());
+    }
+
+    if is_gitignored(&lock_path) {
+        println!("  {} Cargo.lock 在 .gitignore 中，跳过更新", "[SKIP]".dimmed());
         return Ok(());
     }
 
@@ -423,6 +447,14 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
 
     let lock_path = lock_dir.join("package-lock.json");
 
+    if is_gitignored(&lock_path) {
+        println!(
+            "  {} package-lock.json 在 .gitignore 中，跳过更新",
+            "[SKIP]".dimmed()
+        );
+        return Ok(());
+    }
+
     if !check_command_exists("npm") {
         eprintln!("警告: 未找到 npm 命令，跳过 package-lock.json 更新");
         return Ok(());
@@ -455,6 +487,14 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     };
 
     let lock_path = lock_dir.join("pnpm-lock.yaml");
+
+    if is_gitignored(&lock_path) {
+        println!(
+            "  {} pnpm-lock.yaml 在 .gitignore 中，跳过更新",
+            "[SKIP]".dimmed()
+        );
+        return Ok(());
+    }
 
     if !check_command_exists("pnpm") {
         eprintln!("警告: 未找到 pnpm 命令，跳过 pnpm-lock.yaml 更新");
