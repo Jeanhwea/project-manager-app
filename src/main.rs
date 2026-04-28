@@ -4,7 +4,7 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{BranchCommands, Cli, CloneProtocolType, Commands, ConfigCommands, SelfCommands, SnapCommands};
+use cli::{BranchCommands, Cli, CloneProtocolType, Commands, ConfigCommands, GitlabCommands, SelfCommands, SnapCommands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -68,31 +68,44 @@ fn main() -> Result<()> {
         } => {
             app::handler::fork::execute(&path, &name, dry_run)?;
         }
-        Commands::Clone {
-            group,
-            server,
-            token,
-            protocol,
-            output,
-            include_archived,
-            recursive,
-            dry_run,
-        } => {
-            let clone_protocol = match protocol {
-                CloneProtocolType::Ssh => app::handler::clone::CloneProtocol::Ssh,
-                CloneProtocolType::Https => app::handler::clone::CloneProtocol::Https,
-            };
-            app::handler::clone::execute(
-                &group,
-                &server,
-                token.as_deref(),
-                &clone_protocol,
-                &output,
+        Commands::Gitlab { command } => match command {
+            GitlabCommands::Login {
+                server,
+                token,
+                protocol,
+            } => {
+                let clone_protocol = match protocol {
+                    CloneProtocolType::Ssh => app::handler::gitlab::CloneProtocol::Ssh,
+                    CloneProtocolType::Https => app::handler::gitlab::CloneProtocol::Https,
+                };
+                app::handler::gitlab::execute_login(&server, &token, &clone_protocol)?;
+            }
+            GitlabCommands::Clone {
+                group,
+                server,
+                token,
+                protocol,
+                output,
                 include_archived,
                 recursive,
                 dry_run,
-            )?;
-        }
+            } => {
+                let clone_protocol = protocol.map(|p| match p {
+                    CloneProtocolType::Ssh => app::handler::gitlab::CloneProtocol::Ssh,
+                    CloneProtocolType::Https => app::handler::gitlab::CloneProtocol::Https,
+                });
+                app::handler::gitlab::execute_clone(
+                    &group,
+                    server.as_deref(),
+                    token.as_deref(),
+                    clone_protocol.as_ref(),
+                    &output,
+                    include_archived,
+                    recursive,
+                    dry_run,
+                )?;
+            }
+        },
         Commands::Snap { command } => match command {
             SnapCommands::Create { path, dry_run } => {
                 app::handler::snap::execute(&path, dry_run)?;

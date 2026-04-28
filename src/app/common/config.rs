@@ -10,6 +10,8 @@ pub struct AppConfig {
     pub remote: RemoteConfig,
     #[serde(default)]
     pub sync: SyncConfig,
+    #[serde(default)]
+    pub gitlab: GitLabConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +138,32 @@ impl Default for SyncConfig {
         Self {
             skip_push_hosts: default_skip_push_hosts(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitLabConfig {
+    #[serde(default)]
+    pub servers: Vec<GitLabServer>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitLabServer {
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub token: String,
+    #[serde(default = "default_gitlab_protocol")]
+    pub protocol: String,
+}
+
+fn default_gitlab_protocol() -> String {
+    "ssh".to_string()
+}
+
+impl Default for GitLabConfig {
+    fn default() -> Self {
+        Self { servers: vec![] }
     }
 }
 

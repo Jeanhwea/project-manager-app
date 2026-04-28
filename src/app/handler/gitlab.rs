@@ -1,5 +1,7 @@
+use crate::app::common::config;
 use crate::app::common::runner::CommandRunner;
 use anyhow::{Context, Result};
+use clap::ValueEnum;
 use colored::Colorize;
 use serde::Deserialize;
 use std::path::Path;
@@ -9,8 +11,6 @@ pub enum CloneProtocol {
     Ssh,
     Https,
 }
-
-use clap::ValueEnum;
 
 #[derive(Debug, Deserialize)]
 struct GitLabProject {
@@ -27,19 +27,105 @@ struct GitLabGroup {
     name: String,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn execute(
-    group: &str,
-    base_url: &str,
-    token: Option<&str>,
+#[derive(Debug, Deserialize)]
+struct GitLabUser {
+    username: String,
+    name: String,
+}
+
+pub fn execute_login(
+    server: &str,
+    token: &str,
     protocol: &CloneProtocol,
+) -> Result<()> {
+    let resolved_url = resolve_base_url(server);
+
+    println!(
+        "{} {}",
+        "验证连接:".cyan(),
+        resolved_url.dimmed()
+    );
+
+    let user = verify_token(&resolved_url, token)?;
+
+    println!(
+        "{} {} ({})",
+        "已认证:".green(),
+        user.name.green().bold(),
+        user.username.yellow()
+    );
+
+    let mut cfg = config::load();
+
+    let protocol_str = match protocol {
+        CloneProtocol::Ssh => "ssh",
+        CloneProtocol::Https => "https",
+    };
+
+    if let Some(existing) = cfg.gitlab.servers.iter_mut().find(|s| s.url == resolved_url) {
+        existing.token = token.to_string();
+        existing.protocol = protocol_str.to_string();
+        println!(
+            "{} {} 的凭据已更新",
+            "更新:".yellow(),
+            resolved_url.cyan()
+        );
+    } else {
+        cfg.gitlab.servers.push(config::GitLabServer {
+            url: resolved_url.clone(),
+            token: token.to_string(),
+            protocol: protocol_str.to_string(),
+        });
+        println!(
+            "{} {} 凭据已保存",
+            "保存:".green(),
+            resolved_url.cyan()
+        );
+    }
+
+    config::save(&cfg)?;
+
+    println!(
+        "{} 配置文件: {}",
+        "位置:".dimmed(),
+        config::config_path().display()
+    );
+
+    Ok(())
+}
+
+fn verify_token(base_url: &str, token: &str) -> Result<GitLabUser> {
+    let url = format!("{}/api/v4/user", base_url);
+
+    let resp = ureq::get(&url)
+        .set("PRIVATE-TOKEN", token)
+        .set("User-Agent", "pma-gitlab")
+        .call()
+        .with_context(|| format!("无法连接到 {}", base_url))?;
+
+    let user: GitLabUser = resp
+        .into_json()
+        .with_context(|| "无法解析用户信息")?;
+
+    Ok(user)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn execute_clone(
+    group: &str,
+    server: Option<&str>,
+    token: Option<&str>,
+    protocol: Option<&CloneProtocol>,
     output_dir: &str,
     include_archived: bool,
     recursive: bool,
     dry_run: bool,
 ) -> Result<()> {
-    let resolved_token = resolve_token(token)?;
-    let resolved_base_url = resolve_base_url(base_url);
+    let (resolved_url, saved_token, saved_protocol) = resolve_gitlab_config(server, token, protocol)?;
+
+    let resolved_base_url = resolve_base_url(&resolved_url);
+    let resolved_token = resolve_token(Some(&saved_token))?;
+    let resolved_protocol = saved_protocol;
 
     println!(
         "{} {} {}/",
@@ -101,7 +187,7 @@ pub fn execute(
 
     for (index, project) in projects.iter().enumerate() {
         let progress = format!("({}/{})", index + 1, projects.len());
-        let clone_url = match protocol {
+        let clone_url = match resolved_protocol {
             CloneProtocol::Ssh => &project.ssh_url_to_repo,
             CloneProtocol::Https => &project.http_url_to_repo,
         };
@@ -184,9 +270,73 @@ pub fn execute(
     Ok(())
 }
 
+fn resolve_gitlab_config(
+    server: Option<&str>,
+    token: Option<&str>,
+    protocol: Option<&CloneProtocol>,
+) -> Result<(String, String, CloneProtocol)> {
+    let cfg = config::load();
+
+    if let Some(s) = server {
+        let resolved_url = resolve_base_url(s);
+
+        let saved = cfg.gitlab.servers.iter().find(|srv| srv.url == resolved_url);
+
+        let resolved_token = token
+            .map(|t| t.to_string())
+            .or_else(|| saved.map(|s| s.token.clone()))
+            .unwrap_or_default();
+
+        let resolved_protocol = protocol.cloned().or_else(|| {
+            saved.and_then(|s| match s.protocol.as_str() {
+                "https" => Some(CloneProtocol::Https),
+                _ => Some(CloneProtocol::Ssh),
+            })
+        }).unwrap_or(CloneProtocol::Ssh);
+
+        return Ok((resolved_url, resolved_token, resolved_protocol));
+    }
+
+    if cfg.gitlab.servers.is_empty() {
+        let default_url = "https://gitlab.com".to_string();
+        let resolved_token = token
+            .map(|t| t.to_string())
+            .unwrap_or_default();
+        let resolved_protocol = protocol.cloned().unwrap_or(CloneProtocol::Ssh);
+        return Ok((default_url, resolved_token, resolved_protocol));
+    }
+
+    if cfg.gitlab.servers.len() == 1 {
+        let srv = &cfg.gitlab.servers[0];
+        let resolved_token = token
+            .map(|t| t.to_string())
+            .unwrap_or_else(|| srv.token.clone());
+        let resolved_protocol = protocol.cloned().or_else(|| {
+            match srv.protocol.as_str() {
+                "https" => Some(CloneProtocol::Https),
+                _ => Some(CloneProtocol::Ssh),
+            }
+        }).unwrap_or(CloneProtocol::Ssh);
+        return Ok((srv.url.clone(), resolved_token, resolved_protocol));
+    }
+
+    println!("{}", "已配置的 GitLab 服务器:".cyan());
+    for (i, srv) in cfg.gitlab.servers.iter().enumerate() {
+        println!(
+            "  {} {} ({})",
+            format!("[{}]", i + 1).yellow(),
+            srv.url.cyan(),
+            srv.protocol.dimmed()
+        );
+    }
+    anyhow::bail!("存在多个 GitLab 服务器配置，请使用 --server 指定")
+}
+
 fn resolve_token(token: Option<&str>) -> Result<String> {
     if let Some(t) = token {
-        return Ok(t.to_string());
+        if !t.is_empty() {
+            return Ok(t.to_string());
+        }
     }
 
     if let Ok(t) = std::env::var("GITLAB_TOKEN") {
@@ -200,9 +350,9 @@ fn resolve_token(token: Option<&str>) -> Result<String> {
     anyhow::bail!(
         "未提供 GitLab 访问令牌。\n\
          请通过以下方式之一提供:\n\
-         1. 命令行参数 --token <TOKEN>\n\
-         2. 环境变量 GITLAB_TOKEN\n\
-         3. 环境变量 GL_TOKEN\n\n\
+         1. pma gitlab login --server <URL> --token <TOKEN>\n\
+         2. 命令行参数 --token <TOKEN>\n\
+         3. 环境变量 GITLAB_TOKEN 或 GL_TOKEN\n\n\
          在 GitLab 中创建令牌: Settings -> Access Tokens (需要 read_api 权限)"
     )
 }
@@ -222,7 +372,7 @@ fn fetch_group_info(base_url: &str, group: &str, token: &str) -> Result<GitLabGr
 
     let resp = ureq::get(&url)
         .set("PRIVATE-TOKEN", token)
-        .set("User-Agent", "pma-clone")
+        .set("User-Agent", "pma-gitlab")
         .call()
         .with_context(|| format!("无法获取组信息: {}", group))?;
 
@@ -260,7 +410,7 @@ fn fetch_group_projects(
 
         let resp = ureq::get(&url)
             .set("PRIVATE-TOKEN", token)
-            .set("User-Agent", "pma-clone")
+            .set("User-Agent", "pma-gitlab")
             .call()
             .with_context(|| format!("无法获取组 {} 的项目列表 (第 {} 页)", group, page))?;
 

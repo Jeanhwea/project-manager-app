@@ -1,8 +1,8 @@
 pub mod branch;
-pub mod clone;
 pub mod config;
 pub mod doctor;
 pub mod fork;
+pub mod gitlab;
 pub mod release;
 pub mod selfman;
 pub mod snap;
