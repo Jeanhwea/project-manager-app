@@ -49,6 +49,20 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
         return repos;
     }
 
+    let git_path = root_dir.join(".git");
+    if git_path.exists() {
+        let repo_type = if git_path.is_dir() {
+            RepoType::Regular
+        } else {
+            RepoType::Submodule
+        };
+        repos.push(RepoInfo {
+            path: root_dir.to_path_buf(),
+            repo_type,
+        });
+        return repos;
+    }
+
     let Ok(entries) = fs::read_dir(root_dir) else {
         return repos;
     };
@@ -62,19 +76,7 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
             continue;
         }
 
-        if file_name_str == ".git" {
-            if let Some(parent) = path.parent() {
-                let repo_type = if path.is_dir() {
-                    RepoType::Regular
-                } else {
-                    RepoType::Submodule
-                };
-                repos.push(RepoInfo {
-                    path: parent.to_path_buf(),
-                    repo_type,
-                });
-            }
-        } else if path.is_dir() {
+        if path.is_dir() {
             repos.extend(find_git_repositories_with_depth(&path, max_depth - 1));
         }
     }
