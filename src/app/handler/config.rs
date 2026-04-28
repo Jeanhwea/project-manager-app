@@ -48,10 +48,10 @@ pub fn execute_show() -> Result<()> {
     println!("{}", "[remote]".cyan());
     for rule in &cfg.remote.rules {
         println!("  {} <- {:?}", rule.name.yellow(), rule.hosts);
-        if !rule.path_prefixes.is_empty() {
-            if let Some(ref prefix_name) = rule.path_prefix_name {
-                println!("    {} <- {:?}", prefix_name.yellow(), rule.path_prefixes);
-            }
+        if !rule.path_prefixes.is_empty()
+            && let Some(ref prefix_name) = rule.path_prefix_name
+        {
+            println!("    {} <- {:?}", prefix_name.yellow(), rule.path_prefixes);
         }
     }
     println!();

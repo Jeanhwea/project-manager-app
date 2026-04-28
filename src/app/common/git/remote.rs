@@ -56,16 +56,14 @@ pub fn get_remote_name_by_url(url: &str) -> Option<String> {
     let cfg = config::load();
     for rule in &cfg.remote.rules {
         if rule.hosts.iter().any(|h| h == &host) {
-            if !rule.path_prefixes.is_empty() {
-                if let Some(ref prefix_name) = rule.path_prefix_name {
-                    if rule
-                        .path_prefixes
-                        .iter()
-                        .any(|prefix| path.to_lowercase().starts_with(prefix.as_str()))
-                    {
-                        return Some(prefix_name.clone());
-                    }
-                }
+            if !rule.path_prefixes.is_empty()
+                && let Some(ref prefix_name) = rule.path_prefix_name
+                && rule
+                    .path_prefixes
+                    .iter()
+                    .any(|prefix| path.to_lowercase().starts_with(prefix.as_str()))
+            {
+                return Some(prefix_name.clone());
             }
             return Some(rule.name.clone());
         }

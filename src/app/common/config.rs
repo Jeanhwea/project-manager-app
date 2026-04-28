@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(default)]
     pub repository: RepositoryConfig,
@@ -109,16 +109,6 @@ impl Default for SyncConfig {
     fn default() -> Self {
         Self {
             skip_push_hosts: default_skip_push_hosts(),
-        }
-    }
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            repository: RepositoryConfig::default(),
-            remote: RemoteConfig::default(),
-            sync: SyncConfig::default(),
         }
     }
 }
