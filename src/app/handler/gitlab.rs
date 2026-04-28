@@ -288,9 +288,9 @@ fn resolve_gitlab_config(
             .unwrap_or_default();
 
         let resolved_protocol = protocol.cloned().or_else(|| {
-            saved.and_then(|s| match s.protocol.as_str() {
-                "https" => Some(CloneProtocol::Https),
-                _ => Some(CloneProtocol::Ssh),
+            saved.map(|s| match s.protocol.as_str() {
+                "https" => CloneProtocol::Https,
+                _ => CloneProtocol::Ssh,
             })
         }).unwrap_or(CloneProtocol::Ssh);
 
@@ -311,7 +311,7 @@ fn resolve_gitlab_config(
         let resolved_token = token
             .map(|t| t.to_string())
             .unwrap_or_else(|| srv.token.clone());
-        let resolved_protocol = protocol.cloned().or_else(|| {
+        let resolved_protocol = protocol.cloned().or({
             match srv.protocol.as_str() {
                 "https" => Some(CloneProtocol::Https),
                 _ => Some(CloneProtocol::Ssh),
@@ -333,10 +333,10 @@ fn resolve_gitlab_config(
 }
 
 fn resolve_token(token: Option<&str>) -> Result<String> {
-    if let Some(t) = token {
-        if !t.is_empty() {
-            return Ok(t.to_string());
-        }
+    if let Some(t) = token
+        && !t.is_empty()
+    {
+        return Ok(t.to_string());
     }
 
     if let Ok(t) = std::env::var("GITLAB_TOKEN") {

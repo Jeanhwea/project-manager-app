@@ -141,7 +141,7 @@ impl Default for SyncConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GitLabConfig {
     #[serde(default)]
     pub servers: Vec<GitLabServer>,
@@ -159,12 +159,6 @@ pub struct GitLabServer {
 
 fn default_gitlab_protocol() -> String {
     "ssh".to_string()
-}
-
-impl Default for GitLabConfig {
-    fn default() -> Self {
-        Self { servers: vec![] }
-    }
 }
 
 pub fn config_path() -> PathBuf {
