@@ -410,7 +410,10 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     }
 
     if is_gitignored(&lock_path) {
-        println!("  {} Cargo.lock 在 .gitignore 中，跳过更新", "[SKIP]".dimmed());
+        println!(
+            "  {} Cargo.lock 在 .gitignore 中，跳过更新",
+            "[SKIP]".dimmed()
+        );
         return Ok(());
     }
 
