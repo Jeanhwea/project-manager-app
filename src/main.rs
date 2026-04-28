@@ -4,7 +4,7 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{BranchCommands, Cli, Commands, SelfCommands};
+use cli::{BranchCommands, Cli, Commands, ConfigCommands, SelfCommands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -82,6 +82,17 @@ fn main() -> Result<()> {
             }
             SelfCommands::Version => {
                 app::handler::selfman::show_version();
+            }
+        },
+        Commands::Config { command } => match command {
+            ConfigCommands::Init => {
+                app::handler::config::execute_init()?;
+            }
+            ConfigCommands::Show => {
+                app::handler::config::execute_show()?;
+            }
+            ConfigCommands::Path => {
+                app::handler::config::execute_path()?;
             }
         },
     }

@@ -1,3 +1,4 @@
+pub mod config;
 pub mod editor;
 pub mod git;
 pub mod runner;

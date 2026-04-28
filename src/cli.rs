@@ -268,6 +268,12 @@ pub enum Commands {
         #[command(subcommand)]
         command: SelfCommands,
     },
+    /// Manage configuration
+    #[command(about = "Manage configuration")]
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -344,4 +350,17 @@ pub enum SelfCommands {
     #[command(visible_alias = "ver")]
     #[command(about = "Display the current version")]
     Version,
+}
+
+#[derive(Subcommand)]
+pub enum ConfigCommands {
+    /// Initialize a default configuration file
+    #[command(about = "Initialize a default configuration file")]
+    Init,
+    /// Show current configuration
+    #[command(about = "Show current configuration")]
+    Show,
+    /// Show configuration file path
+    #[command(about = "Show configuration file path")]
+    Path,
 }

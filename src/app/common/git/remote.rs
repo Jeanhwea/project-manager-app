@@ -1,4 +1,4 @@
-const REDINF_PATH_PREFIXES: &[&str] = &["red_8/", "redtool/", "red_base/", "teampuzzle/"];
+use crate::app::common::config;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitProtocol {
@@ -53,25 +53,29 @@ pub fn parse_git_remote_url(url: &str) -> Option<(GitProtocol, String, String)> 
 pub fn get_remote_name_by_url(url: &str) -> Option<String> {
     let (_, host, path) = parse_git_remote_url(url)?;
 
-    let remote_name = if host == "github.com" || host == "githubfast.com" {
-        "github".to_string()
-    } else if host == "gitana.jeanhwea.io" {
-        "gitana".to_string()
-    } else if host == "gitee.com" {
-        if REDINF_PATH_PREFIXES
-            .iter()
-            .any(|prefix| path.to_lowercase().starts_with(prefix))
-        {
-            "redinf".to_string()
-        } else {
-            "gitee".to_string()
+    let cfg = config::load();
+    for rule in &cfg.remote.rules {
+        if rule.hosts.iter().any(|h| h == &host) {
+            if !rule.path_prefixes.is_empty() {
+                if let Some(ref prefix_name) = rule.path_prefix_name {
+                    if rule
+                        .path_prefixes
+                        .iter()
+                        .any(|prefix| path.to_lowercase().starts_with(prefix.as_str()))
+                    {
+                        return Some(prefix_name.clone());
+                    }
+                }
+            }
+            return Some(rule.name.clone());
         }
-    } else if is_private_ip(&host) {
-        "private".to_string()
-    } else {
-        "origin".to_string()
-    };
-    Some(remote_name)
+    }
+
+    if is_private_ip(&host) {
+        return Some("private".to_string());
+    }
+
+    Some("origin".to_string())
 }
 
 fn is_private_ip(host: &str) -> bool {

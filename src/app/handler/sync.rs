@@ -1,3 +1,4 @@
+use crate::app::common::config;
 use crate::app::common::git::{self, GitProtocol, RepoType};
 use crate::app::common::runner::{CommandRunner, DryRunContext};
 use crate::utils;
@@ -171,9 +172,10 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     if skip_remotes.iter().any(|s| s.as_str() == remote) {
         return true;
     }
+    let cfg = config::load();
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
         if protocol == GitProtocol::Https
-            && (host == "github.com" || host == "githubfast.com" || host == "gitee.com")
+            && cfg.sync.skip_push_hosts.iter().any(|h| h == &host)
         {
             return true;
         }

@@ -1,9 +1,8 @@
+use crate::app::common::config;
 use crate::utils;
 use colored::Colorize;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const DEFAULT_MAX_DEPTH: usize = 3;
 
 #[derive(PartialEq)]
 pub enum RepoType {
@@ -17,7 +16,8 @@ pub struct RepoInfo {
 }
 
 pub fn find_git_repositories(root_dir: &Path, max_depth: Option<usize>) -> Vec<RepoInfo> {
-    find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(DEFAULT_MAX_DEPTH))
+    let cfg = config::load();
+    find_git_repositories_with_depth(root_dir, max_depth.unwrap_or(cfg.repository.max_depth))
 }
 
 pub fn find_git_repositories_or_current(
@@ -40,6 +40,9 @@ pub fn find_git_repositories_or_current(
 }
 
 fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<RepoInfo> {
+    let cfg = config::load();
+    let skip_dirs = &cfg.repository.skip_dirs;
+
     let mut repos = Vec::new();
 
     if max_depth == 0 {
@@ -55,7 +58,7 @@ fn find_git_repositories_with_depth(root_dir: &Path, max_depth: usize) -> Vec<Re
         let file_name = entry.file_name();
         let file_name_str = file_name.to_str().unwrap_or("");
 
-        if file_name_str == ".venv" {
+        if skip_dirs.iter().any(|d| d == file_name_str) {
             continue;
         }
 
