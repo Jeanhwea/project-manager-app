@@ -35,7 +35,12 @@ struct RepoStatus {
     untracked: usize,
 }
 
-pub fn execute(path: &str, max_depth: Option<usize>, short: bool, filter: Option<StatusFilter>) -> Result<()> {
+pub fn execute(
+    path: &str,
+    max_depth: Option<usize>,
+    short: bool,
+    filter: Option<StatusFilter>,
+) -> Result<()> {
     let root_dir = Path::new(path);
 
     if !root_dir.exists() {
@@ -188,7 +193,11 @@ fn print_summary(stats: &StatusStats, total: usize) {
 
 fn print_short_status(status: &RepoStatus) {
     let branch_display = status.branch.as_deref().unwrap_or("HEAD");
-    let status_icon = if status.dirty { "✗".red() } else { "✔".green() };
+    let status_icon = if status.dirty {
+        "✗".red()
+    } else {
+        "✔".green()
+    };
 
     let mut extra = Vec::new();
     if status.ahead > 0 {
@@ -281,11 +290,11 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
 }
 
 fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
-    let output = match CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], repo_path)
-    {
-        Ok(o) => o,
-        Err(_) => return (0, 0, 0),
-    };
+    let output =
+        match CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], repo_path) {
+            Ok(o) => o,
+            Err(_) => return (0, 0, 0),
+        };
 
     let stdout = match String::from_utf8(output.stdout) {
         Ok(s) => s,

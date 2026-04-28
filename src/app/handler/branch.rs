@@ -218,11 +218,7 @@ fn switch_branch(
     let current = get_current_branch(repo_path);
 
     if current.as_deref() == Some(branch_name) {
-        println!(
-            "  {} 已在分支 {} 上",
-            "跳过".dimmed(),
-            branch_name.yellow()
-        );
+        println!("  {} 已在分支 {} 上", "跳过".dimmed(), branch_name.yellow());
         return Ok(());
     }
 
@@ -262,11 +258,7 @@ fn switch_branch(
 
         ctx.run_in_dir("git", &["checkout", branch_name], Some(repo_path))?;
         if !ctx.is_dry_run() {
-            println!(
-                "  {} 切换到分支 {}",
-                "完成".green(),
-                branch_name.yellow()
-            );
+            println!("  {} 切换到分支 {}", "完成".green(), branch_name.yellow());
         }
     }
 
@@ -282,20 +274,12 @@ fn rename_branch(
     let local_branches = get_local_branches(repo_path);
 
     if !local_branches.iter().any(|b| b == old_name) {
-        println!(
-            "  {} 分支 {} 不存在",
-            "跳过".dimmed(),
-            old_name.red()
-        );
+        println!("  {} 分支 {} 不存在", "跳过".dimmed(), old_name.red());
         return Ok(());
     }
 
     if local_branches.iter().any(|b| b == new_name) {
-        println!(
-            "  {} 分支 {} 已存在",
-            "跳过".red(),
-            new_name.red()
-        );
+        println!("  {} 分支 {} 已存在", "跳过".red(), new_name.red());
         return Ok(());
     }
 

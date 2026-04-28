@@ -100,7 +100,12 @@ fn switch_to_git_root(no_root: bool) {
     }
 }
 
-fn validate_git_state(force: bool, bump_type: &str, message: Option<&str>, pre_release: Option<&str>) -> Result<GitState> {
+fn validate_git_state(
+    force: bool,
+    bump_type: &str,
+    message: Option<&str>,
+    pre_release: Option<&str>,
+) -> Result<GitState> {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
     if !force && current_branch != "master" {
         anyhow::bail!("只能在 master 分支上执行 release");
@@ -134,11 +139,7 @@ fn validate_git_state(force: bool, bump_type: &str, message: Option<&str>, pre_r
     );
 
     if message.is_some() {
-        println!(
-            "{} {}",
-            "提交消息:".green().bold(),
-            commit_message.yellow()
-        );
+        println!("{} {}", "提交消息:".green().bold(), commit_message.yellow());
     }
 
     Ok(GitState {

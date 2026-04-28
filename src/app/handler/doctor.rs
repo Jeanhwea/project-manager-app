@@ -96,11 +96,11 @@ pub fn execute(
 }
 
 fn check_detached_head(repo_path: &Path, issues: &mut Vec<String>) {
-    let output = match CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], repo_path)
-    {
-        Ok(o) => o,
-        Err(_) => return,
-    };
+    let output =
+        match CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], repo_path) {
+            Ok(o) => o,
+            Err(_) => return,
+        };
 
     let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if branch.is_empty() {
@@ -133,11 +133,8 @@ fn check_stale_remote_refs(repo_path: &Path, issues: &mut Vec<String>) {
         }
     }
 
-    let stale_output = match CommandRunner::run_quiet_in_dir(
-        "git",
-        &["branch", "-r"],
-        repo_path,
-    ) {
+    let stale_output = match CommandRunner::run_quiet_in_dir("git", &["branch", "-r"], repo_path)
+    {
         Ok(o) => o,
         Err(_) => return,
     };
@@ -158,11 +155,11 @@ fn check_stale_remote_refs(repo_path: &Path, issues: &mut Vec<String>) {
 }
 
 fn check_large_repo(repo_path: &Path, issues: &mut Vec<String>) {
-    let output = match CommandRunner::run_quiet_in_dir("git", &["count-objects", "-vH"], repo_path)
-    {
-        Ok(o) => o,
-        Err(_) => return,
-    };
+    let output =
+        match CommandRunner::run_quiet_in_dir("git", &["count-objects", "-vH"], repo_path) {
+            Ok(o) => o,
+            Err(_) => return,
+        };
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -170,25 +167,19 @@ fn check_large_repo(repo_path: &Path, issues: &mut Vec<String>) {
         if let Some(size_str) = line.strip_prefix("size-pack:") {
             let size_str = size_str.trim();
             if let Some(num_part) = size_str.split_whitespace().next()
-            && let Ok(size) = num_part.parse::<f64>()
-        {
-            let unit = size_str
-                .split_whitespace()
-                .nth(1)
-                .unwrap_or("bytes");
-            let size_mb = match unit {
-                "GiB" => size * 1024.0,
-                "MiB" => size,
-                "KiB" => size / 1024.0,
-                _ => size / (1024.0 * 1024.0),
-            };
-            if size_mb > 500.0 {
-                issues.push(format!(
-                    "仓库体积较大 ({}), 建议执行 git gc",
-                    size_str
-                ));
+                && let Ok(size) = num_part.parse::<f64>()
+            {
+                let unit = size_str.split_whitespace().nth(1).unwrap_or("bytes");
+                let size_mb = match unit {
+                    "GiB" => size * 1024.0,
+                    "MiB" => size,
+                    "KiB" => size / 1024.0,
+                    _ => size / (1024.0 * 1024.0),
+                };
+                if size_mb > 500.0 {
+                    issues.push(format!("仓库体积较大 ({}), 建议执行 git gc", size_str));
+                }
             }
-        }
         }
     }
 }
@@ -201,17 +192,18 @@ fn check_missing_upstream(repo_path: &Path, issues: &mut Vec<String>) {
 
     let output = CommandRunner::run_quiet_in_dir(
         "git",
-        &["rev-parse", "--abbrev-ref", &format!("{}@{{upstream}}", branch)],
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            &format!("{}@{{upstream}}", branch),
+        ],
         repo_path,
     );
 
     if output.is_err() {
         let remotes = git::get_remote_name(repo_path);
         if !remotes.is_empty() {
-            issues.push(format!(
-                "当前分支 '{}' 没有设置上游跟踪分支",
-                branch
-            ));
+            issues.push(format!("当前分支 '{}' 没有设置上游跟踪分支", branch));
         }
     }
 }
@@ -222,9 +214,7 @@ fn check_stash(repo_path: &Path, issues: &mut Vec<String>) {
         Err(_) => return,
     };
 
-    let stash_count = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .count();
+    let stash_count = String::from_utf8_lossy(&output.stdout).lines().count();
 
     if stash_count > 5 {
         issues.push(format!(

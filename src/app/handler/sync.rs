@@ -66,7 +66,14 @@ pub fn execute(
             continue;
         }
 
-        do_sync_repository(&ctx, &repo_path, all_branch, &skip_remotes, fetch_only, rebase);
+        do_sync_repository(
+            &ctx,
+            &repo_path,
+            all_branch,
+            &skip_remotes,
+            fetch_only,
+            rebase,
+        );
     }
 
     Ok(())
@@ -148,7 +155,10 @@ fn do_sync_repository(
     } else if all_branch {
         if ctx.is_dry_run() {
             if rebase {
-                println!("  {} git pull --rebase (all branches)", "[DRY-RUN]".yellow());
+                println!(
+                    "  {} git pull --rebase (all branches)",
+                    "[DRY-RUN]".yellow()
+                );
             } else {
                 println!("  {} git pull (all branches)", "[DRY-RUN]".yellow());
             }
@@ -290,9 +300,7 @@ fn do_pull_repository(repo_path: &Path, rebase: bool) {
 }
 
 fn do_fetch_repository(repo_path: &Path, remote: &str) {
-    if let Err(e) =
-        CommandRunner::run_with_success_in_dir("git", &["fetch", remote], repo_path)
-    {
+    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["fetch", remote], repo_path) {
         println!(
             "  拉取仓库失败: {} - {}",
             utils::format_path(repo_path).red(),

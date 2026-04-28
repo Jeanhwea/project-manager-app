@@ -25,7 +25,33 @@ fn default_max_depth() -> usize {
 }
 
 fn default_skip_dirs() -> Vec<String> {
-    vec![".venv".to_string()]
+    vec![
+        ".venv".to_string(),
+        "venv".to_string(),
+        "env".to_string(),
+        ".env".to_string(),
+        "node_modules".to_string(),
+        "__pycache__".to_string(),
+        ".tox".to_string(),
+        ".mypy_cache".to_string(),
+        ".pytest_cache".to_string(),
+        ".ruff_cache".to_string(),
+        "dist".to_string(),
+        "build".to_string(),
+        "target".to_string(),
+        ".gradle".to_string(),
+        ".idea".to_string(),
+        ".vscode".to_string(),
+        ".fleet".to_string(),
+        ".cache".to_string(),
+        ".next".to_string(),
+        ".nuxt".to_string(),
+        ".svelte-kit".to_string(),
+        ".angular".to_string(),
+        "bower_components".to_string(),
+        ".terraform".to_string(),
+        ".cargo".to_string(),
+    ]
 }
 
 impl Default for RepositoryConfig {
@@ -157,7 +183,7 @@ pub fn default_config_content() -> &'static str {
 # Maximum depth to search for git repositories
 max_depth = 3
 # Directory names to skip when searching
-skip_dirs = [".venv"]
+skip_dirs = [".venv", "venv", "env", ".env", "node_modules", "__pycache__", ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache", "dist", "build", "target", ".gradle", ".idea", ".vscode", ".fleet", ".cache", ".next", ".nuxt", ".svelte-kit", ".angular", "bower_components", ".terraform", ".cargo"]
 
 [[remote.rules]]
 # Map host patterns to remote names

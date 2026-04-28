@@ -124,11 +124,7 @@ fn main() -> Result<()> {
                 dry_run,
             } => {
                 app::handler::branch::execute_rename(
-                    &path,
-                    max_depth,
-                    &old_name,
-                    &new_name,
-                    dry_run,
+                    &path, max_depth, &old_name, &new_name, dry_run,
                 )?;
             }
         },

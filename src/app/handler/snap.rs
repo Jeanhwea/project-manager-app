@@ -68,7 +68,11 @@ pub fn execute_list(path: &str) -> Result<()> {
 
     let total = snap_commits.len();
     println!();
-    println!("{} 共 {} 个快照", "汇总".cyan(), total.to_string().white().bold());
+    println!(
+        "{} 共 {} 个快照",
+        "汇总".cyan(),
+        total.to_string().white().bold()
+    );
 
     Ok(())
 }
@@ -93,22 +97,15 @@ pub fn execute_restore(path: &str, snapshot: &str, dry_run: bool) -> Result<()> 
         return Ok(());
     }
 
-    let output = CommandRunner::run_with_success_in_dir(
-        "git",
-        &["checkout", &commit_ref],
-        project_path,
-    )?;
+    let output =
+        CommandRunner::run_with_success_in_dir("git", &["checkout", &commit_ref], project_path)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     if !stdout.is_empty() {
         print!("{}", stdout);
     }
 
-    println!(
-        "{} 已恢复到快照 {}",
-        "完成".green(),
-        commit_ref.yellow()
-    );
+    println!("{} 已恢复到快照 {}", "完成".green(), commit_ref.yellow());
     println!(
         "{} 若要回到最新状态，请执行: git checkout -",
         "提示".yellow()
@@ -135,8 +132,7 @@ fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
     if let Some(index_str) = snapshot.strip_prefix('#')
         && let Ok(index) = index_str.parse::<usize>()
     {
-        let output =
-            CommandRunner::run_quiet_in_dir("git", &["log", "--oneline"], project_path)?;
+        let output = CommandRunner::run_quiet_in_dir("git", &["log", "--oneline"], project_path)?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         let snap_commits: Vec<&str> = stdout
@@ -151,7 +147,11 @@ fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
                 .unwrap_or(snapshot);
             return Ok(hash.to_string());
         } else {
-            anyhow::bail!("快照索引 #{} 超出范围 (共 {} 个快照)", index, snap_commits.len());
+            anyhow::bail!(
+                "快照索引 #{} 超出范围 (共 {} 个快照)",
+                index,
+                snap_commits.len()
+            );
         }
     }
 
@@ -205,11 +205,11 @@ fn do_incremental_snapshot(ctx: &DryRunContext, work_dir: &Path) -> Result<()> {
 }
 
 fn check_pending_changes(work_dir: &Path) -> bool {
-    let output = match CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], work_dir)
-    {
-        Ok(o) => o,
-        Err(_) => return true,
-    };
+    let output =
+        match CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], work_dir) {
+            Ok(o) => o,
+            Err(_) => return true,
+        };
 
     let stdout = match String::from_utf8(output.stdout) {
         Ok(s) => s,
