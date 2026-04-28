@@ -4,7 +4,7 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{BranchCommands, Cli, Commands, ConfigCommands, SelfCommands, SnapCommands};
+use cli::{BranchCommands, Cli, CloneProtocolType, Commands, ConfigCommands, SelfCommands, SnapCommands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -67,6 +67,31 @@ fn main() -> Result<()> {
             dry_run,
         } => {
             app::handler::fork::execute(&path, &name, dry_run)?;
+        }
+        Commands::Clone {
+            group,
+            server,
+            token,
+            protocol,
+            output,
+            include_archived,
+            recursive,
+            dry_run,
+        } => {
+            let clone_protocol = match protocol {
+                CloneProtocolType::Ssh => app::handler::clone::CloneProtocol::Ssh,
+                CloneProtocolType::Https => app::handler::clone::CloneProtocol::Https,
+            };
+            app::handler::clone::execute(
+                &group,
+                &server,
+                token.as_deref(),
+                &clone_protocol,
+                &output,
+                include_archived,
+                recursive,
+                dry_run,
+            )?;
         }
         Commands::Snap { command } => match command {
             SnapCommands::Create { path, dry_run } => {

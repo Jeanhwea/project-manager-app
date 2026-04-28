@@ -68,6 +68,17 @@ impl BumpType {
 }
 
 #[derive(ValueEnum, Clone, Debug)]
+pub enum CloneProtocolType {
+    /// Use SSH protocol (git@...)
+    Ssh,
+    /// Use HTTPS protocol
+    Https,
+}
+
+impl CloneProtocolType {
+}
+
+#[derive(ValueEnum, Clone, Debug)]
 pub enum StatusFilterType {
     /// Show only dirty repositories
     Dirty,
@@ -261,6 +272,67 @@ pub enum Commands {
         #[arg(help = "Name of the project")]
         name: String,
 
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
+    },
+    /// Clone all repositories from a GitLab group
+    #[command(visible_alias = "cl")]
+    #[command(about = "Clone all repositories from a GitLab group")]
+    Clone {
+        /// GitLab group path (e.g. "my-org/team" or numeric ID)
+        #[arg(help = "GitLab group path (e.g. \"my-org/team\" or numeric ID)")]
+        group: String,
+        /// GitLab base URL (default: https://gitlab.com)
+        #[arg(
+            long,
+            short,
+            default_value = "https://gitlab.com",
+            help = "GitLab base URL (default: https://gitlab.com, use custom URL for self-hosted)"
+        )]
+        server: String,
+        /// GitLab private token (or set GITLAB_TOKEN / GL_TOKEN env var)
+        #[arg(
+            long,
+            short = 't',
+            help = "GitLab private token (or set GITLAB_TOKEN / GL_TOKEN env var)"
+        )]
+        token: Option<String>,
+        /// Clone protocol
+        #[arg(
+            long,
+            short = 'p',
+            value_enum,
+            default_value = "ssh",
+            help = "Clone protocol: ssh or https"
+        )]
+        protocol: CloneProtocolType,
+        /// Output directory for cloned repositories
+        #[arg(
+            long,
+            short = 'o',
+            default_value = ".",
+            help = "Output directory for cloned repositories"
+        )]
+        output: String,
+        /// Include archived projects
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Include archived projects"
+        )]
+        include_archived: bool,
+        /// Clone submodules recursively
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Clone submodules recursively"
+        )]
+        recursive: bool,
         /// Dry run: show what would be changed without making any modifications
         #[arg(
             long,
