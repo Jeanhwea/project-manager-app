@@ -174,9 +174,7 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     }
     let cfg = config::load();
     if let Some((protocol, host, path)) = git::parse_git_remote_url(url) {
-        if protocol == GitProtocol::Https
-            && cfg.sync.skip_push_hosts.iter().any(|h| h == &host)
-        {
+        if protocol == GitProtocol::Https && cfg.sync.skip_push_hosts.iter().any(|h| h == &host) {
             return true;
         }
         if protocol == GitProtocol::Ssh && host == "gitee.com" && path.starts_with("red_base") {
