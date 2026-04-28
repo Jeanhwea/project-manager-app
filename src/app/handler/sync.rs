@@ -12,6 +12,8 @@ pub fn execute(
     all_branch: bool,
     skip_remotes: Vec<String>,
     dry_run: bool,
+    fetch_only: bool,
+    rebase: bool,
 ) -> Result<()> {
     let root_dir = Path::new(path);
 
@@ -64,7 +66,7 @@ pub fn execute(
             continue;
         }
 
-        do_sync_repository(&ctx, &repo_path, all_branch, &skip_remotes);
+        do_sync_repository(&ctx, &repo_path, all_branch, &skip_remotes, fetch_only, rebase);
     }
 
     Ok(())
@@ -111,6 +113,8 @@ fn do_sync_repository(
     repo_path: &Path,
     all_branch: bool,
     skip_remotes: &[String],
+    fetch_only: bool,
+    rebase: bool,
 ) {
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
@@ -135,18 +139,52 @@ fn do_sync_repository(
             track_remote,
             track_remote_url.green()
         );
+    } else if fetch_only {
+        if ctx.is_dry_run() {
+            println!("  {} git fetch {}", "[DRY-RUN]".yellow(), track_remote);
+        } else {
+            do_fetch_repository(repo_path, &track_remote);
+        }
     } else if all_branch {
         if ctx.is_dry_run() {
-            println!("  {} git pull (all branches)", "[DRY-RUN]".yellow());
+            if rebase {
+                println!("  {} git pull --rebase (all branches)", "[DRY-RUN]".yellow());
+            } else {
+                println!("  {} git pull (all branches)", "[DRY-RUN]".yellow());
+            }
         } else {
-            do_pull_all_local_branch(repo_path);
+            do_pull_all_local_branch(repo_path, rebase);
         }
     } else {
         if ctx.is_dry_run() {
-            println!("  {} git pull", "[DRY-RUN]".yellow());
+            if rebase {
+                println!("  {} git pull --rebase", "[DRY-RUN]".yellow());
+            } else {
+                println!("  {} git pull", "[DRY-RUN]".yellow());
+            }
         } else {
-            do_pull_repository(repo_path);
+            do_pull_repository(repo_path, rebase);
         }
+    }
+
+    if fetch_only {
+        for (remote, url) in &remotes {
+            if skip_remotes.iter().any(|s| s.as_str() == *remote) {
+                println!(
+                    "  {} git fetch {} ({})",
+                    "[SKIP]".dimmed(),
+                    remote,
+                    url.green()
+                );
+            } else if *remote != track_remote {
+                if ctx.is_dry_run() {
+                    println!("  {} git fetch {}", "[DRY-RUN]".yellow(), remote);
+                } else {
+                    do_fetch_repository(repo_path, remote);
+                }
+            }
+        }
+        return;
     }
 
     for (remote, url) in remotes {
@@ -206,23 +244,23 @@ fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
     Some((current_branch, local_branches))
 }
 
-fn do_pull_all_local_branch(repo_path: &Path) {
+fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
     let Some((current_branch, local_branches)) = list_local_branches(repo_path) else {
         return;
     };
 
     if local_branches.is_empty() {
-        do_pull_repository(repo_path);
+        do_pull_repository(repo_path, rebase);
         return;
     }
 
     for branch in &local_branches {
-        do_pull_repository_branch(branch, repo_path);
+        do_pull_repository_branch(branch, repo_path, rebase);
     }
-    do_pull_repository_branch(&current_branch, repo_path);
+    do_pull_repository_branch(&current_branch, repo_path, rebase);
 }
 
-fn do_pull_repository_branch(branch: &str, repo_path: &Path) {
+fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
     if let Err(e) =
         CommandRunner::run_with_success_in_dir("git", &["checkout", branch], repo_path)
     {
@@ -233,13 +271,30 @@ fn do_pull_repository_branch(branch: &str, repo_path: &Path) {
         );
         return;
     }
-    do_pull_repository(repo_path);
+    do_pull_repository(repo_path, rebase);
 }
 
-fn do_pull_repository(repo_path: &Path) {
-    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["pull"], repo_path) {
+fn do_pull_repository(repo_path: &Path, rebase: bool) {
+    let args = if rebase {
+        vec!["pull", "--rebase"]
+    } else {
+        vec!["pull"]
+    };
+    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &args, repo_path) {
         println!(
             "  同步仓库失败: {} - {}",
+            utils::format_path(repo_path).red(),
+            e
+        );
+    }
+}
+
+fn do_fetch_repository(repo_path: &Path, remote: &str) {
+    if let Err(e) =
+        CommandRunner::run_with_success_in_dir("git", &["fetch", remote], repo_path)
+    {
+        println!(
+            "  拉取仓库失败: {} - {}",
             utils::format_path(repo_path).red(),
             e
         );

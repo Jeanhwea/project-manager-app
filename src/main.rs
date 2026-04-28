@@ -4,7 +4,7 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{BranchCommands, Cli, Commands, ConfigCommands, SelfCommands};
+use cli::{BranchCommands, Cli, Commands, ConfigCommands, SelfCommands, SnapCommands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -17,6 +17,8 @@ fn main() -> Result<()> {
             force,
             skip_push,
             dry_run,
+            message,
+            pre_release,
         } => {
             app::handler::release::execute(
                 bump_type.as_str(),
@@ -25,6 +27,8 @@ fn main() -> Result<()> {
                 force,
                 skip_push,
                 dry_run,
+                message.as_deref(),
+                pre_release.as_deref(),
             )?;
         }
         Commands::Sync {
@@ -33,18 +37,29 @@ fn main() -> Result<()> {
             skip_remotes,
             all_branch,
             dry_run,
+            fetch_only,
+            rebase,
         } => {
             let skip_remotes = parse_comma_separated(skip_remotes);
-            app::handler::sync::execute(&path, max_depth, all_branch, skip_remotes, dry_run)?;
+            app::handler::sync::execute(
+                &path,
+                max_depth,
+                all_branch,
+                skip_remotes,
+                dry_run,
+                fetch_only,
+                rebase,
+            )?;
         }
         Commands::Doctor {
             path,
             max_depth,
             gc,
             rename,
+            fix,
             dry_run,
         } => {
-            app::handler::doctor::execute(&path, max_depth, gc, rename, dry_run)?;
+            app::handler::doctor::execute(&path, max_depth, gc, rename, fix, dry_run)?;
         }
         Commands::Fork {
             path,
@@ -53,15 +68,32 @@ fn main() -> Result<()> {
         } => {
             app::handler::fork::execute(&path, &name, dry_run)?;
         }
-        Commands::Snap { path, dry_run } => {
-            app::handler::snap::execute(&path, dry_run)?;
-        }
+        Commands::Snap { command } => match command {
+            SnapCommands::Create { path, dry_run } => {
+                app::handler::snap::execute(&path, dry_run)?;
+            }
+            SnapCommands::List { path } => {
+                app::handler::snap::execute_list(&path)?;
+            }
+            SnapCommands::Restore {
+                snapshot,
+                path,
+                dry_run,
+            } => {
+                app::handler::snap::execute_restore(&path, &snapshot, dry_run)?;
+            }
+        },
         Commands::Status {
             path,
             max_depth,
             short,
+            filter,
         } => {
-            app::handler::status::execute(&path, max_depth, short)?;
+            let filter = filter.map(|f| {
+                app::handler::status::StatusFilter::from_str(f.as_str())
+                    .expect("invalid filter value")
+            });
+            app::handler::status::execute(&path, max_depth, short, filter)?;
         }
         Commands::Branch { command } => match command {
             BranchCommands::List { path, max_depth } => {
@@ -74,6 +106,30 @@ fn main() -> Result<()> {
                 dry_run,
             } => {
                 app::handler::branch::execute_clean(&path, max_depth, remote, dry_run)?;
+            }
+            BranchCommands::Switch {
+                branch,
+                create,
+                path,
+                max_depth,
+                dry_run,
+            } => {
+                app::handler::branch::execute_switch(&path, max_depth, &branch, create, dry_run)?;
+            }
+            BranchCommands::Rename {
+                old_name,
+                new_name,
+                path,
+                max_depth,
+                dry_run,
+            } => {
+                app::handler::branch::execute_rename(
+                    &path,
+                    max_depth,
+                    &old_name,
+                    &new_name,
+                    dry_run,
+                )?;
             }
         },
         Commands::Self_ { command } => match command {

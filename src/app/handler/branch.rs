@@ -91,6 +91,100 @@ pub fn execute_clean(
     Ok(())
 }
 
+pub fn execute_switch(
+    path: &str,
+    max_depth: Option<usize>,
+    branch_name: &str,
+    create: bool,
+    dry_run: bool,
+) -> Result<()> {
+    let root_dir = Path::new(path);
+
+    if !root_dir.exists() {
+        anyhow::bail!("目录不存在: {}", path);
+    }
+
+    let git_repos = git::find_git_repositories_or_current(root_dir, max_depth);
+
+    if git_repos.is_empty() {
+        println!("未找到git仓库");
+        return Ok(());
+    }
+
+    let ctx = DryRunContext::new(dry_run);
+    let total = git_repos.len();
+
+    for (index, repo) in git_repos.iter().enumerate() {
+        let repo_path = repo
+            .path
+            .canonicalize()
+            .unwrap_or_else(|_| repo.path.clone());
+
+        let progress = format!("({}/{})", index + 1, total);
+        println!(
+            "{}>> {}",
+            progress.white().bold(),
+            utils::format_path(&repo_path).cyan().underline(),
+        );
+
+        if repo.repo_type == git::RepoType::Submodule {
+            println!("  {}", "(submodule, 跳过)".dimmed());
+            continue;
+        }
+
+        switch_branch(&ctx, &repo_path, branch_name, create)?;
+    }
+
+    Ok(())
+}
+
+pub fn execute_rename(
+    path: &str,
+    max_depth: Option<usize>,
+    old_name: &str,
+    new_name: &str,
+    dry_run: bool,
+) -> Result<()> {
+    let root_dir = Path::new(path);
+
+    if !root_dir.exists() {
+        anyhow::bail!("目录不存在: {}", path);
+    }
+
+    let git_repos = git::find_git_repositories_or_current(root_dir, max_depth);
+
+    if git_repos.is_empty() {
+        println!("未找到git仓库");
+        return Ok(());
+    }
+
+    let ctx = DryRunContext::new(dry_run);
+    let total = git_repos.len();
+
+    for (index, repo) in git_repos.iter().enumerate() {
+        let repo_path = repo
+            .path
+            .canonicalize()
+            .unwrap_or_else(|_| repo.path.clone());
+
+        let progress = format!("({}/{})", index + 1, total);
+        println!(
+            "{}>> {}",
+            progress.white().bold(),
+            utils::format_path(&repo_path).cyan().underline(),
+        );
+
+        if repo.repo_type == git::RepoType::Submodule {
+            println!("  {}", "(submodule, 跳过)".dimmed());
+            continue;
+        }
+
+        rename_branch(&ctx, &repo_path, old_name, new_name)?;
+    }
+
+    Ok(())
+}
+
 fn list_branches(repo_path: &Path) {
     let current = get_current_branch(repo_path);
 
@@ -113,6 +207,126 @@ fn list_branches(repo_path: &Path) {
             println!("    {}", branch.dimmed());
         }
     }
+}
+
+fn switch_branch(
+    ctx: &DryRunContext,
+    repo_path: &Path,
+    branch_name: &str,
+    create: bool,
+) -> Result<()> {
+    let current = get_current_branch(repo_path);
+
+    if current.as_deref() == Some(branch_name) {
+        println!(
+            "  {} 已在分支 {} 上",
+            "跳过".dimmed(),
+            branch_name.yellow()
+        );
+        return Ok(());
+    }
+
+    if create {
+        let local_branches = get_local_branches(repo_path);
+        let branch_exists = local_branches.iter().any(|b| b == branch_name);
+
+        if branch_exists {
+            println!(
+                "  {} 分支 {} 已存在，直接切换",
+                "提示".yellow(),
+                branch_name.yellow()
+            );
+            ctx.run_in_dir("git", &["checkout", branch_name], Some(repo_path))?;
+        } else {
+            ctx.run_in_dir("git", &["checkout", "-b", branch_name], Some(repo_path))?;
+            if !ctx.is_dry_run() {
+                println!(
+                    "  {} 创建并切换到分支 {}",
+                    "完成".green(),
+                    branch_name.yellow()
+                );
+            }
+        }
+    } else {
+        let local_branches = get_local_branches(repo_path);
+        let branch_exists = local_branches.iter().any(|b| b == branch_name);
+
+        if !branch_exists {
+            println!(
+                "  {} 分支 {} 不存在 (使用 --create 创建新分支)",
+                "跳过".red(),
+                branch_name.red()
+            );
+            return Ok(());
+        }
+
+        ctx.run_in_dir("git", &["checkout", branch_name], Some(repo_path))?;
+        if !ctx.is_dry_run() {
+            println!(
+                "  {} 切换到分支 {}",
+                "完成".green(),
+                branch_name.yellow()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn rename_branch(
+    ctx: &DryRunContext,
+    repo_path: &Path,
+    old_name: &str,
+    new_name: &str,
+) -> Result<()> {
+    let local_branches = get_local_branches(repo_path);
+
+    if !local_branches.iter().any(|b| b == old_name) {
+        println!(
+            "  {} 分支 {} 不存在",
+            "跳过".dimmed(),
+            old_name.red()
+        );
+        return Ok(());
+    }
+
+    if local_branches.iter().any(|b| b == new_name) {
+        println!(
+            "  {} 分支 {} 已存在",
+            "跳过".red(),
+            new_name.red()
+        );
+        return Ok(());
+    }
+
+    let current = get_current_branch(repo_path);
+    let is_current = current.as_deref() == Some(old_name);
+
+    ctx.run_in_dir(
+        "git",
+        &["branch", "-m", old_name, new_name],
+        Some(repo_path),
+    )?;
+
+    if !ctx.is_dry_run() {
+        if is_current {
+            println!(
+                "  {} 当前分支 {} -> {}",
+                "重命名".green(),
+                old_name.red(),
+                new_name.yellow()
+            );
+        } else {
+            println!(
+                "  {} 分支 {} -> {}",
+                "重命名".green(),
+                old_name.red(),
+                new_name.yellow()
+            );
+        }
+    }
+
+    Ok(())
 }
 
 fn get_local_branches(repo_path: &Path) -> Vec<String> {

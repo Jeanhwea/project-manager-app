@@ -36,6 +36,7 @@ type ConfigFileEntry = (
 struct GitState {
     current_branch: String,
     new_tag: String,
+    commit_message: String,
 }
 
 fn create_editor_registry() -> EditorRegistry {
@@ -50,6 +51,7 @@ fn create_editor_registry() -> EditorRegistry {
         .register(PackageJsonEditor { in_npm_dir: false })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute(
     bump_type: &str,
     files: &[String],
@@ -57,11 +59,13 @@ pub fn execute(
     force: bool,
     skip_push: bool,
     dry_run: bool,
+    message: Option<&str>,
+    pre_release: Option<&str>,
 ) -> Result<()> {
     let ctx = DryRunContext::new(dry_run);
     let resolved_files = resolve_file_paths(files);
     switch_to_git_root(no_root);
-    let state = validate_git_state(force, bump_type)?;
+    let state = validate_git_state(force, bump_type, message, pre_release)?;
     let registry = create_editor_registry();
     let config_files = resolve_config_files(&registry, &resolved_files)?;
 
@@ -96,7 +100,7 @@ fn switch_to_git_root(no_root: bool) {
     }
 }
 
-fn validate_git_state(force: bool, bump_type: &str) -> Result<GitState> {
+fn validate_git_state(force: bool, bump_type: &str, message: Option<&str>, pre_release: Option<&str>) -> Result<GitState> {
     let current_branch = git::get_current_branch().unwrap_or_else(|| "master".to_string());
     if !force && current_branch != "master" {
         anyhow::bail!("只能在 master 分支上执行 release");
@@ -111,7 +115,16 @@ fn validate_git_state(force: bool, bump_type: &str) -> Result<GitState> {
 
     let version = Version::from_tag(&current_tag).unwrap_or_default();
     let new_version = version.bump(bump_type);
-    let new_tag = new_version.to_tag();
+    let mut new_tag = new_version.to_tag();
+
+    if let Some(pre) = pre_release {
+        new_tag = format!("{}-{}", new_tag, pre);
+    }
+
+    let commit_message = match message {
+        Some(msg) => format!("{} {}", new_tag, msg),
+        None => new_tag.clone(),
+    };
 
     println!(
         "{} {} -> {}",
@@ -120,9 +133,18 @@ fn validate_git_state(force: bool, bump_type: &str) -> Result<GitState> {
         new_tag.yellow().bold()
     );
 
+    if message.is_some() {
+        println!(
+            "{} {}",
+            "提交消息:".green().bold(),
+            commit_message.yellow()
+        );
+    }
+
     Ok(GitState {
         current_branch,
         new_tag,
+        commit_message,
     })
 }
 
@@ -163,7 +185,7 @@ fn execute_dry_run(
         print_lock_update_plan(ctx, file_path);
     }
     ctx.print_message("git add <files>");
-    ctx.print_message(&format!("git commit -m \"{}\"", state.new_tag));
+    ctx.print_message(&format!("git commit -m \"{}\"", state.commit_message));
     ctx.print_message(&format!("git tag {}", state.new_tag));
     print_push_plan(ctx, &state.current_branch, &state.new_tag, skip_push);
     Ok(())
@@ -182,7 +204,7 @@ fn execute_release(
     }
 
     git::list_cached_changes()?;
-    git::commit(&state.new_tag)?;
+    git::commit(&state.commit_message)?;
     git::create_tag(&state.new_tag)?;
     push_to_remotes(skip_push, &state.current_branch, &state.new_tag);
     Ok(())

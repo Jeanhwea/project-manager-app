@@ -67,6 +67,29 @@ impl BumpType {
     }
 }
 
+#[derive(ValueEnum, Clone, Debug)]
+pub enum StatusFilterType {
+    /// Show only dirty repositories
+    Dirty,
+    /// Show only clean repositories
+    Clean,
+    /// Show only repositories ahead of remote
+    Ahead,
+    /// Show only repositories behind remote
+    Behind,
+}
+
+impl StatusFilterType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            StatusFilterType::Dirty => "dirty",
+            StatusFilterType::Clean => "clean",
+            StatusFilterType::Ahead => "ahead",
+            StatusFilterType::Behind => "behind",
+        }
+    }
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
     /// Release a new version
@@ -113,6 +136,19 @@ pub enum Commands {
             help = "Dry run: show what would be changed without making any modifications"
         )]
         dry_run: bool,
+        /// Custom commit message (tag name will be prepended automatically)
+        #[arg(
+            long,
+            short = 'm',
+            help = "Custom commit message (tag name will be prepended automatically)"
+        )]
+        message: Option<String>,
+        /// Pre-release suffix (e.g. "alpha", "rc.1" -> v1.0.0-alpha)
+        #[arg(
+            long,
+            help = "Pre-release suffix (e.g. \"alpha\", \"rc.1\" -> v1.0.0-alpha)"
+        )]
+        pre_release: Option<String>,
     },
     /// Synchronize all code repositories
     #[command(visible_alias = "s")]
@@ -150,6 +186,21 @@ pub enum Commands {
             help = "Dry run: show what would be changed without making any modifications"
         )]
         dry_run: bool,
+        /// Only fetch from remotes, do not pull or push
+        #[arg(
+            long,
+            short = 'f',
+            default_value = "false",
+            help = "Only fetch from remotes, do not pull or push"
+        )]
+        fetch_only: bool,
+        /// Use rebase instead of merge when pulling
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Use rebase instead of merge when pulling"
+        )]
+        rebase: bool,
     },
     /// Diagnostic project health
     #[command(about = "Diagnostic project health")]
@@ -178,6 +229,13 @@ pub enum Commands {
             help = "Whether to rename remotes to their canonical names"
         )]
         rename: bool,
+        /// Whether to automatically fix detected issues
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Whether to automatically fix detected issues"
+        )]
+        fix: bool,
         /// Path to the directory to search for repositories, defaults to current directory
         #[arg(
             default_value = ".",
@@ -214,19 +272,8 @@ pub enum Commands {
     /// Snapshot a project
     #[command(about = "Snapshot a project")]
     Snap {
-        /// Path to the project to snapshot, defaults to current directory
-        #[arg(
-            default_value = ".",
-            help = "Path to the project to snapshot, defaults to current directory"
-        )]
-        path: String,
-        /// Dry run: show what would be changed without making any modifications
-        #[arg(
-            long,
-            default_value = "false",
-            help = "Dry run: show what would be changed without making any modifications"
-        )]
-        dry_run: bool,
+        #[command(subcommand)]
+        command: SnapCommands,
     },
     /// Show status of all code repositories
     #[command(visible_alias = "st")]
@@ -248,6 +295,14 @@ pub enum Commands {
             help = "Show short status (branch + clean/dirty only)"
         )]
         short: bool,
+        /// Filter repositories by status
+        #[arg(
+            long,
+            short,
+            value_enum,
+            help = "Filter repositories by status: dirty, clean, ahead, behind"
+        )]
+        filter: Option<StatusFilterType>,
         /// Path to the directory to search for repositories, defaults to current directory
         #[arg(
             default_value = ".",
@@ -273,6 +328,59 @@ pub enum Commands {
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SnapCommands {
+    /// Create a snapshot of the current project state
+    #[command(about = "Create a snapshot of the current project state")]
+    Create {
+        /// Path to the project to snapshot, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the project to snapshot, defaults to current directory"
+        )]
+        path: String,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
+    },
+    /// List snapshot history
+    #[command(visible_alias = "ls")]
+    #[command(about = "List snapshot history")]
+    List {
+        /// Path to the project, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the project, defaults to current directory"
+        )]
+        path: String,
+    },
+    /// Restore project to a specific snapshot
+    #[command(visible_alias = "rs")]
+    #[command(about = "Restore project to a specific snapshot")]
+    Restore {
+        /// Snapshot reference (e.g. snap-000001, #0, or commit hash)
+        #[arg(help = "Snapshot reference (e.g. snap-000001, #0, or commit hash)")]
+        snapshot: String,
+        /// Path to the project, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the project, defaults to current directory"
+        )]
+        path: String,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
     },
 }
 
@@ -316,6 +424,75 @@ pub enum BranchCommands {
             help = "Also delete remote merged branches"
         )]
         remote: bool,
+        /// Path to the directory to search for repositories, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the directory to search for repositories, defaults to current directory"
+        )]
+        path: String,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
+    },
+    /// Switch to a branch across all repositories
+    #[command(visible_alias = "sw")]
+    #[command(about = "Switch to a branch across all repositories")]
+    Switch {
+        /// Branch name to switch to
+        #[arg(help = "Branch name to switch to")]
+        branch: String,
+        /// Create the branch if it does not exist
+        #[arg(
+            long,
+            short = 'c',
+            default_value = "false",
+            help = "Create the branch if it does not exist"
+        )]
+        create: bool,
+        /// Maximum depth to search for repositories
+        #[arg(
+            long,
+            short,
+            default_value = "3",
+            help = "Maximum depth to search for repositories"
+        )]
+        max_depth: Option<usize>,
+        /// Path to the directory to search for repositories, defaults to current directory
+        #[arg(
+            default_value = ".",
+            help = "Path to the directory to search for repositories, defaults to current directory"
+        )]
+        path: String,
+        /// Dry run: show what would be changed without making any modifications
+        #[arg(
+            long,
+            default_value = "false",
+            help = "Dry run: show what would be changed without making any modifications"
+        )]
+        dry_run: bool,
+    },
+    /// Rename a branch across all repositories
+    #[command(visible_alias = "mv")]
+    #[command(about = "Rename a branch across all repositories")]
+    Rename {
+        /// Old branch name
+        #[arg(help = "Old branch name")]
+        old_name: String,
+        /// New branch name
+        #[arg(help = "New branch name")]
+        new_name: String,
+        /// Maximum depth to search for repositories
+        #[arg(
+            long,
+            short,
+            default_value = "3",
+            help = "Maximum depth to search for repositories"
+        )]
+        max_depth: Option<usize>,
         /// Path to the directory to search for repositories, defaults to current directory
         #[arg(
             default_value = ".",
