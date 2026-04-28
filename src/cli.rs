@@ -75,8 +75,7 @@ pub enum CloneProtocolType {
     Https,
 }
 
-impl CloneProtocolType {
-}
+impl CloneProtocolType {}
 
 #[derive(ValueEnum, Clone, Debug)]
 pub enum StatusFilterType {
@@ -363,11 +362,7 @@ pub enum GitlabCommands {
         )]
         server: String,
         /// GitLab private token
-        #[arg(
-            long,
-            short = 't',
-            help = "GitLab private token"
-        )]
+        #[arg(long, short = 't', help = "GitLab private token")]
         token: String,
         /// Default clone protocol
         #[arg(
@@ -417,18 +412,10 @@ pub enum GitlabCommands {
         )]
         output: String,
         /// Include archived projects
-        #[arg(
-            long,
-            default_value = "false",
-            help = "Include archived projects"
-        )]
+        #[arg(long, default_value = "false", help = "Include archived projects")]
         include_archived: bool,
         /// Clone submodules recursively
-        #[arg(
-            long,
-            default_value = "false",
-            help = "Clone submodules recursively"
-        )]
+        #[arg(long, default_value = "false", help = "Clone submodules recursively")]
         recursive: bool,
         /// Dry run: show what would be changed without making any modifications
         #[arg(

@@ -70,11 +70,7 @@ pub fn execute_show() -> Result<()> {
         );
     } else {
         for srv in &gitlab_cfg.servers {
-            println!(
-                "  {} ({})",
-                srv.url.cyan(),
-                srv.protocol.dimmed()
-            );
+            println!("  {} ({})", srv.url.cyan(), srv.protocol.dimmed());
         }
     }
 

@@ -33,18 +33,10 @@ struct GitLabUser {
     name: String,
 }
 
-pub fn execute_login(
-    server: &str,
-    token: &str,
-    protocol: &CloneProtocol,
-) -> Result<()> {
+pub fn execute_login(server: &str, token: &str, protocol: &CloneProtocol) -> Result<()> {
     let resolved_url = resolve_base_url(server);
 
-    println!(
-        "{} {}",
-        "验证连接:".cyan(),
-        resolved_url.dimmed()
-    );
+    println!("{} {}", "验证连接:".cyan(), resolved_url.dimmed());
 
     let user = verify_token(&resolved_url, token)?;
 
@@ -62,25 +54,21 @@ pub fn execute_login(
         CloneProtocol::Https => "https",
     };
 
-    if let Some(existing) = gitlab_cfg.servers.iter_mut().find(|s| s.url == resolved_url) {
+    if let Some(existing) = gitlab_cfg
+        .servers
+        .iter_mut()
+        .find(|s| s.url == resolved_url)
+    {
         existing.token = token.to_string();
         existing.protocol = protocol_str.to_string();
-        println!(
-            "{} {} 的凭据已更新",
-            "更新:".yellow(),
-            resolved_url.cyan()
-        );
+        println!("{} {} 的凭据已更新", "更新:".yellow(), resolved_url.cyan());
     } else {
         gitlab_cfg.servers.push(config::GitLabServer {
             url: resolved_url.clone(),
             token: token.to_string(),
             protocol: protocol_str.to_string(),
         });
-        println!(
-            "{} {} 凭据已保存",
-            "保存:".green(),
-            resolved_url.cyan()
-        );
+        println!("{} {} 凭据已保存", "保存:".green(), resolved_url.cyan());
     }
 
     config::save_gitlab(&gitlab_cfg)?;
@@ -103,9 +91,7 @@ fn verify_token(base_url: &str, token: &str) -> Result<GitLabUser> {
         .call()
         .with_context(|| format!("无法连接到 {}", base_url))?;
 
-    let user: GitLabUser = resp
-        .into_json()
-        .with_context(|| "无法解析用户信息")?;
+    let user: GitLabUser = resp.into_json().with_context(|| "无法解析用户信息")?;
 
     Ok(user)
 }
@@ -121,7 +107,8 @@ pub fn execute_clone(
     recursive: bool,
     dry_run: bool,
 ) -> Result<()> {
-    let (resolved_url, saved_token, saved_protocol) = resolve_gitlab_config(server, token, protocol)?;
+    let (resolved_url, saved_token, saved_protocol) =
+        resolve_gitlab_config(server, token, protocol)?;
 
     let resolved_base_url = resolve_base_url(&resolved_url);
     let resolved_token = resolve_token(Some(&saved_token))?;
@@ -143,12 +130,8 @@ pub fn execute_clone(
         group_info.full_path.dimmed()
     );
 
-    let projects = fetch_group_projects(
-        &resolved_base_url,
-        group,
-        &resolved_token,
-        include_archived,
-    )?;
+    let projects =
+        fetch_group_projects(&resolved_base_url, group, &resolved_token, include_archived)?;
 
     if projects.is_empty() {
         println!("{}", "未找到项目".yellow());
@@ -170,11 +153,7 @@ pub fn execute_clone(
     let output_path = Path::new(output_dir);
     if !output_path.exists() {
         if dry_run {
-            println!(
-                "  {} 创建目录: {}",
-                "[DRY-RUN]".yellow(),
-                output_dir.cyan()
-            );
+            println!("  {} 创建目录: {}", "[DRY-RUN]".yellow(), output_dir.cyan());
         } else {
             std::fs::create_dir_all(output_path)
                 .with_context(|| format!("无法创建目录: {}", output_dir))?;
@@ -223,10 +202,7 @@ pub fn execute_clone(
                 project.name.dimmed()
             );
             if recursive {
-                println!(
-                    "  {} (含子模块)",
-                    "[DRY-RUN]".yellow()
-                );
+                println!("  {} (含子模块)", "[DRY-RUN]".yellow());
             }
             success_count += 1;
             continue;
@@ -239,20 +215,11 @@ pub fn execute_clone(
 
         match CommandRunner::run_with_success_in_dir("git", &args, output_path) {
             Ok(_) => {
-                println!(
-                    "  {} {}",
-                    "已克隆".green(),
-                    project.name.green()
-                );
+                println!("  {} {}", "已克隆".green(), project.name.green());
                 success_count += 1;
             }
             Err(e) => {
-                println!(
-                    "  {} {} - {}",
-                    "克隆失败".red(),
-                    project.name.red(),
-                    e
-                );
+                println!("  {} {} - {}", "克隆失败".red(), project.name.red(), e);
                 fail_count += 1;
             }
         }
@@ -280,28 +247,32 @@ fn resolve_gitlab_config(
     if let Some(s) = server {
         let resolved_url = resolve_base_url(s);
 
-        let saved = gitlab_cfg.servers.iter().find(|srv| srv.url == resolved_url);
+        let saved = gitlab_cfg
+            .servers
+            .iter()
+            .find(|srv| srv.url == resolved_url);
 
         let resolved_token = token
             .map(|t| t.to_string())
             .or_else(|| saved.map(|s| s.token.clone()))
             .unwrap_or_default();
 
-        let resolved_protocol = protocol.cloned().or_else(|| {
-            saved.map(|s| match s.protocol.as_str() {
-                "https" => CloneProtocol::Https,
-                _ => CloneProtocol::Ssh,
+        let resolved_protocol = protocol
+            .cloned()
+            .or_else(|| {
+                saved.map(|s| match s.protocol.as_str() {
+                    "https" => CloneProtocol::Https,
+                    _ => CloneProtocol::Ssh,
+                })
             })
-        }).unwrap_or(CloneProtocol::Ssh);
+            .unwrap_or(CloneProtocol::Ssh);
 
         return Ok((resolved_url, resolved_token, resolved_protocol));
     }
 
     if gitlab_cfg.servers.is_empty() {
         let default_url = "https://gitlab.com".to_string();
-        let resolved_token = token
-            .map(|t| t.to_string())
-            .unwrap_or_default();
+        let resolved_token = token.map(|t| t.to_string()).unwrap_or_default();
         let resolved_protocol = protocol.cloned().unwrap_or(CloneProtocol::Ssh);
         return Ok((default_url, resolved_token, resolved_protocol));
     }
@@ -311,12 +282,15 @@ fn resolve_gitlab_config(
         let resolved_token = token
             .map(|t| t.to_string())
             .unwrap_or_else(|| srv.token.clone());
-        let resolved_protocol = protocol.cloned().or({
-            match srv.protocol.as_str() {
-                "https" => Some(CloneProtocol::Https),
-                _ => Some(CloneProtocol::Ssh),
-            }
-        }).unwrap_or(CloneProtocol::Ssh);
+        let resolved_protocol = protocol
+            .cloned()
+            .or({
+                match srv.protocol.as_str() {
+                    "https" => Some(CloneProtocol::Https),
+                    _ => Some(CloneProtocol::Ssh),
+                }
+            })
+            .unwrap_or(CloneProtocol::Ssh);
         return Ok((srv.url.clone(), resolved_token, resolved_protocol));
     }
 
@@ -376,9 +350,7 @@ fn fetch_group_info(base_url: &str, group: &str, token: &str) -> Result<GitLabGr
         .call()
         .with_context(|| format!("无法获取组信息: {}", group))?;
 
-    let group_info: GitLabGroup = resp
-        .into_json()
-        .with_context(|| "无法解析组信息")?;
+    let group_info: GitLabGroup = resp.into_json().with_context(|| "无法解析组信息")?;
 
     Ok(group_info)
 }
