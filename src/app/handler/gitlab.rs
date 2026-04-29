@@ -1,9 +1,11 @@
 use crate::app::common::config;
+use crate::app::common::git;
 use crate::app::common::runner::CommandRunner;
 use anyhow::{Context, Result};
 use clap::ValueEnum;
 use colored::Colorize;
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::path::Path;
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -160,6 +162,16 @@ pub fn execute_clone(
         }
     }
 
+    let existing_urls = collect_existing_remote_urls(output_path);
+    if !existing_urls.is_empty() {
+        println!(
+            "{} {} 个已存在的仓库",
+            "检测:".cyan(),
+            existing_urls.len().to_string().white().bold()
+        );
+        println!();
+    }
+
     let mut success_count = 0usize;
     let mut skip_count = 0usize;
     let mut fail_count = 0usize;
@@ -187,6 +199,19 @@ pub fn execute_clone(
         if project_dir.exists() {
             println!(
                 "  {} {} 已存在，跳过",
+                "[SKIP]".dimmed(),
+                project.name.yellow()
+            );
+            skip_count += 1;
+            continue;
+        }
+
+        if existing_urls.contains(clone_url.as_str())
+            || existing_urls.contains(project.ssh_url_to_repo.as_str())
+            || existing_urls.contains(project.http_url_to_repo.as_str())
+        {
+            println!(
+                "  {} {} URL 已存在，跳过",
                 "[SKIP]".dimmed(),
                 project.name.yellow()
             );
@@ -408,4 +433,24 @@ fn url_encode(s: &str) -> String {
         .replace('/', "%2F")
         .replace(' ', "%20")
         .replace('#', "%23")
+}
+
+fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
+    let mut urls = HashSet::new();
+
+    if !output_path.exists() {
+        return urls;
+    }
+
+    let repos = git::find_git_repositories(output_path, Some(1));
+
+    for repo in &repos {
+        let remote_info = git::get_remote_info(&repo.path);
+        for (_, url) in remote_info {
+            let url = url.trim_end_matches('/').to_string();
+            urls.insert(url);
+        }
+    }
+
+    urls
 }
