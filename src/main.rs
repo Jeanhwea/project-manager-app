@@ -4,10 +4,7 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{
-    BranchCommands, Cli, CloneProtocolType, Commands, ConfigCommands, GitlabCommands,
-    SelfCommands, SnapCommands,
-};
+use cli::{BranchCommands, Cli, Commands, ConfigCommands, GitlabCommands, SelfCommands, SnapCommands};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -77,11 +74,7 @@ fn main() -> Result<()> {
                 token,
                 protocol,
             } => {
-                let clone_protocol = match protocol {
-                    CloneProtocolType::Ssh => app::handler::gitlab::CloneProtocol::Ssh,
-                    CloneProtocolType::Https => app::handler::gitlab::CloneProtocol::Https,
-                };
-                app::handler::gitlab::execute_login(&server, &token, &clone_protocol)?;
+                app::handler::gitlab::execute_login(&server, &token, &protocol)?;
             }
             GitlabCommands::Clone {
                 group,
@@ -93,15 +86,11 @@ fn main() -> Result<()> {
                 recursive,
                 dry_run,
             } => {
-                let clone_protocol = protocol.map(|p| match p {
-                    CloneProtocolType::Ssh => app::handler::gitlab::CloneProtocol::Ssh,
-                    CloneProtocolType::Https => app::handler::gitlab::CloneProtocol::Https,
-                });
                 app::handler::gitlab::execute_clone(
                     &group,
                     server.as_deref(),
                     token.as_deref(),
-                    clone_protocol.as_ref(),
+                    protocol.as_ref(),
                     &output,
                     include_archived,
                     recursive,
@@ -130,10 +119,6 @@ fn main() -> Result<()> {
             short,
             filter,
         } => {
-            let filter = filter.map(|f| {
-                app::handler::status::StatusFilter::from_str(f.as_str())
-                    .expect("invalid filter value")
-            });
             app::handler::status::execute(&path, max_depth, short, filter)?;
         }
         Commands::Branch { command } => match command {
@@ -193,7 +178,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// 处理逗号分隔的参数值，将 "a,b,c" 展开为 ["a", "b", "c"]
 fn parse_comma_separated(values: Vec<String>) -> Vec<String> {
     values
         .into_iter()

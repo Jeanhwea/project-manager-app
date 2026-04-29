@@ -1,27 +1,16 @@
 use crate::app::common::git::{self, RepoWalker};
 use crate::app::common::runner::CommandRunner;
 use anyhow::Result;
+use clap::ValueEnum;
 use colored::Colorize;
 use std::path::Path;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, ValueEnum)]
 pub enum StatusFilter {
     Dirty,
     Clean,
     Ahead,
     Behind,
-}
-
-impl StatusFilter {
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "dirty" => Some(StatusFilter::Dirty),
-            "clean" => Some(StatusFilter::Clean),
-            "ahead" => Some(StatusFilter::Ahead),
-            "behind" => Some(StatusFilter::Behind),
-            _ => None,
-        }
-    }
 }
 
 struct RepoStatus {

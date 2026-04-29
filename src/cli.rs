@@ -1,6 +1,9 @@
 use clap::builder::styling::Styles;
 use clap::{Parser, Subcommand, ValueEnum};
 
+use crate::app::handler::gitlab::CloneProtocol;
+use crate::app::handler::status::StatusFilter;
+
 fn get_styles() -> Styles {
     Styles::styled()
         .header(
@@ -63,39 +66,6 @@ impl BumpType {
             BumpType::Major => "major",
             BumpType::Minor => "minor",
             BumpType::Patch => "patch",
-        }
-    }
-}
-
-#[derive(ValueEnum, Clone, Debug)]
-pub enum CloneProtocolType {
-    /// Use SSH protocol (git@...)
-    Ssh,
-    /// Use HTTPS protocol
-    Https,
-}
-
-impl CloneProtocolType {}
-
-#[derive(ValueEnum, Clone, Debug)]
-pub enum StatusFilterType {
-    /// Show only dirty repositories
-    Dirty,
-    /// Show only clean repositories
-    Clean,
-    /// Show only repositories ahead of remote
-    Ahead,
-    /// Show only repositories behind remote
-    Behind,
-}
-
-impl StatusFilterType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            StatusFilterType::Dirty => "dirty",
-            StatusFilterType::Clean => "clean",
-            StatusFilterType::Ahead => "ahead",
-            StatusFilterType::Behind => "behind",
         }
     }
 }
@@ -319,7 +289,7 @@ pub enum Commands {
             value_enum,
             help = "Filter repositories by status: dirty, clean, ahead, behind"
         )]
-        filter: Option<StatusFilterType>,
+        filter: Option<StatusFilter>,
         /// Path to the directory to search for repositories, defaults to current directory
         #[arg(
             default_value = ".",
@@ -372,7 +342,7 @@ pub enum GitlabCommands {
             default_value = "ssh",
             help = "Default clone protocol: ssh or https"
         )]
-        protocol: CloneProtocolType,
+        protocol: CloneProtocol,
     },
     /// Clone all repositories from a GitLab group
     #[command(visible_alias = "cl")]
@@ -402,7 +372,7 @@ pub enum GitlabCommands {
             value_enum,
             help = "Clone protocol: ssh or https (uses saved config if not specified)"
         )]
-        protocol: Option<CloneProtocolType>,
+        protocol: Option<CloneProtocol>,
         /// Output directory for cloned repositories
         #[arg(
             long,
