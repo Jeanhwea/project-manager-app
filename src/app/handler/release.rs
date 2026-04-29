@@ -3,6 +3,8 @@ use crate::app::common::editor::{
     PomXmlEditor, PyprojectEditor, PythonVersionEditor, VersionTextEditor, write_with_backup,
 };
 use crate::app::common::git;
+use crate::app::common::git::check_command_exists;
+use crate::app::common::git::run_command;
 use crate::app::common::runner::DryRunContext;
 use crate::app::common::version::Version;
 use crate::utils;
@@ -354,48 +356,6 @@ fn post_edit_version_file(config_file: &str) -> Result<()> {
         update_pnpm_lock(config_file)?;
     }
     Ok(())
-}
-
-fn check_command_exists(cmd: &str) -> bool {
-    #[cfg(windows)]
-    {
-        std::process::Command::new("cmd")
-            .args(["/C", cmd, "--version"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok()
-    }
-    #[cfg(not(windows))]
-    {
-        std::process::Command::new(cmd)
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok()
-    }
-}
-
-fn run_command(cmd: &str, args: &[&str], dir: &Path) -> Result<std::process::ExitStatus> {
-    #[cfg(windows)]
-    {
-        let mut all_args = vec!["/C", cmd];
-        all_args.extend(args.iter().copied());
-        std::process::Command::new("cmd")
-            .args(&all_args)
-            .current_dir(dir)
-            .status()
-            .context(format!("无法执行 {} {}", cmd, args.join(" ")))
-    }
-    #[cfg(not(windows))]
-    {
-        std::process::Command::new(cmd)
-            .args(args)
-            .current_dir(dir)
-            .status()
-            .context(format!("无法执行 {} {}", cmd, args.join(" ")))
-    }
 }
 
 fn is_gitignored(file_path: &Path) -> bool {

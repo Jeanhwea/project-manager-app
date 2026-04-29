@@ -1,6 +1,5 @@
-use crate::app::common::git;
+use crate::app::common::git::{self, RepoWalker};
 use crate::app::common::runner::CommandRunner;
-use crate::utils;
 use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
@@ -41,55 +40,34 @@ pub fn execute(
     short: bool,
     filter: Option<StatusFilter>,
 ) -> Result<()> {
-    let root_dir = Path::new(path);
-
-    if !root_dir.exists() {
-        anyhow::bail!("目录不存在: {}", path);
-    }
-
-    let git_repos = git::find_git_repositories_or_current(root_dir, max_depth);
-
-    if git_repos.is_empty() {
-        println!("未找到git仓库");
+    let walker = RepoWalker::new(path, max_depth)?;
+    if walker.is_empty() {
         return Ok(());
     }
 
-    let total = git_repos.len();
+    let total = walker.total();
     let mut stats = StatusStats::default();
 
-    for (index, repo) in git_repos.iter().enumerate() {
-        let repo_path = repo
-            .path
-            .canonicalize()
-            .unwrap_or_else(|_| repo.path.clone());
+    walker.walk(|entry| {
+        let repo_path = entry.path;
 
-        if repo.repo_type == git::RepoType::Submodule {
-            stats.submodules += 1;
-            continue;
-        }
-
-        let status = collect_repo_status(&repo_path);
+        let status = collect_repo_status(repo_path);
 
         if !matches_filter(&status, &filter) {
             stats.skipped += 1;
-            continue;
+            return Ok(());
         }
-
-        let progress = format!("({}/{})", index + 1, total);
-        println!(
-            "{}>> {}",
-            progress.white().bold(),
-            utils::format_path(&repo_path).cyan().underline(),
-        );
 
         if short {
             print_short_status(&status);
         } else {
-            print_full_status(&repo_path, &status);
+            print_full_status(repo_path, &status);
         }
 
         stats.update(&status);
-    }
+
+        Ok(())
+    })?;
 
     print_summary(&stats, total);
 
@@ -107,8 +85,8 @@ fn matches_filter(status: &RepoStatus, filter: &Option<StatusFilter>) -> bool {
 }
 
 fn collect_repo_status(repo_path: &Path) -> RepoStatus {
-    let branch = get_current_branch(repo_path);
-    let dirty = !is_workdir_clean(repo_path);
+    let branch = git::get_current_branch_in_dir(repo_path);
+    let dirty = !git::is_workdir_clean(repo_path);
     let (ahead, behind) = get_ahead_behind(repo_path);
     let (staged, unstaged, untracked) = get_dirty_counts(repo_path);
 
@@ -327,7 +305,7 @@ fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
 }
 
 fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
-    let branch = match get_current_branch(repo_path) {
+    let branch = match git::get_current_branch_in_dir(repo_path) {
         Some(b) => b,
         None => return (0, 0),
     };
@@ -384,25 +362,4 @@ fn print_latest_tag(repo_path: &Path) {
             println!("  标签: {}", tag.cyan());
         }
     }
-}
-
-fn get_current_branch(repo_path: &Path) -> Option<String> {
-    let output =
-        CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], repo_path).ok()?;
-
-    let branch = String::from_utf8(output.stdout).ok()?;
-    let branch = branch.trim();
-
-    if branch.is_empty() {
-        None
-    } else {
-        Some(branch.to_string())
-    }
-}
-
-fn is_workdir_clean(repo_path: &Path) -> bool {
-    CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], repo_path)
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .is_some_and(|s| s.is_empty())
 }

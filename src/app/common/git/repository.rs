@@ -127,3 +127,71 @@ where
 
     Ok(())
 }
+
+pub struct RepoWalker {
+    repos: Vec<RepoInfo>,
+}
+
+#[allow(dead_code)]
+pub struct WalkEntry<'a> {
+    pub path: &'a Path,
+    pub index: usize,
+    pub total: usize,
+}
+
+impl RepoWalker {
+    pub fn new(path: &str, max_depth: Option<usize>) -> anyhow::Result<Self> {
+        let root_dir = Path::new(path);
+        if !root_dir.exists() {
+            anyhow::bail!("目录不存在: {}", path);
+        }
+
+        let repos = find_git_repositories_or_current(root_dir, max_depth);
+
+        if repos.is_empty() {
+            println!("未找到git仓库");
+        }
+
+        Ok(Self { repos })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.repos.is_empty()
+    }
+
+    pub fn total(&self) -> usize {
+        self.repos.len()
+    }
+
+    pub fn walk<F>(&self, mut callback: F) -> anyhow::Result<()>
+    where
+        F: FnMut(WalkEntry<'_>) -> anyhow::Result<()>,
+    {
+        let total = self.repos.len();
+
+        for (index, repo) in self.repos.iter().enumerate() {
+            let repo_path =
+                utils::canonicalize_path(&repo.path).unwrap_or_else(|_| repo.path.clone());
+
+            let progress = format!("({}/{})", index + 1, total);
+            println!(
+                "{}>> {}",
+                progress.white().bold(),
+                utils::format_path(&repo_path).cyan().underline(),
+            );
+
+            if repo.repo_type == RepoType::Submodule {
+                println!("  {}", "(submodule, 跳过)".dimmed());
+                continue;
+            }
+
+            callback(WalkEntry {
+                path: &repo_path,
+                index,
+                total,
+            })?;
+        }
+
+        Ok(())
+    }
+}

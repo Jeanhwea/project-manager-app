@@ -1,48 +1,19 @@
-use crate::app::common::git;
+use crate::app::common::git::{self, RepoWalker};
 use crate::app::common::runner::{CommandRunner, DryRunContext};
-use crate::utils;
 use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
 
 pub fn execute_list(path: &str, max_depth: Option<usize>) -> Result<()> {
-    let root_dir = Path::new(path);
-
-    if !root_dir.exists() {
-        anyhow::bail!("目录不存在: {}", path);
-    }
-
-    let git_repos = git::find_git_repositories_or_current(root_dir, max_depth);
-
-    if git_repos.is_empty() {
-        println!("未找到git仓库");
+    let walker = RepoWalker::new(path, max_depth)?;
+    if walker.is_empty() {
         return Ok(());
     }
 
-    let total = git_repos.len();
-
-    for (index, repo) in git_repos.iter().enumerate() {
-        let repo_path = repo
-            .path
-            .canonicalize()
-            .unwrap_or_else(|_| repo.path.clone());
-
-        let progress = format!("({}/{})", index + 1, total);
-        println!(
-            "{}>> {}",
-            progress.white().bold(),
-            utils::format_path(&repo_path).cyan().underline(),
-        );
-
-        if repo.repo_type == git::RepoType::Submodule {
-            println!("  {}", "(submodule, 跳过)".dimmed());
-            continue;
-        }
-
-        list_branches(&repo_path);
-    }
-
-    Ok(())
+    walker.walk(|entry| {
+        list_branches(entry.path);
+        Ok(())
+    })
 }
 
 pub fn execute_clean(
@@ -51,44 +22,17 @@ pub fn execute_clean(
     remote: bool,
     dry_run: bool,
 ) -> Result<()> {
-    let root_dir = Path::new(path);
-
-    if !root_dir.exists() {
-        anyhow::bail!("目录不存在: {}", path);
-    }
-
-    let git_repos = git::find_git_repositories_or_current(root_dir, max_depth);
-
-    if git_repos.is_empty() {
-        println!("未找到git仓库");
+    let walker = RepoWalker::new(path, max_depth)?;
+    if walker.is_empty() {
         return Ok(());
     }
 
     let ctx = DryRunContext::new(dry_run);
-    let total = git_repos.len();
 
-    for (index, repo) in git_repos.iter().enumerate() {
-        let repo_path = repo
-            .path
-            .canonicalize()
-            .unwrap_or_else(|_| repo.path.clone());
-
-        let progress = format!("({}/{})", index + 1, total);
-        println!(
-            "{}>> {}",
-            progress.white().bold(),
-            utils::format_path(&repo_path).cyan().underline(),
-        );
-
-        if repo.repo_type == git::RepoType::Submodule {
-            println!("  {}", "(submodule, 跳过)".dimmed());
-            continue;
-        }
-
-        clean_merged_branches(&ctx, &repo_path, remote)?;
-    }
-
-    Ok(())
+    walker.walk(|entry| {
+        clean_merged_branches(&ctx, entry.path, remote)?;
+        Ok(())
+    })
 }
 
 pub fn execute_switch(
@@ -98,44 +42,17 @@ pub fn execute_switch(
     create: bool,
     dry_run: bool,
 ) -> Result<()> {
-    let root_dir = Path::new(path);
-
-    if !root_dir.exists() {
-        anyhow::bail!("目录不存在: {}", path);
-    }
-
-    let git_repos = git::find_git_repositories_or_current(root_dir, max_depth);
-
-    if git_repos.is_empty() {
-        println!("未找到git仓库");
+    let walker = RepoWalker::new(path, max_depth)?;
+    if walker.is_empty() {
         return Ok(());
     }
 
     let ctx = DryRunContext::new(dry_run);
-    let total = git_repos.len();
 
-    for (index, repo) in git_repos.iter().enumerate() {
-        let repo_path = repo
-            .path
-            .canonicalize()
-            .unwrap_or_else(|_| repo.path.clone());
-
-        let progress = format!("({}/{})", index + 1, total);
-        println!(
-            "{}>> {}",
-            progress.white().bold(),
-            utils::format_path(&repo_path).cyan().underline(),
-        );
-
-        if repo.repo_type == git::RepoType::Submodule {
-            println!("  {}", "(submodule, 跳过)".dimmed());
-            continue;
-        }
-
-        switch_branch(&ctx, &repo_path, branch_name, create)?;
-    }
-
-    Ok(())
+    walker.walk(|entry| {
+        switch_branch(&ctx, entry.path, branch_name, create)?;
+        Ok(())
+    })
 }
 
 pub fn execute_rename(
@@ -145,50 +62,23 @@ pub fn execute_rename(
     new_name: &str,
     dry_run: bool,
 ) -> Result<()> {
-    let root_dir = Path::new(path);
-
-    if !root_dir.exists() {
-        anyhow::bail!("目录不存在: {}", path);
-    }
-
-    let git_repos = git::find_git_repositories_or_current(root_dir, max_depth);
-
-    if git_repos.is_empty() {
-        println!("未找到git仓库");
+    let walker = RepoWalker::new(path, max_depth)?;
+    if walker.is_empty() {
         return Ok(());
     }
 
     let ctx = DryRunContext::new(dry_run);
-    let total = git_repos.len();
 
-    for (index, repo) in git_repos.iter().enumerate() {
-        let repo_path = repo
-            .path
-            .canonicalize()
-            .unwrap_or_else(|_| repo.path.clone());
-
-        let progress = format!("({}/{})", index + 1, total);
-        println!(
-            "{}>> {}",
-            progress.white().bold(),
-            utils::format_path(&repo_path).cyan().underline(),
-        );
-
-        if repo.repo_type == git::RepoType::Submodule {
-            println!("  {}", "(submodule, 跳过)".dimmed());
-            continue;
-        }
-
-        rename_branch(&ctx, &repo_path, old_name, new_name)?;
-    }
-
-    Ok(())
+    walker.walk(|entry| {
+        rename_branch(&ctx, entry.path, old_name, new_name)?;
+        Ok(())
+    })
 }
 
 fn list_branches(repo_path: &Path) {
-    let current = get_current_branch(repo_path);
+    let current = git::get_current_branch_in_dir(repo_path);
 
-    let local_branches = get_local_branches(repo_path);
+    let local_branches = git::get_local_branches(repo_path);
     if !local_branches.is_empty() {
         println!("  本地分支:");
         for branch in &local_branches {
@@ -200,7 +90,7 @@ fn list_branches(repo_path: &Path) {
         }
     }
 
-    let remote_branches = get_remote_branches(repo_path);
+    let remote_branches = git::get_remote_branches(repo_path);
     if !remote_branches.is_empty() {
         println!("  远程分支:");
         for branch in &remote_branches {
@@ -215,7 +105,7 @@ fn switch_branch(
     branch_name: &str,
     create: bool,
 ) -> Result<()> {
-    let current = get_current_branch(repo_path);
+    let current = git::get_current_branch_in_dir(repo_path);
 
     if current.as_deref() == Some(branch_name) {
         println!("  {} 已在分支 {} 上", "跳过".dimmed(), branch_name.yellow());
@@ -223,7 +113,7 @@ fn switch_branch(
     }
 
     if create {
-        let local_branches = get_local_branches(repo_path);
+        let local_branches = git::get_local_branches(repo_path);
         let branch_exists = local_branches.iter().any(|b| b == branch_name);
 
         if branch_exists {
@@ -244,7 +134,7 @@ fn switch_branch(
             }
         }
     } else {
-        let local_branches = get_local_branches(repo_path);
+        let local_branches = git::get_local_branches(repo_path);
         let branch_exists = local_branches.iter().any(|b| b == branch_name);
 
         if !branch_exists {
@@ -271,7 +161,7 @@ fn rename_branch(
     old_name: &str,
     new_name: &str,
 ) -> Result<()> {
-    let local_branches = get_local_branches(repo_path);
+    let local_branches = git::get_local_branches(repo_path);
 
     if !local_branches.iter().any(|b| b == old_name) {
         println!("  {} 分支 {} 不存在", "跳过".dimmed(), old_name.red());
@@ -283,7 +173,7 @@ fn rename_branch(
         return Ok(());
     }
 
-    let current = get_current_branch(repo_path);
+    let current = git::get_current_branch_in_dir(repo_path);
     let is_current = current.as_deref() == Some(old_name);
 
     ctx.run_in_dir(
@@ -313,60 +203,10 @@ fn rename_branch(
     Ok(())
 }
 
-fn get_local_branches(repo_path: &Path) -> Vec<String> {
-    let output = match CommandRunner::run_quiet_in_dir("git", &["branch", "--list"], repo_path) {
-        Ok(o) => o,
-        Err(_) => return Vec::new(),
-    };
-
-    let stdout = match String::from_utf8(output.stdout) {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
-    };
-
-    stdout
-        .lines()
-        .map(|line| line.trim_start_matches('*').trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect()
-}
-
-fn get_remote_branches(repo_path: &Path) -> Vec<String> {
-    let output = match CommandRunner::run_quiet_in_dir("git", &["branch", "-r"], repo_path) {
-        Ok(o) => o,
-        Err(_) => return Vec::new(),
-    };
-
-    let stdout = match String::from_utf8(output.stdout) {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
-    };
-
-    stdout
-        .lines()
-        .map(|line| line.trim().to_string())
-        .filter(|s| !s.is_empty() && !s.contains("->"))
-        .collect()
-}
-
-fn get_current_branch(repo_path: &Path) -> Option<String> {
-    let output =
-        CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], repo_path).ok()?;
-
-    let branch = String::from_utf8(output.stdout).ok()?;
-    let branch = branch.trim();
-
-    if branch.is_empty() {
-        None
-    } else {
-        Some(branch.to_string())
-    }
-}
-
 fn clean_merged_branches(ctx: &DryRunContext, repo_path: &Path, remote: bool) -> Result<()> {
-    let current = get_current_branch(repo_path).unwrap_or_else(|| "master".to_string());
+    let current = git::get_current_branch_in_dir(repo_path).unwrap_or_else(|| "master".to_string());
 
-    let merged_branches = get_merged_branches(repo_path, &current);
+    let merged_branches = git::get_merged_branches(repo_path, &current);
 
     if merged_branches.is_empty() {
         println!("  {}", "无已合并分支".green());
@@ -375,7 +215,7 @@ fn clean_merged_branches(ctx: &DryRunContext, repo_path: &Path, remote: bool) ->
 
     for branch in &merged_branches {
         if ctx.is_dry_run() {
-            println!("  {} 删除本地分支 {}", "[DRY-RUN]".yellow(), branch.red());
+            ctx.print_message(&format!("删除本地分支 {}", branch));
         } else {
             let result = CommandRunner::run_with_success_in_dir(
                 "git",
@@ -390,13 +230,13 @@ fn clean_merged_branches(ctx: &DryRunContext, repo_path: &Path, remote: bool) ->
     }
 
     if remote {
-        let remote_merged = get_remote_merged_branches(repo_path, &current);
+        let remote_merged = git::get_remote_merged_branches(repo_path, &current);
         if remote_merged.is_empty() {
             println!("  {}", "无已合并的远程分支".green());
         } else {
             for branch in &remote_merged {
                 if ctx.is_dry_run() {
-                    println!("  {} 删除远程分支 {}", "[DRY-RUN]".yellow(), branch.red());
+                    ctx.print_message(&format!("删除远程分支 {}", branch));
                 } else {
                     let result = CommandRunner::run_with_success_in_dir(
                         "git",
@@ -415,53 +255,4 @@ fn clean_merged_branches(ctx: &DryRunContext, repo_path: &Path, remote: bool) ->
     }
 
     Ok(())
-}
-
-fn get_merged_branches(repo_path: &Path, current_branch: &str) -> Vec<String> {
-    let output = match CommandRunner::run_quiet_in_dir(
-        "git",
-        &["branch", "--merged", current_branch],
-        repo_path,
-    ) {
-        Ok(o) => o,
-        Err(_) => return Vec::new(),
-    };
-
-    let stdout = match String::from_utf8(output.stdout) {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
-    };
-
-    stdout
-        .lines()
-        .map(|line| line.trim_start_matches('*').trim().to_string())
-        .filter(|s| !s.is_empty() && s != current_branch)
-        .collect()
-}
-
-fn get_remote_merged_branches(repo_path: &Path, current_branch: &str) -> Vec<String> {
-    let output = match CommandRunner::run_quiet_in_dir(
-        "git",
-        &["branch", "-r", "--merged", current_branch],
-        repo_path,
-    ) {
-        Ok(o) => o,
-        Err(_) => return Vec::new(),
-    };
-
-    let stdout = match String::from_utf8(output.stdout) {
-        Ok(s) => s,
-        Err(_) => return Vec::new(),
-    };
-
-    let current_remote = format!("origin/{}", current_branch);
-
-    stdout
-        .lines()
-        .map(|line| line.trim().to_string())
-        .filter(|s| {
-            !s.is_empty() && !s.contains("->") && s != &current_remote && s.starts_with("origin/")
-        })
-        .map(|s| s.strip_prefix("origin/").unwrap_or(&s).to_string())
-        .collect()
 }

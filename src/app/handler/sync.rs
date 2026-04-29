@@ -1,5 +1,5 @@
 use crate::app::common::config;
-use crate::app::common::git::{self, GitProtocol, RepoType};
+use crate::app::common::git::{self, GitProtocol, RepoWalker};
 use crate::app::common::runner::{CommandRunner, DryRunContext};
 use crate::utils;
 use anyhow::Result;
@@ -15,17 +15,8 @@ pub fn execute(
     fetch_only: bool,
     rebase: bool,
 ) -> Result<()> {
-    let root_dir = Path::new(path);
-
-    if !root_dir.exists() {
-        anyhow::bail!("目录不存在: {}", path);
-    }
-
-    let git_repos =
-        crate::app::common::git::find_git_repositories_or_current(root_dir, max_depth);
-
-    if git_repos.is_empty() {
-        println!("未找到git仓库");
+    let walker = RepoWalker::new(path, max_depth)?;
+    if walker.is_empty() {
         return Ok(());
     }
 
@@ -33,57 +24,34 @@ pub fn execute(
         println!("跳过远程仓库: {:?}", skip_remotes);
     }
 
-    let total = git_repos.len();
     let ctx = DryRunContext::new(dry_run);
+    ctx.print_header("[DRY-RUN] 将要同步的仓库:");
 
-    if ctx.is_dry_run() {
-        ctx.print_header("[DRY-RUN] 将要同步的仓库:");
-    }
+    walker.walk(|entry| {
+        let repo_path = entry.path;
 
-    for (index, repo) in git_repos.iter().enumerate() {
-        let repo_path =
-            utils::canonicalize_path(&repo.path).unwrap_or_else(|_| repo.path.clone());
+        do_info_repository(repo_path);
 
-        let progress = format!("({}/{})", index + 1, total);
-        println!(
-            "{}>> {}",
-            progress.white().bold(),
-            utils::format_path(&repo_path).cyan().underline(),
-        );
-
-        if repo.repo_type == RepoType::Submodule {
-            continue;
-        }
-
-        do_info_repository(&repo_path);
-
-        if !ctx.is_dry_run() && !is_workdir_clean(&repo_path) {
-            CommandRunner::run_with_success_in_dir("git", &["status"], &repo_path)?;
+        if !ctx.is_dry_run() && !git::is_workdir_clean(repo_path) {
+            CommandRunner::run_with_success_in_dir("git", &["status"], repo_path)?;
             println!(
                 "  无法同步不干净工作目录: {}",
-                utils::format_path(&repo_path).red()
+                utils::format_path(repo_path).red()
             );
-            continue;
+            return Ok(());
         }
 
         do_sync_repository(
             &ctx,
-            &repo_path,
+            repo_path,
             all_branch,
             &skip_remotes,
             fetch_only,
             rebase,
         );
-    }
 
-    Ok(())
-}
-
-fn is_workdir_clean(repo_path: &Path) -> bool {
-    CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], repo_path)
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .is_some_and(|s| s.is_empty())
+        Ok(())
+    })
 }
 
 fn do_info_repository(repo_path: &Path) {
@@ -125,17 +93,13 @@ fn do_sync_repository(
 ) {
     let remotes = git::get_remote_info(repo_path);
     if remotes.is_empty() {
-        if ctx.is_dry_run() {
-            println!("  {}", "无远程仓库".yellow());
-        }
+        ctx.print_message("无远程仓库");
         return;
     }
 
     let Some((track_remote, track_remote_url)) = get_tracking_remote_info(repo_path, &remotes)
     else {
-        if ctx.is_dry_run() {
-            println!("  {}", "无跟踪分支信息".yellow());
-        }
+        ctx.print_message("无跟踪分支信息");
         return;
     };
 
@@ -147,34 +111,26 @@ fn do_sync_repository(
             track_remote_url.green()
         );
     } else if fetch_only {
-        if ctx.is_dry_run() {
-            println!("  {} git fetch {}", "[DRY-RUN]".yellow(), track_remote);
-        } else {
-            do_fetch_repository(repo_path, &track_remote);
-        }
+        ctx.run_in_dir("git", &["fetch", &track_remote], Some(repo_path))
+            .unwrap_or_else(|e| println!("  拉取仓库失败: {}", e));
     } else if all_branch {
         if ctx.is_dry_run() {
             if rebase {
-                println!(
-                    "  {} git pull --rebase (all branches)",
-                    "[DRY-RUN]".yellow()
-                );
+                ctx.print_message("git pull --rebase (all branches)");
             } else {
-                println!("  {} git pull (all branches)", "[DRY-RUN]".yellow());
+                ctx.print_message("git pull (all branches)");
             }
         } else {
             do_pull_all_local_branch(repo_path, rebase);
         }
     } else {
-        if ctx.is_dry_run() {
-            if rebase {
-                println!("  {} git pull --rebase", "[DRY-RUN]".yellow());
-            } else {
-                println!("  {} git pull", "[DRY-RUN]".yellow());
-            }
+        let args = if rebase {
+            vec!["pull", "--rebase"]
         } else {
-            do_pull_repository(repo_path, rebase);
-        }
+            vec!["pull"]
+        };
+        ctx.run_in_dir("git", &args, Some(repo_path))
+            .unwrap_or_else(|e| println!("  同步仓库失败: {}", e));
     }
 
     if fetch_only {
@@ -187,11 +143,8 @@ fn do_sync_repository(
                     url.green()
                 );
             } else if *remote != track_remote {
-                if ctx.is_dry_run() {
-                    println!("  {} git fetch {}", "[DRY-RUN]".yellow(), remote);
-                } else {
-                    do_fetch_repository(repo_path, remote);
-                }
+                ctx.run_in_dir("git", &["fetch", remote], Some(repo_path))
+                    .unwrap_or_else(|e| println!("  拉取仓库失败: {}", e));
             }
         }
         return;
@@ -207,12 +160,10 @@ fn do_sync_repository(
             );
             continue;
         }
-        if ctx.is_dry_run() {
-            println!("  {} git push {} --all", "[DRY-RUN]".yellow(), remote);
-            println!("  {} git push {} --tags", "[DRY-RUN]".yellow(), remote);
-        } else {
-            do_push_repository(repo_path, &remote);
-        }
+        ctx.run_in_dir("git", &["push", &remote, "--all"], Some(repo_path))
+            .unwrap_or_else(|e| println!("  推送分支失败: {}", e));
+        ctx.run_in_dir("git", &["push", &remote, "--tags"], Some(repo_path))
+            .unwrap_or_else(|e| println!("  推送标签失败: {}", e));
     }
 }
 
@@ -293,37 +244,6 @@ fn do_pull_repository(repo_path: &Path, rebase: bool) {
     if let Err(e) = CommandRunner::run_with_success_in_dir("git", &args, repo_path) {
         println!(
             "  同步仓库失败: {} - {}",
-            utils::format_path(repo_path).red(),
-            e
-        );
-    }
-}
-
-fn do_fetch_repository(repo_path: &Path, remote: &str) {
-    if let Err(e) = CommandRunner::run_with_success_in_dir("git", &["fetch", remote], repo_path) {
-        println!(
-            "  拉取仓库失败: {} - {}",
-            utils::format_path(repo_path).red(),
-            e
-        );
-    }
-}
-
-fn do_push_repository(repo_path: &Path, remote: &str) {
-    if let Err(e) =
-        CommandRunner::run_with_success_in_dir("git", &["push", remote, "--all"], repo_path)
-    {
-        println!(
-            "  推送分支失败: {} - {}",
-            utils::format_path(repo_path).red(),
-            e
-        );
-    }
-    if let Err(e) =
-        CommandRunner::run_with_success_in_dir("git", &["push", remote, "--tags"], repo_path)
-    {
-        println!(
-            "  推送标签失败: {} - {}",
             utils::format_path(repo_path).red(),
             e
         );

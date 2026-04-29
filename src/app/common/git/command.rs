@@ -39,10 +39,30 @@ pub fn get_current_branch() -> Option<String> {
     let branch = branch.trim();
 
     if branch.is_empty() {
-        return None;
+        None
+    } else {
+        Some(branch.to_string())
     }
+}
 
-    Some(branch.to_string())
+pub fn get_current_branch_in_dir(dir: &Path) -> Option<String> {
+    let output = CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], dir).ok()?;
+
+    let branch = String::from_utf8(output.stdout).ok()?;
+    let branch = branch.trim();
+
+    if branch.is_empty() {
+        None
+    } else {
+        Some(branch.to_string())
+    }
+}
+
+pub fn is_workdir_clean(dir: &Path) -> bool {
+    CommandRunner::run_quiet_in_dir("git", &["status", "--porcelain"], dir)
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .is_some_and(|s| s.trim().is_empty())
 }
 
 pub fn get_remote_list() -> Option<Vec<String>> {
@@ -56,10 +76,10 @@ pub fn get_remote_list() -> Option<Vec<String>> {
         .collect();
 
     if remotes.is_empty() {
-        return None;
+        None
+    } else {
+        Some(remotes)
     }
-
-    Some(remotes)
 }
 
 pub fn get_top_level_dir() -> Option<PathBuf> {
@@ -69,10 +89,10 @@ pub fn get_top_level_dir() -> Option<PathBuf> {
     let top_level = top_level.trim();
 
     if top_level.is_empty() {
-        return None;
+        None
+    } else {
+        Some(PathBuf::from(top_level))
     }
-
-    Some(PathBuf::from(top_level))
 }
 
 pub fn list_cached_changes() -> Result<()> {
@@ -166,4 +186,131 @@ pub fn get_remote_info(work_dir: &Path) -> Vec<(String, String)> {
     }
 
     remote_info
+}
+
+pub fn get_local_branches(dir: &Path) -> Vec<String> {
+    let output = match CommandRunner::run_quiet_in_dir("git", &["branch", "--list"], dir) {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+
+    let stdout = match String::from_utf8(output.stdout) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    stdout
+        .lines()
+        .map(|line| line.trim_start_matches('*').trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+pub fn get_remote_branches(dir: &Path) -> Vec<String> {
+    let output = match CommandRunner::run_quiet_in_dir("git", &["branch", "-r"], dir) {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+
+    let stdout = match String::from_utf8(output.stdout) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    stdout
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|s| !s.is_empty() && !s.contains("->"))
+        .collect()
+}
+
+pub fn get_merged_branches(dir: &Path, current_branch: &str) -> Vec<String> {
+    let output = match CommandRunner::run_quiet_in_dir(
+        "git",
+        &["branch", "--merged", current_branch],
+        dir,
+    ) {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+
+    let stdout = match String::from_utf8(output.stdout) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    stdout
+        .lines()
+        .map(|line| line.trim_start_matches('*').trim().to_string())
+        .filter(|s| !s.is_empty() && s != current_branch)
+        .collect()
+}
+
+pub fn get_remote_merged_branches(dir: &Path, current_branch: &str) -> Vec<String> {
+    let output = match CommandRunner::run_quiet_in_dir(
+        "git",
+        &["branch", "-r", "--merged", current_branch],
+        dir,
+    ) {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+
+    let stdout = match String::from_utf8(output.stdout) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    let current_remote = format!("origin/{}", current_branch);
+
+    stdout
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|s| {
+            !s.is_empty() && !s.contains("->") && *s != current_remote && s.starts_with("origin/")
+        })
+        .map(|s| s.strip_prefix("origin/").unwrap_or(&s).to_string())
+        .collect()
+}
+
+pub fn check_command_exists(cmd: &str) -> bool {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", cmd, "--version"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok()
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new(cmd)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok()
+    }
+}
+
+pub fn run_command(cmd: &str, args: &[&str], dir: &Path) -> Result<std::process::ExitStatus> {
+    #[cfg(windows)]
+    {
+        let mut all_args = vec!["/C", cmd];
+        all_args.extend(args.iter().copied());
+        std::process::Command::new("cmd")
+            .args(&all_args)
+            .current_dir(dir)
+            .status()
+            .context(format!("无法执行 {} {}", cmd, args.join(" ")))
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new(cmd)
+            .args(args)
+            .current_dir(dir)
+            .status()
+            .context(format!("无法执行 {} {}", cmd, args.join(" ")))
+    }
 }

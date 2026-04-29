@@ -6,21 +6,12 @@ use std::path::Path;
 
 const REQUIRED_TOOLS: &[(&str, &str)] = &[("git", "版本控制工具，所有仓库操作的核心依赖")];
 
-fn check_command_exists(cmd: &str) -> bool {
-    std::process::Command::new(cmd)
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok()
-}
-
 fn check_dependencies() -> Result<()> {
     println!("{}", "检查依赖工具...".cyan());
 
     let mut missing = Vec::new();
     for (cmd, desc) in REQUIRED_TOOLS {
-        if check_command_exists(cmd) {
+        if git::check_command_exists(cmd) {
             println!("  {} {}", "✔".green(), cmd);
         } else {
             println!("  {} {} ({})", "✘".red(), cmd.red(), desc);
@@ -49,7 +40,7 @@ pub fn execute(
 
     let ctx = DryRunContext::new(dry_run);
 
-    crate::app::common::git::for_each_repo(path, max_depth, |repo_path| {
+    git::for_each_repo(path, max_depth, |repo_path| {
         let mut issues = Vec::new();
 
         check_detached_head(repo_path, &mut issues);
@@ -96,14 +87,7 @@ pub fn execute(
 }
 
 fn check_detached_head(repo_path: &Path, issues: &mut Vec<String>) {
-    let output =
-        match CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], repo_path) {
-            Ok(o) => o,
-            Err(_) => return,
-        };
-
-    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if branch.is_empty() {
+    if git::get_current_branch_in_dir(repo_path).is_none() {
         issues.push("HEAD 处于 detached 状态".to_string());
     }
 }
@@ -185,7 +169,7 @@ fn check_large_repo(repo_path: &Path, issues: &mut Vec<String>) {
 }
 
 fn check_missing_upstream(repo_path: &Path, issues: &mut Vec<String>) {
-    let branch = match get_current_branch(repo_path) {
+    let branch = match git::get_current_branch_in_dir(repo_path) {
         Some(b) => b,
         None => return,
     };
@@ -224,20 +208,6 @@ fn check_stash(repo_path: &Path, issues: &mut Vec<String>) {
     }
 }
 
-fn get_current_branch(repo_path: &Path) -> Option<String> {
-    let output =
-        CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], repo_path).ok()?;
-
-    let branch = String::from_utf8(output.stdout).ok()?;
-    let branch = branch.trim();
-
-    if branch.is_empty() {
-        None
-    } else {
-        Some(branch.to_string())
-    }
-}
-
 fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Result<()> {
     println!("  {}", "修复问题:".cyan());
 
@@ -252,7 +222,7 @@ fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Resul
                 "跳过".yellow()
             );
         } else if issue.contains("上游跟踪分支") {
-            if let Some(branch) = get_current_branch(repo_path) {
+            if let Some(branch) = git::get_current_branch_in_dir(repo_path) {
                 let upstream = format!("origin/{}", branch);
                 println!(
                     "  {} 设置 {} 的上游为 {}",
