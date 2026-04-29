@@ -204,7 +204,8 @@ fn rename_branch(
 }
 
 fn clean_merged_branches(ctx: &DryRunContext, repo_path: &Path, remote: bool) -> Result<()> {
-    let current = git::get_current_branch_in_dir(repo_path).unwrap_or_else(|| "master".to_string());
+    let current =
+        git::get_current_branch_in_dir(repo_path).unwrap_or_else(|| "master".to_string());
 
     let merged_branches = git::get_merged_branches(repo_path, &current);
 

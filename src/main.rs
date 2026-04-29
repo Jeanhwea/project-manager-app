@@ -4,7 +4,9 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{BranchCommands, Cli, Commands, ConfigCommands, GitlabCommands, SelfCommands, SnapCommands};
+use cli::{
+    BranchCommands, Cli, Commands, ConfigCommands, GitlabCommands, SelfCommands, SnapCommands,
+};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

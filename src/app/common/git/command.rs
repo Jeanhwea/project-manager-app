@@ -46,7 +46,8 @@ pub fn get_current_branch() -> Option<String> {
 }
 
 pub fn get_current_branch_in_dir(dir: &Path) -> Option<String> {
-    let output = CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], dir).ok()?;
+    let output =
+        CommandRunner::run_quiet_in_dir("git", &["branch", "--show-current"], dir).ok()?;
 
     let branch = String::from_utf8(output.stdout).ok()?;
     let branch = branch.trim();
