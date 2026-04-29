@@ -77,6 +77,8 @@ pub struct RemoteRule {
     #[serde(default)]
     pub name: String,
     #[serde(default)]
+    pub url_prefix: Option<String>,
+    #[serde(default)]
     pub path_prefixes: Vec<String>,
     #[serde(default)]
     pub path_prefix_name: Option<String>,
@@ -87,18 +89,21 @@ fn default_remote_rules() -> Vec<RemoteRule> {
         RemoteRule {
             hosts: vec!["github.com".to_string(), "githubfast.com".to_string()],
             name: "github".to_string(),
+            url_prefix: None,
             path_prefixes: vec![],
             path_prefix_name: None,
         },
         RemoteRule {
             hosts: vec!["gitana.jeanhwea.io".to_string()],
             name: "gitana".to_string(),
+            url_prefix: None,
             path_prefixes: vec![],
             path_prefix_name: None,
         },
         RemoteRule {
             hosts: vec!["gitee.com".to_string()],
             name: "gitee".to_string(),
+            url_prefix: None,
             path_prefixes: vec![
                 "red_8/".to_string(),
                 "redtool/".to_string(),
@@ -338,6 +343,14 @@ name = "gitee"
 # When the repository path starts with any of these prefixes, use a different name
 path_prefixes = ["red_8/", "redtool/", "red_base/", "teampuzzle/"]
 path_prefix_name = "redinf"
+
+# Example: GitLab with relative URL root (e.g. http://host/gitlab/)
+# [[remote.rules]]
+# hosts = ["192.168.0.110", "192.168.0.110:2222"]
+# name = "gitlab"
+# url_prefix = "gitlab/"
+# path_prefixes = ["hujinghui/"]
+# path_prefix_name = "hujinghui"
 
 [sync]
 # Skip pushing to these hosts when using HTTPS protocol

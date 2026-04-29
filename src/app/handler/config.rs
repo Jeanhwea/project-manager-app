@@ -50,6 +50,9 @@ pub fn execute_show() -> Result<()> {
     println!("{}", "[remote]".cyan());
     for rule in &cfg.remote.rules {
         println!("  {} <- {:?}", rule.name.yellow(), rule.hosts);
+        if let Some(ref url_prefix) = rule.url_prefix {
+            println!("    {} = {}", "url_prefix".dimmed(), url_prefix.dimmed());
+        }
         if !rule.path_prefixes.is_empty()
             && let Some(ref prefix_name) = rule.path_prefix_name
         {
