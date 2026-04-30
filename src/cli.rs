@@ -323,14 +323,13 @@ pub enum GitlabCommands {
     /// Login to a GitLab server and save credentials
     #[command(about = "Login to a GitLab server and save credentials")]
     Login {
-        /// GitLab server URL (default: https://gitlab.com)
+        /// GitLab server URL (will prompt if not provided)
         #[arg(
             long,
             short,
-            default_value = "https://gitlab.com",
-            help = "GitLab server URL (default: https://gitlab.com, use custom URL for self-hosted)"
+            help = "GitLab server URL (e.g. https://gitlab.com, http://192.168.0.110/gitlab/)"
         )]
-        server: String,
+        server: Option<String>,
         /// GitLab private token (if not provided, will prompt for username and password)
         #[arg(
             long,
