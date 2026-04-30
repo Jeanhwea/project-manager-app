@@ -444,8 +444,7 @@ mod tests {
             _ => panic!("Expected RepositoryNotFound error"),
         }
     }
-}
-
+    
     #[test]
     fn test_find_git_repositories_empty_dir() {
         let temp_dir = tempdir().unwrap();
