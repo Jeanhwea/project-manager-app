@@ -181,8 +181,12 @@ pub fn execute_clone(
         group_info.full_path.dimmed()
     );
 
-    let projects =
-        fetch_group_projects(&resolved_base_url, final_group, &resolved_token, include_archived)?;
+    let projects = fetch_group_projects(
+        &resolved_base_url,
+        final_group,
+        &resolved_token,
+        include_archived,
+    )?;
 
     if projects.is_empty() {
         println!("{}", "未找到项目".yellow());
