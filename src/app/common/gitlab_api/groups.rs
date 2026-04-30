@@ -33,7 +33,7 @@ impl<'a> GroupQuery<'a> {
         // 方法1: 通过搜索 API 查找
         let search_term = group_path.split('/').last().unwrap_or(group_path);
         let groups = self.search(search_term)?;
-        
+
         if let Some(group) = groups.iter().find(|g| g.full_path == group_path) {
             return Ok(group.clone());
         }
@@ -57,7 +57,8 @@ impl<'a> GroupQuery<'a> {
         // 方法4: 尝试 URL 编码路径
         let encoded_path = url_encode_path(group_path);
         let path = format!("groups/{}", encoded_path);
-        self.client.get::<GitLabGroup>(&path)
+        self.client
+            .get::<GitLabGroup>(&path)
             .with_context(|| format!("无法找到组: {}", group_path))
     }
 }

@@ -1,6 +1,8 @@
 use crate::app::common::config;
 use crate::app::common::git;
-use crate::app::common::gitlab_api::{GitLabClient, GitLabGroup, GitLabProject, GitLabUser, GroupQuery, ProjectsQuery};
+use crate::app::common::gitlab_api::{
+    GitLabClient, GitLabGroup, GitLabProject, GitLabUser, GroupQuery, ProjectsQuery,
+};
 use crate::app::common::runner::CommandRunner;
 use anyhow::{Context, Result};
 use clap::ValueEnum;
@@ -139,10 +141,9 @@ pub fn execute_clone(
     );
 
     let client = GitLabClient::new(&resolved_base_url, &resolved_token);
-    
+
     // 获取组信息
-    let group_info = GroupQuery::new(&client)
-        .get_by_path(final_group)?;
+    let group_info = GroupQuery::new(&client).get_by_path(final_group)?;
 
     println!(
         "{} {} ({})",
@@ -201,10 +202,10 @@ pub fn execute_clone(
 
     for (index, project) in projects.iter().enumerate() {
         let progress = format!("({}/{})", index + 1, projects.len());
-        
+
         let ssh_url = project.ssh_url_to_repo.as_deref().unwrap_or("");
         let http_url = project.http_url_to_repo.as_deref().unwrap_or("");
-        
+
         let clone_url = match resolved_protocol {
             CloneProtocol::Ssh => ssh_url,
             CloneProtocol::Https => http_url,

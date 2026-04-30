@@ -51,10 +51,24 @@ impl<'a> ProjectsQuery<'a> {
     pub fn list(&self) -> Result<Vec<GitLabProject>> {
         let group_id = self.group_id.context("必须指定 group_id")?;
         let path = format!("groups/{}/projects", group_id);
-        
+
         let mut query: Vec<(&str, &str)> = Vec::new();
-        query.push(("include_subgroups", if self.include_subgroups { "true" } else { "false" }));
-        query.push(("archived", if self.include_archived { "true" } else { "false" }));
+        query.push((
+            "include_subgroups",
+            if self.include_subgroups {
+                "true"
+            } else {
+                "false"
+            },
+        ));
+        query.push((
+            "archived",
+            if self.include_archived {
+                "true"
+            } else {
+                "false"
+            },
+        ));
         query.push(("order_by", "path"));
         query.push(("sort", "asc"));
 

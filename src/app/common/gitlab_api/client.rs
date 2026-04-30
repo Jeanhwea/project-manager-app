@@ -17,7 +17,7 @@ impl GitLabClient {
 
     pub fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}/api/v4/{}", self.base_url, path);
-        
+
         let resp = ureq::get(&url)
             .set("PRIVATE-TOKEN", &self.token)
             .set("User-Agent", "pma-gitlab")
@@ -34,15 +34,19 @@ impl GitLabClient {
             .with_context(|| format!("解析响应失败: {}", url))
     }
 
-    pub fn get_with_query<T: DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<T> {
+    pub fn get_with_query<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<T> {
         let query_str: String = query
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect::<Vec<_>>()
             .join("&");
-        
+
         let url = format!("{}/api/v4/{}?{}", self.base_url, path, query_str);
-        
+
         let resp = ureq::get(&url)
             .set("PRIVATE-TOKEN", &self.token)
             .set("User-Agent", "pma-gitlab")
@@ -59,7 +63,11 @@ impl GitLabClient {
             .with_context(|| format!("解析响应失败: {}", url))
     }
 
-    pub fn get_paged<T: DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<Vec<T>> {
+    pub fn get_paged<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<Vec<T>> {
         let mut all_items = Vec::new();
         let mut page = 1u32;
         let per_page = 100u32;
@@ -67,7 +75,7 @@ impl GitLabClient {
         loop {
             let page_str = page.to_string();
             let per_page_str = per_page.to_string();
-            
+
             let mut query_with_page: Vec<(&str, &str)> = query.to_vec();
             query_with_page.push(("page", &page_str));
             query_with_page.push(("per_page", &per_page_str));
