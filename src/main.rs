@@ -1,10 +1,10 @@
 mod app;
-mod cli;
+mod cli_old;
 mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{
+use cli_old::{
     BranchCommands, Cli, Commands, ConfigCommands, GitlabCommands, SelfCommands, SnapCommands,
 };
 
