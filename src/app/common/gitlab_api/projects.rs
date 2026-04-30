@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct GitLabProject {
     pub id: u64,
     pub name: String,

@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct GitLabUser {
     pub id: u64,
     pub username: String,

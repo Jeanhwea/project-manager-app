@@ -1,8 +1,6 @@
 use crate::app::common::config;
 use crate::app::common::git;
-use crate::app::common::gitlab_api::{
-    GitLabClient, GitLabGroup, GitLabProject, GitLabUser, GroupQuery, ProjectsQuery,
-};
+use crate::app::common::gitlab_api::{GitLabClient, GitLabUser, GroupQuery, ProjectsQuery};
 use crate::app::common::runner::CommandRunner;
 use anyhow::{Context, Result};
 use clap::ValueEnum;

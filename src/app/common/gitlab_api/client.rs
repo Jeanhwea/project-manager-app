@@ -92,8 +92,4 @@ impl GitLabClient {
 
         Ok(all_items)
     }
-
-    pub fn base_url(&self) -> &str {
-        &self.base_url
-    }
 }
