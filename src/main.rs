@@ -76,7 +76,7 @@ fn main() -> Result<()> {
                 token,
                 protocol,
             } => {
-                app::handler::gitlab::execute_login(&server, &token, &protocol)?;
+                app::handler::gitlab::execute_login(&server, token.as_deref(), &protocol)?;
             }
             GitlabCommands::Clone {
                 group,

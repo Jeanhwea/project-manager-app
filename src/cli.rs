@@ -331,9 +331,9 @@ pub enum GitlabCommands {
             help = "GitLab server URL (default: https://gitlab.com, use custom URL for self-hosted)"
         )]
         server: String,
-        /// GitLab private token
-        #[arg(long, short = 't', help = "GitLab private token")]
-        token: String,
+        /// GitLab private token (if not provided, will prompt for username and password)
+        #[arg(long, short = 't', help = "GitLab private token (if not provided, will prompt for username and password)")]
+        token: Option<String>,
         /// Default clone protocol
         #[arg(
             long,

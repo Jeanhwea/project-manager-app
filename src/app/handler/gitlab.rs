@@ -6,6 +6,7 @@ use clap::ValueEnum;
 use colored::Colorize;
 use serde::Deserialize;
 use std::collections::HashSet;
+use std::io::{self, Write};
 use std::path::Path;
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -35,12 +36,67 @@ struct GitLabUser {
     name: String,
 }
 
-pub fn execute_login(server: &str, token: &str, protocol: &CloneProtocol) -> Result<()> {
+#[derive(Debug, Deserialize)]
+struct GitLabSession {
+    private_token: String,
+    username: String,
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitLabPersonalAccessToken {
+    token: String,
+    name: String,
+}
+
+pub fn execute_login(server: &str, token: Option<&str>, protocol: &CloneProtocol) -> Result<()> {
     let resolved_url = resolve_base_url(server);
+
+    let final_token = if let Some(t) = token {
+        t.to_string()
+    } else {
+        println!(
+            "{} {}",
+            "登录到:".cyan(),
+            resolved_url.dimmed()
+        );
+        println!();
+
+        let username = prompt_input("用户名")?;
+        let password = prompt_password("密码")?;
+
+        if username.is_empty() || password.is_empty() {
+            anyhow::bail!("用户名和密码不能为空");
+        }
+
+        println!();
+        println!("{}", "正在认证...".cyan());
+
+        let session = create_session(&resolved_url, &username, &password)?;
+
+        println!(
+            "{} {} ({})",
+            "已认证:".green(),
+            session.name.green().bold(),
+            session.username.yellow()
+        );
+
+        let pat_token = create_personal_access_token(&resolved_url, &session.private_token)?;
+
+        revoke_session(&resolved_url, &session.private_token).ok();
+
+        println!(
+            "{} 已创建 Personal Access Token: {}",
+            "令牌:".green(),
+            pat_token.name.cyan()
+        );
+
+        pat_token.token
+    };
 
     println!("{} {}", "验证连接:".cyan(), resolved_url.dimmed());
 
-    let user = verify_token(&resolved_url, token)?;
+    let user = verify_token(&resolved_url, &final_token)?;
 
     println!(
         "{} {} ({})",
@@ -61,13 +117,13 @@ pub fn execute_login(server: &str, token: &str, protocol: &CloneProtocol) -> Res
         .iter_mut()
         .find(|s| s.url == resolved_url)
     {
-        existing.token = token.to_string();
+        existing.token = final_token.clone();
         existing.protocol = protocol_str.to_string();
         println!("{} {} 的凭据已更新", "更新:".yellow(), resolved_url.cyan());
     } else {
         gitlab_cfg.servers.push(config::GitLabServer {
             url: resolved_url.clone(),
-            token: token.to_string(),
+            token: final_token.clone(),
             protocol: protocol_str.to_string(),
         });
         println!("{} {} 凭据已保存", "保存:".green(), resolved_url.cyan());
@@ -80,6 +136,83 @@ pub fn execute_login(server: &str, token: &str, protocol: &CloneProtocol) -> Res
         "位置:".dimmed(),
         config::gitlab_config_path().display()
     );
+
+    Ok(())
+}
+
+fn prompt_input(prompt: &str) -> Result<String> {
+    print!("{}: ", prompt.white().bold());
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().to_string())
+}
+
+fn prompt_password(prompt: &str) -> Result<String> {
+    let password = rpassword::prompt_password(format!("{}: ", prompt.white().bold()))?;
+    Ok(password)
+}
+
+fn create_session(base_url: &str, login: &str, password: &str) -> Result<GitLabSession> {
+    let url = format!("{}/api/v4/session", base_url);
+
+    let resp = ureq::post(&url)
+        .set("User-Agent", "pma-gitlab")
+        .send_form(&[("login", login), ("password", password)])
+        .with_context(|| format!("认证失败，无法连接到 {}", base_url))?;
+
+    if resp.status() != 201 {
+        anyhow::bail!(
+            "认证失败 (HTTP {}): 用户名或密码错误",
+            resp.status()
+        );
+    }
+
+    let session: GitLabSession = resp
+        .into_json()
+        .with_context(|| "无法解析会话信息")?;
+
+    Ok(session)
+}
+
+fn create_personal_access_token(base_url: &str, session_token: &str) -> Result<GitLabPersonalAccessToken> {
+    let url = format!("{}/api/v4/personal_access_tokens", base_url);
+
+    let body = serde_json::json!({
+        "name": "pma-cli",
+        "scopes": ["api", "read_api", "read_repository", "write_repository"]
+    });
+
+    let resp = ureq::post(&url)
+        .set("PRIVATE-TOKEN", session_token)
+        .set("User-Agent", "pma-gitlab")
+        .set("Content-Type", "application/json")
+        .send_json(&body)
+        .with_context(|| "无法创建 Personal Access Token")?;
+
+    if resp.status() != 201 {
+        anyhow::bail!(
+            "创建 Personal Access Token 失败 (HTTP {})",
+            resp.status()
+        );
+    }
+
+    let pat: GitLabPersonalAccessToken = resp
+        .into_json()
+        .with_context(|| "无法解析令牌信息")?;
+
+    Ok(pat)
+}
+
+fn revoke_session(base_url: &str, session_token: &str) -> Result<()> {
+    let url = format!("{}/api/v4/session", base_url);
+
+    ureq::delete(&url)
+        .set("PRIVATE-TOKEN", session_token)
+        .set("User-Agent", "pma-gitlab")
+        .call()
+        .ok();
 
     Ok(())
 }
