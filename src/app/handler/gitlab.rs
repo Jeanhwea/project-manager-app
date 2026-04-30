@@ -156,10 +156,7 @@ pub fn execute_clone(
     let (extracted_server, extracted_group) = parse_gitlab_url(group);
 
     let final_server = extracted_server.as_deref().or(server);
-    let final_group = extracted_group
-        .as_ref()
-        .map(|s| s.as_str())
-        .unwrap_or(group);
+    let final_group = extracted_group.as_deref().unwrap_or(group);
 
     let (resolved_url, saved_token, saved_protocol) =
         resolve_gitlab_config(final_server, token, protocol)?;
@@ -185,7 +182,7 @@ pub fn execute_clone(
     );
 
     let projects =
-        fetch_group_projects(&resolved_base_url, group, &resolved_token, include_archived)?;
+        fetch_group_projects(&resolved_base_url, final_group, &resolved_token, include_archived)?;
 
     if projects.is_empty() {
         println!("{}", "未找到项目".yellow());
