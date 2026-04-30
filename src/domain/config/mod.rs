@@ -44,3 +44,9 @@ pub trait ConfigManager {
 
 /// Common result type for configuration operations
 pub type Result<T> = std::result::Result<T, ConfigError>;
+
+// Re-export manager types
+pub use manager::{MultiSourceConfigManager, ConfigAccessor, GitConfig, GitLabConfig, SyncConfig, EditorConfig};
+
+/// Default configuration manager implementation
+pub type DefaultConfigManager = MultiSourceConfigManager;
