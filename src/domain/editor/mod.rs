@@ -2,6 +2,24 @@
 //!
 //! This module contains file editing utilities for version bumping.
 
+mod cargo_toml;
+mod package_json;
+mod version_text;
+mod cmake;
+mod homebrew;
+mod pom_xml;
+mod project_py;
+mod pyproject;
+
+pub use cargo_toml::CargoTomlEditor;
+pub use package_json::PackageJsonEditor;
+pub use version_text::VersionTextEditor;
+pub use cmake::CMakeListsEditor;
+pub use homebrew::HomebrewFormulaEditor;
+pub use pom_xml::PomXmlEditor;
+pub use project_py::PythonVersionEditor;
+pub use pyproject::PyprojectEditor;
+
 use std::path::Path;
 
 /// Editor-specific error type
@@ -155,6 +173,19 @@ impl EditorRegistry {
         }
     }
     
+    /// Create a default registry with all built-in editors registered
+    pub fn default_with_editors() -> Self {
+        Self::new()
+            .register(CargoTomlEditor)
+            .register(PackageJsonEditor)
+            .register(VersionTextEditor)
+            .register(CMakeListsEditor)
+            .register(HomebrewFormulaEditor)
+            .register(PomXmlEditor)
+            .register(PythonVersionEditor)
+            .register(PyprojectEditor)
+    }
+    
     /// Register an editor with the registry
     pub fn register(mut self, editor: impl FileEditor + 'static) -> Self {
         let name = editor.name();
@@ -222,6 +253,20 @@ impl EditorRegistry {
         let edited = editor.edit(content, &location, version)?;
         editor.validate(content, &edited)?;
         Ok(edited)
+    }
+    
+    /// Edit a file by path
+    pub fn edit_file(&self, path: &Path, new_version: &str) -> Result<()> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
+        
+        let editor = self.detect_editor(path)
+            .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
+        
+        let edited = self.edit_version(&*editor, &content, new_version)?;
+        
+        write_with_backup(&path.to_string_lossy(), &edited)?;
+        Ok(())
     }
     
     /// List all registered editor names
@@ -313,5 +358,70 @@ pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
             "Invalid version format: {}",
             version
         ))),
+    }
+}
+
+/// Bump version in a file
+pub fn bump_version_in_file(path: &Path, bump_type: BumpType, config: &EditorConfig) -> Result<String> {
+    let registry = EditorRegistry::default_with_editors();
+    
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
+    
+    let editor = registry.detect_editor(path)
+        .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
+    
+    let location = editor.parse(&content)?;
+    
+    // Extract current version
+    let current_version = if let Some(pos) = &location.project_version {
+        content[pos.start..pos.end].to_string()
+    } else {
+        return Err(EditorError::VersionNotFound(format!("No version found in {}", path.display())));
+    };
+    
+    // Clean version string (remove quotes, etc.)
+    let cleaned_version = current_version
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim()
+        .to_string();
+    
+    // Apply bump
+    let new_version = apply_bump(&cleaned_version, &bump_type)?;
+    
+    if config.dry_run {
+        return Ok(format!("Would update {} from {} to {}", path.display(), cleaned_version, new_version));
+    }
+    
+    // Edit file
+    let edited = registry.edit_version(&*editor, &content, &new_version)?;
+    
+    write_with_backup(&path.to_string_lossy(), &edited)?;
+    
+    Ok(format!("Updated {} from {} to {}", path.display(), cleaned_version, new_version))
+}
+
+/// Get version from a file
+pub fn get_version_from_file(path: &Path) -> Result<String> {
+    let registry = EditorRegistry::default_with_editors();
+    
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
+    
+    let editor = registry.detect_editor(path)
+        .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
+    
+    let location = editor.parse(&content)?;
+    
+    if let Some(pos) = &location.project_version {
+        let version = content[pos.start..pos.end].to_string();
+        Ok(version
+            .trim_matches('"')
+            .trim_matches('\'')
+            .trim()
+            .to_string())
+    } else {
+        Err(EditorError::VersionNotFound(format!("No version found in {}", path.display())))
     }
 }
