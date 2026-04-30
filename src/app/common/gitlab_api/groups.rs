@@ -15,32 +15,16 @@ pub struct GitLabGroup {
 
 pub struct GroupQuery<'a> {
     client: &'a GitLabClient,
-    search: Option<String>,
 }
 
 impl<'a> GroupQuery<'a> {
     pub fn new(client: &'a GitLabClient) -> Self {
-        Self {
-            client,
-            search: None,
-        }
+        Self { client }
     }
 
-    pub fn search(mut self, search: &str) -> Self {
-        self.search = Some(search.to_string());
-        self
-    }
-
-    pub fn list(&self) -> Result<Vec<GitLabGroup>> {
-        let mut query: Vec<(&str, &str)> = Vec::new();
-        
-        let search_str: String;
-        if let Some(ref s) = self.search {
-            search_str = s.clone();
-            query.push(("search", &search_str));
-        }
-
-        self.client.get_paged("groups", &query)
+    pub fn search(&self, search: &str) -> Result<Vec<GitLabGroup>> {
+        let query = &[("search", search)];
+        self.client.get_paged("groups", query)
     }
 
     /// 通过组路径获取组信息
@@ -48,7 +32,7 @@ impl<'a> GroupQuery<'a> {
     pub fn get_by_path(&self, group_path: &str) -> Result<GitLabGroup> {
         // 方法1: 通过搜索 API 查找
         let search_term = group_path.split('/').last().unwrap_or(group_path);
-        let groups = self.clone().search(search_term).list()?;
+        let groups = self.search(search_term)?;
         
         if let Some(group) = groups.iter().find(|g| g.full_path == group_path) {
             return Ok(group.clone());

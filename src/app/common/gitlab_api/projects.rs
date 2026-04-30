@@ -1,5 +1,5 @@
 use crate::app::common::gitlab_api::client::GitLabClient;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone)]

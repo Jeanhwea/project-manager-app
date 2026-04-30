@@ -61,19 +61,22 @@ impl GitLabClient {
 
     pub fn get_paged<T: DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<Vec<T>> {
         let mut all_items = Vec::new();
-        let mut page = 1;
-        let per_page = 100;
+        let mut page = 1u32;
+        let per_page = 100u32;
 
         loop {
+            let page_str = page.to_string();
+            let per_page_str = per_page.to_string();
+            
             let mut query_with_page: Vec<(&str, &str)> = query.to_vec();
-            query_with_page.push(("page", &page.to_string()));
-            query_with_page.push(("per_page", &per_page.to_string()));
+            query_with_page.push(("page", &page_str));
+            query_with_page.push(("per_page", &per_page_str));
 
             let items: Vec<T> = self.get_with_query(path, &query_with_page)?;
             let count = items.len();
             all_items.extend(items);
 
-            if count < per_page {
+            if count < per_page as usize {
                 break;
             }
             page += 1;
