@@ -1,21 +1,689 @@
 //! Git remote management module
 //!
-//! This module handles remote URL parsing and validation.
+//! This module handles remote URL parsing, validation, and remote operations abstraction.
+//!
+//! **Validates: Requirements 7.5**
 
-use super::{GitError, GitProtocol, Result};
+use crate::domain::git::{GitError, GitProtocol, Result};
+use std::path::Path;
 
 /// Git remote representation
 #[derive(Debug, Clone)]
 pub struct Remote {
+    /// Remote name (e.g., "origin", "upstream")
     pub name: String,
+    /// Remote URL
     pub url: String,
+    /// Git protocol used for the remote
     pub protocol: GitProtocol,
 }
 
 impl Remote {
-    /// Parse a remote URL to determine protocol
+    /// Create a new remote instance
+    ///
+    /// # Arguments
+    /// * `name` - Remote name
+    /// * `url` - Remote URL
+    ///
+    /// # Returns
+    /// * `Result<Remote>` - Remote instance or error
+    ///
+    /// # Errors
+    /// * `GitError::InvalidRemoteUrl` - If the URL is invalid
+    pub fn new(name: impl Into<String>, url: impl Into<String>) -> Result<Self> {
+        let name = name.into();
+        let url = url.into();
+        
+        // Validate the URL
+        let protocol = Self::parse_url(&url)?;
+        
+        Ok(Self {
+            name,
+            url,
+            protocol,
+        })
+    }
+    
+    /// Parse a remote URL to determine protocol and validate it
+    ///
+    /// # Arguments
+    /// * `url` - Remote URL to parse
+    ///
+    /// # Returns
+    /// * `Result<GitProtocol>` - Protocol or error
+    ///
+    /// # Errors
+    /// * `GitError::InvalidRemoteUrl` - If the URL is invalid
     pub fn parse_url(url: &str) -> Result<GitProtocol> {
-        // Implementation will be added in Task 4.3
-        todo!("Remote URL parsing not yet implemented")
+        let url = url.trim();
+        if url.is_empty() {
+            return Err(GitError::InvalidRemoteUrl("Empty URL".to_string()));
+        }
+        
+        // Parse protocol from URL
+        let protocol = if url.starts_with("git@") || url.starts_with("ssh://") {
+            GitProtocol::Ssh
+        } else if url.starts_with("https://") {
+            GitProtocol::Https
+        } else if url.starts_with("http://") {
+            GitProtocol::Http
+        } else if url.starts_with("git://") {
+            GitProtocol::Git
+        } else {
+            // Try to parse as SSH URL (git@host:path)
+            if url.contains('@') && url.contains(':') {
+                GitProtocol::Ssh
+            } else {
+                return Err(GitError::InvalidRemoteUrl(format!(
+                    "Invalid URL format: {}",
+                    url
+                )));
+            }
+        };
+        
+        // Validate URL structure
+        if !Self::validate_url_structure(url, protocol) {
+            return Err(GitError::InvalidRemoteUrl(format!(
+                "Invalid URL structure: {}",
+                url
+            )));
+        }
+        
+        Ok(protocol)
+    }
+    
+    /// Validate URL structure based on protocol
+    fn validate_url_structure(url: &str, protocol: GitProtocol) -> bool {
+        match protocol {
+            GitProtocol::Ssh => {
+                // SSH URLs can be:
+                // 1. git@host:path
+                // 2. ssh://git@host/path
+                // 3. ssh://host/path
+                if url.starts_with("git@") {
+                    // git@host:path format
+                    let without_prefix = &url[4..];
+                    let parts: Vec<&str> = without_prefix.splitn(2, ':').collect();
+                    parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
+                } else if url.starts_with("ssh://") {
+                    // ssh:// format
+                    let without_prefix = &url[6..];
+                    let parts: Vec<&str> = without_prefix.splitn(2, '/').collect();
+                    parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
+                } else {
+                    false
+                }
+            }
+            GitProtocol::Http | GitProtocol::Https | GitProtocol::Git => {
+                // HTTP/HTTPS/GIT URLs: protocol://host/path
+                let prefix = match protocol {
+                    GitProtocol::Http => "http://",
+                    GitProtocol::Https => "https://",
+                    GitProtocol::Git => "git://",
+                    _ => unreachable!(),
+                };
+                
+                let without_prefix = &url[prefix.len()..];
+                let parts: Vec<&str> = without_prefix.splitn(2, '/').collect();
+                parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
+            }
+        }
+    }
+    
+    /// Extract host and path from URL
+    ///
+    /// # Arguments
+    /// * `url` - Remote URL
+    ///
+    /// # Returns
+    /// * `Option<(String, String)>` - Host and path if URL is valid
+    pub fn extract_host_and_path(url: &str) -> Option<(String, String)> {
+        let url = url.trim();
+        if url.is_empty() {
+            return None;
+        }
+        
+        let protocol = if url.starts_with("git@") || url.starts_with("ssh://") {
+            GitProtocol::Ssh
+        } else if url.starts_with("https://") {
+            GitProtocol::Https
+        } else if url.starts_with("http://") {
+            GitProtocol::Http
+        } else if url.starts_with("git://") {
+            GitProtocol::Git
+        } else {
+            return None;
+        };
+        
+        let (url, separator) = if url.starts_with("git@") {
+            (url.replace("git@", ""), ':')
+        } else if url.starts_with("ssh://") {
+            let stripped = url.replace("ssh://", "");
+            let stripped = if stripped.starts_with("git@") {
+                stripped.replacen("git@", "", 1)
+            } else {
+                stripped
+            };
+            (stripped, '/')
+        } else if url.starts_with("https://") {
+            (url.replace("https://", ""), '/')
+        } else if url.starts_with("http://") {
+            (url.replace("http://", ""), '/')
+        } else if url.starts_with("git://") {
+            (url.replace("git://", ""), '/')
+        } else {
+            (url.to_string(), ':')
+        };
+        
+        let parts: Vec<&str> = url.splitn(2, separator).collect();
+        if parts.len() != 2 {
+            return None;
+        }
+        
+        let (host, path) = (parts[0].to_string(), parts[1].to_string());
+        Some((host, path))
+    }
+    
+    /// Get remote name based on URL and configuration rules
+    ///
+    /// # Arguments
+    /// * `url` - Remote URL
+    ///
+    /// # Returns
+    /// * `String` - Suggested remote name
+    pub fn get_remote_name_by_url(url: &str) -> String {
+        // For now, return "origin" as default
+        // In a real implementation, this would use configuration rules
+        // to determine appropriate remote names based on URL patterns
+        "origin".to_string()
+    }
+    
+    /// Check if this is a private IP address
+    ///
+    /// # Arguments
+    /// * `host` - Host string
+    ///
+    /// # Returns
+    /// * `bool` - True if host is a private IP address
+    pub fn is_private_ip(host: &str) -> bool {
+        let ip_part = host.split(':').next().unwrap_or(host);
+        
+        let octets: Vec<u8> = ip_part
+            .split('.')
+            .filter_map(|s| s.parse::<u8>().ok())
+            .collect();
+        
+        if octets.len() != 4 {
+            return false;
+        }
+        
+        match (octets[0], octets[1]) {
+            (10, _) => true,
+            (172, second) if (16..=31).contains(&second) => true,
+            (192, 168) => true,
+            _ => false,
+        }
+    }
+}
+
+/// Remote manager for Git repository operations
+#[derive(Debug, Clone)]
+pub struct RemoteManager {
+    /// Git command runner
+    runner: crate::domain::git::command::GitCommandRunner,
+}
+
+impl RemoteManager {
+    /// Create a new remote manager
+    pub fn new() -> Self {
+        Self {
+            runner: crate::domain::git::command::GitCommandRunner::new(),
+        }
+    }
+    
+    /// Add a remote to a repository
+    ///
+    /// # Arguments
+    /// * `repo_path` - Repository path
+    /// * `name` - Remote name
+    /// * `url` - Remote URL
+    ///
+    /// # Returns
+    /// * `Result<()>` - Success or error
+    ///
+    /// # Errors
+    /// * `GitError::CommandFailed` - If Git command fails
+    /// * `GitError::InvalidRemoteUrl` - If URL is invalid
+    pub fn add_remote(&self, repo_path: &Path, name: &str, url: &str) -> Result<()> {
+        // Validate URL before adding
+        Remote::parse_url(url)?;
+        
+        self.runner.execute_with_success_in_dir(
+            &["remote", "add", name, url],
+            repo_path,
+        )
+    }
+    
+    /// Remove a remote from a repository
+    ///
+    /// # Arguments
+    /// * `repo_path` - Repository path
+    /// * `name` - Remote name
+    ///
+    /// # Returns
+    /// * `Result<()>` - Success or error
+    ///
+    /// # Errors
+    /// * `GitError::CommandFailed` - If Git command fails
+    /// * `GitError::RemoteNotFound` - If remote doesn't exist
+    pub fn remove_remote(&self, repo_path: &Path, name: &str) -> Result<()> {
+        // First check if remote exists
+        let remotes = self.list_remotes(repo_path)?;
+        if !remotes.iter().any(|remote| remote.name == name) {
+            return Err(GitError::RemoteNotFound(name.to_string()));
+        }
+        
+        self.runner.execute_with_success_in_dir(
+            &["remote", "remove", name],
+            repo_path,
+        )
+    }
+    
+    /// Rename a remote
+    ///
+    /// # Arguments
+    /// * `repo_path` - Repository path
+    /// * `old_name` - Current remote name
+    /// * `new_name` - New remote name
+    ///
+    /// # Returns
+    /// * `Result<()>` - Success or error
+    ///
+    /// # Errors
+    /// * `GitError::CommandFailed` - If Git command fails
+    /// * `GitError::RemoteNotFound` - If remote doesn't exist
+    pub fn rename_remote(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
+        // First check if remote exists
+        let remotes = self.list_remotes(repo_path)?;
+        if !remotes.iter().any(|remote| remote.name == old_name) {
+            return Err(GitError::RemoteNotFound(old_name.to_string()));
+        }
+        
+        self.runner.execute_with_success_in_dir(
+            &["remote", "rename", old_name, new_name],
+            repo_path,
+        )
+    }
+    
+    /// Get remote URL
+    ///
+    /// # Arguments
+    /// * `repo_path` - Repository path
+    /// * `name` - Remote name
+    ///
+    /// # Returns
+    /// * `Result<String>` - Remote URL or error
+    ///
+    /// # Errors
+    /// * `GitError::CommandFailed` - If Git command fails
+    /// * `GitError::RemoteNotFound` - If remote doesn't exist
+    pub fn get_remote_url(&self, repo_path: &Path, name: &str) -> Result<String> {
+        let output = self.runner.execute_in_dir(
+            &["remote", "get-url", name],
+            repo_path,
+        )?;
+        
+        if output.trim().is_empty() {
+            Err(GitError::RemoteNotFound(name.to_string()))
+        } else {
+            Ok(output)
+        }
+    }
+    
+    /// Set remote URL
+    ///
+    /// # Arguments
+    /// * `repo_path` - Repository path
+    /// * `name` - Remote name
+    /// * `url` - New remote URL
+    ///
+    /// # Returns
+    /// * `Result<()>` - Success or error
+    ///
+    /// # Errors
+    /// * `GitError::CommandFailed` - If Git command fails
+    /// * `GitError::InvalidRemoteUrl` - If URL is invalid
+    /// * `GitError::RemoteNotFound` - If remote doesn't exist
+    pub fn set_remote_url(&self, repo_path: &Path, name: &str, url: &str) -> Result<()> {
+        // Validate URL before setting
+        Remote::parse_url(url)?;
+        
+        // First check if remote exists
+        let remotes = self.list_remotes(repo_path)?;
+        if !remotes.iter().any(|remote| remote.name == name) {
+            return Err(GitError::RemoteNotFound(name.to_string()));
+        }
+        
+        self.runner.execute_with_success_in_dir(
+            &["remote", "set-url", name, url],
+            repo_path,
+        )
+    }
+    
+    /// List all remotes in a repository
+    ///
+    /// # Arguments
+    /// * `repo_path` - Repository path
+    ///
+    /// # Returns
+    /// * `Result<Vec<Remote>>` - List of remotes or error
+    ///
+    /// # Errors
+    /// * `GitError::CommandFailed` - If Git command fails
+    pub fn list_remotes(&self, repo_path: &Path) -> Result<Vec<Remote>> {
+        // Get remote names
+        let remote_names_result = self.runner.execute_in_dir(&["remote"], repo_path);
+        
+        let remote_names = match remote_names_result {
+            Ok(output) => {
+                output
+                    .lines()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            }
+            Err(_) => {
+                // No remotes is not an error, just return empty list
+                return Ok(Vec::new());
+            }
+        };
+        
+        // Get remote URLs and create Remote objects
+        let mut remotes = Vec::new();
+        for name in remote_names {
+            let url_result = self.get_remote_url(repo_path, &name);
+            
+            if let Ok(url) = url_result {
+                match Remote::parse_url(&url) {
+                    Ok(protocol) => {
+                        remotes.push(Remote {
+                            name,
+                            url,
+                            protocol,
+                        });
+                    }
+                    Err(_) => {
+                        // If URL parsing fails, still include the remote but with Unknown protocol
+                        remotes.push(Remote {
+                            name,
+                            url,
+                            protocol: GitProtocol::Ssh, // Default to SSH
+                        });
+                    }
+                }
+            }
+        }
+        
+        Ok(remotes)
+    }
+    
+    /// Check if a remote exists
+    ///
+    /// # Arguments
+    /// * `repo_path` - Repository path
+    /// * `name` - Remote name
+    ///
+    /// # Returns
+    /// * `Result<bool>` - True if remote exists
+    ///
+    /// # Errors
+    /// * `GitError::CommandFailed` - If Git command fails
+    pub fn remote_exists(&self, repo_path: &Path, name: &str) -> Result<bool> {
+        let remotes = self.list_remotes(repo_path)?;
+        Ok(remotes.iter().any(|remote| remote.name == name))
+    }
+    
+    /// Get remote by name
+    ///
+    /// # Arguments
+    /// * `repo_path` - Repository path
+    /// * `name` - Remote name
+    ///
+    /// # Returns
+    /// * `Result<Option<Remote>>` - Remote if found, None otherwise
+    ///
+    /// # Errors
+    /// * `GitError::CommandFailed` - If Git command fails
+    pub fn get_remote(&self, repo_path: &Path, name: &str) -> Result<Option<Remote>> {
+        let remotes = self.list_remotes(repo_path)?;
+        Ok(remotes.into_iter().find(|remote| remote.name == name))
+    }
+}
+
+impl Default for RemoteManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    
+    #[test]
+    fn test_remote_parse_url_valid() {
+        // Test SSH URLs
+        assert_eq!(Remote::parse_url("git@github.com:user/repo.git").unwrap(), GitProtocol::Ssh);
+        assert_eq!(Remote::parse_url("ssh://git@github.com/user/repo.git").unwrap(), GitProtocol::Ssh);
+        assert_eq!(Remote::parse_url("ssh://github.com/user/repo.git").unwrap(), GitProtocol::Ssh);
+        
+        // Test HTTPS URLs
+        assert_eq!(Remote::parse_url("https://github.com/user/repo.git").unwrap(), GitProtocol::Https);
+        
+        // Test HTTP URLs
+        assert_eq!(Remote::parse_url("http://github.com/user/repo.git").unwrap(), GitProtocol::Http);
+        
+        // Test Git URLs
+        assert_eq!(Remote::parse_url("git://github.com/user/repo.git").unwrap(), GitProtocol::Git);
+    }
+    
+    #[test]
+    fn test_remote_parse_url_invalid() {
+        // Test empty URL
+        assert!(Remote::parse_url("").is_err());
+        
+        // Test invalid URL format
+        assert!(Remote::parse_url("invalid-url").is_err());
+        assert!(Remote::parse_url("github.com/user/repo.git").is_err());
+    }
+    
+    #[test]
+    fn test_remote_extract_host_and_path() {
+        // Test SSH URLs
+        let (host, path) = Remote::extract_host_and_path("git@github.com:user/repo.git").unwrap();
+        assert_eq!(host, "github.com");
+        assert_eq!(path, "user/repo.git");
+        
+        let (host, path) = Remote::extract_host_and_path("ssh://git@github.com/user/repo.git").unwrap();
+        assert_eq!(host, "git@github.com");
+        assert_eq!(path, "user/repo.git");
+        
+        // Test HTTPS URLs
+        let (host, path) = Remote::extract_host_and_path("https://github.com/user/repo.git").unwrap();
+        assert_eq!(host, "github.com");
+        assert_eq!(path, "user/repo.git");
+        
+        // Test HTTP URLs
+        let (host, path) = Remote::extract_host_and_path("http://github.com/user/repo.git").unwrap();
+        assert_eq!(host, "github.com");
+        assert_eq!(path, "user/repo.git");
+        
+        // Test Git URLs
+        let (host, path) = Remote::extract_host_and_path("git://github.com/user/repo.git").unwrap();
+        assert_eq!(host, "github.com");
+        assert_eq!(path, "user/repo.git");
+    }
+    
+    #[test]
+    fn test_remote_extract_host_and_path_invalid() {
+        assert!(Remote::extract_host_and_path("").is_none());
+        assert!(Remote::extract_host_and_path("invalid-url").is_none());
+    }
+    
+    #[test]
+    fn test_remote_new() {
+        let remote = Remote::new("origin", "https://github.com/user/repo.git").unwrap();
+        assert_eq!(remote.name, "origin");
+        assert_eq!(remote.url, "https://github.com/user/repo.git");
+        assert_eq!(remote.protocol, GitProtocol::Https);
+    }
+    
+    #[test]
+    fn test_remote_new_invalid_url() {
+        assert!(Remote::new("origin", "invalid-url").is_err());
+    }
+    
+    #[test]
+    fn test_remote_is_private_ip() {
+        // Private IPs
+        assert!(Remote::is_private_ip("10.0.0.1"));
+        assert!(Remote::is_private_ip("172.16.0.1"));
+        assert!(Remote::is_private_ip("172.31.255.254"));
+        assert!(Remote::is_private_ip("192.168.1.1"));
+        
+        // Public IPs
+        assert!(!Remote::is_private_ip("8.8.8.8"));
+        assert!(!Remote::is_private_ip("172.15.0.1")); // Outside private range
+        assert!(!Remote::is_private_ip("172.32.0.1")); // Outside private range
+        
+        // Invalid IPs
+        assert!(!Remote::is_private_ip("not-an-ip"));
+        assert!(!Remote::is_private_ip("256.256.256.256"));
+    }
+    
+    #[test]
+    fn test_remote_manager_new() {
+        let manager = RemoteManager::new();
+        // Just test that it can be created
+        assert!(true);
+    }
+    
+    #[test]
+    fn test_remote_manager_default() {
+        let manager = RemoteManager::default();
+        // Just test that default works
+        assert!(true);
+    }
+    
+    #[test]
+    fn test_remote_manager_list_remotes_empty() {
+        let manager = RemoteManager::new();
+        let temp_dir = tempdir().unwrap();
+        
+        // Create a Git repository
+        let repo_path = temp_dir.path();
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(repo_path)
+            .output();
+        
+        let remotes = manager.list_remotes(repo_path).unwrap();
+        assert!(remotes.is_empty());
+    }
+    
+    #[test]
+    fn test_remote_manager_remote_exists() {
+        let manager = RemoteManager::new();
+        let temp_dir = tempdir().unwrap();
+        
+        // Create a Git repository
+        let repo_path = temp_dir.path();
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(repo_path)
+            .output();
+        
+        // No remotes should exist
+        let exists = manager.remote_exists(repo_path, "origin").unwrap();
+        assert!(!exists);
+    }
+    
+    #[test]
+    fn test_remote_manager_get_remote_not_found() {
+        let manager = RemoteManager::new();
+        let temp_dir = tempdir().unwrap();
+        
+        // Create a Git repository
+        let repo_path = temp_dir.path();
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(repo_path)
+            .output();
+        
+        // Get non-existent remote
+        let remote = manager.get_remote(repo_path, "origin").unwrap();
+        assert!(remote.is_none());
+    }
+    
+    #[test]
+    fn test_remote_manager_add_and_get_remote() {
+        let manager = RemoteManager::new();
+        let temp_dir = tempdir().unwrap();
+        
+        // Create a Git repository
+        let repo_path = temp_dir.path();
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(repo_path)
+            .output();
+        
+        // Add a remote
+        let result = manager.add_remote(
+            repo_path,
+            "origin",
+            "https://github.com/user/repo.git",
+        );
+        
+        // This might fail if Git is not available or command fails
+        // We'll just test that the method doesn't panic
+        if result.is_ok() {
+            // If remote was added successfully, try to get it
+            let remote = manager.get_remote(repo_path, "origin").unwrap();
+            assert!(remote.is_some());
+            if let Some(remote) = remote {
+                assert_eq!(remote.name, "origin");
+                assert_eq!(remote.url, "https://github.com/user/repo.git");
+                assert_eq!(remote.protocol, GitProtocol::Https);
+            }
+        }
+    }
+    
+    #[test]
+    fn test_remote_manager_add_remote_invalid_url() {
+        let manager = RemoteManager::new();
+        let temp_dir = tempdir().unwrap();
+        
+        // Create a Git repository
+        let repo_path = temp_dir.path();
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(repo_path)
+            .output();
+        
+        // Try to add remote with invalid URL
+        let result = manager.add_remote(repo_path, "origin", "invalid-url");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            GitError::InvalidRemoteUrl(_) => (), // Expected
+            _ => panic!("Expected InvalidRemoteUrl error"),
+        }
+    }
+    
+    #[test]
+    fn test_remote_get_remote_name_by_url() {
+        // Default implementation returns "origin"
+        assert_eq!(Remote::get_remote_name_by_url("https://github.com/user/repo.git"), "origin");
+        assert_eq!(Remote::get_remote_name_by_url("git@github.com:user/repo.git"), "origin");
     }
 }

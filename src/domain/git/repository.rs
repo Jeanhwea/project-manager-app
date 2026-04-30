@@ -170,43 +170,12 @@ impl Repository {
     /// # Errors
     /// * `GitError::CommandFailed` - If Git remote commands fail
     fn load_remotes(&mut self) -> Result<()> {
-        use super::command::GitCommandRunner;
+        use super::remote::RemoteManager;
         
-        let runner = GitCommandRunner::new();
+        let manager = RemoteManager::new();
         
-        // Get remote names
-        let remote_names_result = runner.execute_in_dir(&["remote"], &self.path);
-        
-        let remote_names = match remote_names_result {
-            Ok(output) => {
-                output
-                    .lines()
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect()
-            }
-            Err(_) => {
-                // No remotes is not an error, just return empty list
-                self.remotes = Vec::new();
-                return Ok(());
-            }
-        };
-        
-        // Get remote URLs and determine protocol
-        let mut remotes = Vec::new();
-        for name in remote_names {
-            let url_result = runner.execute_in_dir(&["remote", "get-url", &name], &self.path);
-            
-            if let Ok(url) = url_result {
-                let protocol = determine_protocol(&url);
-                
-                remotes.push(Remote {
-                    name,
-                    url,
-                    protocol,
-                });
-            }
-        }
+        // Get remotes using RemoteManager
+        let remotes = manager.list_remotes(&self.path)?;
         
         self.remotes = remotes;
         Ok(())
@@ -379,21 +348,7 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<Re
     Ok(repos)
 }
 
-/// Determine Git protocol from URL
-fn determine_protocol(url: &str) -> GitProtocol {
-    if url.starts_with("ssh://") || url.contains('@') && url.contains(':') {
-        GitProtocol::Ssh
-    } else if url.starts_with("http://") {
-        GitProtocol::Http
-    } else if url.starts_with("https://") {
-        GitProtocol::Https
-    } else if url.starts_with("git://") {
-        GitProtocol::Git
-    } else {
-        // Default to SSH for Git-style URLs (git@github.com:user/repo.git)
-        GitProtocol::Ssh
-    }
-}
+
 
 /// Get upstream tracking branch for a local branch
 fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
@@ -416,12 +371,14 @@ mod tests {
     use tempfile::tempdir;
     
     #[test]
-    fn test_determine_protocol() {
-        assert_eq!(determine_protocol("ssh://git@example.com/repo.git"), GitProtocol::Ssh);
-        assert_eq!(determine_protocol("git@github.com:user/repo.git"), GitProtocol::Ssh);
-        assert_eq!(determine_protocol("http://example.com/repo.git"), GitProtocol::Http);
-        assert_eq!(determine_protocol("https://example.com/repo.git"), GitProtocol::Https);
-        assert_eq!(determine_protocol("git://example.com/repo.git"), GitProtocol::Git);
+    fn test_remote_parsing() {
+        use super::remote::Remote;
+        
+        assert_eq!(Remote::parse_url("ssh://git@example.com/repo.git").unwrap(), GitProtocol::Ssh);
+        assert_eq!(Remote::parse_url("git@github.com:user/repo.git").unwrap(), GitProtocol::Ssh);
+        assert_eq!(Remote::parse_url("http://example.com/repo.git").unwrap(), GitProtocol::Http);
+        assert_eq!(Remote::parse_url("https://example.com/repo.git").unwrap(), GitProtocol::Https);
+        assert_eq!(Remote::parse_url("git://example.com/repo.git").unwrap(), GitProtocol::Git);
     }
     
     #[test]
