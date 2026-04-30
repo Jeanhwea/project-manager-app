@@ -168,14 +168,30 @@ fn prompt_password(prompt: &str) -> Result<String> {
 fn create_session(base_url: &str, login: &str, password: &str) -> Result<GitLabSession> {
     let url = format!("{}/api/v4/session", base_url);
 
-    let resp = ureq::post(&url)
+    let resp = match ureq::post(&url)
         .set("User-Agent", "pma-gitlab")
         .send_form(&[("login", login), ("password", password)])
-        .with_context(|| format!("认证失败，无法连接到 {}", base_url))?;
-
-    if resp.status() != 201 {
-        anyhow::bail!("认证失败 (HTTP {}): 用户名或密码错误", resp.status());
-    }
+    {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, response)) => {
+            let error_msg = match code {
+                404 => format!(
+                    "Session API 不可用 (HTTP 404)。\n\
+                     该 GitLab 服务器可能禁用了用户名密码登录。\n\
+                     请使用 --token 参数直接提供 Personal Access Token:\n\
+                     pma gitlab login --server {} --token <YOUR_TOKEN>",
+                    base_url
+                ),
+                401 => "用户名或密码错误 (HTTP 401)".to_string(),
+                403 => "禁止访问 (HTTP 403)，请检查账户权限".to_string(),
+                _ => format!("认证失败 (HTTP {}): {}", code, response.status_text()),
+            };
+            anyhow::bail!("{}", error_msg);
+        }
+        Err(e) => {
+            anyhow::bail!("无法连接到 {}: {}", base_url, e);
+        }
+    };
 
     let session: GitLabSession = resp.into_json().with_context(|| "无法解析会话信息")?;
 
