@@ -9,10 +9,16 @@ use serde::{Deserialize, Serialize};
 pub struct Project {
     pub id: u64,
     pub name: String,
+    pub path: String,
     pub path_with_namespace: String,
-    pub ssh_url: String,
-    pub http_url: String,
-    pub archived: bool,
+    #[serde(rename = "ssh_url_to_repo")]
+    pub ssh_url: Option<String>,
+    #[serde(rename = "http_url_to_repo")]
+    pub http_url: Option<String>,
+    pub web_url: Option<String>,
+    pub description: Option<String>,
+    pub archived: Option<bool>,
+    pub visibility: Option<String>,
 }
 
 /// GitLab group representation
@@ -21,6 +27,8 @@ pub struct Group {
     pub id: u64,
     pub name: String,
     pub full_path: String,
+    pub web_url: Option<String>,
+    pub description: Option<String>,
 }
 
 /// GitLab user representation
@@ -29,4 +37,6 @@ pub struct User {
     pub id: u64,
     pub username: String,
     pub name: String,
+    pub email: Option<String>,
+    pub web_url: Option<String>,
 }

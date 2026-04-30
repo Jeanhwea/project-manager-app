@@ -10,7 +10,7 @@ pub mod models;
 #[derive(Debug, thiserror::Error)]
 pub enum GitLabError {
     #[error("Network error: {0}")]
-    NetworkError(#[from] reqwest::Error),
+    NetworkError(#[from] ureq::Error),
     
     #[error("API error: {0}")]
     ApiError(String),
