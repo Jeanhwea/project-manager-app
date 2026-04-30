@@ -145,28 +145,15 @@ impl Repository {
     /// # Errors
     /// * `GitError::CommandFailed` - If Git status command fails
     pub fn check_status(&mut self) -> Result<()> {
-        use std::process::Command;
+        use super::command::GitCommandRunner;
+        
+        let runner = GitCommandRunner::new();
         
         // Execute git status --porcelain
-        let output = Command::new("git")
-            .arg("status")
-            .arg("--porcelain")
-            .current_dir(&self.path)
-            .output()
-            .map_err(|e| GitError::CommandFailed(format!("Failed to execute git status: {}", e)))?;
-        
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GitError::CommandFailed(format!(
-                "git status failed: {}",
-                stderr
-            )));
-        }
-        
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let output = runner.execute_in_dir(&["status", "--porcelain"], &self.path)?;
         
         // Determine status based on output
-        self.status = if stdout.trim().is_empty() {
+        self.status = if output.trim().is_empty() {
             RepositoryStatus::Clean
         } else {
             RepositoryStatus::Dirty
@@ -183,41 +170,34 @@ impl Repository {
     /// # Errors
     /// * `GitError::CommandFailed` - If Git remote commands fail
     fn load_remotes(&mut self) -> Result<()> {
-        use std::process::Command;
+        use super::command::GitCommandRunner;
+        
+        let runner = GitCommandRunner::new();
         
         // Get remote names
-        let output = Command::new("git")
-            .arg("remote")
-            .current_dir(&self.path)
-            .output()
-            .map_err(|e| GitError::CommandFailed(format!("Failed to get remotes: {}", e)))?;
+        let remote_names_result = runner.execute_in_dir(&["remote"], &self.path);
         
-        if !output.status.success() {
-            // No remotes is not an error, just return empty list
-            self.remotes = Vec::new();
-            return Ok(());
-        }
-        
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let remote_names: Vec<String> = stdout
-            .lines()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
+        let remote_names = match remote_names_result {
+            Ok(output) => {
+                output
+                    .lines()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            }
+            Err(_) => {
+                // No remotes is not an error, just return empty list
+                self.remotes = Vec::new();
+                return Ok(());
+            }
+        };
         
         // Get remote URLs and determine protocol
         let mut remotes = Vec::new();
         for name in remote_names {
-            let output = Command::new("git")
-                .arg("remote")
-                .arg("get-url")
-                .arg(&name)
-                .current_dir(&self.path)
-                .output()
-                .map_err(|e| GitError::CommandFailed(format!("Failed to get URL for remote {}: {}", name, e)))?;
+            let url_result = runner.execute_in_dir(&["remote", "get-url", &name], &self.path);
             
-            if output.status.success() {
-                let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if let Ok(url) = url_result {
                 let protocol = determine_protocol(&url);
                 
                 remotes.push(Remote {
@@ -240,41 +220,28 @@ impl Repository {
     /// # Errors
     /// * `GitError::CommandFailed` - If Git branch commands fail
     fn load_branches(&mut self) -> Result<()> {
-        use std::process::Command;
+        use super::command::GitCommandRunner;
+        
+        let runner = GitCommandRunner::new();
         
         // Get current branch
-        let current_branch_output = Command::new("git")
-            .arg("branch")
-            .arg("--show-current")
-            .current_dir(&self.path)
-            .output()
-            .map_err(|e| GitError::CommandFailed(format!("Failed to get current branch: {}", e)))?;
-        
-        let current_branch = if current_branch_output.status.success() {
-            String::from_utf8_lossy(&current_branch_output.stdout)
-                .trim()
-                .to_string()
-        } else {
-            String::new()
+        let current_branch = match runner.execute_in_dir(&["branch", "--show-current"], &self.path) {
+            Ok(output) => output,
+            Err(_) => String::new(),
         };
         
         // Get all local branches
-        let output = Command::new("git")
-            .arg("branch")
-            .arg("--list")
-            .current_dir(&self.path)
-            .output()
-            .map_err(|e| GitError::CommandFailed(format!("Failed to list branches: {}", e)))?;
+        let branches_output = match runner.execute_in_dir(&["branch", "--list"], &self.path) {
+            Ok(output) => output,
+            Err(_) => {
+                self.branches = Vec::new();
+                return Ok(());
+            }
+        };
         
-        if !output.status.success() {
-            self.branches = Vec::new();
-            return Ok(());
-        }
-        
-        let stdout = String::from_utf8_lossy(&output.stdout);
         let mut branches = Vec::new();
         
-        for line in stdout.lines() {
+        for line in branches_output.lines() {
             let line = line.trim();
             if line.is_empty() {
                 continue;
@@ -430,21 +397,13 @@ fn determine_protocol(url: &str) -> GitProtocol {
 
 /// Get upstream tracking branch for a local branch
 fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
-    use std::process::Command;
+    use super::command::GitCommandRunner;
     
-    let output = Command::new("git")
-        .arg("rev-parse")
-        .arg("--abbrev-ref")
-        .arg(format!("{}@{{upstream}}", branch_name))
-        .current_dir(path)
-        .output();
+    let runner = GitCommandRunner::new();
     
-    match output {
-        Ok(output) if output.status.success() => {
-            let upstream = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            Ok(upstream)
-        }
-        _ => {
+    match runner.execute_in_dir(&["rev-parse", "--abbrev-ref", &format!("{}@{{upstream}}", branch_name)], path) {
+        Ok(upstream) => Ok(upstream),
+        Err(_) => {
             // No upstream or command failed - return empty string
             Ok(String::new())
         }
