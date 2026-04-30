@@ -1,3 +1,5 @@
+//! Path manipulation utilities
+
 use std::path::{Path, PathBuf};
 
 /// 规范化路径，处理 Windows UNC 路径前缀
@@ -30,6 +32,40 @@ pub fn format_path(path: &Path) -> String {
         .to_string()
 }
 
+/// Check if a path is absolute
+pub fn is_absolute(path: &Path) -> bool {
+    path.is_absolute()
+}
+
+/// Normalize a path by removing redundant components
+pub fn normalize_path(path: &Path) -> PathBuf {
+    let mut components = Vec::new();
+    
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                if let Some(last) = components.last() {
+                    if *last != std::path::Component::ParentDir {
+                        components.pop();
+                    } else {
+                        components.push(component);
+                    }
+                } else {
+                    components.push(component);
+                }
+            }
+            std::path::Component::CurDir => {
+                // Skip current directory components
+            }
+            _ => {
+                components.push(component);
+            }
+        }
+    }
+    
+    components.iter().collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -46,5 +82,12 @@ mod tests {
         let path = Path::new("/home/user/project");
         let formatted = format_path(path);
         assert_eq!(formatted, "/home/user/project");
+    }
+    
+    #[test]
+    fn test_normalize_path() {
+        let path = Path::new("/foo/../bar/./baz");
+        let normalized = normalize_path(path);
+        assert_eq!(normalized, Path::new("/bar/baz"));
     }
 }
