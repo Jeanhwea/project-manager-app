@@ -66,6 +66,10 @@ impl GitLabClient {
             .map_err(GitLabError::NetworkError)?;
 
         let status = response.status();
+        if status == 429 {
+            return Err(GitLabError::RateLimited);
+        }
+        
         if status != 200 {
             let body = response
                 .into_string()
@@ -101,6 +105,10 @@ impl GitLabClient {
             .map_err(GitLabError::NetworkError)?;
 
         let status = response.status();
+        if status == 429 {
+            return Err(GitLabError::RateLimited);
+        }
+        
         if status != 200 {
             let body = response
                 .into_string()
