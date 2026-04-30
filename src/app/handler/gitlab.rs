@@ -1,10 +1,10 @@
 use crate::app::common::config;
 use crate::app::common::git;
+use crate::app::common::gitlab_api::{GitLabClient, GitLabGroup, GitLabProject, GitLabUser, GroupQuery, ProjectsQuery};
 use crate::app::common::runner::CommandRunner;
 use anyhow::{Context, Result};
 use clap::ValueEnum;
 use colored::Colorize;
-use serde::Deserialize;
 use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::Path;
@@ -13,27 +13,6 @@ use std::path::Path;
 pub enum CloneProtocol {
     Ssh,
     Https,
-}
-
-#[derive(Debug, Deserialize)]
-struct GitLabProject {
-    path_with_namespace: String,
-    ssh_url_to_repo: String,
-    http_url_to_repo: String,
-    name: String,
-    archived: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct GitLabGroup {
-    full_path: String,
-    name: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GitLabUser {
-    username: String,
-    name: String,
 }
 
 pub fn execute_login(
@@ -74,7 +53,8 @@ pub fn execute_login(
 
     println!("{} {}", "验证连接:".cyan(), resolved_url.dimmed());
 
-    let user = verify_token(&resolved_url, &final_token)?;
+    let client = GitLabClient::new(&resolved_url, &final_token);
+    let user: GitLabUser = client.get("user")?;
 
     println!(
         "{} {} ({})",
@@ -127,20 +107,6 @@ fn prompt_input(prompt: &str) -> Result<String> {
     Ok(input.trim().to_string())
 }
 
-fn verify_token(base_url: &str, token: &str) -> Result<GitLabUser> {
-    let url = format!("{}/api/v4/user", base_url);
-
-    let resp = ureq::get(&url)
-        .set("PRIVATE-TOKEN", token)
-        .set("User-Agent", "pma-gitlab")
-        .call()
-        .with_context(|| format!("无法连接到 {}", base_url))?;
-
-    let user: GitLabUser = resp.into_json().with_context(|| "无法解析用户信息")?;
-
-    Ok(user)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn execute_clone(
     group: &str,
@@ -172,7 +138,11 @@ pub fn execute_clone(
         final_group.yellow().bold()
     );
 
-    let group_info = fetch_group_info(&resolved_base_url, final_group, &resolved_token)?;
+    let client = GitLabClient::new(&resolved_base_url, &resolved_token);
+    
+    // 获取组信息
+    let group_info = GroupQuery::new(&client)
+        .get_by_path(final_group)?;
 
     println!(
         "{} {} ({})",
@@ -181,12 +151,12 @@ pub fn execute_clone(
         group_info.full_path.dimmed()
     );
 
-    let projects = fetch_group_projects(
-        &resolved_base_url,
-        final_group,
-        &resolved_token,
-        include_archived,
-    )?;
+    // 获取组项目
+    let projects = ProjectsQuery::new(&client)
+        .group(group_info.id)
+        .include_subgroups(true)
+        .include_archived(include_archived)
+        .list()?;
 
     if projects.is_empty() {
         println!("{}", "未找到项目".yellow());
@@ -231,17 +201,22 @@ pub fn execute_clone(
 
     for (index, project) in projects.iter().enumerate() {
         let progress = format!("({}/{})", index + 1, projects.len());
+        
+        let ssh_url = project.ssh_url_to_repo.as_deref().unwrap_or("");
+        let http_url = project.http_url_to_repo.as_deref().unwrap_or("");
+        
         let clone_url = match resolved_protocol {
-            CloneProtocol::Ssh => &project.ssh_url_to_repo,
-            CloneProtocol::Https => &project.http_url_to_repo,
+            CloneProtocol::Ssh => ssh_url,
+            CloneProtocol::Https => http_url,
         };
 
         let project_dir = output_path.join(&project.name);
+        let is_archived = project.archived.unwrap_or(false);
 
         println!(
             "{} {} {}",
             progress.white().bold(),
-            if project.archived {
+            if is_archived {
                 "[归档]".dimmed()
             } else {
                 "".dimmed()
@@ -259,9 +234,9 @@ pub fn execute_clone(
             continue;
         }
 
-        if existing_urls.contains(clone_url.as_str())
-            || existing_urls.contains(project.ssh_url_to_repo.as_str())
-            || existing_urls.contains(project.http_url_to_repo.as_str())
+        if existing_urls.contains(clone_url)
+            || existing_urls.contains(ssh_url)
+            || existing_urls.contains(http_url)
         {
             println!(
                 "  {} {} URL 已存在，跳过",
@@ -401,7 +376,7 @@ fn resolve_token(token: Option<&str>) -> Result<String> {
 
     anyhow::bail!(
         "未提供 GitLab 访问令牌。\n\
-         请通过以下方式之一提供:\n\
+         请通过以下方式之一提供：\n\
          1. pma gitlab login --server <URL> --token <TOKEN>\n\
          2. 命令行参数 --token <TOKEN>\n\
          3. 环境变量 GITLAB_TOKEN 或 GL_TOKEN\n\n\
@@ -481,76 +456,6 @@ fn parse_gitlab_url(input: &str) -> (Option<String>, Option<String>) {
     }
 
     (Some(server_url), Some(group_path))
-}
-
-fn fetch_group_info(base_url: &str, group: &str, token: &str) -> Result<GitLabGroup> {
-    let encoded_group = url_encode(group);
-    let url = format!("{}/api/v4/groups/{}", base_url, encoded_group);
-
-    let resp = ureq::get(&url)
-        .set("PRIVATE-TOKEN", token)
-        .set("User-Agent", "pma-gitlab")
-        .call()
-        .with_context(|| format!("无法获取组信息: {}", group))?;
-
-    let group_info: GitLabGroup = resp.into_json().with_context(|| "无法解析组信息")?;
-
-    Ok(group_info)
-}
-
-fn fetch_group_projects(
-    base_url: &str,
-    group: &str,
-    token: &str,
-    include_archived: bool,
-) -> Result<Vec<GitLabProject>> {
-    let encoded_group = url_encode(group);
-    let mut all_projects = Vec::new();
-    let mut page = 1;
-    let per_page = 100u32;
-
-    loop {
-        let url = format!(
-            "{}/api/v4/groups/{}/projects?page={}&per_page={}&include_subgroups=true&order_by=path&sort=asc{}",
-            base_url,
-            encoded_group,
-            page,
-            per_page,
-            if include_archived {
-                "&archived=true"
-            } else {
-                "&archived=false"
-            }
-        );
-
-        let resp = ureq::get(&url)
-            .set("PRIVATE-TOKEN", token)
-            .set("User-Agent", "pma-gitlab")
-            .call()
-            .with_context(|| format!("无法获取组 {} 的项目列表 (第 {} 页)", group, page))?;
-
-        let projects: Vec<GitLabProject> = resp
-            .into_json()
-            .with_context(|| format!("无法解析组 {} 的项目列表", group))?;
-
-        let count = projects.len();
-        all_projects.extend(projects);
-
-        if count < per_page as usize {
-            break;
-        }
-
-        page += 1;
-    }
-
-    Ok(all_projects)
-}
-
-fn url_encode(s: &str) -> String {
-    s.replace('%', "%25")
-        .replace('/', "%2F")
-        .replace(' ', "%20")
-        .replace('#', "%23")
 }
 
 fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
