@@ -332,7 +332,11 @@ pub enum GitlabCommands {
         )]
         server: String,
         /// GitLab private token (if not provided, will prompt for username and password)
-        #[arg(long, short = 't', help = "GitLab private token (if not provided, will prompt for username and password)")]
+        #[arg(
+            long,
+            short = 't',
+            help = "GitLab private token (if not provided, will prompt for username and password)"
+        )]
         token: Option<String>,
         /// Default clone protocol
         #[arg(

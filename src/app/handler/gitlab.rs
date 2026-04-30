@@ -55,11 +55,7 @@ pub fn execute_login(server: &str, token: Option<&str>, protocol: &CloneProtocol
     let final_token = if let Some(t) = token {
         t.to_string()
     } else {
-        println!(
-            "{} {}",
-            "登录到:".cyan(),
-            resolved_url.dimmed()
-        );
+        println!("{} {}", "登录到:".cyan(), resolved_url.dimmed());
         println!();
 
         let username = prompt_input("用户名")?;
@@ -163,20 +159,18 @@ fn create_session(base_url: &str, login: &str, password: &str) -> Result<GitLabS
         .with_context(|| format!("认证失败，无法连接到 {}", base_url))?;
 
     if resp.status() != 201 {
-        anyhow::bail!(
-            "认证失败 (HTTP {}): 用户名或密码错误",
-            resp.status()
-        );
+        anyhow::bail!("认证失败 (HTTP {}): 用户名或密码错误", resp.status());
     }
 
-    let session: GitLabSession = resp
-        .into_json()
-        .with_context(|| "无法解析会话信息")?;
+    let session: GitLabSession = resp.into_json().with_context(|| "无法解析会话信息")?;
 
     Ok(session)
 }
 
-fn create_personal_access_token(base_url: &str, session_token: &str) -> Result<GitLabPersonalAccessToken> {
+fn create_personal_access_token(
+    base_url: &str,
+    session_token: &str,
+) -> Result<GitLabPersonalAccessToken> {
     let url = format!("{}/api/v4/personal_access_tokens", base_url);
 
     let body = serde_json::json!({
@@ -192,15 +186,10 @@ fn create_personal_access_token(base_url: &str, session_token: &str) -> Result<G
         .with_context(|| "无法创建 Personal Access Token")?;
 
     if resp.status() != 201 {
-        anyhow::bail!(
-            "创建 Personal Access Token 失败 (HTTP {})",
-            resp.status()
-        );
+        anyhow::bail!("创建 Personal Access Token 失败 (HTTP {})", resp.status());
     }
 
-    let pat: GitLabPersonalAccessToken = resp
-        .into_json()
-        .with_context(|| "无法解析令牌信息")?;
+    let pat: GitLabPersonalAccessToken = resp.into_json().with_context(|| "无法解析令牌信息")?;
 
     Ok(pat)
 }
