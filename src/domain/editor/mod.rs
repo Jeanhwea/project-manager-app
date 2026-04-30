@@ -425,3 +425,134 @@ pub fn get_version_from_file(path: &Path) -> Result<String> {
         Err(EditorError::VersionNotFound(format!("No version found in {}", path.display())))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+    
+    #[test]
+    fn test_detect_file_type() {
+        assert_eq!(
+            detect_file_type(Path::new("Cargo.toml")),
+            Some(FileType::CargoToml)
+        );
+        assert_eq!(
+            detect_file_type(Path::new("package.json")),
+            Some(FileType::PackageJson)
+        );
+        assert_eq!(
+            detect_file_type(Path::new("pyproject.toml")),
+            Some(FileType::PyProject)
+        );
+        assert_eq!(
+            detect_file_type(Path::new("CMakeLists.txt")),
+            Some(FileType::Cmake)
+        );
+        assert_eq!(
+            detect_file_type(Path::new("pom.xml")),
+            Some(FileType::PomXml)
+        );
+        assert_eq!(
+            detect_file_type(Path::new("version.txt")),
+            Some(FileType::VersionText)
+        );
+        assert_eq!(
+            detect_file_type(Path::new("test.rb")),
+            Some(FileType::Homebrew)
+        );
+        assert_eq!(
+            detect_file_type(Path::new("test.py")),
+            Some(FileType::ProjectPy)
+        );
+        assert_eq!(detect_file_type(Path::new("unknown.txt")), None);
+    }
+    
+    #[test]
+    fn test_apply_bump() {
+        assert_eq!(apply_bump("1.2.3", &BumpType::Major).unwrap(), "2.0.0");
+        assert_eq!(apply_bump("1.2.3", &BumpType::Minor).unwrap(), "1.3.0");
+        assert_eq!(apply_bump("1.2.3", &BumpType::Patch).unwrap(), "1.2.4");
+        assert_eq!(
+            apply_bump("1.2.3", &BumpType::PreRelease("beta".to_string())).unwrap(),
+            "1.2.3-beta"
+        );
+        assert_eq!(
+            apply_bump("1.2.3", &BumpType::Build("20240101".to_string())).unwrap(),
+            "1.2.3+20240101"
+        );
+        
+        // Test invalid versions
+        assert!(apply_bump("invalid", &BumpType::Patch).is_err());
+        assert!(apply_bump("1.2", &BumpType::Patch).is_err());
+    }
+    
+    #[test]
+    fn test_editor_registry_default() {
+        let registry = EditorRegistry::default_with_editors();
+        let editors = registry.list();
+        
+        assert!(editors.contains(&"cargo_toml"));
+        assert!(editors.contains(&"package_json"));
+        assert!(editors.contains(&"version_text"));
+        assert!(editors.contains(&"cmake"));
+        assert!(editors.contains(&"homebrew"));
+        assert!(editors.contains(&"pom_xml"));
+        assert!(editors.contains(&"project_py"));
+        assert!(editors.contains(&"pyproject"));
+    }
+    
+    #[test]
+    fn test_preserve_line_endings() {
+        let original_crlf = "line1\r\nline2\r\n";
+        let original_lf = "line1\nline2\n";
+        
+        let edited = "line1\nline2\n";
+        
+        assert_eq!(preserve_line_endings(original_crlf, edited.to_string()), "line1\r\nline2\r\n");
+        assert_eq!(preserve_line_endings(original_lf, edited.to_string()), "line1\nline2\n");
+        
+        let edited_crlf = "line1\r\nline2\r\n";
+        assert_eq!(preserve_line_endings(original_lf, edited_crlf.to_string()), "line1\nline2\n");
+    }
+    
+    #[test]
+    fn test_cargo_toml_editor() {
+        let content = r#"[package]
+name = "test"
+version = "1.2.3"
+        
+[dependencies]
+serde = "1.0""#;
+        
+        let editor = CargoTomlEditor;
+        let location = editor.parse(content).unwrap();
+        
+        assert!(location.project_version.is_some());
+        assert!(!location.is_workspace_root);
+        
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+        assert!(edited.contains("version = \"2.0.0\""));
+        assert!(!edited.contains("version = \"1.2.3\""));
+    }
+    
+    #[test]
+    fn test_package_json_editor() {
+        let content = r#"{
+  "name": "test",
+  "version": "1.2.3",
+  "dependencies": {
+    "lodash": "^4.17.0"
+  }
+}"#;
+        
+        let editor = PackageJsonEditor;
+        let location = editor.parse(content).unwrap();
+        
+        assert!(location.project_version.is_some());
+        
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+        assert!(edited.contains("\"version\": \"2.0.0\""));
+        assert!(!edited.contains("\"version\": \"1.2.3\""));
+    }
+}
