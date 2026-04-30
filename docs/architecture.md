@@ -2,42 +2,47 @@
 
 ## 概述
 
-PMA (Project Manager Application) 是一个命令行工具，用于管理多个代码仓库的版本发布、同步、诊断等操作。本文档描述 PMA 的软件架构设计。
+PMA (Project Manager Application) 是一个用 Rust 编写的命令行工具，用于管理多个代码仓库的版本发布、同步、诊断等操作。本文档描述 PMA 的软件架构设计。
 
 ## 架构总览
 
 ```mermaid
 flowchart TB
-    subgraph CLI["CLI Layer (cli.rs)"]
+    subgraph CLI["CLI Layer (src/cli.rs)"]
         direction TB
         CLI_DESC["定义命令行接口，解析参数，调用 Handler 层"]
     end
 
-    subgraph Handler["Handler Layer (app/handler/)"]
+    subgraph Handler["Handler Layer (src/app/handler/)"]
         direction TB
         subgraph H1["业务模块"]
-            doctor["doctor"]
-            fork["fork"]
             release["release"]
             sync["sync"]
+            doctor["doctor"]
+            fork["fork"]
             snap["snap"]
             selfman["selfman"]
+            gitlab["gitlab"]
+            status["status"]
+            branch["branch"]
+            config["config"]
         end
         HANDLER_DESC["业务逻辑处理层，实现具体功能"]
     end
 
-    subgraph Common["Common Layer (app/common/)"]
+    subgraph Common["Common Layer (src/app/common/)"]
         direction TB
         subgraph C1["基础设施模块"]
             git["git"]
-            repo["repo"]
             runner["runner"]
             version["version"]
+            config_mod["config"]
+            gitlab_api["gitlab_api"]
         end
-        subgraph C2["editor"]
+        subgraph C2["editor (配置文件编辑器)"]
             registry["registry"]
-            pom_xml["pom_xml"]
             cargo_toml["cargo_toml"]
+            pom_xml["pom_xml"]
             pyproject["pyproject"]
             package_json["package_json"]
             version_text["version_text"]
@@ -48,18 +53,8 @@ flowchart TB
         COMMON_DESC["基础设施层，提供可复用的核心能力"]
     end
 
-    subgraph Core["Core Layer (app/core/)"]
-        direction TB
-        command["Command trait"]
-        context["CommandContext"]
-        cmd_registry["CommandRegistry"]
-        CORE_DESC["核心抽象层，定义扩展接口"]
-    end
-
     CLI --> Handler
     Handler --> Common
-    Handler -.-> Core
-    Common --> Core
 ```
 
 ## 模块设计
@@ -82,8 +77,12 @@ flowchart TB
 | `doctor` | - | 诊断项目健康状态 |
 | `fork` | - | 从模板创建新项目 |
 | `snap` | - | 创建项目快照 |
+| `gitlab` | `gl` | GitLab 集成命令 |
+| `status` | `st` | 显示仓库状态 |
+| `branch` | `br` | 管理分支 |
 | `self update` | `self up` | 更新自身 |
 | `self version` | `self ver` | 显示版本信息 |
+| `config` | - | 管理配置 |
 
 ### 2. Handler Layer (业务处理层)
 
@@ -91,7 +90,7 @@ flowchart TB
 
 #### 2.1 release 模块
 
-**文件**: `release.rs`
+**文件**: `release/mod.rs`, `release/lockfile.rs`
 
 **功能**: 自动化版本发布流程
 
@@ -101,8 +100,9 @@ flowchart LR
     B --> C[计算新版本号]
     C --> D[检测配置文件类型]
     D --> E[更新版本号到配置文件]
-    E --> F[Git commit 和 tag]
-    F --> G[推送到远程仓库]
+    E --> F[更新 lockfile]
+    F --> G[Git commit 和 tag]
+    G --> H[推送到远程仓库]
 ```
 
 **支持的配置文件**:
@@ -167,7 +167,51 @@ flowchart TD
     A -->|有仓库| C[创建增量快照提交]
 ```
 
-#### 2.6 selfman 模块
+#### 2.6 gitlab 模块
+
+**文件**: `gitlab.rs`
+
+**功能**: GitLab 集成
+
+**子命令**:
+- `login`: 登录 GitLab 服务器
+- `clone`: 克隆 GitLab 组下的所有仓库
+
+#### 2.7 status 模块
+
+**文件**: `status.rs`
+
+**功能**: 显示仓库状态
+
+**特性**:
+- 显示分支信息
+- 显示工作目录状态 (clean/dirty)
+- 支持过滤 (dirty, clean, ahead, behind)
+
+#### 2.8 branch 模块
+
+**文件**: `branch.rs`
+
+**功能**: 批量管理分支
+
+**子命令**:
+- `list`: 列出所有分支
+- `clean`: 清理已合并分支
+- `switch`: 切换分支
+- `rename`: 重命名分支
+
+#### 2.9 config 模块
+
+**文件**: `config.rs`
+
+**功能**: 配置管理
+
+**子命令**:
+- `init`: 初始化配置文件
+- `show`: 显示当前配置
+- `path`: 显示配置文件路径
+
+#### 2.10 selfman 模块
 
 **文件**: `selfman.rs`
 
@@ -185,9 +229,13 @@ flowchart TD
 
 #### 3.1 git 模块
 
-**文件**: `git.rs`
+**目录**: `git/`
 
-**功能**: Git 命令封装
+**文件**:
+- `mod.rs`: 模块导出
+- `command.rs`: Git 命令封装
+- `remote.rs`: 远程仓库处理
+- `repository.rs`: 仓库查找和遍历
 
 **主要函数**:
 | 函数 | 功能 |
@@ -203,36 +251,27 @@ flowchart TD
 | `create_tag` | 创建标签 |
 | `push_tag` | 推送标签 |
 | `push_branch` | 推送分支 |
-| `parse_git_remote_url` | 解析远程 URL |
-| `get_remote_name_by_url` | 根据 URL 推断远程名称 |
+| `find_git_repositories` | 递归查找 Git 仓库 |
+| `for_each_repo` | 遍历仓库执行回调 |
 
-#### 3.2 repo 模块
-
-**文件**: `repo.rs`
-
-**功能**: Git 仓库查找和遍历
-
-**主要类型**:
+**RepoWalker 结构**:
 ```rust
-pub enum RepoType {
-    Regular,    // 普通仓库
-    Submodule,  // 子模块
+pub struct RepoWalker {
+    repos: Vec<RepoInfo>,
 }
 
 pub struct RepoInfo {
     pub path: PathBuf,
     pub repo_type: RepoType,
 }
+
+pub enum RepoType {
+    Regular,    // 普通仓库
+    Submodule,  // 子模块
+}
 ```
 
-**主要函数**:
-| 函数 | 功能 |
-|------|------|
-| `find_git_repositories` | 递归查找 Git 仓库 |
-| `find_git_repositories_or_current` | 查找仓库或使用当前目录 |
-| `for_each_repo` | 遍历仓库执行回调 |
-
-#### 3.3 runner 模块
+#### 3.2 runner 模块
 
 **文件**: `runner.rs`
 
@@ -248,7 +287,21 @@ impl CommandRunner {
 }
 ```
 
-#### 3.4 version 模块
+**DryRunContext**:
+```rust
+pub struct DryRunContext {
+    dry_run: bool,
+}
+
+impl DryRunContext {
+    pub fn is_dry_run(&self) -> bool
+    pub fn print_header(&self, msg: &str)
+    pub fn print_message(&self, msg: &str)
+    pub fn print_file_diff(&self, file: &str, original: &str, edited: &str)
+}
+```
+
+#### 3.3 version 模块
 
 **文件**: `version.rs`
 
@@ -271,7 +324,57 @@ pub struct Version {
 | `Version::to_tag` | 转换为标签字符串 |
 | `compare_versions` | 比较两个版本号 |
 
-#### 3.5 editor 模块
+#### 3.4 config 模块
+
+**文件**: `config.rs`
+
+**功能**: 配置管理
+
+**配置结构**:
+```rust
+pub struct AppConfig {
+    pub repository: RepositoryConfig,
+    pub remote: RemoteConfig,
+    pub sync: SyncConfig,
+}
+
+pub struct GitLabConfig {
+    pub servers: Vec<GitLabServer>,
+}
+```
+
+**配置文件位置**:
+- 主配置: `~/.pma/config.toml`
+- GitLab 配置: `~/.pma/gitlab.toml`
+- 环境变量: `PMA_CONFIG_DIR`
+
+#### 3.5 gitlab_api 模块
+
+**目录**: `gitlab_api/`
+
+**文件**:
+- `mod.rs`: 模块导出
+- `client.rs`: GitLab API 客户端
+- `groups.rs`: 组查询
+- `projects.rs`: 项目查询
+- `users.rs`: 用户信息
+
+**主要类型**:
+```rust
+pub struct GitLabClient {
+    // GitLab API 客户端
+}
+
+pub struct GroupQuery {
+    // 组查询
+}
+
+pub struct ProjectsQuery {
+    // 项目查询
+}
+```
+
+#### 3.6 editor 模块
 
 **目录**: `editor/`
 
@@ -279,7 +382,10 @@ pub struct Version {
 
 **核心 Trait**:
 ```rust
-pub trait ConfigEditor {
+pub trait ConfigEditor: Send + Sync {
+    fn name(&self) -> &'static str;
+    fn file_patterns(&self) -> &[&str];
+    fn matches_file(&self, path: &Path) -> bool;
     fn parse(&self, content: &str) -> Result<VersionLocation, VersionEditError>;
     fn edit(&self, content: &str, location: &VersionLocation, new_version: &str) -> Result<String, VersionEditError>;
     fn validate(&self, original: &str, edited: &str) -> Result<(), VersionEditError>;
@@ -290,14 +396,29 @@ pub trait ConfigEditor {
 
 | 编辑器 | 文件 | 支持格式 |
 |--------|------|----------|
-| `PomXmlEditor` | `pom_xml.rs` | Maven pom.xml |
 | `CargoTomlEditor` | `cargo_toml.rs` | Cargo.toml |
+| `PomXmlEditor` | `pom_xml.rs` | Maven pom.xml |
 | `PyprojectEditor` | `pyproject.rs` | pyproject.toml |
 | `PackageJsonEditor` | `package_json.rs` | package.json |
 | `VersionTextEditor` | `version_text.rs` | 纯文本版本文件 |
 | `PythonVersionEditor` | `project_py.rs` | Python __version__.py |
 | `CMakeListsEditor` | `cmake.rs` | CMakeLists.txt |
 | `HomebrewFormulaEditor` | `homebrew.rs` | Homebrew Formula |
+
+**EditorRegistry**:
+```rust
+pub struct EditorRegistry {
+    editors: HashMap<&'static str, Arc<dyn ConfigEditor>>,
+    file_pattern_map: HashMap<String, &'static str>,
+}
+
+impl EditorRegistry {
+    pub fn new() -> Self
+    pub fn register(self, editor: impl ConfigEditor + 'static) -> Self
+    pub fn detect_editor(&self, path: &Path) -> Option<Arc<dyn ConfigEditor>>
+    pub fn edit_version(&self, editor: &dyn ConfigEditor, content: &str, version: &str) -> Result<String>
+}
+```
 
 **特性**:
 - 格式保留 (缩进、换行符)
@@ -314,10 +435,22 @@ flowchart TB
     B --> C["Git (get info)"]
     C --> D["Version (bump)"]
     D --> E["New Ver String"]
-    E --> F["Editor (detect)"]
+    E --> F["EditorRegistry (detect)"]
     F --> G["Editor (edit)"]
-    G --> H["Git (commit/tag)"]
-    H --> I["Git (push)"]
+    G --> H["Lockfile (update)"]
+    H --> I["Git (commit/tag)"]
+    I --> J["Git (push)"]
+```
+
+### Sync 流程数据流
+
+```mermaid
+flowchart TB
+    A["CLI Args (path, depth)"] --> B["RepoWalker (find repos)"]
+    B --> C["For each repo"]
+    C --> D["Git (fetch)"]
+    D --> E["Git (pull/rebase)"]
+    E --> F["Git (push)"]
 ```
 
 ## 设计原则
@@ -331,7 +464,7 @@ flowchart TB
 ### 2. 单一职责
 
 每个模块只负责一个明确的功能:
-- `git.rs` 只封装 Git 命令
+- `git/` 只封装 Git 命令
 - `version.rs` 只处理版本号
 - `editor/*` 每个编辑器只处理一种配置格式
 
@@ -389,23 +522,12 @@ let editor = registry.detect_editor(Path::new("Cargo.toml"));
 let edited = registry.edit_version(editor.as_ref(), content, "1.0.0")?;
 ```
 
-#### 3. Command Trait (预留)
-
-为未来统一命令接口预留：
-
-```rust
-pub trait Command {
-    fn name(&self) -> &'static str;
-    fn execute(&self, ctx: &CommandContext) -> Result<()>;
-}
-```
-
 ### 添加新的配置文件编辑器
 
 1. 在 `src/app/common/editor/` 下创建新文件
 2. 实现 `ConfigEditor` trait
 3. 在 `editor/mod.rs` 中导出
-4. 在 `release.rs` 的 `create_editor_registry()` 中注册
+4. 在 `release/mod.rs` 的 `create_editor_registry()` 中注册
 
 **示例**：
 
@@ -454,6 +576,7 @@ mindmap
     命令行
       clap 命令行参数解析
       colored 终端着色
+      anstyle 样式定义
       indicatif 进度条显示
     错误处理
       anyhow 错误处理
@@ -466,10 +589,14 @@ mindmap
       semver 语义版本解析
     网络
       ureq HTTP 客户端
+      url URL 解析
     压缩
       zip 压缩包处理
       tar tar 格式
       flate2 gzip 解压
+    其他
+      heck 命名转换
+      rpassword 密码输入
 ```
 
 ## 部署架构
@@ -499,3 +626,51 @@ flowchart TB
     E --> F["Verify Version"]
     F --> G["Replace Binary"]
 ```
+
+## 配置系统
+
+### 配置文件结构
+
+**主配置文件** (`~/.pma/config.toml`):
+```toml
+[repository]
+max_depth = 3
+skip_dirs = [".venv", "node_modules", "target", ...]
+
+[[remote.rules]]
+hosts = ["github.com"]
+name = "github"
+
+[sync]
+skip_push_hosts = ["github.com", "gitee.com"]
+```
+
+**GitLab 配置文件** (`~/.pma/gitlab.toml`):
+```toml
+[[servers]]
+url = "https://gitlab.com"
+token = "glpat-xxxx"
+protocol = "ssh"
+```
+
+### 配置迁移
+
+支持从旧配置文件 (`~/.pma.toml`) 自动迁移到新目录结构 (`~/.pma/`)。
+
+## 测试策略
+
+### 单元测试
+
+- 每个模块应有对应的单元测试
+- 使用 `#[cfg(test)]` 模块
+- 测试边界条件和错误处理
+
+### 集成测试
+
+- 测试命令行接口
+- 测试端到端流程
+- 使用临时目录进行隔离
+
+### Dry Run 模式
+
+所有修改操作都支持 `--dry-run` 参数，用于预览变更而不实际执行。
