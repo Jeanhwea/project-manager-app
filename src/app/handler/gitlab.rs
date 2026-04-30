@@ -49,13 +49,18 @@ struct GitLabPersonalAccessToken {
     name: String,
 }
 
-pub fn execute_login(server: Option<&str>, token: Option<&str>, protocol: &CloneProtocol) -> Result<()> {
+pub fn execute_login(
+    server: Option<&str>,
+    token: Option<&str>,
+    protocol: &CloneProtocol,
+) -> Result<()> {
     let resolved_url = if let Some(s) = server {
         resolve_base_url(s)
     } else {
         println!("{}", "GitLab 登录".cyan().bold());
         println!();
-        let server_url = prompt_input("服务器地址 (例如 https://gitlab.com 或 http://192.168.0.110/gitlab/)")?;
+        let server_url =
+            prompt_input("服务器地址 (例如 https://gitlab.com 或 http://192.168.0.110/gitlab/)")?;
         if server_url.is_empty() {
             anyhow::bail!("服务器地址不能为空");
         }
