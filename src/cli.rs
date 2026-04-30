@@ -331,11 +331,7 @@ pub enum GitlabCommands {
         )]
         server: Option<String>,
         /// GitLab Personal Access Token (required, will prompt if not provided)
-        #[arg(
-            long,
-            short = 't',
-            help = "GitLab Personal Access Token (required)"
-        )]
+        #[arg(long, short = 't', help = "GitLab Personal Access Token (required)")]
         token: Option<String>,
         /// Default clone protocol
         #[arg(

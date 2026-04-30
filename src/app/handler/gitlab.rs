@@ -156,7 +156,10 @@ pub fn execute_clone(
     let (extracted_server, extracted_group) = parse_gitlab_url(group);
 
     let final_server = extracted_server.as_deref().or(server);
-    let final_group = extracted_group.as_ref().map(|s| s.as_str()).unwrap_or(group);
+    let final_group = extracted_group
+        .as_ref()
+        .map(|s| s.as_str())
+        .unwrap_or(group);
 
     let (resolved_url, saved_token, saved_protocol) =
         resolve_gitlab_config(final_server, token, protocol)?;
@@ -457,17 +460,16 @@ fn parse_gitlab_url(input: &str) -> (Option<String>, Option<String>) {
     // 如果第一段是常见的子路径标识，则基础 URL 包含它
     let common_subpaths = ["gitlab", "gitlab-ce", "gitlab-ee"];
 
-    let (base_path, group_path) = if path_segments.len() >= 2
-        && common_subpaths.contains(&path_segments[0])
-    {
-        // 第一段是子路径，剩余的是组/项目路径
-        let base = path_segments[0];
-        let group = path_segments[1..].join("/");
-        (format!("/{}", base), group)
-    } else {
-        // 没有子路径，整个路径是组/项目路径
-        (String::new(), path.to_string())
-    };
+    let (base_path, group_path) =
+        if path_segments.len() >= 2 && common_subpaths.contains(&path_segments[0]) {
+            // 第一段是子路径，剩余的是组/项目路径
+            let base = path_segments[0];
+            let group = path_segments[1..].join("/");
+            (format!("/{}", base), group)
+        } else {
+            // 没有子路径，整个路径是组/项目路径
+            (String::new(), path.to_string())
+        };
 
     let server_url = format!("{}://{}{}{}", scheme, host, port, base_path);
     let group_path = group_path.trim_end_matches(".git").to_string();
