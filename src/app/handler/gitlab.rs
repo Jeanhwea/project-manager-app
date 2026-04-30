@@ -36,19 +36,6 @@ struct GitLabUser {
     name: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct GitLabSession {
-    private_token: String,
-    username: String,
-    name: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct GitLabPersonalAccessToken {
-    token: String,
-    name: String,
-}
-
 pub fn execute_login(
     server: Option<&str>,
     token: Option<&str>,
@@ -73,36 +60,16 @@ pub fn execute_login(
         println!("{} {}", "登录到:".cyan(), resolved_url.dimmed());
         println!();
 
-        let username = prompt_input("用户名")?;
-        let password = prompt_password("密码")?;
+        let input_token = prompt_input("Personal Access Token")?;
 
-        if username.is_empty() || password.is_empty() {
-            anyhow::bail!("用户名和密码不能为空");
+        if input_token.is_empty() {
+            anyhow::bail!(
+                "Personal Access Token 不能为空\n\
+                 在 GitLab 中创建令牌: Settings -> Access Tokens (需要 api 权限)"
+            );
         }
 
-        println!();
-        println!("{}", "正在认证...".cyan());
-
-        let session = create_session(&resolved_url, &username, &password)?;
-
-        println!(
-            "{} {} ({})",
-            "已认证:".green(),
-            session.name.green().bold(),
-            session.username.yellow()
-        );
-
-        let pat_token = create_personal_access_token(&resolved_url, &session.private_token)?;
-
-        revoke_session(&resolved_url, &session.private_token).ok();
-
-        println!(
-            "{} 已创建 Personal Access Token: {}",
-            "令牌:".green(),
-            pat_token.name.cyan()
-        );
-
-        pat_token.token
+        input_token
     };
 
     println!("{} {}", "验证连接:".cyan(), resolved_url.dimmed());
@@ -160,83 +127,6 @@ fn prompt_input(prompt: &str) -> Result<String> {
     Ok(input.trim().to_string())
 }
 
-fn prompt_password(prompt: &str) -> Result<String> {
-    let password = rpassword::prompt_password(format!("{}: ", prompt.white().bold()))?;
-    Ok(password)
-}
-
-fn create_session(base_url: &str, login: &str, password: &str) -> Result<GitLabSession> {
-    let url = format!("{}/api/v4/session", base_url);
-
-    let resp = match ureq::post(&url)
-        .set("User-Agent", "pma-gitlab")
-        .send_form(&[("login", login), ("password", password)])
-    {
-        Ok(r) => r,
-        Err(ureq::Error::Status(code, response)) => {
-            let error_msg = match code {
-                404 => format!(
-                    "Session API 不可用 (HTTP 404)。\n\
-                     该 GitLab 服务器可能禁用了用户名密码登录。\n\
-                     请使用 --token 参数直接提供 Personal Access Token:\n\
-                     pma gitlab login --server {} --token <YOUR_TOKEN>",
-                    base_url
-                ),
-                401 => "用户名或密码错误 (HTTP 401)".to_string(),
-                403 => "禁止访问 (HTTP 403)，请检查账户权限".to_string(),
-                _ => format!("认证失败 (HTTP {}): {}", code, response.status_text()),
-            };
-            anyhow::bail!("{}", error_msg);
-        }
-        Err(e) => {
-            anyhow::bail!("无法连接到 {}: {}", base_url, e);
-        }
-    };
-
-    let session: GitLabSession = resp.into_json().with_context(|| "无法解析会话信息")?;
-
-    Ok(session)
-}
-
-fn create_personal_access_token(
-    base_url: &str,
-    session_token: &str,
-) -> Result<GitLabPersonalAccessToken> {
-    let url = format!("{}/api/v4/personal_access_tokens", base_url);
-
-    let body = serde_json::json!({
-        "name": "pma-cli",
-        "scopes": ["api", "read_api", "read_repository", "write_repository"]
-    });
-
-    let resp = ureq::post(&url)
-        .set("PRIVATE-TOKEN", session_token)
-        .set("User-Agent", "pma-gitlab")
-        .set("Content-Type", "application/json")
-        .send_json(&body)
-        .with_context(|| "无法创建 Personal Access Token")?;
-
-    if resp.status() != 201 {
-        anyhow::bail!("创建 Personal Access Token 失败 (HTTP {})", resp.status());
-    }
-
-    let pat: GitLabPersonalAccessToken = resp.into_json().with_context(|| "无法解析令牌信息")?;
-
-    Ok(pat)
-}
-
-fn revoke_session(base_url: &str, session_token: &str) -> Result<()> {
-    let url = format!("{}/api/v4/session", base_url);
-
-    ureq::delete(&url)
-        .set("PRIVATE-TOKEN", session_token)
-        .set("User-Agent", "pma-gitlab")
-        .call()
-        .ok();
-
-    Ok(())
-}
-
 fn verify_token(base_url: &str, token: &str) -> Result<GitLabUser> {
     let url = format!("{}/api/v4/user", base_url);
 
@@ -262,8 +152,14 @@ pub fn execute_clone(
     recursive: bool,
     dry_run: bool,
 ) -> Result<()> {
+    // 尝试从 URL 中提取服务器和组路径
+    let (extracted_server, extracted_group) = parse_gitlab_url(group);
+
+    let final_server = extracted_server.as_deref().or(server);
+    let final_group = extracted_group.as_ref().map(|s| s.as_str()).unwrap_or(group);
+
     let (resolved_url, saved_token, saved_protocol) =
-        resolve_gitlab_config(server, token, protocol)?;
+        resolve_gitlab_config(final_server, token, protocol)?;
 
     let resolved_base_url = resolve_base_url(&resolved_url);
     let resolved_token = resolve_token(Some(&saved_token))?;
@@ -273,10 +169,10 @@ pub fn execute_clone(
         "{} {} {}/",
         "克隆组:".cyan(),
         resolved_base_url.dimmed(),
-        group.yellow().bold()
+        final_group.yellow().bold()
     );
 
-    let group_info = fetch_group_info(&resolved_base_url, group, &resolved_token)?;
+    let group_info = fetch_group_info(&resolved_base_url, final_group, &resolved_token)?;
 
     println!(
         "{} {} ({})",

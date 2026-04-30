@@ -330,11 +330,11 @@ pub enum GitlabCommands {
             help = "GitLab server URL (e.g. https://gitlab.com, http://192.168.0.110/gitlab/)"
         )]
         server: Option<String>,
-        /// GitLab private token (if not provided, will prompt for username and password)
+        /// GitLab Personal Access Token (required, will prompt if not provided)
         #[arg(
             long,
             short = 't',
-            help = "GitLab private token (if not provided, will prompt for username and password)"
+            help = "GitLab Personal Access Token (required)"
         )]
         token: Option<String>,
         /// Default clone protocol
