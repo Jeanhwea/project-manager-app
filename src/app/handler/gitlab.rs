@@ -414,6 +414,72 @@ fn resolve_base_url(base_url: &str) -> String {
     }
 }
 
+/// 从 GitLab URL 中提取服务器地址和组/项目路径
+/// 例如: "http://192.168.0.110/gitlab/ntfw/fe" -> ("http://192.168.0.110/gitlab", "ntfw/fe")
+fn parse_gitlab_url(input: &str) -> (Option<String>, Option<String>) {
+    let input = input.trim_end_matches('/');
+
+    // 检查是否是 URL
+    if !input.starts_with("http://") && !input.starts_with("https://") {
+        return (None, None);
+    }
+
+    // 解析 URL
+    let parsed = match url::Url::parse(input) {
+        Ok(u) => u,
+        Err(_) => return (None, None),
+    };
+
+    let host = match parsed.host_str() {
+        Some(h) => h,
+        None => return (None, None),
+    };
+
+    let port = parsed.port().map(|p| format!(":{}", p)).unwrap_or_default();
+    let scheme = parsed.scheme();
+
+    // 获取路径部分
+    let path = parsed.path().trim_start_matches('/');
+
+    // 如果路径为空，不是有效的组/项目 URL
+    if path.is_empty() {
+        return (None, None);
+    }
+
+    // 分离基础路径和组/项目路径
+    // GitLab 可能部署在子路径下，如 /gitlab/
+    // 组/项目路径通常不包含 .git 后缀，且至少包含一个 /
+
+    // 常见的 GitLab 子路径: gitlab, gitlab-ce, gitlab-ee 等
+    let path_segments: Vec<&str> = path.split('/').collect();
+
+    // 尝试找到组/项目路径的起始位置
+    // 如果第一段是常见的子路径标识，则基础 URL 包含它
+    let common_subpaths = ["gitlab", "gitlab-ce", "gitlab-ee"];
+
+    let (base_path, group_path) = if path_segments.len() >= 2
+        && common_subpaths.contains(&path_segments[0])
+    {
+        // 第一段是子路径，剩余的是组/项目路径
+        let base = path_segments[0];
+        let group = path_segments[1..].join("/");
+        (format!("/{}", base), group)
+    } else {
+        // 没有子路径，整个路径是组/项目路径
+        (String::new(), path.to_string())
+    };
+
+    let server_url = format!("{}://{}{}{}", scheme, host, port, base_path);
+    let group_path = group_path.trim_end_matches(".git").to_string();
+
+    // 确保组路径不为空
+    if group_path.is_empty() {
+        return (None, None);
+    }
+
+    (Some(server_url), Some(group_path))
+}
+
 fn fetch_group_info(base_url: &str, group: &str, token: &str) -> Result<GitLabGroup> {
     let encoded_group = url_encode(group);
     let url = format!("{}/api/v4/groups/{}", base_url, encoded_group);
