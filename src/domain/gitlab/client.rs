@@ -169,7 +169,7 @@ impl GitLabClient {
         include_archived: bool,
     ) -> Result<Vec<Project>> {
         let path = format!("groups/{}/projects", group_id);
-        let mut query = vec![
+        let query = vec![
             (
                 "include_subgroups",
                 if include_subgroups { "true" } else { "false" },

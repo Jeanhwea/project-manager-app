@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 
-use super::{AppConfig, ConfigError, ConfigManager, ConfigSource, Result};
+use super::{AppConfig, ConfigError, ConfigManager, Result};
 
 /// Multi-source configuration manager
 pub struct MultiSourceConfigManager {
@@ -222,37 +222,6 @@ impl ConfigManager for MultiSourceConfigManager {
 
         Ok(())
     }
-
-    fn get_source(&self) -> ConfigSource {
-        // Return the highest priority source that has been used
-        if !self.cli_overrides.is_empty() {
-            ConfigSource::Cli
-        } else {
-            // Check if environment variables are set
-            let env_config = self.load_from_env();
-            if env_config.is_ok() {
-                // Check if any environment variables actually affected the config
-                let default_config = AppConfig::default();
-                let env_config = env_config.unwrap();
-
-                if env_config.git.skip_push_hosts != default_config.git.skip_push_hosts
-                    || env_config.git.default_protocol != default_config.git.default_protocol
-                    || env_config.gitlab.server != default_config.gitlab.server
-                    || env_config.gitlab.token != default_config.gitlab.token
-                    || env_config.gitlab.default_protocol
-                        != default_config.gitlab.default_protocol
-                    || env_config.sync.auto_push != default_config.sync.auto_push
-                    || env_config.sync.auto_pull != default_config.sync.auto_pull
-                    || env_config.editor.dry_run != default_config.editor.dry_run
-                    || env_config.editor.skip_push != default_config.editor.skip_push
-                {
-                    return ConfigSource::Environment;
-                }
-            }
-
-            ConfigSource::File
-        }
-    }
 }
 
 impl MultiSourceConfigManager {
@@ -273,51 +242,6 @@ impl MultiSourceConfigManager {
         Ok(final_config)
     }
 }
-
-/// Type-safe configuration accessor
-pub struct ConfigAccessor {
-    config: AppConfig,
-}
-
-impl ConfigAccessor {
-    /// Create a new configuration accessor
-    pub fn new(config: AppConfig) -> Self {
-        Self { config }
-    }
-
-    /// Get Git configuration
-    pub fn git(&self) -> &GitConfig {
-        &self.config.git
-    }
-
-    /// Get GitLab configuration
-    pub fn gitlab(&self) -> &GitLabConfig {
-        &self.config.gitlab
-    }
-
-    /// Get Sync configuration
-    pub fn sync(&self) -> &SyncConfig {
-        &self.config.sync
-    }
-
-    /// Get Editor configuration
-    pub fn editor(&self) -> &EditorConfig {
-        &self.config.editor
-    }
-
-    /// Get the entire configuration
-    pub fn inner(&self) -> &AppConfig {
-        &self.config
-    }
-
-    /// Update configuration
-    pub fn update(&mut self, config: AppConfig) {
-        self.config = config;
-    }
-}
-
-// Re-export types from schema for convenience
-pub use super::schema::{EditorConfig, GitConfig, GitLabConfig, SyncConfig};
 
 #[cfg(test)]
 mod tests {

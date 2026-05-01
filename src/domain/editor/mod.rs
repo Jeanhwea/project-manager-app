@@ -15,7 +15,6 @@ mod version_text;
 
 pub use cargo_toml::CargoTomlEditor;
 pub use cmake::CMakeListsEditor;
-pub use file_types::{FileType, detect_file_type};
 pub use homebrew::HomebrewFormulaEditor;
 pub use package_json::PackageJsonEditor;
 pub use pom_xml::PomXmlEditor;
@@ -260,7 +259,7 @@ pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
             Ok(())
         }
         Err(e) => {
-            let restore_result = std::fs::rename(&backup_path, path);
+            let _ = std::fs::rename(&backup_path, path);
             Err(EditorError::WriteError(e))
         }
     }

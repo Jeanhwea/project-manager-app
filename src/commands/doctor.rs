@@ -60,7 +60,7 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
     let ctx = DryRunContext::new(args.dry_run);
     ctx.print_header("[DRY-RUN] 将要检查的仓库:");
 
-    walker.walk(|repo_path, index, total| {
+    walker.walk(|repo_path, _index, _total| {
         let mut issues = Vec::new();
 
         check_detached_head(repo_path, &mut issues);

@@ -2,7 +2,7 @@
 //!
 //! This module provides a clean interface for Git repository operations.
 
-use super::{GitError, GitProtocol, RepositoryStatus, Result};
+use super::{GitError, Result};
 use crate::utils::path::canonicalize_path;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -186,7 +186,7 @@ impl Repository {
         let runner = GitCommandRunner::new();
 
         // Get current branch
-        let current_branch =
+        let _current_branch =
             match runner.execute_in_dir(&["branch", "--show-current"], &self.path) {
                 Ok(output) => output,
                 Err(_) => String::new(),
@@ -520,5 +520,5 @@ where
         return Ok(());
     }
 
-    walker.walk(|path, index, total| callback(path))
+    walker.walk(|path, _index, _total| callback(path))
 }

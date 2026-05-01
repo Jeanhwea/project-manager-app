@@ -66,7 +66,7 @@ fn execute_sync(args: SyncArgs) -> Result<()> {
     let ctx = DryRunContext::new(args.dry_run);
     ctx.print_header("[DRY-RUN] 将要同步的仓库:");
 
-    walker.walk(|repo_path, index, total| {
+    walker.walk(|repo_path, _index, _total| {
         do_info_repository(repo_path)?;
 
         if !ctx.is_dry_run() && !is_workdir_clean(repo_path)? {
@@ -253,7 +253,6 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
 
 /// Parse Git remote URL into protocol, host, and path
 fn parse_git_remote_url(url: &str) -> Option<(crate::domain::git::GitProtocol, String, String)> {
-    use crate::domain::git::GitProtocol;
     use crate::domain::git::remote::Remote;
 
     let protocol = Remote::parse_url(url).ok()?;

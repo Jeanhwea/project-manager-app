@@ -73,7 +73,7 @@ impl FileEditor for PythonVersionEditor {
         }
     }
 
-    fn validate(&self, original: &str, edited: &str) -> Result<()> {
+    fn validate(&self, _original: &str, edited: &str) -> Result<()> {
         // Check if Python syntax is still valid
         if edited.contains("__version__ = \"\"") {
             return Err(EditorError::FormatPreservationError(

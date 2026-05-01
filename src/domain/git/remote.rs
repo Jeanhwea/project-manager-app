@@ -143,7 +143,7 @@ impl Remote {
             return None;
         }
 
-        let protocol = if url.starts_with("git@") || url.starts_with("ssh://") {
+        let _protocol = if url.starts_with("git@") || url.starts_with("ssh://") {
             GitProtocol::Ssh
         } else if url.starts_with("https://") {
             GitProtocol::Https
@@ -191,7 +191,7 @@ impl Remote {
     ///
     /// # Returns
     /// * `String` - Suggested remote name
-    pub fn get_remote_name_by_url(url: &str) -> String {
+    pub fn get_remote_name_by_url(_url: &str) -> String {
         // For now, return "origin" as default
         // In a real implementation, this would use configuration rules
         // to determine appropriate remote names based on URL patterns

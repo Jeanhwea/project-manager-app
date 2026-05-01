@@ -72,7 +72,7 @@ impl FileEditor for HomebrewFormulaEditor {
         }
     }
 
-    fn validate(&self, original: &str, edited: &str) -> Result<()> {
+    fn validate(&self, _original: &str, edited: &str) -> Result<()> {
         // For Ruby files, just ensure we didn't corrupt the syntax
         if edited.contains("version \"\"") {
             return Err(EditorError::FormatPreservationError(
