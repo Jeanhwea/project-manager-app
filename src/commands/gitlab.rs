@@ -1,7 +1,7 @@
 //! GitLab command implementation
 
 use super::{Command, CommandError, CommandResult};
-use crate::domain::config::{ConfigManager, DefaultConfigManager};
+use crate::domain::config::{ConfigDir, GitLabServer};
 use crate::domain::gitlab::client::GitLabClient;
 use crate::domain::gitlab::models::User;
 use crate::utils::git::{get_remote_urls, git_command, is_git_repo};
@@ -121,23 +121,29 @@ fn execute_login(args: LoginArgs) -> CommandResult {
         user.username.yellow()
     );
 
-    // Load existing config
-    let mut config = DefaultConfigManager::load()
-        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to load config: {}", e)))?;
-
     let protocol_str = match args.protocol {
         CloneProtocol::Ssh => "ssh",
         CloneProtocol::Https => "https",
     };
 
-    // Update GitLab config
-    config.gitlab.server = Some(resolved_url.clone());
-    config.gitlab.token = Some(final_token.clone());
-    config.gitlab.default_protocol = protocol_str.to_string();
+    // Save to ~/.pma/gitlab.toml
+    let mut gitlab_cfg = ConfigDir::load_gitlab();
 
-    // Save config
-    DefaultConfigManager::new()
-        .save(&config)
+    // Update or insert server entry
+    let new_server = GitLabServer {
+        url: resolved_url.clone(),
+        token: final_token.clone(),
+        protocol: protocol_str.to_string(),
+    };
+
+    if let Some(existing) = gitlab_cfg.servers.iter_mut().find(|s| s.url == resolved_url) {
+        existing.token = new_server.token;
+        existing.protocol = new_server.protocol;
+    } else {
+        gitlab_cfg.servers.push(new_server);
+    }
+
+    ConfigDir::save_gitlab(&gitlab_cfg)
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to save config: {}", e)))?;
 
     println!("{} {} 凭据已保存", "保存:".green(), resolved_url.cyan());
@@ -366,61 +372,66 @@ fn prompt_input(prompt: &str) -> Result<String, CommandError> {
 }
 
 /// Resolve GitLab configuration from various sources
+///
+/// Priority: CLI args > gitlab.toml > defaults
 fn resolve_gitlab_config(
     server: Option<&str>,
     token: Option<&str>,
     protocol: Option<CloneProtocol>,
 ) -> Result<(String, String, CloneProtocol), CommandError> {
-    // Load config
-    let config = DefaultConfigManager::load()
-        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to load config: {}", e)))?;
+    let gitlab_cfg = ConfigDir::load_gitlab();
 
-    let gitlab_config = config.gitlab;
-
+    // If server is explicitly provided, find matching entry or use defaults
     if let Some(s) = server {
         let resolved_url = resolve_base_url(s);
 
+        // Look for a matching server entry in gitlab.toml
+        let matching = gitlab_cfg.servers.iter().find(|srv| {
+            resolve_base_url(&srv.url) == resolved_url
+        });
+
         let resolved_token = token
             .map(|t| t.to_string())
-            .or_else(|| gitlab_config.token.clone())
+            .or_else(|| matching.map(|m| m.token.clone()))
             .unwrap_or_default();
 
         let resolved_protocol = protocol
-            .or_else(|| match gitlab_config.default_protocol.as_str() {
-                "https" => Some(CloneProtocol::Https),
-                _ => Some(CloneProtocol::Ssh),
-            })
+            .or_else(|| matching.and_then(|m| parse_protocol_str(&m.protocol)))
             .unwrap_or(CloneProtocol::Ssh);
 
         return Ok((resolved_url, resolved_token, resolved_protocol));
     }
 
-    if gitlab_config.server.is_none() {
-        let default_url = "https://gitlab.com".to_string();
-        let resolved_token = token.map(|t| t.to_string()).unwrap_or_default();
-        let resolved_protocol = protocol.unwrap_or(CloneProtocol::Ssh);
-        return Ok((default_url, resolved_token, resolved_protocol));
-    }
+    // No server specified — use the first (or only) entry in gitlab.toml
+    if let Some(first) = gitlab_cfg.servers.first() {
+        let resolved_url = resolve_base_url(&first.url);
 
-    if let Some(ref srv_url) = gitlab_config.server {
         let resolved_token = token
             .map(|t| t.to_string())
-            .unwrap_or_else(|| gitlab_config.token.unwrap_or_default());
+            .or_else(|| Some(first.token.clone()))
+            .unwrap_or_default();
+
         let resolved_protocol = protocol
-            .or_else(|| match gitlab_config.default_protocol.as_str() {
-                "https" => Some(CloneProtocol::Https),
-                _ => Some(CloneProtocol::Ssh),
-            })
+            .or_else(|| parse_protocol_str(&first.protocol))
             .unwrap_or(CloneProtocol::Ssh);
-        return Ok((srv_url.clone(), resolved_token, resolved_protocol));
+
+        return Ok((resolved_url, resolved_token, resolved_protocol));
     }
 
-    println!("{}", "已配置的 GitLab 服务器:".cyan());
-    // In the new structure, we only have one GitLab config, not multiple servers
-    // So we just return an error if server is not specified
-    Err(CommandError::Validation(
-        "GitLab 服务器未配置，请使用 --server 指定或先运行 pma gitlab login".to_string(),
-    ))
+    // No config at all — fall back to gitlab.com
+    let default_url = "https://gitlab.com".to_string();
+    let resolved_token = token.map(|t| t.to_string()).unwrap_or_default();
+    let resolved_protocol = protocol.unwrap_or(CloneProtocol::Ssh);
+    Ok((default_url, resolved_token, resolved_protocol))
+}
+
+/// Parse protocol string to CloneProtocol
+fn parse_protocol_str(s: &str) -> Option<CloneProtocol> {
+    match s {
+        "https" => Some(CloneProtocol::Https),
+        "ssh" => Some(CloneProtocol::Ssh),
+        _ => None,
+    }
 }
 
 /// Resolve token from various sources

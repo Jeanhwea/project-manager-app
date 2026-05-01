@@ -15,7 +15,7 @@ impl AuthManager {
     ///
     /// Sources checked in order:
     /// 1. GITLAB_TOKEN environment variable
-    /// 2. ~/.config/pma/gitlab_token file
+    /// 2. ~/.pma/gitlab_token file
     /// 3. ~/.gitlab_token file
     pub fn load_token() -> Result<Option<String>> {
         // Check environment variable first
@@ -152,16 +152,7 @@ impl AuthManager {
 
     /// Get config directory path
     fn config_dir() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .ok_or_else(|| {
-                GitLabError::Io(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "Could not determine config directory",
-                ))
-            })?
-            .join("pma");
-
-        Ok(config_dir)
+        Ok(crate::domain::config::ConfigDir::dir())
     }
 }
 

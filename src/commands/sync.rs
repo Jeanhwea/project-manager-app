@@ -3,7 +3,7 @@
 //! **Validates: Requirements 6.1, 6.4, 6.5**
 
 use super::{Command, CommandError, CommandResult};
-use crate::domain::config::manager::MultiSourceConfigManager;
+use crate::domain::config::ConfigDir;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::remote::RemoteManager;
 use crate::domain::git::repository::RepoWalker;
@@ -228,16 +228,13 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
         return true;
     }
 
-    let config_manager = MultiSourceConfigManager::new();
-    let config = match config_manager.load_with_manager() {
-        Ok(config) => config,
-        Err(_) => return false,
-    };
+    let config = ConfigDir::load_config();
 
     if let Some((protocol, host, path)) = parse_git_remote_url(url) {
         use crate::domain::git::GitProtocol;
 
-        if protocol == GitProtocol::Https && config.git.skip_push_hosts.iter().any(|h| h == &host)
+        if protocol == GitProtocol::Https
+            && config.sync.skip_push_hosts.iter().any(|h| h == &host)
         {
             return true;
         }
