@@ -40,6 +40,7 @@ impl GitCommandRunner {
         self.check_success(args, Some(dir))
     }
 
+    #[allow(dead_code)]
     pub fn execute_quiet(&self, args: &[&str]) -> Result<Output> {
         self.run(args, None)
     }
@@ -48,6 +49,7 @@ impl GitCommandRunner {
         self.run(args, Some(dir))
     }
 
+    #[allow(dead_code)]
     pub fn is_git_available(&self) -> bool {
         Command::new("git")
             .arg("--version")
@@ -57,6 +59,7 @@ impl GitCommandRunner {
             .is_ok()
     }
 
+    #[allow(dead_code)]
     pub fn get_git_version(&self) -> Result<String> {
         self.execute(&["--version"])
     }

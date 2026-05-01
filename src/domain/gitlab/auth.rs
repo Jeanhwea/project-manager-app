@@ -4,8 +4,10 @@ use std::fs;
 use std::path::PathBuf;
 
 /// GitLab token 管理
+#[allow(dead_code)]
 pub struct AuthManager;
 
+#[allow(dead_code)]
 impl AuthManager {
     pub fn load_token() -> Result<Option<String>> {
         if let Ok(token) = env::var("GITLAB_TOKEN")

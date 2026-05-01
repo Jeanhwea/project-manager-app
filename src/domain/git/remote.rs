@@ -8,10 +8,12 @@ use std::path::Path;
 pub struct Remote {
     pub name: String,
     pub url: String,
+    #[allow(dead_code)]
     pub protocol: GitProtocol,
 }
 
 impl Remote {
+    #[allow(dead_code)]
     pub fn new(name: impl Into<String>, url: impl Into<String>) -> Result<Self> {
         let name = name.into();
         let url = url.into();
@@ -140,10 +142,12 @@ impl Remote {
         Some((host, path))
     }
 
+    #[allow(dead_code)]
     pub fn get_remote_name_by_url(_url: &str) -> String {
         "origin".to_string()
     }
 
+    #[allow(dead_code)]
     pub fn is_private_ip(host: &str) -> bool {
         let ip_part = host.split(':').next().unwrap_or(host);
         let octets: Vec<u8> = ip_part
@@ -175,6 +179,7 @@ impl RemoteManager {
         }
     }
 
+    #[allow(dead_code)]
     pub fn add_remote(&self, repo_path: &Path, name: &str, url: &str) -> Result<()> {
         Remote::parse_url(url)?;
 
@@ -182,6 +187,7 @@ impl RemoteManager {
             .execute_with_success_in_dir(&["remote", "add", name, url], repo_path)
     }
 
+    #[allow(dead_code)]
     pub fn remove_remote(&self, repo_path: &Path, name: &str) -> Result<()> {
         let remotes = self.list_remotes(repo_path)?;
         if !remotes.iter().any(|remote| remote.name == name) {
@@ -192,6 +198,7 @@ impl RemoteManager {
             .execute_with_success_in_dir(&["remote", "remove", name], repo_path)
     }
 
+    #[allow(dead_code)]
     pub fn rename_remote(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
         let remotes = self.list_remotes(repo_path)?;
         if !remotes.iter().any(|remote| remote.name == old_name) {
@@ -215,6 +222,7 @@ impl RemoteManager {
     }
 
     /// Set remote URL
+    #[allow(dead_code)]
     pub fn set_remote_url(&self, repo_path: &Path, name: &str, url: &str) -> Result<()> {
         Remote::parse_url(url)?;
         let remotes = self.list_remotes(repo_path)?;
@@ -267,11 +275,13 @@ impl RemoteManager {
         Ok(remotes)
     }
 
+    #[allow(dead_code)]
     pub fn remote_exists(&self, repo_path: &Path, name: &str) -> Result<bool> {
         let remotes = self.list_remotes(repo_path)?;
         Ok(remotes.iter().any(|remote| remote.name == name))
     }
 
+    #[allow(dead_code)]
     pub fn get_remote(&self, repo_path: &Path, name: &str) -> Result<Option<Remote>> {
         let remotes = self.list_remotes(repo_path)?;
         Ok(remotes.into_iter().find(|remote| remote.name == name))

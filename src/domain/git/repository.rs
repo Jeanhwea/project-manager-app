@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 /// Git repository abstraction
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Repository {
     pub path: PathBuf,
     pub status: RepositoryStatus,
@@ -20,6 +21,7 @@ pub use super::remote::Remote;
 
 /// Git branch information
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Branch {
     pub name: String,
     pub is_current: bool,
@@ -41,6 +43,7 @@ pub struct RepoInfo {
 }
 
 impl Repository {
+    #[allow(dead_code)]
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
 
@@ -389,6 +392,7 @@ impl RepoWalker {
     }
 }
 
+#[allow(dead_code)]
 pub fn for_each_repo<F>(root_path: &Path, max_depth: usize, mut callback: F) -> Result<()>
 where
     F: FnMut(&Path) -> Result<()>,
