@@ -32,11 +32,11 @@ impl GitCommandRunner {
     /// * `GitError::Io` - If there's an I/O error executing the command
     pub fn execute(&self, args: &[&str]) -> Result<String> {
         let output = self.execute_raw(args)?;
-        
+
         // Convert stdout to string
         let stdout = String::from_utf8(output.stdout)
             .map_err(|e| GitError::CommandFailed(format!("Invalid UTF-8 in output: {}", e)))?;
-        
+
         Ok(stdout.trim().to_string())
     }
 
@@ -54,11 +54,11 @@ impl GitCommandRunner {
     /// * `GitError::Io` - If there's an I/O error executing the command
     pub fn execute_in_dir(&self, args: &[&str], dir: &Path) -> Result<String> {
         let output = self.execute_raw_in_dir(args, dir)?;
-        
+
         // Convert stdout to string
         let stdout = String::from_utf8(output.stdout)
             .map_err(|e| GitError::CommandFailed(format!("Invalid UTF-8 in output: {}", e)))?;
-        
+
         Ok(stdout.trim().to_string())
     }
 
@@ -106,7 +106,7 @@ impl GitCommandRunner {
     /// * `GitError::Io` - If there's an I/O error executing the command
     pub fn execute_with_success(&self, args: &[&str]) -> Result<()> {
         let output = self.execute_git_command(args, None)?;
-        
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(GitError::CommandFailed(format!(
@@ -114,7 +114,7 @@ impl GitCommandRunner {
                 stderr.trim()
             )));
         }
-        
+
         Ok(())
     }
 
@@ -132,7 +132,7 @@ impl GitCommandRunner {
     /// * `GitError::Io` - If there's an I/O error executing the command
     pub fn execute_with_success_in_dir(&self, args: &[&str], dir: &Path) -> Result<()> {
         let output = self.execute_git_command(args, Some(dir))?;
-        
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(GitError::CommandFailed(format!(
@@ -140,7 +140,7 @@ impl GitCommandRunner {
                 stderr.trim()
             )));
         }
-        
+
         Ok(())
     }
 
@@ -177,14 +177,15 @@ impl GitCommandRunner {
     fn execute_git_command(&self, args: &[&str], dir: Option<&Path>) -> Result<Output> {
         let mut cmd = Command::new("git");
         cmd.args(args);
-        
+
         if let Some(dir) = dir {
             cmd.current_dir(dir);
         }
-        
-        let output = cmd.output()
-            .map_err(|e| GitError::CommandFailed(format!("Failed to execute git command: {}", e)))?;
-        
+
+        let output = cmd.output().map_err(|e| {
+            GitError::CommandFailed(format!("Failed to execute git command: {}", e))
+        })?;
+
         Ok(output)
     }
 
@@ -267,7 +268,7 @@ mod tests {
         let runner = GitCommandRunner::new();
         let temp_dir = tempdir().unwrap();
         let nonexistent_dir = temp_dir.path().join("nonexistent");
-        
+
         let result = runner.execute_in_dir(&["status"], &nonexistent_dir);
         // Should fail because directory doesn't exist
         assert!(result.is_err());

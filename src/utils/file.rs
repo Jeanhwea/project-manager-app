@@ -37,7 +37,12 @@ pub fn copy_file(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<u64
     fs::copy(src, dst).map_err(|e| {
         io::Error::new(
             e.kind(),
-            format!("Failed to copy file '{}' to '{}': {}", src.display(), dst.display(), e),
+            format!(
+                "Failed to copy file '{}' to '{}': {}",
+                src.display(),
+                dst.display(),
+                e
+            ),
         )
     })
 }
@@ -49,7 +54,12 @@ pub fn rename_file(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<(
     fs::rename(src, dst).map_err(|e| {
         io::Error::new(
             e.kind(),
-            format!("Failed to rename file '{}' to '{}': {}", src.display(), dst.display(), e),
+            format!(
+                "Failed to rename file '{}' to '{}': {}",
+                src.display(),
+                dst.display(),
+                e
+            ),
         )
     })
 }
@@ -165,82 +175,82 @@ mod tests {
     fn test_file_operations() {
         let temp_dir = tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
-        
+
         // Test write and read
         let content = "Hello, world!";
         write_string(&file_path, content).unwrap();
         assert!(file_exists(&file_path));
         assert!(path_exists(&file_path));
-        
+
         let read_content = read_to_string(&file_path).unwrap();
         assert_eq!(read_content, content);
-        
+
         // Test file size
         let size = file_size(&file_path).unwrap();
         assert_eq!(size, content.len() as u64);
-        
+
         // Test metadata
         let metadata = metadata(&file_path).unwrap();
         assert!(metadata.is_file());
-        
+
         // Test copy
         let copy_path = temp_dir.path().join("copy.txt");
         copy_file(&file_path, &copy_path).unwrap();
         assert!(file_exists(&copy_path));
-        
+
         // Test rename
         let renamed_path = temp_dir.path().join("renamed.txt");
         rename_file(&copy_path, &renamed_path).unwrap();
         assert!(!file_exists(&copy_path));
         assert!(file_exists(&renamed_path));
-        
+
         // Test remove
         remove_file(&file_path).unwrap();
         assert!(!file_exists(&file_path));
     }
-    
+
     #[test]
     fn test_dir_operations() {
         let temp_dir = tempdir().unwrap();
         let nested_dir = temp_dir.path().join("a").join("b").join("c");
-        
+
         // Test create directory
         create_dir_all(&nested_dir).unwrap();
         assert!(dir_exists(&nested_dir));
         assert!(path_exists(&nested_dir));
-        
+
         // Test create non-recursive directory
         let simple_dir = temp_dir.path().join("simple");
         create_dir(&simple_dir).unwrap();
         assert!(dir_exists(&simple_dir));
-        
+
         // Test read directory
         let entries: Vec<_> = read_dir(temp_dir.path()).unwrap().collect();
         assert!(!entries.is_empty());
-        
+
         // Test remove directory (non-recursive)
         remove_dir(&simple_dir).unwrap();
         assert!(!dir_exists(&simple_dir));
-        
+
         // Test remove directory recursively
         remove_dir_all(temp_dir.path().join("a")).unwrap();
         assert!(!dir_exists(&nested_dir));
     }
-    
+
     #[test]
     fn test_error_handling() {
         // Test reading non-existent file
         let result = read_to_string("/nonexistent/file.txt");
         assert!(result.is_err());
-        
+
         // Test writing to invalid path
         let result = write_string("/invalid/\0/path.txt", "test");
         assert!(result.is_err());
-        
+
         // Test copying non-existent file
         let result = copy_file("/nonexistent/src.txt", "/nonexistent/dst.txt");
         assert!(result.is_err());
-        
+
         // Test removing non-existent file
         let result = remove_file("/nonexistent/file.txt");
         assert!(result.is_err());

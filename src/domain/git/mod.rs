@@ -11,25 +11,25 @@ pub mod repository;
 pub enum GitError {
     #[error("Repository not found: {0}")]
     RepositoryNotFound(String),
-    
+
     #[error("Git command failed: {0}")]
     CommandFailed(String),
-    
+
     #[error("Invalid remote URL: {0}")]
     InvalidRemoteUrl(String),
-    
+
     #[error("Working directory not clean")]
     WorkdirNotClean,
-    
+
     #[error("Branch not found: {0}")]
     BranchNotFound(String),
-    
+
     #[error("Remote not found: {0}")]
     RemoteNotFound(String),
-    
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Anyhow error: {0}")]
     Anyhow(#[from] anyhow::Error),
 }

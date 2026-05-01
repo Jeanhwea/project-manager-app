@@ -1,8 +1,8 @@
 //! Branch command implementation
 
 use super::{Command, CommandResult};
-use crate::domain::git::repository::RepoWalker;
 use crate::domain::git::command::GitCommandRunner;
+use crate::domain::git::repository::RepoWalker;
 use colored::Colorize;
 use std::path::Path;
 
@@ -76,7 +76,7 @@ pub struct BranchCommand;
 
 impl Command for BranchCommand {
     type Args = BranchArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         match args {
             BranchArgs::List(list_args) => execute_list(list_args),
@@ -88,82 +88,102 @@ impl Command for BranchCommand {
 }
 
 fn execute_list(args: ListArgs) -> CommandResult {
-    let walker = RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3))
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e)))?;
-    
+    let walker =
+        RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3)).map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
+        })?;
+
     if walker.is_empty() {
         return Ok(());
     }
 
-    walker.walk(|path, _index, _total| {
-        list_branches(path);
-        Ok(())
-    })
-    .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to walk repositories: {}", e)))?;
-    
+    walker
+        .walk(|path, _index, _total| {
+            list_branches(path);
+            Ok(())
+        })
+        .map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to walk repositories: {}", e))
+        })?;
+
     Ok(())
 }
 
 fn execute_clean(args: CleanArgs) -> CommandResult {
-    let walker = RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3))
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e)))?;
-    
+    let walker =
+        RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3)).map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
+        })?;
+
     if walker.is_empty() {
         return Ok(());
     }
 
     let runner = GitCommandRunner::new();
 
-    walker.walk(|path, _index, _total| {
-        clean_merged_branches(&runner, path, args.remote, args.dry_run)?;
-        Ok(())
-    })
-    .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to clean branches: {}", e)))?;
-    
+    walker
+        .walk(|path, _index, _total| {
+            clean_merged_branches(&runner, path, args.remote, args.dry_run)?;
+            Ok(())
+        })
+        .map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to clean branches: {}", e))
+        })?;
+
     Ok(())
 }
 
 fn execute_switch(args: SwitchArgs) -> CommandResult {
-    let walker = RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3))
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e)))?;
-    
+    let walker =
+        RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3)).map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
+        })?;
+
     if walker.is_empty() {
         return Ok(());
     }
 
     let runner = GitCommandRunner::new();
 
-    walker.walk(|path, _index, _total| {
-        switch_branch(&runner, path, &args.branch, args.create, args.dry_run)?;
-        Ok(())
-    })
-    .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to switch branches: {}", e)))?;
-    
+    walker
+        .walk(|path, _index, _total| {
+            switch_branch(&runner, path, &args.branch, args.create, args.dry_run)?;
+            Ok(())
+        })
+        .map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to switch branches: {}", e))
+        })?;
+
     Ok(())
 }
 
 fn execute_rename(args: RenameArgs) -> CommandResult {
-    let walker = RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3))
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e)))?;
-    
+    let walker =
+        RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3)).map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
+        })?;
+
     if walker.is_empty() {
         return Ok(());
     }
 
     let runner = GitCommandRunner::new();
 
-    walker.walk(|path, _index, _total| {
-        rename_branch(&runner, path, &args.old_name, &args.new_name, args.dry_run)?;
-        Ok(())
-    })
-    .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to rename branches: {}", e)))?;
-    
+    walker
+        .walk(|path, _index, _total| {
+            rename_branch(&runner, path, &args.old_name, &args.new_name, args.dry_run)?;
+            Ok(())
+        })
+        .map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to rename branches: {}", e))
+        })?;
+
     Ok(())
 }
 
 fn list_branches(repo_path: &Path) {
     let runner = GitCommandRunner::new();
-    
+
     // Get current branch
     let current = match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
         Ok(output) => output,
@@ -172,19 +192,18 @@ fn list_branches(repo_path: &Path) {
 
     // Get local branches
     let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-        Ok(output) => {
-            output.lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| {
-                    if line.starts_with('*') {
-                        line[1..].trim().to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .collect::<Vec<String>>()
-        }
+        Ok(output) => output
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                if line.starts_with('*') {
+                    line[1..].trim().to_string()
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<String>>(),
         Err(_) => Vec::new(),
     };
 
@@ -201,13 +220,12 @@ fn list_branches(repo_path: &Path) {
 
     // Get remote branches
     let remote_branches = match runner.execute_in_dir(&["branch", "-r", "--list"], repo_path) {
-        Ok(output) => {
-            output.lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| line.to_string())
-                .collect::<Vec<String>>()
-        }
+        Ok(output) => output
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .map(|line| line.to_string())
+            .collect::<Vec<String>>(),
         Err(_) => Vec::new(),
     };
 
@@ -240,19 +258,18 @@ fn switch_branch(
     if create {
         // Check if branch exists
         let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-            Ok(output) => {
-                output.lines()
-                    .map(|line| line.trim())
-                    .filter(|line| !line.is_empty())
-                    .map(|line| {
-                        if line.starts_with('*') {
-                            line[1..].trim().to_string()
-                        } else {
-                            line.to_string()
-                        }
-                    })
-                    .collect::<Vec<String>>()
-            }
+            Ok(output) => output
+                .lines()
+                .map(|line| line.trim())
+                .filter(|line| !line.is_empty())
+                .map(|line| {
+                    if line.starts_with('*') {
+                        line[1..].trim().to_string()
+                    } else {
+                        line.to_string()
+                    }
+                })
+                .collect::<Vec<String>>(),
             Err(_) => Vec::new(),
         };
 
@@ -269,32 +286,36 @@ fn switch_branch(
             }
         } else {
             if !dry_run {
-                runner.execute_with_success_in_dir(&["checkout", "-b", branch_name], repo_path)?;
+                runner
+                    .execute_with_success_in_dir(&["checkout", "-b", branch_name], repo_path)?;
                 println!(
                     "  {} 创建并切换到分支 {}",
                     "完成".green(),
                     branch_name.yellow()
                 );
             } else {
-                println!("  {} 创建并切换到分支 {}", "模拟".cyan(), branch_name.yellow());
+                println!(
+                    "  {} 创建并切换到分支 {}",
+                    "模拟".cyan(),
+                    branch_name.yellow()
+                );
             }
         }
     } else {
         // Check if branch exists
         let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-            Ok(output) => {
-                output.lines()
-                    .map(|line| line.trim())
-                    .filter(|line| !line.is_empty())
-                    .map(|line| {
-                        if line.starts_with('*') {
-                            line[1..].trim().to_string()
-                        } else {
-                            line.to_string()
-                        }
-                    })
-                    .collect::<Vec<String>>()
-            }
+            Ok(output) => output
+                .lines()
+                .map(|line| line.trim())
+                .filter(|line| !line.is_empty())
+                .map(|line| {
+                    if line.starts_with('*') {
+                        line[1..].trim().to_string()
+                    } else {
+                        line.to_string()
+                    }
+                })
+                .collect::<Vec<String>>(),
             Err(_) => Vec::new(),
         };
 
@@ -329,19 +350,18 @@ fn rename_branch(
 ) -> Result<(), crate::domain::git::GitError> {
     // Get local branches
     let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-        Ok(output) => {
-            output.lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| {
-                    if line.starts_with('*') {
-                        line[1..].trim().to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .collect::<Vec<String>>()
-        }
+        Ok(output) => output
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                if line.starts_with('*') {
+                    line[1..].trim().to_string()
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<String>>(),
         Err(_) => Vec::new(),
     };
 
@@ -414,9 +434,10 @@ fn clean_merged_branches(
     };
 
     // Get merged branches
-    let merged_branches = match runner.execute_in_dir(&["branch", "--merged", &current], repo_path) {
-        Ok(output) => {
-            output.lines()
+    let merged_branches =
+        match runner.execute_in_dir(&["branch", "--merged", &current], repo_path) {
+            Ok(output) => output
+                .lines()
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
                 .map(|line| {
@@ -427,10 +448,9 @@ fn clean_merged_branches(
                     }
                 })
                 .filter(|branch| branch != &current && !branch.starts_with("remotes/"))
-                .collect::<Vec<String>>()
-        }
-        Err(_) => Vec::new(),
-    };
+                .collect::<Vec<String>>(),
+            Err(_) => Vec::new(),
+        };
 
     if merged_branches.is_empty() {
         println!("  {}", "无已合并分支".green());
@@ -450,9 +470,10 @@ fn clean_merged_branches(
 
     if remote {
         // Get remote merged branches
-        let remote_merged = match runner.execute_in_dir(&["branch", "-r", "--merged", &current], repo_path) {
-            Ok(output) => {
-                output.lines()
+        let remote_merged =
+            match runner.execute_in_dir(&["branch", "-r", "--merged", &current], repo_path) {
+                Ok(output) => output
+                    .lines()
                     .map(|line| line.trim())
                     .filter(|line| !line.is_empty())
                     .filter(|line| !line.contains("origin/HEAD"))
@@ -464,10 +485,9 @@ fn clean_merged_branches(
                             line.to_string()
                         }
                     })
-                    .collect::<Vec<String>>()
-            }
-            Err(_) => Vec::new(),
-        };
+                    .collect::<Vec<String>>(),
+                Err(_) => Vec::new(),
+            };
 
         if remote_merged.is_empty() {
             println!("  {}", "无已合并的远程分支".green());
@@ -476,9 +496,14 @@ fn clean_merged_branches(
                 if dry_run {
                     println!("  {} 删除远程分支 {}", "模拟".cyan(), branch.red());
                 } else {
-                    match runner.execute_with_success_in_dir(&["push", "origin", "--delete", branch], repo_path) {
+                    match runner.execute_with_success_in_dir(
+                        &["push", "origin", "--delete", branch],
+                        repo_path,
+                    ) {
                         Ok(_) => println!("  {} 远程分支 {}", "已删除".green(), branch.red()),
-                        Err(e) => println!("  {} 远程分支 {} - {}", "删除失败".red(), branch.red(), e),
+                        Err(e) => {
+                            println!("  {} 远程分支 {} - {}", "删除失败".red(), branch.red(), e)
+                        }
                     }
                 }
             }

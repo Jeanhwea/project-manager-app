@@ -19,7 +19,7 @@ pub enum FileType {
 pub fn detect_file_type(path: &Path) -> Option<FileType> {
     let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    
+
     match (file_name, extension) {
         ("Cargo.toml", _) => Some(FileType::CargoToml),
         ("package.json", _) => Some(FileType::PackageJson),
@@ -36,7 +36,7 @@ pub fn detect_file_type(path: &Path) -> Option<FileType> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_detect_file_type() {
         assert_eq!(

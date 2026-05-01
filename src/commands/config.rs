@@ -21,7 +21,7 @@ pub struct ConfigCommand;
 
 impl Command for ConfigCommand {
     type Args = ConfigArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         match args {
             ConfigArgs::Init => execute_init(),
@@ -34,23 +34,21 @@ impl Command for ConfigCommand {
 fn execute_init() -> CommandResult {
     let dir = config_dir();
     if dir.exists() {
-        return Err(super::CommandError::ExecutionFailed(
-            format!("配置目录已存在: {}", dir.display())
-        ));
+        return Err(super::CommandError::ExecutionFailed(format!(
+            "配置目录已存在: {}",
+            dir.display()
+        )));
     }
 
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| super::CommandError::Io(e))?;
+    std::fs::create_dir_all(&dir).map_err(|e| super::CommandError::Io(e))?;
 
     let config_path = config_path();
     let content = default_config_content();
-    std::fs::write(&config_path, content)
-        .map_err(|e| super::CommandError::Io(e))?;
+    std::fs::write(&config_path, content).map_err(|e| super::CommandError::Io(e))?;
 
     let gitlab_path = gitlab_config_path();
     let gitlab_content = default_gitlab_config_content();
-    std::fs::write(&gitlab_path, gitlab_content)
-        .map_err(|e| super::CommandError::Io(e))?;
+    std::fs::write(&gitlab_path, gitlab_content).map_err(|e| super::CommandError::Io(e))?;
 
     println!("{} {}", "已创建配置目录:".green(), dir.display());
     println!("  {} {}", "主配置:".dimmed(), config_path.display());

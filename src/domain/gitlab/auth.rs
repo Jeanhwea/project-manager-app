@@ -44,7 +44,11 @@ impl AuthManager {
         fs::create_dir_all(&config_dir).map_err(|e| {
             GitLabError::Io(std::io::Error::new(
                 e.kind(),
-                format!("Failed to create config directory {}: {}", config_dir.display(), e),
+                format!(
+                    "Failed to create config directory {}: {}",
+                    config_dir.display(),
+                    e
+                ),
             ))
         })?;
 
@@ -64,7 +68,11 @@ impl AuthManager {
                 .map_err(|e| {
                     GitLabError::Io(std::io::Error::new(
                         e.kind(),
-                        format!("Failed to get file metadata {}: {}", token_file.display(), e),
+                        format!(
+                            "Failed to get file metadata {}: {}",
+                            token_file.display(),
+                            e
+                        ),
                     ))
                 })?
                 .permissions();
@@ -87,7 +95,11 @@ impl AuthManager {
             fs::remove_file(&token_file).map_err(|e| {
                 GitLabError::Io(std::io::Error::new(
                     e.kind(),
-                    format!("Failed to delete token file {}: {}", token_file.display(), e),
+                    format!(
+                        "Failed to delete token file {}: {}",
+                        token_file.display(),
+                        e
+                    ),
                 ))
             })?;
         }

@@ -7,16 +7,16 @@
 pub enum RunnerError {
     #[error("Command execution failed: {0}")]
     CommandFailed(String),
-    
+
     #[error("Command not found: {0}")]
     CommandNotFound(String),
-    
+
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
-    
+
     #[error("Timeout: {0}")]
     Timeout(String),
-    
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -41,7 +41,12 @@ impl Default for ExecutionContext {
 
 /// Command runner trait
 pub trait CommandRunner {
-    fn run(&self, command: &str, args: &[&str], context: &ExecutionContext) -> Result<CommandOutput>;
+    fn run(
+        &self,
+        command: &str,
+        args: &[&str],
+        context: &ExecutionContext,
+    ) -> Result<CommandOutput>;
 }
 
 /// Command execution output

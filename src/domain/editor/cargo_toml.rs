@@ -1,4 +1,6 @@
-use super::{FileEditor, EditorError, Result, VersionLocation, VersionPosition, preserve_line_endings};
+use super::{
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct CargoTomlEditor;
@@ -52,9 +54,9 @@ impl FileEditor for CargoTomlEditor {
     }
 
     fn parse(&self, content: &str) -> Result<VersionLocation> {
-        let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
-            EditorError::ParseError(format!("Failed to parse Cargo.toml: {}", e))
-        })?;
+        let doc = content
+            .parse::<toml_edit::DocumentMut>()
+            .map_err(|e| EditorError::ParseError(format!("Failed to parse Cargo.toml: {}", e)))?;
 
         let has_package = doc.contains_key("package");
         let has_workspace = doc.contains_key("workspace");
@@ -102,9 +104,9 @@ impl FileEditor for CargoTomlEditor {
             ));
         }
 
-        let mut doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
-            EditorError::ParseError(format!("Failed to parse Cargo.toml: {}", e))
-        })?;
+        let mut doc = content
+            .parse::<toml_edit::DocumentMut>()
+            .map_err(|e| EditorError::ParseError(format!("Failed to parse Cargo.toml: {}", e)))?;
 
         if let Some(package) = doc.get_mut("package")
             && let Some(table) = package.as_table_like_mut()

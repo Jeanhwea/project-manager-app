@@ -1,4 +1,6 @@
-use super::{FileEditor, EditorError, Result, VersionLocation, VersionPosition, preserve_line_endings};
+use super::{
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct HomebrewFormulaEditor;
@@ -6,14 +8,14 @@ pub struct HomebrewFormulaEditor;
 impl HomebrewFormulaEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
         let version_pattern = regex::Regex::new(r#"version\s+"([^"]+)""#).ok()?;
-        
+
         if let Some(m) = version_pattern.find(content) {
             let start = m.start();
             let end = m.end();
             let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
             return Some(VersionPosition { start, end, line });
         }
-        
+
         None
     }
 }
@@ -36,7 +38,7 @@ impl FileEditor for HomebrewFormulaEditor {
 
     fn parse(&self, content: &str) -> Result<VersionLocation> {
         let project_version = Self::find_version_position(content);
-        
+
         if project_version.is_none() {
             return Err(EditorError::VersionNotFound(
                 "Homebrew formula does not have version field".to_string(),
@@ -77,7 +79,7 @@ impl FileEditor for HomebrewFormulaEditor {
                 "Homebrew formula version field is empty".to_string(),
             ));
         }
-        
+
         Ok(())
     }
 }

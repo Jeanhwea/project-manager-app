@@ -1,10 +1,10 @@
 //! GitLab command implementation
 
-use super::{Command, CommandResult, CommandError};
-use crate::domain::config::{DefaultConfigManager, ConfigManager};
+use super::{Command, CommandError, CommandResult};
+use crate::domain::config::{ConfigManager, DefaultConfigManager};
 use crate::domain::gitlab::client::GitLabClient;
 use crate::domain::gitlab::models::User;
-use crate::utils::git::{git_command, get_remote_urls, is_git_repo};
+use crate::utils::git::{get_remote_urls, git_command, is_git_repo};
 
 use colored::Colorize;
 use std::collections::HashSet;
@@ -64,7 +64,7 @@ pub struct GitLabCommand;
 
 impl Command for GitLabCommand {
     type Args = GitLabArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         match args {
             GitLabArgs::Login(login_args) => execute_login(login_args),
@@ -80,7 +80,8 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     } else {
         println!("{}", "GitLab 登录".cyan().bold());
         println!();
-        let server_url = prompt_input("服务器地址 (例如 https://gitlab.com 或 http://192.168.0.110/gitlab/)")?;
+        let server_url =
+            prompt_input("服务器地址 (例如 https://gitlab.com 或 http://192.168.0.110/gitlab/)")?;
         if server_url.is_empty() {
             return Err(CommandError::Validation("服务器地址不能为空".to_string()));
         }
@@ -98,7 +99,8 @@ fn execute_login(args: LoginArgs) -> CommandResult {
         if input_token.is_empty() {
             return Err(CommandError::Validation(
                 "Personal Access Token 不能为空\n\
-                 在 GitLab 中创建令牌: Settings -> Access Tokens (需要 api 权限)".to_string()
+                 在 GitLab 中创建令牌: Settings -> Access Tokens (需要 api 权限)"
+                    .to_string(),
             ));
         }
 
@@ -108,7 +110,8 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     println!("{} {}", "验证连接:".cyan(), resolved_url.dimmed());
 
     let client = GitLabClient::with_url_and_token(&resolved_url, &final_token);
-    let user: User = client.get_current_user()
+    let user: User = client
+        .get_current_user()
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to authenticate: {}", e)))?;
 
     println!(
@@ -121,7 +124,7 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     // Load existing config
     let mut config = DefaultConfigManager::load()
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to load config: {}", e)))?;
-    
+
     let protocol_str = match args.protocol {
         CloneProtocol::Ssh => "ssh",
         CloneProtocol::Https => "https",
@@ -133,7 +136,8 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     config.gitlab.default_protocol = protocol_str.to_string();
 
     // Save config
-    DefaultConfigManager::new().save(&config)
+    DefaultConfigManager::new()
+        .save(&config)
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to save config: {}", e)))?;
 
     println!("{} {} 凭据已保存", "保存:".green(), resolved_url.cyan());
@@ -166,12 +170,16 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     let client = GitLabClient::with_url_and_token(&resolved_base_url, &resolved_token);
 
     // Get group information
-    let groups = client.get_groups()
+    let groups = client
+        .get_groups()
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to get groups: {}", e)))?;
-    
-    let group_info = groups.into_iter()
+
+    let group_info = groups
+        .into_iter()
         .find(|g| g.full_path == *final_group)
-        .ok_or_else(|| CommandError::ExecutionFailed(format!("Group not found: {}", final_group)))?;
+        .ok_or_else(|| {
+            CommandError::ExecutionFailed(format!("Group not found: {}", final_group))
+        })?;
 
     println!(
         "{} {} ({})",
@@ -181,7 +189,8 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     );
 
     // Get group projects
-    let projects = client.get_group_projects(group_info.id, true, args.include_archived)
+    let projects = client
+        .get_group_projects(group_info.id, true, args.include_archived)
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to get projects: {}", e)))?;
 
     if projects.is_empty() {
@@ -204,10 +213,13 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     let output_path = Path::new(&args.output);
     if !output_path.exists() {
         if args.dry_run {
-            println!("  {} 创建目录: {}", "[DRY-RUN]".yellow(), args.output.cyan());
+            println!(
+                "  {} 创建目录: {}",
+                "[DRY-RUN]".yellow(),
+                args.output.cyan()
+            );
         } else {
-            std::fs::create_dir_all(output_path)
-                .map_err(|e| CommandError::Io(e))?;
+            std::fs::create_dir_all(output_path).map_err(|e| CommandError::Io(e))?;
         }
     }
 
@@ -319,11 +331,11 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 /// Prompt for user input
 fn prompt_input(prompt: &str) -> Result<String, CommandError> {
     print!("{}: ", prompt.white().bold());
-    io::stdout().flush()
-        .map_err(|e| CommandError::Io(e))?;
+    io::stdout().flush().map_err(|e| CommandError::Io(e))?;
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input)
+    io::stdin()
+        .read_line(&mut input)
         .map_err(|e| CommandError::Io(e))?;
     Ok(input.trim().to_string())
 }
@@ -337,7 +349,7 @@ fn resolve_gitlab_config(
     // Load config
     let config = DefaultConfigManager::load()
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to load config: {}", e)))?;
-    
+
     let gitlab_config = config.gitlab;
 
     if let Some(s) = server {
@@ -349,11 +361,9 @@ fn resolve_gitlab_config(
             .unwrap_or_default();
 
         let resolved_protocol = protocol
-            .or_else(|| {
-                match gitlab_config.default_protocol.as_str() {
-                    "https" => Some(CloneProtocol::Https),
-                    _ => Some(CloneProtocol::Ssh),
-                }
+            .or_else(|| match gitlab_config.default_protocol.as_str() {
+                "https" => Some(CloneProtocol::Https),
+                _ => Some(CloneProtocol::Ssh),
             })
             .unwrap_or(CloneProtocol::Ssh);
 
@@ -372,11 +382,9 @@ fn resolve_gitlab_config(
             .map(|t| t.to_string())
             .unwrap_or_else(|| gitlab_config.token.unwrap_or_default());
         let resolved_protocol = protocol
-            .or_else(|| {
-                match gitlab_config.default_protocol.as_str() {
-                    "https" => Some(CloneProtocol::Https),
-                    _ => Some(CloneProtocol::Ssh),
-                }
+            .or_else(|| match gitlab_config.default_protocol.as_str() {
+                "https" => Some(CloneProtocol::Https),
+                _ => Some(CloneProtocol::Ssh),
             })
             .unwrap_or(CloneProtocol::Ssh);
         return Ok((srv_url.clone(), resolved_token, resolved_protocol));
@@ -386,7 +394,7 @@ fn resolve_gitlab_config(
     // In the new structure, we only have one GitLab config, not multiple servers
     // So we just return an error if server is not specified
     Err(CommandError::Validation(
-        "GitLab 服务器未配置，请使用 --server 指定或先运行 pma gitlab login".to_string()
+        "GitLab 服务器未配置，请使用 --server 指定或先运行 pma gitlab login".to_string(),
     ))
 }
 
@@ -412,7 +420,8 @@ fn resolve_token(token: Option<&str>) -> Result<String, CommandError> {
          1. pma gitlab login --server <URL> --token <TOKEN>\n\
          2. 命令行参数 --token <TOKEN>\n\
          3. 环境变量 GITLAB_TOKEN 或 GL_TOKEN\n\n\
-         在 GitLab 中创建令牌: Settings -> Access Tokens (需要 read_api 权限)".to_string()
+         在 GitLab 中创建令牌: Settings -> Access Tokens (需要 read_api 权限)"
+            .to_string(),
     ))
 }
 

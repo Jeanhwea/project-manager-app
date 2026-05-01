@@ -59,10 +59,12 @@ impl DryRunContext {
             Ok(())
         } else {
             if let Some(dir) = dir {
-                runner.execute_with_success_in_dir(args, dir)
+                runner
+                    .execute_with_success_in_dir(args, dir)
                     .map_err(|e| anyhow::anyhow!("{}", e))
             } else {
-                runner.execute_with_success(args)
+                runner
+                    .execute_with_success(args)
                     .map_err(|e| anyhow::anyhow!("{}", e))
             }
         }
@@ -74,7 +76,7 @@ pub struct DoctorCommand;
 
 impl Command for DoctorCommand {
     type Args = DoctorArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         // Convert domain errors to command errors
         match execute_doctor(args) {
@@ -93,7 +95,7 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
     check_dependencies()?;
 
     let walker = RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3))?;
-    
+
     if walker.is_empty() {
         println!("未找到 Git 仓库");
         return Ok(());
@@ -146,7 +148,7 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
 
         Ok(())
     })?;
-    
+
     Ok(())
 }
 
@@ -223,7 +225,10 @@ fn get_remote_name_by_url(url: &str) -> Option<String> {
         Some("bitbucket".to_string())
     } else {
         // Extract hostname from URL
-        let url = url.trim_start_matches("ssh://").trim_start_matches("https://").trim_start_matches("http://");
+        let url = url
+            .trim_start_matches("ssh://")
+            .trim_start_matches("https://")
+            .trim_start_matches("http://");
         if let Some(at_pos) = url.find('@') {
             let after_at = &url[at_pos + 1..];
             if let Some(colon_pos) = after_at.find(':') {
@@ -254,16 +259,19 @@ fn check_detached_head(repo_path: &Path, issues: &mut Vec<String>) {
 /// Check for stale remote references
 fn check_stale_remote_refs(repo_path: &Path, issues: &mut Vec<String>) {
     let runner = GitCommandRunner::new();
-    
+
     // Get remote names
     let remotes = match runner.execute_in_dir(&["remote"], repo_path) {
-        Ok(output) => output.lines().map(|s| s.trim().to_string()).collect::<Vec<_>>(),
+        Ok(output) => output
+            .lines()
+            .map(|s| s.trim().to_string())
+            .collect::<Vec<_>>(),
         Err(_) => {
             issues.push("无法获取远程仓库列表".to_string());
             return;
         }
     };
-    
+
     if remotes.is_empty() {
         return;
     }
@@ -357,10 +365,13 @@ fn check_missing_upstream(repo_path: &Path, issues: &mut Vec<String>) {
 
     if output.is_err() {
         let remotes = match runner.execute_in_dir(&["remote"], repo_path) {
-            Ok(output) => output.lines().map(|s| s.trim().to_string()).collect::<Vec<_>>(),
+            Ok(output) => output
+                .lines()
+                .map(|s| s.trim().to_string())
+                .collect::<Vec<_>>(),
             Err(_) => return,
         };
-        
+
         if !remotes.is_empty() {
             issues.push(format!("当前分支 '{}' 没有设置上游跟踪分支", branch));
         }
@@ -405,7 +416,7 @@ fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Resul
                 Ok(b) => b.trim().to_string(),
                 Err(_) => continue,
             };
-            
+
             if !branch.is_empty() {
                 let upstream = format!("origin/{}", branch);
                 println!(
@@ -447,8 +458,8 @@ fn do_rename_git_remote(
     let conflict = existing_remotes.iter().find(|(name, _)| name == new_name);
 
     if let Some((_, conflict_url)) = conflict {
-        let alt_name = get_remote_name_by_url(conflict_url)
-            .unwrap_or_else(|| format!("{}-old", new_name));
+        let alt_name =
+            get_remote_name_by_url(conflict_url).unwrap_or_else(|| format!("{}-old", new_name));
 
         if alt_name == new_name {
             anyhow::bail!(
@@ -488,7 +499,7 @@ fn do_git_garbage_collect(ctx: &DryRunContext, repo_path: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    
+
     #[test]
     fn test_doctor_args_structure() {
         let args = DoctorArgs {
@@ -499,7 +510,7 @@ mod tests {
             path: ".".to_string(),
             dry_run: true,
         };
-        
+
         assert_eq!(args.max_depth, Some(3));
         assert!(args.gc);
         assert!(!args.rename);
@@ -507,16 +518,16 @@ mod tests {
         assert_eq!(args.path, ".");
         assert!(args.dry_run);
     }
-    
+
     #[test]
     fn test_dry_run_context() {
         let ctx = DryRunContext::new(true);
         assert!(ctx.is_dry_run());
-        
+
         let ctx = DryRunContext::new(false);
         assert!(!ctx.is_dry_run());
     }
-    
+
     #[test]
     fn test_check_command_exists() {
         // git should exist on most systems
@@ -524,35 +535,65 @@ mod tests {
         // We can't guarantee git exists, but we can test the function doesn't panic
         assert!(true);
     }
-    
+
     #[test]
     fn test_get_remote_name_by_url() {
         // Test GitHub URL
-        assert_eq!(get_remote_name_by_url("git@github.com:user/repo.git"), Some("github".to_string()));
-        assert_eq!(get_remote_name_by_url("https://github.com/user/repo.git"), Some("github".to_string()));
-        
+        assert_eq!(
+            get_remote_name_by_url("git@github.com:user/repo.git"),
+            Some("github".to_string())
+        );
+        assert_eq!(
+            get_remote_name_by_url("https://github.com/user/repo.git"),
+            Some("github".to_string())
+        );
+
         // Test GitLab URL
-        assert_eq!(get_remote_name_by_url("git@gitlab.com:user/repo.git"), Some("gitlab".to_string()));
-        assert_eq!(get_remote_name_by_url("https://gitlab.com/user/repo.git"), Some("gitlab".to_string()));
-        
+        assert_eq!(
+            get_remote_name_by_url("git@gitlab.com:user/repo.git"),
+            Some("gitlab".to_string())
+        );
+        assert_eq!(
+            get_remote_name_by_url("https://gitlab.com/user/repo.git"),
+            Some("gitlab".to_string())
+        );
+
         // Test Gitee URL
-        assert_eq!(get_remote_name_by_url("git@gitee.com:user/repo.git"), Some("gitee".to_string()));
-        assert_eq!(get_remote_name_by_url("https://gitee.com/user/repo.git"), Some("gitee".to_string()));
-        
+        assert_eq!(
+            get_remote_name_by_url("git@gitee.com:user/repo.git"),
+            Some("gitee".to_string())
+        );
+        assert_eq!(
+            get_remote_name_by_url("https://gitee.com/user/repo.git"),
+            Some("gitee".to_string())
+        );
+
         // Test Bitbucket URL
-        assert_eq!(get_remote_name_by_url("git@bitbucket.org:user/repo.git"), Some("bitbucket".to_string()));
-        assert_eq!(get_remote_name_by_url("https://bitbucket.org/user/repo.git"), Some("bitbucket".to_string()));
-        
+        assert_eq!(
+            get_remote_name_by_url("git@bitbucket.org:user/repo.git"),
+            Some("bitbucket".to_string())
+        );
+        assert_eq!(
+            get_remote_name_by_url("https://bitbucket.org/user/repo.git"),
+            Some("bitbucket".to_string())
+        );
+
         // Test custom SSH URL
-        assert_eq!(get_remote_name_by_url("git@example.com:user/repo.git"), Some("example.com".to_string()));
-        
+        assert_eq!(
+            get_remote_name_by_url("git@example.com:user/repo.git"),
+            Some("example.com".to_string())
+        );
+
         // Test custom HTTPS URL
-        assert_eq!(get_remote_name_by_url("https://example.com/user/repo.git"), Some("example.com".to_string()));
-        
+        assert_eq!(
+            get_remote_name_by_url("https://example.com/user/repo.git"),
+            Some("example.com".to_string())
+        );
+
         // Test invalid URL
         assert_eq!(get_remote_name_by_url("invalid-url"), None);
     }
-    
+
     #[test]
     fn test_doctor_command_implementation() {
         // Test that DoctorCommand implements Command trait

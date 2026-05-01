@@ -79,14 +79,18 @@ pub struct StatusCommand;
 
 impl Command for StatusCommand {
     type Args = StatusArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         let path = Path::new(&args.path);
-        
+
         // Create repository walker
-        let walker = RepoWalker::new(path, args.max_depth.unwrap_or(3))
-            .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to create repository walker: {}", e)))?;
-        
+        let walker = RepoWalker::new(path, args.max_depth.unwrap_or(3)).map_err(|e| {
+            super::CommandError::ExecutionFailed(format!(
+                "Failed to create repository walker: {}",
+                e
+            ))
+        })?;
+
         if walker.is_empty() {
             println!("未找到git仓库");
             return Ok(());
@@ -98,42 +102,44 @@ impl Command for StatusCommand {
         // Walk through each repository
         for (index, repo_info) in walker.repositories().iter().enumerate() {
             let repo_path = &repo_info.path;
-            
+
             // Skip submodules
             if repo_info.repo_type == crate::domain::git::repository::RepoType::Submodule {
                 stats.submodules += 1;
                 continue;
             }
-            
+
             // Collect repository status
             let status = collect_repo_status(repo_path);
-            
+
             // Apply filter
             if !matches_filter(&status, &args.filter) {
                 stats.skipped += 1;
                 continue;
             }
-            
+
             // Print progress
             let progress = format!("({}/{})", index + 1, total);
             println!(
                 "{}>> {}",
                 progress.white().bold(),
-                crate::utils::path::format_path(repo_path).cyan().underline(),
+                crate::utils::path::format_path(repo_path)
+                    .cyan()
+                    .underline(),
             );
-            
+
             // Print status
             if args.short {
                 print_short_status(&status);
             } else {
                 print_full_status(repo_path, &status);
             }
-            
+
             stats.update(&status);
         }
-        
+
         print_summary(&stats, total);
-        
+
         Ok(())
     }
 }
@@ -155,7 +161,7 @@ fn collect_repo_status(repo_path: &Path) -> RepoStatus {
     let dirty = git::has_uncommitted_changes(repo_path).unwrap_or(false);
     let (ahead, behind) = get_ahead_behind(repo_path);
     let (staged, unstaged, untracked) = get_dirty_counts(repo_path);
-    
+
     RepoStatus {
         branch,
         dirty,
@@ -173,26 +179,29 @@ fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
         Ok(b) => b,
         Err(_) => return (0, 0),
     };
-    
+
     let upstream = format!("{}@{{upstream}}...HEAD", branch);
-    let output = match git::git_command(repo_path, &["rev-list", "--count", "--left-right", &upstream]) {
+    let output = match git::git_command(
+        repo_path,
+        &["rev-list", "--count", "--left-right", &upstream],
+    ) {
         Ok(o) => o,
         Err(_) => return (0, 0),
     };
-    
+
     let trimmed = output.trim();
     if trimmed.is_empty() {
         return (0, 0);
     }
-    
+
     let parts: Vec<&str> = trimmed.split_whitespace().collect();
     if parts.len() != 2 {
         return (0, 0);
     }
-    
+
     let ahead: usize = parts[0].parse().unwrap_or(0);
     let behind: usize = parts[1].parse().unwrap_or(0);
-    
+
     (ahead, behind)
 }
 
@@ -202,18 +211,18 @@ fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
         Ok(o) => o,
         Err(_) => return (0, 0, 0),
     };
-    
+
     let mut staged = 0usize;
     let mut unstaged = 0usize;
     let mut untracked = 0usize;
-    
+
     for line in output.lines() {
         if line.len() < 3 {
             continue;
         }
         let x = line.as_bytes()[0];
         let y = line.as_bytes()[1];
-        
+
         if x != b' ' && x != b'?' {
             staged += 1;
         }
@@ -224,7 +233,7 @@ fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
             untracked += 1;
         }
     }
-    
+
     (staged, unstaged, untracked)
 }
 
@@ -271,7 +280,7 @@ fn print_short_status(status: &RepoStatus) {
     } else {
         "✔".green()
     };
-    
+
     let mut extra = Vec::new();
     if status.ahead > 0 {
         extra.push(format!("↑{}", status.ahead));
@@ -279,13 +288,13 @@ fn print_short_status(status: &RepoStatus) {
     if status.behind > 0 {
         extra.push(format!("↓{}", status.behind));
     }
-    
+
     let extra_str = if extra.is_empty() {
         String::new()
     } else {
         format!(" {}", extra.join(" ").yellow())
     };
-    
+
     println!(
         "  {} {} {}{}",
         status_icon,
@@ -307,23 +316,24 @@ fn print_full_status(repo_path: &Path, status: &RepoStatus) {
     } else {
         "干净工作目录".green().to_string()
     };
-    
+
     println!("  分支: {}", branch_display.yellow());
     println!("  状态: {}", status_label);
-    
+
     if status.dirty {
         print_dirty_details_from_counts(status);
     }
-    
+
     print_ahead_behind_from_status(status);
-    
+
     print_latest_tag(repo_path);
-    
+
     let remotes = git::get_remote_list(repo_path).unwrap_or_default();
     if !remotes.is_empty() {
         println!("  远程:");
         for remote in &remotes {
-            let url = git::git_command(repo_path, &["remote", "get-url", remote]).unwrap_or_default();
+            let url =
+                git::git_command(repo_path, &["remote", "get-url", remote]).unwrap_or_default();
             println!("    {} {}", remote.green(), url.dimmed());
         }
     }
@@ -341,7 +351,7 @@ fn print_dirty_details_from_counts(status: &RepoStatus) {
     if status.untracked > 0 {
         parts.push(format!("{} 未跟踪", status.untracked.to_string().yellow()));
     }
-    
+
     if !parts.is_empty() {
         println!("  详情: {}", parts.join(", "));
     }
@@ -368,11 +378,12 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
 
 /// Print latest tag
 fn print_latest_tag(repo_path: &Path) {
-    let output = match git::git_command(repo_path, &["tag", "-l", "v*", "--sort=-version:refname"]) {
-        Ok(o) => o,
-        Err(_) => return,
-    };
-    
+    let output =
+        match git::git_command(repo_path, &["tag", "-l", "v*", "--sort=-version:refname"]) {
+            Ok(o) => o,
+            Err(_) => return,
+        };
+
     if let Some(tag) = output.lines().next() {
         let tag = tag.trim();
         if !tag.is_empty() {

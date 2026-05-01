@@ -58,7 +58,7 @@ pub struct SelfManCommand;
 
 impl Command for SelfManCommand {
     type Args = SelfManArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         match args {
             SelfManArgs::Update(update_args) => execute_update(update_args),
@@ -83,24 +83,27 @@ fn show_version() {
 fn execute_update(args: UpdateArgs) -> CommandResult {
     if env::var("PMA_NPM_INSTALL").is_ok() {
         return Err(super::CommandError::ExecutionFailed(
-            "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma".to_string()
+            "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma".to_string(),
         ));
     }
 
     println!("{}", "检查最新版本...".cyan());
 
-    let release = fetch_latest_release()
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to fetch release: {}", e)))?;
+    let release = fetch_latest_release().map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("Failed to fetch release: {}", e))
+    })?;
     let latest = release.tag_name.trim_start_matches('v');
     let current = PKG_VERSION;
 
     println!("当前版本: {}", format!("v{}", current).yellow());
     println!("最新版本: {}", format!("v{}", latest).green());
 
-    let latest_ver = semver::Version::parse(latest)
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("无法解析最新版本号: {} - {}", latest, e)))?;
-    let current_ver = semver::Version::parse(current)
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("无法解析当前版本号: {} - {}", current, e)))?;
+    let latest_ver = semver::Version::parse(latest).map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("无法解析最新版本号: {} - {}", latest, e))
+    })?;
+    let current_ver = semver::Version::parse(current).map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("无法解析当前版本号: {} - {}", current, e))
+    })?;
 
     if !args.force && current_ver >= latest_ver {
         println!("{}", "已经是最新版本，无需更新。".green());
@@ -111,23 +114,33 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
         println!("{}", "强制更新模式，继续更新...".yellow());
     }
 
-    let asset_name = get_asset_name(&release.tag_name)
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to get asset name: {}", e)))?;
+    let asset_name = get_asset_name(&release.tag_name).map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("Failed to get asset name: {}", e))
+    })?;
     let asset = release
         .assets
         .iter()
         .find(|a| a.name == asset_name)
-        .ok_or_else(|| super::CommandError::ExecutionFailed(format!("未找到适合当前平台的安装包: {}", asset_name)))?;
+        .ok_or_else(|| {
+            super::CommandError::ExecutionFailed(format!(
+                "未找到适合当前平台的安装包: {}",
+                asset_name
+            ))
+        })?;
 
     println!("下载 {}...", asset.name.cyan());
-    let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to download asset: {}", e)))?;
+    let data =
+        download_asset(&asset.url, &asset.browser_download_url, &asset.name).map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("Failed to download asset: {}", e))
+        })?;
     println!("{}", "下载完成".green());
 
-    let current_exe = env::current_exe()
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("无法获取当前可执行文件路径: {}", e)))?;
-    install_binary(&data, &asset.name, &current_exe)
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("Failed to install binary: {}", e)))?;
+    let current_exe = env::current_exe().map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("无法获取当前可执行文件路径: {}", e))
+    })?;
+    install_binary(&data, &asset.name, &current_exe).map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("Failed to install binary: {}", e))
+    })?;
 
     println!(
         "{}",

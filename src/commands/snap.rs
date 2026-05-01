@@ -61,13 +61,20 @@ impl DryRunContext {
         self.dry_run
     }
 
-    fn run_in_dir(&self, runner: &GitCommandRunner, program: &str, args: &[&str], dir: &Path) -> Result<()> {
+    fn run_in_dir(
+        &self,
+        runner: &GitCommandRunner,
+        program: &str,
+        args: &[&str],
+        dir: &Path,
+    ) -> Result<()> {
         if self.dry_run {
             self.print_dry_run_command(program, args, Some(dir));
             return Ok(());
         }
 
-        runner.execute_with_success_in_dir(args, dir)
+        runner
+            .execute_with_success_in_dir(args, dir)
             .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
@@ -104,7 +111,7 @@ pub struct SnapCommand;
 
 impl Command for SnapCommand {
     type Args = SnapArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         // Convert domain errors to command errors
         match execute_snap(args) {
@@ -163,7 +170,8 @@ fn execute_list(args: ListArgs) -> Result<()> {
         return Ok(());
     }
 
-    let output = runner.execute_quiet_in_dir(&["log", "--oneline"], project_path)
+    let output = runner
+        .execute_quiet_in_dir(&["log", "--oneline"], project_path)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -227,7 +235,8 @@ fn execute_restore(args: RestoreArgs) -> Result<()> {
         return Ok(());
     }
 
-    let output = runner.execute_raw_in_dir(&["checkout", &commit_ref], project_path)
+    let output = runner
+        .execute_raw_in_dir(&["checkout", &commit_ref], project_path)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -245,9 +254,14 @@ fn execute_restore(args: RestoreArgs) -> Result<()> {
 }
 
 /// Resolve snapshot reference to commit hash
-fn resolve_snapshot_ref(runner: &GitCommandRunner, project_path: &Path, snapshot: &str) -> Result<String> {
+fn resolve_snapshot_ref(
+    runner: &GitCommandRunner,
+    project_path: &Path,
+    snapshot: &str,
+) -> Result<String> {
     if snapshot.starts_with("snap-") {
-        let output = runner.execute_quiet_in_dir(&["log", "--oneline", "--grep", snapshot], project_path)
+        let output = runner
+            .execute_quiet_in_dir(&["log", "--oneline", "--grep", snapshot], project_path)
             .map_err(|e| anyhow::anyhow!("{}", e))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -260,7 +274,8 @@ fn resolve_snapshot_ref(runner: &GitCommandRunner, project_path: &Path, snapshot
     if let Some(index_str) = snapshot.strip_prefix('#')
         && let Ok(index) = index_str.parse::<usize>()
     {
-        let output = runner.execute_quiet_in_dir(&["log", "--oneline"], project_path)
+        let output = runner
+            .execute_quiet_in_dir(&["log", "--oneline"], project_path)
             .map_err(|e| anyhow::anyhow!("{}", e))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -284,7 +299,8 @@ fn resolve_snapshot_ref(runner: &GitCommandRunner, project_path: &Path, snapshot
         }
     }
 
-    let output = runner.execute_quiet_in_dir(&["rev-parse", "--verify", snapshot], project_path)
+    let output = runner
+        .execute_quiet_in_dir(&["rev-parse", "--verify", snapshot], project_path)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -296,7 +312,11 @@ fn resolve_snapshot_ref(runner: &GitCommandRunner, project_path: &Path, snapshot
 }
 
 /// Initialize a new snapshot repository
-fn do_initialize_snapshot(ctx: &DryRunContext, runner: &GitCommandRunner, work_dir: &Path) -> Result<()> {
+fn do_initialize_snapshot(
+    ctx: &DryRunContext,
+    runner: &GitCommandRunner,
+    work_dir: &Path,
+) -> Result<()> {
     ctx.run_in_dir(runner, "git", &["init"], work_dir)?;
     ctx.run_in_dir(runner, "git", &["add", "."], work_dir)?;
     ctx.run_in_dir(runner, "git", &["commit", "-m", "snap-000000"], work_dir)?;
@@ -305,7 +325,11 @@ fn do_initialize_snapshot(ctx: &DryRunContext, runner: &GitCommandRunner, work_d
 }
 
 /// Create incremental snapshot
-fn do_incremental_snapshot(ctx: &DryRunContext, runner: &GitCommandRunner, work_dir: &Path) -> Result<()> {
+fn do_incremental_snapshot(
+    ctx: &DryRunContext,
+    runner: &GitCommandRunner,
+    work_dir: &Path,
+) -> Result<()> {
     let has_changes = check_pending_changes(runner, work_dir);
 
     if !has_changes {
@@ -313,7 +337,8 @@ fn do_incremental_snapshot(ctx: &DryRunContext, runner: &GitCommandRunner, work_
         return Ok(());
     }
 
-    let output = runner.execute_raw_in_dir(&["rev-list", "--count", "HEAD"], work_dir)
+    let output = runner
+        .execute_raw_in_dir(&["rev-list", "--count", "HEAD"], work_dir)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
     let num_commit = String::from_utf8_lossy(&output.stdout)
         .trim()

@@ -69,11 +69,11 @@ impl GitLabClient {
         if status == 429 {
             return Err(GitLabError::RateLimited);
         }
-        
+
         if status != 200 {
-            let body = response
-                .into_string()
-                .map_err(|e| GitLabError::InvalidResponse(format!("Failed to read body: {}", e)))?;
+            let body = response.into_string().map_err(|e| {
+                GitLabError::InvalidResponse(format!("Failed to read body: {}", e))
+            })?;
             return Err(GitLabError::ApiError(format!(
                 "API returned error ({}): {}",
                 status, body
@@ -86,7 +86,11 @@ impl GitLabClient {
     }
 
     /// Make a GET request with query parameters
-    fn get_with_query<T: DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<T> {
+    fn get_with_query<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<T> {
         let query_str: String = query
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
@@ -108,11 +112,11 @@ impl GitLabClient {
         if status == 429 {
             return Err(GitLabError::RateLimited);
         }
-        
+
         if status != 200 {
-            let body = response
-                .into_string()
-                .map_err(|e| GitLabError::InvalidResponse(format!("Failed to read body: {}", e)))?;
+            let body = response.into_string().map_err(|e| {
+                GitLabError::InvalidResponse(format!("Failed to read body: {}", e))
+            })?;
             return Err(GitLabError::ApiError(format!(
                 "API returned error ({}): {}",
                 status, body
@@ -125,7 +129,11 @@ impl GitLabClient {
     }
 
     /// Get paginated results
-    fn get_paged<T: DeserializeOwned>(&self, path: &str, query: &[(&str, &str)]) -> Result<Vec<T>> {
+    fn get_paged<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<Vec<T>> {
         let mut all_items = Vec::new();
         let mut page = 1u32;
         let per_page = 100u32;
@@ -166,10 +174,7 @@ impl GitLabClient {
                 "include_subgroups",
                 if include_subgroups { "true" } else { "false" },
             ),
-            (
-                "archived",
-                if include_archived { "true" } else { "false" },
-            ),
+            ("archived", if include_archived { "true" } else { "false" }),
             ("order_by", "path"),
             ("sort", "asc"),
         ];
@@ -248,7 +253,7 @@ mod tests {
             token: Some("test-token".to_string()),
             default_protocol: CloneProtocol::Https,
         };
-        
+
         let client = GitLabClient::new(config);
         assert_eq!(client.base_url(), "https://gitlab.com");
         assert!(client.is_authenticated());
@@ -268,10 +273,10 @@ mod tests {
             token: None,
             default_protocol: CloneProtocol::Https,
         };
-        
+
         let client = GitLabClient::new(config);
         assert!(!client.is_authenticated());
-        
+
         // Should fail when trying to make a request without token
         let result = client.token();
         assert!(result.is_err());
@@ -284,7 +289,7 @@ mod tests {
             token: Some("test-token".to_string()),
             default_protocol: CloneProtocol::Https,
         };
-        
+
         let client = GitLabClient::new(config);
         assert_eq!(client.base_url(), "https://gitlab.com");
     }
@@ -296,7 +301,7 @@ mod tests {
             token: Some("test-token".to_string()),
             default_protocol: CloneProtocol::Https,
         };
-        
+
         let client = GitLabClient::new(config);
         assert_eq!(client.base_url(), "https://gitlab.com");
     }

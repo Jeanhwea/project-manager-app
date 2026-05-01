@@ -1,4 +1,6 @@
-use super::{FileEditor, EditorError, Result, VersionLocation, VersionPosition, preserve_line_endings};
+use super::{
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct PyprojectEditor;
@@ -99,7 +101,8 @@ impl FileEditor for PyprojectEditor {
         }
 
         Err(EditorError::VersionNotFound(
-            "pyproject.toml does not have version field in [project] or [tool.poetry] section".to_string(),
+            "pyproject.toml does not have version field in [project] or [tool.poetry] section"
+                .to_string(),
         ))
     }
 

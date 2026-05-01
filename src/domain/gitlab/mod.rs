@@ -11,19 +11,19 @@ pub mod models;
 pub enum GitLabError {
     #[error("Network error: {0}")]
     NetworkError(#[from] ureq::Error),
-    
+
     #[error("API error: {0}")]
     ApiError(String),
-    
+
     #[error("Authentication error: {0}")]
     AuthenticationError(String),
-    
+
     #[error("Invalid response: {0}")]
     InvalidResponse(String),
-    
+
     #[error("Rate limited")]
     RateLimited,
-    
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

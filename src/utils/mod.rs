@@ -6,8 +6,6 @@ pub mod file;
 pub mod git;
 pub mod path;
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;

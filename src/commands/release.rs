@@ -84,7 +84,7 @@ pub struct ReleaseCommand;
 
 impl Command for ReleaseCommand {
     type Args = ReleaseArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         // Convert domain errors to command errors
         match execute_release(args) {
@@ -101,21 +101,21 @@ impl Command for ReleaseCommand {
 fn execute_release(args: ReleaseArgs) -> Result<()> {
     // Resolve file paths
     let resolved_files = resolve_file_paths(&args.files);
-    
+
     // Switch to git root if needed
     if !args.no_root {
         switch_to_git_root()?;
     }
-    
+
     // Validate git state and prepare release
     let state = validate_git_state(&args)?;
-    
+
     // Create editor registry
     let registry = EditorRegistry::default_with_editors();
-    
+
     // Resolve configuration files
     let config_files = resolve_config_files(&registry, &resolved_files)?;
-    
+
     if args.dry_run {
         execute_dry_run(&args, &registry, &config_files, &state)
     } else {
@@ -144,54 +144,54 @@ fn switch_to_git_root() -> Result<()> {
     let runner = GitCommandRunner::new();
     let output = runner.execute(&["rev-parse", "--show-toplevel"])?;
     let root = output.trim();
-    
+
     if !root.is_empty() {
         std::env::set_current_dir(&root)
             .with_context(|| format!("无法切换到 git 根目录: {}", root))?;
     }
-    
+
     Ok(())
 }
 
 /// Validate git state and prepare release
 fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
     let runner = GitCommandRunner::new();
-    
+
     // Get current branch
     let current_branch = runner.execute(&["branch", "--show-current"])?;
     let current_branch = current_branch.trim().to_string();
-    
+
     // Check if on master branch (unless force is enabled)
     if !args.force && current_branch != "master" {
         anyhow::bail!("只能在 master 分支上执行 release");
     }
-    
+
     // Get current version tag
     let current_tag = get_current_version(&runner).unwrap_or_else(|| "v0.0.0".to_string());
-    
+
     // Check if HEAD is already tagged
     let rev_current_tag = runner.execute(&["rev-parse", &current_tag])?;
     let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
     if rev_current_tag.trim() == rev_head.trim() {
         anyhow::bail!("当前 HEAD 已被标记为 {}", current_tag);
     }
-    
+
     // Parse current version and bump it
     let version = parse_version_from_tag(&current_tag).unwrap_or_default();
     let new_version = version.bump(args.bump_type.as_str());
     let mut new_tag = new_version.to_tag();
-    
+
     // Add pre-release suffix if specified
     if let Some(pre) = &args.pre_release {
         new_tag = format!("{}-{}", new_tag, pre);
     }
-    
+
     // Prepare commit message
     let commit_message = match &args.message {
         Some(msg) => format!("{} {}", new_tag, msg),
         None => new_tag.clone(),
     };
-    
+
     // Print version change information
     println!(
         "{} {} -> {}",
@@ -199,11 +199,11 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
         current_tag.cyan(),
         new_tag.yellow().bold()
     );
-    
+
     if args.message.is_some() {
         println!("{} {}", "提交消息:".green().bold(), commit_message.yellow());
     }
-    
+
     Ok(GitState {
         current_branch,
         new_tag,
@@ -215,15 +215,15 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
 fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
     let output = runner.execute(&["tag", "-l", "v*"]).ok()?;
     let tags: Vec<&str> = output.lines().collect();
-    
+
     if tags.is_empty() {
         return None;
     }
-    
+
     // Sort tags by version
     let mut sorted_tags: Vec<String> = tags.iter().map(|s| s.to_string()).collect();
     sorted_tags.sort_by(|a, b| compare_versions(a, b));
-    
+
     sorted_tags.last().cloned()
 }
 
@@ -232,11 +232,11 @@ fn parse_version_from_tag(tag: &str) -> Option<Version> {
     let tag = tag.trim();
     let tag = tag.strip_prefix('v').unwrap_or(tag);
     let parts: Vec<&str> = tag.split('.').collect();
-    
+
     if parts.len() != 3 {
         return None;
     }
-    
+
     Some(Version {
         major: parts[0].parse().ok()?,
         minor: parts[1].parse().ok()?,
@@ -248,7 +248,7 @@ fn parse_version_from_tag(tag: &str) -> Option<Version> {
 fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
     let va = parse_version_from_tag(a);
     let vb = parse_version_from_tag(b);
-    
+
     match (va, vb) {
         (Some(va), Some(vb)) => {
             if va.major != vb.major {
@@ -271,7 +271,7 @@ fn resolve_config_files(
     if files.is_empty() {
         return detect_config_files(registry);
     }
-    
+
     files
         .iter()
         .map(|f| {
@@ -287,7 +287,7 @@ fn resolve_config_files(
 /// Detect configuration files automatically
 fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>> {
     let mut result = Vec::new();
-    
+
     for (pattern, is_dynamic) in CONFIG_FILE_CANDIDATES {
         if *is_dynamic && pattern.contains("{}") {
             for path in expand_glob_pattern(pattern) {
@@ -303,11 +303,11 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>
             result.push((pattern.to_string(), editor));
         }
     }
-    
+
     if result.is_empty() {
         anyhow::bail!("未检测到可编辑的配置文件");
     }
-    
+
     Ok(result)
 }
 
@@ -318,18 +318,18 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
         Some(pair) => pair,
         None => return results,
     };
-    
+
     let scan_dir = if prefix.is_empty() {
         ".".to_string()
     } else {
         prefix.trim_end_matches('/').to_string()
     };
-    
+
     let entries = match std::fs::read_dir(&scan_dir) {
         Ok(e) => e,
         Err(_) => return results,
     };
-    
+
     for entry in entries.flatten() {
         if entry.path().is_dir() {
             let dir_name = entry.file_name().to_string_lossy().to_string();
@@ -340,7 +340,7 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
             results.push(candidate);
         }
     }
-    
+
     results
 }
 
@@ -355,18 +355,18 @@ fn execute_dry_run(
     for (file_path, editor) in config_files {
         print_file_diff(registry, editor.as_ref(), &state.new_tag, file_path)?;
     }
-    
+
     println!("\n[DRY-RUN] 将要执行的操作:");
     for (file_path, _editor) in config_files {
         print_lockfile_update_plan(file_path);
     }
-    
+
     println!("  [DRY-RUN] git add <files>");
     println!("  [DRY-RUN] git commit -m \"{}\"", state.commit_message);
     println!("  [DRY-RUN] git tag {}", state.new_tag);
-    
+
     print_push_plan(args.skip_push, &state.current_branch, &state.new_tag);
-    
+
     Ok(())
 }
 
@@ -378,26 +378,26 @@ fn execute_release_operations(
     state: &GitState,
 ) -> Result<()> {
     let runner = GitCommandRunner::new();
-    
+
     // Update files and lockfiles
     for (file_path, editor) in config_files {
         edit_version_in_file(registry, editor.as_ref(), &state.new_tag, file_path)?;
         update_lockfile_after_edit(file_path)?;
         runner.execute_with_success(&["add", file_path])?;
     }
-    
+
     // Show staged changes
     runner.execute_with_success(&["diff", "--cached"])?;
-    
+
     // Commit changes
     runner.execute_with_success(&["commit", "-m", &state.commit_message])?;
-    
+
     // Create tag
     runner.execute_with_success(&["tag", &state.new_tag])?;
-    
+
     // Push to remotes
     push_to_remotes(args.skip_push, &state.current_branch, &state.new_tag)?;
-    
+
     Ok(())
 }
 
@@ -409,12 +409,12 @@ fn print_file_diff(
     config_file: &str,
 ) -> Result<()> {
     let (original, edited) = compute_edited_content(registry, editor, tag, config_file)?;
-    
+
     println!("\n  {}", config_file.blue().underline());
-    
+
     let old_lines: Vec<&str> = original.lines().collect();
     let new_lines: Vec<&str> = edited.lines().collect();
-    
+
     for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter())) {
         if old_line != new_line {
             println!("    {} {}", format!("L{}:", line_num).dimmed(), "-".red());
@@ -423,7 +423,7 @@ fn print_file_diff(
             println!("      {}", new_line.green());
         }
     }
-    
+
     Ok(())
 }
 
@@ -437,9 +437,9 @@ fn compute_edited_content(
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file)
         .with_context(|| format!("无法读取 {}", config_file))?;
-    
+
     let edited = registry.edit_version(editor, &content, version)?;
-    
+
     Ok((content, edited))
 }
 
@@ -463,7 +463,7 @@ fn print_lockfile_update_plan(config_file: &str) {
     } else {
         parent
     };
-    
+
     if config_file.ends_with("Cargo.toml") && dir.join("Cargo.lock").exists() {
         println!("  [DRY-RUN] cargo update --package <name>");
     } else if config_file.ends_with("package.json") {
@@ -497,12 +497,12 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     } else {
         parent
     };
-    
+
     let lock_path = dir.join("Cargo.lock");
     if !lock_path.exists() {
         return Ok(());
     }
-    
+
     if is_gitignored(&lock_path) {
         println!(
             "  {} Cargo.lock 在 .gitignore 中，跳过更新",
@@ -510,10 +510,10 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
         );
         return Ok(());
     }
-    
+
     let pkg_name = read_cargo_package_name(cargo_toml_path)?;
     let runner = GitCommandRunner::new();
-    
+
     // Note: We're using the runner to execute cargo commands
     // This assumes cargo is available on the system
     let status = std::process::Command::new("cargo")
@@ -521,11 +521,11 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
         .current_dir(dir)
         .status()
         .with_context(|| "无法执行 cargo update")?;
-    
+
     if !status.success() {
         anyhow::bail!("cargo update --package {} 执行失败", pkg_name);
     }
-    
+
     let lock_str = lock_path.to_string_lossy().to_string();
     runner.execute_with_success(&["add", &lock_str])?;
     Ok(())
@@ -541,14 +541,14 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
     } else {
         parent
     };
-    
+
     let lock_dir = find_lock_dir(pkg_dir, "package-lock.json");
     let Some(lock_dir) = lock_dir else {
         return Ok(());
     };
-    
+
     let lock_path = lock_dir.join("package-lock.json");
-    
+
     if is_gitignored(&lock_path) {
         println!(
             "  {} package-lock.json 在 .gitignore 中，跳过更新",
@@ -556,17 +556,17 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
         );
         return Ok(());
     }
-    
+
     let status = std::process::Command::new("npm")
         .args(&["install", "--package-lock-only"])
         .current_dir(&lock_dir)
         .status()
         .with_context(|| "无法执行 npm install")?;
-    
+
     if !status.success() {
         eprintln!("npm install --package-lock-only 执行失败");
     }
-    
+
     let lock_str = lock_path.to_string_lossy().to_string();
     let runner = GitCommandRunner::new();
     runner.execute_with_success(&["add", &lock_str])?;
@@ -583,14 +583,14 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     } else {
         parent
     };
-    
+
     let lock_dir = find_lock_dir(pkg_dir, "pnpm-lock.yaml");
     let Some(lock_dir) = lock_dir else {
         return Ok(());
     };
-    
+
     let lock_path = lock_dir.join("pnpm-lock.yaml");
-    
+
     if is_gitignored(&lock_path) {
         println!(
             "  {} pnpm-lock.yaml 在 .gitignore 中，跳过更新",
@@ -598,17 +598,17 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
         );
         return Ok(());
     }
-    
+
     let status = std::process::Command::new("pnpm")
         .args(&["install", "--lockfile-only"])
         .current_dir(&lock_dir)
         .status()
         .with_context(|| "无法执行 pnpm install")?;
-    
+
     if !status.success() {
         eprintln!("pnpm install --lockfile-only 执行失败");
     }
-    
+
     let lock_str = lock_path.to_string_lossy().to_string();
     let runner = GitCommandRunner::new();
     runner.execute_with_success(&["add", &lock_str])?;
@@ -635,10 +635,10 @@ fn is_gitignored(file_path: &Path) -> bool {
     let Some(parent) = file_path.parent() else {
         return false;
     };
-    
+
     let runner = GitCommandRunner::new();
     let output = runner.execute_quiet_in_dir(&["check-ignore", file_name], parent);
-    
+
     match output {
         Ok(output) => output.status.success(),
         Err(_) => false,
@@ -669,13 +669,16 @@ fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
     if skip_push {
         return;
     }
-    
+
     let runner = GitCommandRunner::new();
     let remotes = match runner.execute(&["remote"]) {
-        Ok(output) => output.lines().map(|s| s.trim().to_string()).collect::<Vec<_>>(),
+        Ok(output) => output
+            .lines()
+            .map(|s| s.trim().to_string())
+            .collect::<Vec<_>>(),
         Err(_) => return,
     };
-    
+
     for remote in remotes {
         println!("  [DRY-RUN] git push {} {}", remote, new_tag);
         println!("  [DRY-RUN] git push {} {}", remote, current_branch);
@@ -687,13 +690,16 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
     if skip_push {
         return Ok(());
     }
-    
+
     let runner = GitCommandRunner::new();
     let remotes = match runner.execute(&["remote"]) {
-        Ok(output) => output.lines().map(|s| s.trim().to_string()).collect::<Vec<_>>(),
+        Ok(output) => output
+            .lines()
+            .map(|s| s.trim().to_string())
+            .collect::<Vec<_>>(),
         Err(_) => return Ok(()),
     };
-    
+
     for remote in remotes {
         if let Err(e) = runner.execute_with_success(&["push", &remote, new_tag]) {
             eprintln!("警告: 推送标签失败: {}", e);
@@ -702,7 +708,7 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
             eprintln!("警告: 推送分支失败: {}", e);
         }
     }
-    
+
     Ok(())
 }
 
@@ -734,7 +740,7 @@ impl Version {
             },
         }
     }
-    
+
     fn to_tag(&self) -> String {
         format!("v{}.{}.{}", self.major, self.minor, self.patch)
     }
@@ -744,14 +750,14 @@ impl Version {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    
+
     #[test]
     fn test_bump_type_as_str() {
         assert_eq!(BumpType::Major.as_str(), "major");
         assert_eq!(BumpType::Minor.as_str(), "minor");
         assert_eq!(BumpType::Patch.as_str(), "patch");
     }
-    
+
     #[test]
     fn test_version_parsing() {
         // Test valid version parsing
@@ -759,19 +765,19 @@ mod tests {
         assert_eq!(version.major, 1);
         assert_eq!(version.minor, 2);
         assert_eq!(version.patch, 3);
-        
+
         // Test version without v prefix
         let version = parse_version_from_tag("2.3.4").unwrap();
         assert_eq!(version.major, 2);
         assert_eq!(version.minor, 3);
         assert_eq!(version.patch, 4);
-        
+
         // Test invalid version parsing
         assert!(parse_version_from_tag("invalid").is_none());
         assert!(parse_version_from_tag("1.2").is_none());
         assert!(parse_version_from_tag("v1.2").is_none());
     }
-    
+
     #[test]
     fn test_version_bumping() {
         let version = Version {
@@ -779,32 +785,32 @@ mod tests {
             minor: 2,
             patch: 3,
         };
-        
+
         // Test major bump
         let bumped = version.bump("major");
         assert_eq!(bumped.major, 2);
         assert_eq!(bumped.minor, 0);
         assert_eq!(bumped.patch, 0);
-        
+
         // Test minor bump
         let bumped = version.bump("minor");
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 3);
         assert_eq!(bumped.patch, 0);
-        
+
         // Test patch bump
         let bumped = version.bump("patch");
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 2);
         assert_eq!(bumped.patch, 4);
-        
+
         // Test default bump (should be patch)
         let bumped = version.bump("unknown");
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 2);
         assert_eq!(bumped.patch, 4);
     }
-    
+
     #[test]
     fn test_version_to_tag() {
         let version = Version {
@@ -814,36 +820,54 @@ mod tests {
         };
         assert_eq!(version.to_tag(), "v1.2.3");
     }
-    
+
     #[test]
     fn test_compare_versions() {
         // Test version comparison
-        assert_eq!(compare_versions("v1.2.3", "v1.2.4"), std::cmp::Ordering::Greater);
-        assert_eq!(compare_versions("v1.2.4", "v1.2.3"), std::cmp::Ordering::Less);
-        assert_eq!(compare_versions("v1.2.3", "v1.2.3"), std::cmp::Ordering::Equal);
-        
+        assert_eq!(
+            compare_versions("v1.2.3", "v1.2.4"),
+            std::cmp::Ordering::Greater
+        );
+        assert_eq!(
+            compare_versions("v1.2.4", "v1.2.3"),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            compare_versions("v1.2.3", "v1.2.3"),
+            std::cmp::Ordering::Equal
+        );
+
         // Test with different major versions
-        assert_eq!(compare_versions("v2.0.0", "v1.9.9"), std::cmp::Ordering::Less);
-        assert_eq!(compare_versions("v1.9.9", "v2.0.0"), std::cmp::Ordering::Greater);
-        
+        assert_eq!(
+            compare_versions("v2.0.0", "v1.9.9"),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            compare_versions("v1.9.9", "v2.0.0"),
+            std::cmp::Ordering::Greater
+        );
+
         // Test invalid versions fall back to string comparison
-        assert_eq!(compare_versions("invalid", "v1.2.3"), std::cmp::Ordering::Greater);
+        assert_eq!(
+            compare_versions("invalid", "v1.2.3"),
+            std::cmp::Ordering::Greater
+        );
     }
-    
+
     #[test]
     fn test_resolve_file_paths() {
         // Test with absolute path
         let files = vec!["/absolute/path".to_string()];
         let resolved = resolve_file_paths(&files);
         assert_eq!(resolved, vec!["/absolute/path".to_string()]);
-        
+
         // Test with relative path (will be canonicalized in real scenario)
         let files = vec!["relative/path".to_string()];
         let resolved = resolve_file_paths(&files);
         // In test, canonicalize_path might fail, so it returns the original
         assert_eq!(resolved.len(), 1);
     }
-    
+
     #[test]
     fn test_expand_glob_pattern() {
         // Create a temporary directory with subdirectories
@@ -852,28 +876,28 @@ mod tests {
         let dir2 = temp_dir.path().join("dir2");
         std::fs::create_dir(&dir1).unwrap();
         std::fs::create_dir(&dir2).unwrap();
-        
+
         // Change to temp directory
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
-        
+
         // Test pattern expansion
         let pattern = "{}/package.json";
         let expanded = expand_glob_pattern(pattern);
-        
+
         // Should find dir1 and dir2
         assert!(expanded.contains(&"dir1/package.json".to_string()));
         assert!(expanded.contains(&"dir2/package.json".to_string()));
-        
+
         // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
     }
-    
+
     #[test]
     fn test_read_cargo_package_name() {
         let temp_dir = tempdir().unwrap();
         let cargo_toml_path = temp_dir.path().join("Cargo.toml");
-        
+
         // Create a test Cargo.toml file
         let content = r#"[package]
 name = "test-package"
@@ -881,28 +905,28 @@ version = "0.1.0"
 
 [dependencies]
 serde = "1.0""#;
-        
+
         std::fs::write(&cargo_toml_path, content).unwrap();
-        
+
         let package_name = read_cargo_package_name(&cargo_toml_path.to_string_lossy()).unwrap();
         assert_eq!(package_name, "test-package");
     }
-    
+
     #[test]
     fn test_read_cargo_package_name_not_found() {
         let temp_dir = tempdir().unwrap();
         let cargo_toml_path = temp_dir.path().join("Cargo.toml");
-        
+
         // Create a Cargo.toml file without package name
         let content = r#"[dependencies]
 serde = "1.0""#;
-        
+
         std::fs::write(&cargo_toml_path, content).unwrap();
-        
+
         let result = read_cargo_package_name(&cargo_toml_path.to_string_lossy());
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_release_args_structure() {
         // Test that ReleaseArgs can be created
@@ -916,7 +940,7 @@ serde = "1.0""#;
             message: Some("Test release".to_string()),
             pre_release: None,
         };
-        
+
         assert_eq!(args.bump_type.as_str(), "patch");
         assert_eq!(args.files.len(), 1);
         assert!(!args.no_root);

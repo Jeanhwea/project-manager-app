@@ -43,10 +43,12 @@ impl DryRunContext {
 
         let runner = GitCommandRunner::new();
         if let Some(d) = dir {
-            runner.execute_with_success_in_dir(args, d)
+            runner
+                .execute_with_success_in_dir(args, d)
                 .map_err(|e| anyhow::anyhow!("Command failed: {}", e))?;
         } else {
-            runner.execute_with_success(args)
+            runner
+                .execute_with_success(args)
                 .map_err(|e| anyhow::anyhow!("Command failed: {}", e))?;
         }
         Ok(())
@@ -108,7 +110,7 @@ struct Submodule {
 
 impl Command for ForkCommand {
     type Args = ForkArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         let root_dir = Path::new(&args.path);
 
@@ -127,8 +129,7 @@ impl Command for ForkCommand {
             )));
         }
 
-        let curr_dir = std::env::current_dir()
-            .map_err(|e| super::CommandError::Io(e))?;
+        let curr_dir = std::env::current_dir().map_err(|e| super::CommandError::Io(e))?;
         let project_dir = curr_dir.join(&args.name);
 
         if project_dir.exists() {
@@ -189,14 +190,15 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
     }
 
     let runner = GitCommandRunner::new();
-    let output = runner.execute_quiet_in_dir(
-        &["config", "--file", ".gitmodules", "--get-regexp", "path"],
-        project_dir,
-    )
-    .with_context(|| "Failed to read .gitmodules configuration")?;
+    let output = runner
+        .execute_quiet_in_dir(
+            &["config", "--file", ".gitmodules", "--get-regexp", "path"],
+            project_dir,
+        )
+        .with_context(|| "Failed to read .gitmodules configuration")?;
 
-    let content = String::from_utf8(output.stdout)
-        .with_context(|| "Failed to parse .gitmodules output")?;
+    let content =
+        String::from_utf8(output.stdout).with_context(|| "Failed to parse .gitmodules output")?;
 
     let mut submodules = Vec::new();
 
@@ -211,17 +213,18 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
             continue;
         }
 
-        let url_output = runner.execute_quiet_in_dir(
-            &[
-                "config",
-                "--file",
-                ".gitmodules",
-                "--get",
-                &format!("submodule.{}.url", submodule_path),
-            ],
-            project_dir,
-        )
-        .with_context(|| format!("Failed to get URL for submodule {}", submodule_path))?;
+        let url_output = runner
+            .execute_quiet_in_dir(
+                &[
+                    "config",
+                    "--file",
+                    ".gitmodules",
+                    "--get",
+                    &format!("submodule.{}.url", submodule_path),
+                ],
+                project_dir,
+            )
+            .with_context(|| format!("Failed to get URL for submodule {}", submodule_path))?;
 
         let url = String::from_utf8(url_output.stdout)
             .with_context(|| "Failed to parse submodule URL")?;
@@ -241,7 +244,7 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
 fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::Error> {
     let runner = GitCommandRunner::new();
     let remote_names_output = runner.execute_quiet_in_dir(&["remote"], project_dir);
-    
+
     let remote_names: Vec<String> = match remote_names_output {
         Ok(output) => {
             let stdout = String::from_utf8(output.stdout)
@@ -274,7 +277,11 @@ fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::
     Ok(remotes)
 }
 
-fn do_init_project(ctx: &DryRunContext, repo_url: &str, project_dir: &Path) -> Result<(), anyhow::Error> {
+fn do_init_project(
+    ctx: &DryRunContext,
+    repo_url: &str,
+    project_dir: &Path,
+) -> Result<(), anyhow::Error> {
     let project_name = project_dir
         .file_name()
         .unwrap_or_default()
@@ -282,15 +289,26 @@ fn do_init_project(ctx: &DryRunContext, repo_url: &str, project_dir: &Path) -> R
 
     // Clone the repository
     let runner = GitCommandRunner::new();
-    runner.execute_with_success(&["clone", repo_url, project_dir.to_str().unwrap_or("")])
-        .with_context(|| format!("Failed to clone repository {} to {}", repo_url, project_dir.display()))?;
+    runner
+        .execute_with_success(&["clone", repo_url, project_dir.to_str().unwrap_or("")])
+        .with_context(|| {
+            format!(
+                "Failed to clone repository {} to {}",
+                repo_url,
+                project_dir.display()
+            )
+        })?;
 
     let submodules = get_submodules(project_dir)?;
 
     do_reinit_repo(ctx, project_dir, &project_name, &submodules, repo_url)
 }
 
-fn do_perform_actions(ctx: &DryRunContext, project_dir: &Path, project_name: &str) -> Result<(), anyhow::Error> {
+fn do_perform_actions(
+    ctx: &DryRunContext,
+    project_dir: &Path,
+    project_name: &str,
+) -> Result<(), anyhow::Error> {
     let pma_config = project_dir.join(".pma.json");
     if !pma_config.exists() {
         return Ok(());
@@ -408,7 +426,11 @@ fn generate_new_remote_url(original_url: &str, project_name: &str) -> Option<Str
                     if original_url.starts_with("ssh://") {
                         Some(format!("ssh://{}/{}", host, new_path))
                     } else {
-                        Some(format!("git@{host}:{new_path}", host = host, new_path = new_path))
+                        Some(format!(
+                            "git@{host}:{new_path}",
+                            host = host,
+                            new_path = new_path
+                        ))
                     }
                 }
                 GitProtocol::Https => Some(format!("https://{}/{}", host, new_path)),
@@ -490,7 +512,12 @@ fn do_reinit_repo(
     }
 
     ctx.run_in_dir("git", &["init"], Some(project_dir))
-        .with_context(|| format!("Failed to initialize Git repository at {}", project_dir.display()))?;
+        .with_context(|| {
+            format!(
+                "Failed to initialize Git repository at {}",
+                project_dir.display()
+            )
+        })?;
 
     for submodule in submodules {
         ctx.run_in_dir(
@@ -529,10 +556,20 @@ fn do_reinit_repo(
     }
 
     ctx.run_in_dir("git", &["add", "."], Some(project_dir))
-        .with_context(|| format!("Failed to add all files to Git repository {}", project_dir.display()))?;
+        .with_context(|| {
+            format!(
+                "Failed to add all files to Git repository {}",
+                project_dir.display()
+            )
+        })?;
 
     ctx.run_in_dir("git", &["commit", "-m", "v0.0.0"], Some(project_dir))
-        .with_context(|| format!("Failed to commit initialization to Git repository {}", project_dir.display()))?;
+        .with_context(|| {
+            format!(
+                "Failed to commit initialization to Git repository {}",
+                project_dir.display()
+            )
+        })?;
 
     Ok(())
 }
@@ -548,7 +585,7 @@ mod tests {
             name: "test-project".to_string(),
             dry_run: true,
         };
-        
+
         assert_eq!(args.path, "/test/path");
         assert_eq!(args.name, "test-project");
         assert!(args.dry_run);
@@ -558,7 +595,7 @@ mod tests {
     fn test_dry_run_context() {
         let ctx = DryRunContext::new(true);
         assert!(ctx.is_dry_run());
-        
+
         let ctx = DryRunContext::new(false);
         assert!(!ctx.is_dry_run());
     }
@@ -568,7 +605,7 @@ mod tests {
         let project_name = "MyProject";
         let template = "Project: ${PMA_PROJECT_NAME}, Kebab: ${PMA_PROJECT_NAME_KEBAB}, Pascal: ${PMA_PROJECT_NAME_PASCAL}";
         let resolved = resolve_placeholders(template, project_name);
-        
+
         assert!(resolved.contains("Project: MyProject"));
         assert!(resolved.contains("Kebab: my-project"));
         assert!(resolved.contains("Pascal: MyProject"));
@@ -583,7 +620,7 @@ mod tests {
         assert_eq!(protocol, GitProtocol::Ssh);
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
-        
+
         // Test HTTPS URLs
         let result = parse_git_remote_url("https://github.com/user/repo.git");
         assert!(result.is_some());
@@ -591,7 +628,7 @@ mod tests {
         assert_eq!(protocol, GitProtocol::Https);
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
-        
+
         // Test HTTP URLs
         let result = parse_git_remote_url("http://github.com/user/repo.git");
         assert!(result.is_some());
@@ -613,13 +650,19 @@ mod tests {
         // Test SSH URL generation
         let original = "git@github.com:user/original.git";
         let new_url = generate_new_remote_url(original, "new-project");
-        assert_eq!(new_url, Some("git@github.com:user/new-project.git".to_string()));
-        
+        assert_eq!(
+            new_url,
+            Some("git@github.com:user/new-project.git".to_string())
+        );
+
         // Test HTTPS URL generation
         let original = "https://github.com/user/original.git";
         let new_url = generate_new_remote_url(original, "new-project");
-        assert_eq!(new_url, Some("https://github.com/user/new-project.git".to_string()));
-        
+        assert_eq!(
+            new_url,
+            Some("https://github.com/user/new-project.git".to_string())
+        );
+
         // Test URL without slash in path
         let original = "git@github.com:original.git";
         let new_url = generate_new_remote_url(original, "new-project");

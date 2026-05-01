@@ -20,7 +20,7 @@ pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
     let major = parts.next().and_then(|s| s.parse::<u32>().ok());
     let minor = parts.next().and_then(|s| s.parse::<u32>().ok());
     let patch = parts.next().and_then(|s| s.parse::<u32>().ok());
-    
+
     match (major, minor, patch) {
         (Some(major), Some(minor), Some(patch)) => {
             let (new_major, new_minor, new_patch) = match bump_type {
@@ -28,10 +28,10 @@ pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
                 BumpType::Minor => (major, minor + 1, 0),
                 BumpType::Patch => (major, minor, patch + 1),
                 BumpType::PreRelease(label) => {
-                    return Ok(format!("{}.{}.{}-{}", major, minor, patch, label))
+                    return Ok(format!("{}.{}.{}-{}", major, minor, patch, label));
                 }
                 BumpType::Build(label) => {
-                    return Ok(format!("{}.{}.{}+{}", major, minor, patch, label))
+                    return Ok(format!("{}.{}.{}+{}", major, minor, patch, label));
                 }
             };
             Ok(format!("{}.{}.{}", new_major, new_minor, new_patch))
@@ -66,7 +66,7 @@ impl Default for EditorConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_apply_bump() {
         assert_eq!(apply_bump("1.2.3", &BumpType::Major).unwrap(), "2.0.0");
@@ -80,12 +80,12 @@ mod tests {
             apply_bump("1.2.3", &BumpType::Build("20240101".to_string())).unwrap(),
             "1.2.3+20240101"
         );
-        
+
         // Test invalid versions
         assert!(apply_bump("invalid", &BumpType::Patch).is_err());
         assert!(apply_bump("1.2", &BumpType::Patch).is_err());
     }
-    
+
     #[test]
     fn test_editor_config_default() {
         let config = EditorConfig::default();

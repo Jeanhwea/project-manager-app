@@ -64,10 +64,12 @@ impl DryRunContext {
             Ok(())
         } else {
             if let Some(dir) = dir {
-                runner.execute_with_success_in_dir(args, dir)
+                runner
+                    .execute_with_success_in_dir(args, dir)
                     .map_err(|e| anyhow::anyhow!("{}", e))
             } else {
-                runner.execute_with_success(args)
+                runner
+                    .execute_with_success(args)
                     .map_err(|e| anyhow::anyhow!("{}", e))
             }
         }
@@ -79,7 +81,7 @@ pub struct SyncCommand;
 
 impl Command for SyncCommand {
     type Args = SyncArgs;
-    
+
     fn execute(args: Self::Args) -> CommandResult {
         // Convert domain errors to command errors
         match execute_sync(args) {
@@ -95,7 +97,7 @@ impl Command for SyncCommand {
 /// Main sync execution function
 fn execute_sync(args: SyncArgs) -> Result<()> {
     let walker = RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3))?;
-    
+
     if walker.is_empty() {
         println!("未找到 Git 仓库");
         return Ok(());
@@ -114,10 +116,7 @@ fn execute_sync(args: SyncArgs) -> Result<()> {
         if !ctx.is_dry_run() && !is_workdir_clean(repo_path)? {
             let runner = GitCommandRunner::new();
             runner.execute_with_success_in_dir(&["status"], repo_path)?;
-            println!(
-                "  无法同步不干净工作目录: {}",
-                format_path(repo_path).red()
-            );
+            println!("  无法同步不干净工作目录: {}", format_path(repo_path).red());
             return Ok(());
         }
 
@@ -132,24 +131,24 @@ fn execute_sync(args: SyncArgs) -> Result<()> {
 
         Ok(())
     })?;
-    
+
     Ok(())
 }
 
 /// Display repository information
 fn do_info_repository(repo_path: &Path) -> Result<()> {
     let runner = GitCommandRunner::new();
-    
+
     // Get branch information
     if let Err(e) = runner.execute_with_success_in_dir(&["branch", "--list"], repo_path) {
         println!("  无法获取分支信息: {}", e);
     }
-    
+
     // Get remote information
     if let Err(e) = runner.execute_with_success_in_dir(&["remote", "-v"], repo_path) {
         println!("  无法获取远程信息: {}", e);
     }
-    
+
     Ok(())
 }
 
@@ -159,10 +158,9 @@ fn get_tracking_remote_info(
     remotes: &[(String, String)],
 ) -> Option<(String, String)> {
     let runner = GitCommandRunner::new();
-    let output = runner.execute_quiet_in_dir(
-        &["rev-parse", "--abbrev-ref", "HEAD@{upstream}"],
-        repo_path,
-    ).ok()?;
+    let output = runner
+        .execute_quiet_in_dir(&["rev-parse", "--abbrev-ref", "HEAD@{upstream}"], repo_path)
+        .ok()?;
 
     let upstream = String::from_utf8(output.stdout).ok()?;
     let (remote, _) = upstream.trim().split_once('/')?;
@@ -183,7 +181,8 @@ fn do_sync_repository(
     // Get remote information
     let remote_manager = RemoteManager::new();
     let remotes = match remote_manager.list_remotes(repo_path) {
-        Ok(remotes) => remotes.into_iter()
+        Ok(remotes) => remotes
+            .into_iter()
             .map(|r| (r.name, r.url))
             .collect::<Vec<_>>(),
         Err(_) => {
@@ -191,7 +190,7 @@ fn do_sync_repository(
             return;
         }
     };
-    
+
     if remotes.is_empty() {
         ctx.print_message("无远程仓库");
         return;
@@ -272,17 +271,18 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     if skip_remotes.iter().any(|s| s.as_str() == remote) {
         return true;
     }
-    
+
     let config_manager = MultiSourceConfigManager::new();
     let config = match config_manager.load_with_manager() {
         Ok(config) => config,
         Err(_) => return false,
     };
-    
+
     if let Some((protocol, host, path)) = parse_git_remote_url(url) {
         use crate::domain::git::GitProtocol;
-        
-        if protocol == GitProtocol::Https && config.git.skip_push_hosts.iter().any(|h| h == &host) {
+
+        if protocol == GitProtocol::Https && config.git.skip_push_hosts.iter().any(|h| h == &host)
+        {
             return true;
         }
         if protocol == GitProtocol::Ssh && host == "gitee.com" && path.starts_with("red_base") {
@@ -291,7 +291,7 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     } else {
         println!("  未知协议或主机: {}", url);
     }
-    
+
     false
 }
 
@@ -299,17 +299,19 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
 fn parse_git_remote_url(url: &str) -> Option<(crate::domain::git::GitProtocol, String, String)> {
     use crate::domain::git::GitProtocol;
     use crate::domain::git::remote::Remote;
-    
+
     let protocol = Remote::parse_url(url).ok()?;
     let (host, path) = Remote::extract_host_and_path(url)?;
-    
+
     Some((protocol, host, path))
 }
 
 /// List local branches in a repository
 fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
     let runner = GitCommandRunner::new();
-    let output = runner.execute_quiet_in_dir(&["branch", "--list"], repo_path).ok()?;
+    let output = runner
+        .execute_quiet_in_dir(&["branch", "--list"], repo_path)
+        .ok()?;
     let stdout = String::from_utf8(output.stdout).ok()?;
     let lines: Vec<_> = stdout.lines().collect();
 
@@ -349,11 +351,7 @@ fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
 fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
     let runner = GitCommandRunner::new();
     if let Err(e) = runner.execute_with_success_in_dir(&["checkout", branch], repo_path) {
-        println!(
-            "  切换分支失败: {} - {}",
-            format_path(repo_path).red(),
-            e
-        );
+        println!("  切换分支失败: {} - {}", format_path(repo_path).red(), e);
         return;
     }
     do_pull_repository(repo_path, rebase);
@@ -368,11 +366,7 @@ fn do_pull_repository(repo_path: &Path, rebase: bool) {
     };
     let runner = GitCommandRunner::new();
     if let Err(e) = runner.execute_with_success_in_dir(&args, repo_path) {
-        println!(
-            "  同步仓库失败: {} - {}",
-            format_path(repo_path).red(),
-            e
-        );
+        println!("  同步仓库失败: {} - {}", format_path(repo_path).red(), e);
     }
 }
 
@@ -387,16 +381,16 @@ fn is_workdir_clean(repo_path: &Path) -> Result<bool> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    
+
     #[test]
     fn test_dry_run_context() {
         let ctx = DryRunContext::new(true);
         assert!(ctx.is_dry_run());
-        
+
         let ctx = DryRunContext::new(false);
         assert!(!ctx.is_dry_run());
     }
-    
+
     #[test]
     fn test_sync_args_structure() {
         let args = SyncArgs {
@@ -408,7 +402,7 @@ mod tests {
             fetch_only: false,
             rebase: true,
         };
-        
+
         assert_eq!(args.max_depth, Some(3));
         assert_eq!(args.skip_remotes, vec!["origin"]);
         assert!(args.all_branch);
@@ -417,7 +411,7 @@ mod tests {
         assert!(!args.fetch_only);
         assert!(args.rebase);
     }
-    
+
     #[test]
     fn test_parse_git_remote_url() {
         // Test SSH URL
@@ -429,7 +423,7 @@ mod tests {
             assert_eq!(host, "github.com");
             assert_eq!(path, "user/repo.git");
         }
-        
+
         // Test HTTPS URL
         let result = parse_git_remote_url("https://github.com/user/repo.git");
         assert!(result.is_some());
@@ -439,32 +433,40 @@ mod tests {
             assert_eq!(host, "github.com");
             assert_eq!(path, "user/repo.git");
         }
-        
+
         // Test invalid URL
         let result = parse_git_remote_url("invalid-url");
         assert!(result.is_none());
     }
-    
+
     #[test]
     fn test_should_skip_push() {
         // Test skip by remote name
-        assert!(should_skip_push("origin", "https://example.com/repo.git", &["origin".to_string()]));
-        
+        assert!(should_skip_push(
+            "origin",
+            "https://example.com/repo.git",
+            &["origin".to_string()]
+        ));
+
         // Test not skipped
-        assert!(!should_skip_push("origin", "https://example.com/repo.git", &["upstream".to_string()]));
+        assert!(!should_skip_push(
+            "origin",
+            "https://example.com/repo.git",
+            &["upstream".to_string()]
+        ));
     }
-    
+
     #[test]
     fn test_is_workdir_clean() {
         let temp_dir = tempdir().unwrap();
         let repo_path = temp_dir.path();
-        
+
         // Initialize a git repository
         let _ = std::process::Command::new("git")
             .arg("init")
             .current_dir(repo_path)
             .output();
-        
+
         // New repository should be clean
         let result = is_workdir_clean(repo_path);
         // This might fail if git is not available, but we test the function signature

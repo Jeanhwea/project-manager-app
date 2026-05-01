@@ -1,4 +1,6 @@
-use super::{FileEditor, EditorError, Result, VersionLocation, VersionPosition, preserve_line_endings};
+use super::{
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+};
 use std::path::Path;
 
 pub struct CMakeListsEditor;

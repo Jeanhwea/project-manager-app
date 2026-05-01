@@ -68,7 +68,7 @@ impl Repository {
     /// * `GitError::Io` - If there's an I/O error reading the repository
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
-        
+
         // Check if the path exists
         if !path.exists() {
             return Err(GitError::RepositoryNotFound(format!(
@@ -76,7 +76,7 @@ impl Repository {
                 path.display()
             )));
         }
-        
+
         // Check if it's a Git repository
         let git_path = path.join(".git");
         if !git_path.exists() {
@@ -85,14 +85,14 @@ impl Repository {
                 path.display()
             )));
         }
-        
+
         // Determine repository type
         let repo_type = if git_path.is_dir() {
             RepoType::Regular
         } else {
             RepoType::Submodule
         };
-        
+
         // Create initial repository instance
         let mut repo = Self {
             path: canonicalize_path(&path).map_err(GitError::Io)?,
@@ -101,13 +101,13 @@ impl Repository {
             branches: Vec::new(),
             repo_type,
         };
-        
+
         // Initialize repository data
         repo.refresh()?;
-        
+
         Ok(repo)
     }
-    
+
     /// Refresh repository information (status, remotes, branches)
     ///
     /// # Returns
@@ -119,16 +119,16 @@ impl Repository {
     pub fn refresh(&mut self) -> Result<()> {
         // Check repository status
         self.check_status()?;
-        
+
         // Load remotes
         self.load_remotes()?;
-        
+
         // Load branches
         self.load_branches()?;
-        
+
         Ok(())
     }
-    
+
     /// Check repository status
     ///
     /// # Returns
@@ -138,22 +138,22 @@ impl Repository {
     /// * `GitError::CommandFailed` - If Git status command fails
     pub fn check_status(&mut self) -> Result<()> {
         use super::command::GitCommandRunner;
-        
+
         let runner = GitCommandRunner::new();
-        
+
         // Execute git status --porcelain
         let output = runner.execute_in_dir(&["status", "--porcelain"], &self.path)?;
-        
+
         // Determine status based on output
         self.status = if output.trim().is_empty() {
             RepositoryStatus::Clean
         } else {
             RepositoryStatus::Dirty
         };
-        
+
         Ok(())
     }
-    
+
     /// Load repository remotes
     ///
     /// # Returns
@@ -163,16 +163,16 @@ impl Repository {
     /// * `GitError::CommandFailed` - If Git remote commands fail
     fn load_remotes(&mut self) -> Result<()> {
         use super::remote::RemoteManager;
-        
+
         let manager = RemoteManager::new();
-        
+
         // Get remotes using RemoteManager
         let remotes = manager.list_remotes(&self.path)?;
-        
+
         self.remotes = remotes;
         Ok(())
     }
-    
+
     /// Load repository branches
     ///
     /// # Returns
@@ -182,15 +182,16 @@ impl Repository {
     /// * `GitError::CommandFailed` - If Git branch commands fail
     fn load_branches(&mut self) -> Result<()> {
         use super::command::GitCommandRunner;
-        
+
         let runner = GitCommandRunner::new();
-        
+
         // Get current branch
-        let current_branch = match runner.execute_in_dir(&["branch", "--show-current"], &self.path) {
-            Ok(output) => output,
-            Err(_) => String::new(),
-        };
-        
+        let current_branch =
+            match runner.execute_in_dir(&["branch", "--show-current"], &self.path) {
+                Ok(output) => output,
+                Err(_) => String::new(),
+            };
+
         // Get all local branches
         let branches_output = match runner.execute_in_dir(&["branch", "--list"], &self.path) {
             Ok(output) => output,
@@ -199,71 +200,71 @@ impl Repository {
                 return Ok(());
             }
         };
-        
+
         let mut branches = Vec::new();
-        
+
         for line in branches_output.lines() {
             let line = line.trim();
             if line.is_empty() {
                 continue;
             }
-            
+
             // Parse branch line (e.g., "* main" or "  feature/branch")
             let (is_current, name) = if line.starts_with('*') {
                 (true, line[1..].trim())
             } else {
                 (false, line)
             };
-            
+
             // Get upstream tracking information
             let upstream = get_upstream_tracking(&self.path, name).ok();
-            
+
             branches.push(Branch {
                 name: name.to_string(),
                 is_current,
                 upstream,
             });
         }
-        
+
         self.branches = branches;
         Ok(())
     }
-    
+
     /// Get the repository path
     pub fn path(&self) -> &Path {
         &self.path
     }
-    
+
     /// Get the repository status
     pub fn status(&self) -> &RepositoryStatus {
         &self.status
     }
-    
+
     /// Get the repository remotes
     pub fn remotes(&self) -> &[Remote] {
         &self.remotes
     }
-    
+
     /// Get the repository branches
     pub fn branches(&self) -> &[Branch] {
         &self.branches
     }
-    
+
     /// Get the repository type
     pub fn repo_type(&self) -> &RepoType {
         &self.repo_type
     }
-    
+
     /// Check if the repository is clean (no uncommitted changes)
     pub fn is_clean(&self) -> bool {
         self.status == RepositoryStatus::Clean
     }
-    
+
     /// Check if the repository is dirty (has uncommitted changes)
     pub fn is_dirty(&self) -> bool {
         self.status == RepositoryStatus::Dirty
     }
-    
+
     /// Get the current branch name, if any
     pub fn current_branch(&self) -> Option<&str> {
         self.branches
@@ -271,12 +272,12 @@ impl Repository {
             .find(|b| b.is_current)
             .map(|b| b.name.as_str())
     }
-    
+
     /// Get a remote by name
     pub fn remote(&self, name: &str) -> Option<&Remote> {
         self.remotes.iter().find(|r| r.name == name)
     }
-    
+
     /// Get a branch by name
     pub fn branch(&self, name: &str) -> Option<&Branch> {
         self.branches.iter().find(|b| b.name == name)
@@ -296,11 +297,11 @@ impl Repository {
 /// * `GitError::Io` - If there's an I/O error reading directories
 pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoInfo>> {
     let mut repos = Vec::new();
-    
+
     if max_depth == 0 {
         return Ok(repos);
     }
-    
+
     // Check if current directory is a Git repository
     let git_path = root_dir.join(".git");
     if git_path.exists() {
@@ -309,46 +310,51 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<Re
         } else {
             RepoType::Submodule
         };
-        
+
         repos.push(RepoInfo {
             path: root_dir.to_path_buf(),
             repo_type,
         });
         return Ok(repos);
     }
-    
+
     // Recursively search subdirectories
     let entries = fs::read_dir(root_dir).map_err(GitError::Io)?;
-    
+
     for entry in entries {
         let entry = entry.map_err(GitError::Io)?;
         let path = entry.path();
-        
+
         if path.is_dir() {
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
-            
+
             // Skip .git directories
             if file_name_str == ".git" {
                 continue;
             }
-            
+
             repos.extend(find_git_repositories(&path, max_depth - 1)?);
         }
     }
-    
+
     Ok(repos)
 }
-
-
 
 /// Get upstream tracking branch for a local branch
 fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
     use super::command::GitCommandRunner;
-    
+
     let runner = GitCommandRunner::new();
-    
-    match runner.execute_in_dir(&["rev-parse", "--abbrev-ref", &format!("{}@{{upstream}}", branch_name)], path) {
+
+    match runner.execute_in_dir(
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            &format!("{}@{{upstream}}", branch_name),
+        ],
+        path,
+    ) {
         Ok(upstream) => Ok(upstream),
         Err(_) => {
             // No upstream or command failed - return empty string
@@ -361,18 +367,33 @@ fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    
+
     #[test]
     fn test_remote_parsing() {
         use crate::domain::git::remote::Remote;
-        
-        assert_eq!(Remote::parse_url("ssh://git@example.com/repo.git").unwrap(), GitProtocol::Ssh);
-        assert_eq!(Remote::parse_url("git@github.com:user/repo.git").unwrap(), GitProtocol::Ssh);
-        assert_eq!(Remote::parse_url("http://example.com/repo.git").unwrap(), GitProtocol::Http);
-        assert_eq!(Remote::parse_url("https://example.com/repo.git").unwrap(), GitProtocol::Https);
-        assert_eq!(Remote::parse_url("git://example.com/repo.git").unwrap(), GitProtocol::Git);
+
+        assert_eq!(
+            Remote::parse_url("ssh://git@example.com/repo.git").unwrap(),
+            GitProtocol::Ssh
+        );
+        assert_eq!(
+            Remote::parse_url("git@github.com:user/repo.git").unwrap(),
+            GitProtocol::Ssh
+        );
+        assert_eq!(
+            Remote::parse_url("http://example.com/repo.git").unwrap(),
+            GitProtocol::Http
+        );
+        assert_eq!(
+            Remote::parse_url("https://example.com/repo.git").unwrap(),
+            GitProtocol::Https
+        );
+        assert_eq!(
+            Remote::parse_url("git://example.com/repo.git").unwrap(),
+            GitProtocol::Git
+        );
     }
-    
+
     #[test]
     fn test_repository_new_invalid_path() {
         let result = Repository::new("/nonexistent/path");
@@ -382,7 +403,7 @@ mod tests {
             _ => panic!("Expected RepositoryNotFound error"),
         }
     }
-    
+
     #[test]
     fn test_repository_new_not_git_repo() {
         let temp_dir = tempdir().unwrap();
@@ -393,14 +414,14 @@ mod tests {
             _ => panic!("Expected RepositoryNotFound error"),
         }
     }
-    
+
     #[test]
     fn test_find_git_repositories_empty_dir() {
         let temp_dir = tempdir().unwrap();
         let repos = find_git_repositories(temp_dir.path(), 3).unwrap();
         assert!(repos.is_empty());
     }
-    
+
     #[test]
     fn test_find_git_repositories_nested() {
         // This test would require creating a mock Git repository structure
@@ -409,7 +430,7 @@ mod tests {
         let _ = find_git_repositories(temp_dir.path(), 1);
         // No panic means test passes
     }
-    
+
     #[test]
     fn test_repository_methods() {
         // Test that all public methods exist and have correct signatures
@@ -419,7 +440,7 @@ mod tests {
         let _: Option<&Branch> = None::<&Repository>.and_then(|repo| repo.branch("main"));
         let _: &Path = Path::new(".");
         let _: &RepositoryStatus = &RepositoryStatus::Clean;
-        
+
         // Test passes if compilation succeeds
     }
 }
@@ -442,17 +463,17 @@ impl RepoWalker {
         let repos = find_git_repositories(path, max_depth)?;
         Ok(Self { repos })
     }
-    
+
     /// Check if no repositories were found
     pub fn is_empty(&self) -> bool {
         self.repos.is_empty()
     }
-    
+
     /// Get total number of repositories found
     pub fn total(&self) -> usize {
         self.repos.len()
     }
-    
+
     /// Walk through each repository and execute a callback
     ///
     /// # Arguments
@@ -469,7 +490,7 @@ impl RepoWalker {
         }
         Ok(())
     }
-    
+
     /// Get repository information for all found repositories
     pub fn repositories(&self) -> &[RepoInfo] {
         &self.repos
@@ -494,12 +515,10 @@ where
     F: FnMut(&Path) -> Result<()>,
 {
     let walker = RepoWalker::new(root_path, max_depth)?;
-    
+
     if walker.is_empty() {
         return Ok(());
     }
-    
-    walker.walk(|path, index, total| {
-        callback(path)
-    })
+
+    walker.walk(|path, index, total| callback(path))
 }

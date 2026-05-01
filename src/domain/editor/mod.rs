@@ -3,26 +3,26 @@
 //! This module contains file editing utilities for version bumping.
 
 mod cargo_toml;
-mod package_json;
-mod version_text;
 mod cmake;
+mod file_types;
 mod homebrew;
+mod package_json;
 mod pom_xml;
 mod project_py;
 mod pyproject;
-mod file_types;
 mod version_bump;
+mod version_text;
 
 pub use cargo_toml::CargoTomlEditor;
-pub use package_json::PackageJsonEditor;
-pub use version_text::VersionTextEditor;
 pub use cmake::CMakeListsEditor;
+pub use file_types::{FileType, detect_file_type};
 pub use homebrew::HomebrewFormulaEditor;
+pub use package_json::PackageJsonEditor;
 pub use pom_xml::PomXmlEditor;
 pub use project_py::PythonVersionEditor;
 pub use pyproject::PyprojectEditor;
-pub use file_types::{FileType, detect_file_type};
 pub use version_bump::{BumpType, EditorConfig, apply_bump};
+pub use version_text::VersionTextEditor;
 
 use std::path::Path;
 
@@ -31,22 +31,22 @@ use std::path::Path;
 pub enum EditorError {
     #[error("File not found: {0}")]
     FileNotFound(String),
-    
+
     #[error("Unsupported file type: {0}")]
     UnsupportedFileType(String),
-    
+
     #[error("Parse error: {0}")]
     ParseError(String),
-    
+
     #[error("Write error: {0}")]
     WriteError(#[from] std::io::Error),
-    
+
     #[error("Version format error: {0}")]
     VersionFormatError(String),
-    
+
     #[error("Version not found: {0}")]
     VersionNotFound(String),
-    
+
     #[error("Format preservation error: {0}")]
     FormatPreservationError(String),
 }
@@ -58,19 +58,24 @@ pub type Result<T> = std::result::Result<T, EditorError>;
 pub trait FileEditor: Send + Sync {
     /// Get the name of this editor
     fn name(&self) -> &'static str;
-    
+
     /// Get file patterns this editor can handle
     fn file_patterns(&self) -> &[&str];
-    
+
     /// Check if this editor can handle the given file
     fn matches_file(&self, path: &Path) -> bool;
-    
+
     /// Parse the file content to find version information
     fn parse(&self, content: &str) -> Result<VersionLocation>;
-    
+
     /// Edit the file content to update version
-    fn edit(&self, content: &str, location: &VersionLocation, new_version: &str) -> Result<String>;
-    
+    fn edit(
+        &self,
+        content: &str,
+        location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String>;
+
     /// Validate the edited content
     fn validate(&self, original: &str, edited: &str) -> Result<()>;
 }
@@ -133,7 +138,7 @@ impl EditorRegistry {
             file_pattern_map: std::collections::HashMap::new(),
         }
     }
-    
+
     /// Create a default registry with all built-in editors registered
     pub fn default_with_editors() -> Self {
         Self::new()
@@ -146,7 +151,7 @@ impl EditorRegistry {
             .register(PythonVersionEditor)
             .register(PyprojectEditor)
     }
-    
+
     /// Register an editor with the registry
     pub fn register(mut self, editor: impl FileEditor + 'static) -> Self {
         let name = editor.name();
@@ -155,32 +160,32 @@ impl EditorRegistry {
             .iter()
             .map(|s| s.to_string())
             .collect();
-        
+
         let editor_arc: std::sync::Arc<dyn FileEditor> = std::sync::Arc::new(editor);
-        
+
         for pattern in &patterns {
             self.file_pattern_map.insert(pattern.clone(), name);
         }
-        
+
         self.editors.insert(name, editor_arc);
         self
     }
-    
+
     /// Get an editor by name
     pub fn get(&self, name: &str) -> Option<std::sync::Arc<dyn FileEditor>> {
         self.editors.get(name).cloned()
     }
-    
+
     /// Detect which editor can handle the given file
     pub fn detect_editor(&self, path: &Path) -> Option<std::sync::Arc<dyn FileEditor>> {
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        
+
         let parent_dir = path
             .parent()
             .and_then(|p| p.file_name())
             .and_then(|n| n.to_str())
             .unwrap_or("");
-        
+
         // Check file patterns
         for (pattern, editor_name) in &self.file_pattern_map {
             if pattern.contains("{parent}") {
@@ -192,17 +197,17 @@ impl EditorRegistry {
                 return self.editors.get(editor_name).cloned();
             }
         }
-        
+
         // Fall back to editor-specific matching
         for editor in self.editors.values() {
             if editor.matches_file(path) {
                 return Some(editor.clone());
             }
         }
-        
+
         None
     }
-    
+
     /// Edit version using the specified editor
     pub fn edit_version(
         &self,
@@ -215,21 +220,22 @@ impl EditorRegistry {
         editor.validate(content, &edited)?;
         Ok(edited)
     }
-    
+
     /// Edit a file by path
     pub fn edit_file(&self, path: &Path, new_version: &str) -> Result<()> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-        
-        let editor = self.detect_editor(path)
+
+        let editor = self
+            .detect_editor(path)
             .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-        
+
         let edited = self.edit_version(&*editor, &content, new_version)?;
-        
+
         write_with_backup(&path.to_string_lossy(), &edited)?;
         Ok(())
     }
-    
+
     /// List all registered editor names
     pub fn list(&self) -> Vec<&'static str> {
         self.editors.keys().copied().collect()
@@ -245,9 +251,9 @@ impl Default for EditorRegistry {
 /// Utility function to write file with backup
 pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
     let backup_path = format!("{}.bak", path);
-    
+
     std::fs::copy(path, &backup_path).map_err(|e| EditorError::WriteError(e))?;
-    
+
     match std::fs::write(path, content) {
         Ok(_) => {
             let _ = std::fs::remove_file(&backup_path);
@@ -264,7 +270,7 @@ pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
 pub fn preserve_line_endings(original: &str, edited: String) -> String {
     let original_has_crlf = original.contains("\r\n");
     let edited_has_crlf = edited.contains("\r\n");
-    
+
     if original_has_crlf && !edited_has_crlf {
         edited.replace("\n", "\r\n")
     } else if !original_has_crlf && edited_has_crlf {
@@ -274,61 +280,78 @@ pub fn preserve_line_endings(original: &str, edited: String) -> String {
     }
 }
 
-
-
 /// Bump version in a file
-pub fn bump_version_in_file(path: &Path, bump_type: BumpType, config: &EditorConfig) -> Result<String> {
+pub fn bump_version_in_file(
+    path: &Path,
+    bump_type: BumpType,
+    config: &EditorConfig,
+) -> Result<String> {
     let registry = EditorRegistry::default_with_editors();
-    
+
     let content = std::fs::read_to_string(path)
         .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-    
-    let editor = registry.detect_editor(path)
+
+    let editor = registry
+        .detect_editor(path)
         .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-    
+
     let location = editor.parse(&content)?;
-    
+
     // Extract current version
     let current_version = if let Some(pos) = &location.project_version {
         content[pos.start..pos.end].to_string()
     } else {
-        return Err(EditorError::VersionNotFound(format!("No version found in {}", path.display())));
+        return Err(EditorError::VersionNotFound(format!(
+            "No version found in {}",
+            path.display()
+        )));
     };
-    
+
     // Clean version string (remove quotes, etc.)
     let cleaned_version = current_version
         .trim_matches('"')
         .trim_matches('\'')
         .trim()
         .to_string();
-    
+
     // Apply bump
     let new_version = apply_bump(&cleaned_version, &bump_type)?;
-    
+
     if config.dry_run {
-        return Ok(format!("Would update {} from {} to {}", path.display(), cleaned_version, new_version));
+        return Ok(format!(
+            "Would update {} from {} to {}",
+            path.display(),
+            cleaned_version,
+            new_version
+        ));
     }
-    
+
     // Edit file
     let edited = registry.edit_version(&*editor, &content, &new_version)?;
-    
+
     write_with_backup(&path.to_string_lossy(), &edited)?;
-    
-    Ok(format!("Updated {} from {} to {}", path.display(), cleaned_version, new_version))
+
+    Ok(format!(
+        "Updated {} from {} to {}",
+        path.display(),
+        cleaned_version,
+        new_version
+    ))
 }
 
 /// Get version from a file
 pub fn get_version_from_file(path: &Path) -> Result<String> {
     let registry = EditorRegistry::default_with_editors();
-    
+
     let content = std::fs::read_to_string(path)
         .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-    
-    let editor = registry.detect_editor(path)
+
+    let editor = registry
+        .detect_editor(path)
         .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-    
+
     let location = editor.parse(&content)?;
-    
+
     if let Some(pos) = &location.project_version {
         let version = content[pos.start..pos.end].to_string();
         Ok(version
@@ -337,7 +360,10 @@ pub fn get_version_from_file(path: &Path) -> Result<String> {
             .trim()
             .to_string())
     } else {
-        Err(EditorError::VersionNotFound(format!("No version found in {}", path.display())))
+        Err(EditorError::VersionNotFound(format!(
+            "No version found in {}",
+            path.display()
+        )))
     }
 }
 
@@ -345,7 +371,7 @@ pub fn get_version_from_file(path: &Path) -> Result<String> {
 mod tests {
     use super::*;
     use tempfile::NamedTempFile;
-    
+
     #[test]
     fn test_detect_file_type() {
         assert_eq!(
@@ -382,7 +408,7 @@ mod tests {
         );
         assert_eq!(detect_file_type(Path::new("unknown.txt")), None);
     }
-    
+
     #[test]
     fn test_apply_bump() {
         assert_eq!(apply_bump("1.2.3", &BumpType::Major).unwrap(), "2.0.0");
@@ -396,17 +422,17 @@ mod tests {
             apply_bump("1.2.3", &BumpType::Build("20240101".to_string())).unwrap(),
             "1.2.3+20240101"
         );
-        
+
         // Test invalid versions
         assert!(apply_bump("invalid", &BumpType::Patch).is_err());
         assert!(apply_bump("1.2", &BumpType::Patch).is_err());
     }
-    
+
     #[test]
     fn test_editor_registry_default() {
         let registry = EditorRegistry::default_with_editors();
         let editors = registry.list();
-        
+
         assert!(editors.contains(&"cargo_toml"));
         assert!(editors.contains(&"package_json"));
         assert!(editors.contains(&"version_text"));
@@ -416,21 +442,30 @@ mod tests {
         assert!(editors.contains(&"project_py"));
         assert!(editors.contains(&"pyproject"));
     }
-    
+
     #[test]
     fn test_preserve_line_endings() {
         let original_crlf = "line1\r\nline2\r\n";
         let original_lf = "line1\nline2\n";
-        
+
         let edited = "line1\nline2\n";
-        
-        assert_eq!(preserve_line_endings(original_crlf, edited.to_string()), "line1\r\nline2\r\n");
-        assert_eq!(preserve_line_endings(original_lf, edited.to_string()), "line1\nline2\n");
-        
+
+        assert_eq!(
+            preserve_line_endings(original_crlf, edited.to_string()),
+            "line1\r\nline2\r\n"
+        );
+        assert_eq!(
+            preserve_line_endings(original_lf, edited.to_string()),
+            "line1\nline2\n"
+        );
+
         let edited_crlf = "line1\r\nline2\r\n";
-        assert_eq!(preserve_line_endings(original_lf, edited_crlf.to_string()), "line1\nline2\n");
+        assert_eq!(
+            preserve_line_endings(original_lf, edited_crlf.to_string()),
+            "line1\nline2\n"
+        );
     }
-    
+
     #[test]
     fn test_cargo_toml_editor() {
         let content = r#"[package]
@@ -439,18 +474,18 @@ version = "1.2.3"
         
 [dependencies]
 serde = "1.0""#;
-        
+
         let editor = CargoTomlEditor;
         let location = editor.parse(content).unwrap();
-        
+
         assert!(location.project_version.is_some());
         assert!(!location.is_workspace_root);
-        
+
         let edited = editor.edit(content, &location, "2.0.0").unwrap();
         assert!(edited.contains("version = \"2.0.0\""));
         assert!(!edited.contains("version = \"1.2.3\""));
     }
-    
+
     #[test]
     fn test_package_json_editor() {
         let content = r#"{
@@ -460,12 +495,12 @@ serde = "1.0""#;
     "lodash": "^4.17.0"
   }
 }"#;
-        
+
         let editor = PackageJsonEditor;
         let location = editor.parse(content).unwrap();
-        
+
         assert!(location.project_version.is_some());
-        
+
         let edited = editor.edit(content, &location, "2.0.0").unwrap();
         assert!(edited.contains("\"version\": \"2.0.0\""));
         assert!(!edited.contains("\"version\": \"1.2.3\""));

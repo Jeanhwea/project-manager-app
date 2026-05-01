@@ -4,8 +4,8 @@
 //! argument parsing, command dispatching, and user interaction.
 
 pub mod cli;
-pub mod parser;
 pub mod dispatcher;
+pub mod parser;
 
 /// CLI parsing and command execution result
 pub type CliResult = Result<(), anyhow::Error>;

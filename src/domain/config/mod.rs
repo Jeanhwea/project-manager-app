@@ -12,16 +12,16 @@ pub use schema::AppConfig;
 pub enum ConfigError {
     #[error("Configuration file not found: {0}")]
     FileNotFound(String),
-    
+
     #[error("Invalid schema: {0}")]
     InvalidSchema(String),
-    
+
     #[error("Parse error: {0}")]
     ParseError(#[from] serde_json::Error),
-    
+
     #[error("Validation error: {0}")]
     ValidationError(String),
-    
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -46,7 +46,9 @@ pub trait ConfigManager {
 pub type Result<T> = std::result::Result<T, ConfigError>;
 
 // Re-export manager types
-pub use manager::{MultiSourceConfigManager, ConfigAccessor, GitConfig, GitLabConfig, SyncConfig, EditorConfig};
+pub use manager::{
+    ConfigAccessor, EditorConfig, GitConfig, GitLabConfig, MultiSourceConfigManager, SyncConfig,
+};
 
 /// Default configuration manager implementation
 pub type DefaultConfigManager = MultiSourceConfigManager;

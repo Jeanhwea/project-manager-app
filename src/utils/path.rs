@@ -43,7 +43,7 @@ pub fn is_absolute(path: &Path) -> bool {
 /// Normalize a path by removing redundant components
 pub fn normalize_path(path: &Path) -> PathBuf {
     let mut components = Vec::new();
-    
+
     for component in path.components() {
         match component {
             std::path::Component::ParentDir => {
@@ -65,7 +65,7 @@ pub fn normalize_path(path: &Path) -> PathBuf {
             }
         }
     }
-    
+
     components.iter().collect()
 }
 
@@ -75,14 +75,14 @@ pub fn normalize_path(path: &Path) -> PathBuf {
 /// edge cases like empty components and absolute paths more consistently.
 pub fn join_paths(base: impl AsRef<Path>, components: &[impl AsRef<Path>]) -> PathBuf {
     let mut result = base.as_ref().to_path_buf();
-    
+
     for component in components {
         let component_path = component.as_ref();
         if !component_path.as_os_str().is_empty() {
             result = result.join(component_path);
         }
     }
-    
+
     result
 }
 
@@ -147,7 +147,7 @@ pub fn paths_equal(a: impl AsRef<Path>, b: impl AsRef<Path>) -> bool {
 pub fn common_prefix(a: impl AsRef<Path>, b: impl AsRef<Path>) -> PathBuf {
     let a_components: Vec<_> = a.as_ref().components().collect();
     let b_components: Vec<_> = b.as_ref().components().collect();
-    
+
     let mut common = PathBuf::new();
     for (a_comp, b_comp) in a_components.iter().zip(b_components.iter()) {
         if a_comp == b_comp {
@@ -156,7 +156,7 @@ pub fn common_prefix(a: impl AsRef<Path>, b: impl AsRef<Path>) -> PathBuf {
             break;
         }
     }
-    
+
     common
 }
 
@@ -166,7 +166,7 @@ pub fn common_prefix(a: impl AsRef<Path>, b: impl AsRef<Path>) -> PathBuf {
 pub fn make_relative_to(path: impl AsRef<Path>, base: impl AsRef<Path>) -> Option<PathBuf> {
     let path = path.as_ref();
     let base = base.as_ref();
-    
+
     path.strip_prefix(base).ok().map(|p| p.to_path_buf())
 }
 
@@ -174,7 +174,7 @@ pub fn make_relative_to(path: impl AsRef<Path>, base: impl AsRef<Path>) -> Optio
 pub fn is_child_of(path: impl AsRef<Path>, base: impl AsRef<Path>) -> bool {
     let path = path.as_ref();
     let base = base.as_ref();
-    
+
     path.strip_prefix(base).is_ok()
 }
 
@@ -195,14 +195,14 @@ mod tests {
         let formatted = format_path(path);
         assert_eq!(formatted, "/home/user/project");
     }
-    
+
     #[test]
     fn test_normalize_path() {
         let path = Path::new("/foo/../bar/./baz");
         let normalized = normalize_path(path);
         assert_eq!(normalized, Path::new("/bar/baz"));
     }
-    
+
     #[test]
     fn test_join_paths() {
         let base = Path::new("/home/user");
@@ -210,7 +210,7 @@ mod tests {
         let joined = join_paths(base, &components);
         assert_eq!(joined, Path::new("/home/user/projects/rust/src"));
     }
-    
+
     #[test]
     fn test_join_paths_with_empty() {
         let base = Path::new("/home/user");
@@ -218,24 +218,24 @@ mod tests {
         let joined = join_paths(base, &components);
         assert_eq!(joined, Path::new("/home/user/projects"));
     }
-    
+
     #[test]
     fn test_parent_dir() {
         let path = Path::new("/home/user/projects/file.txt");
         let parent = parent_dir(path);
         assert_eq!(parent, Some(PathBuf::from("/home/user/projects")));
-        
+
         let root_path = Path::new("/");
         let root_parent = parent_dir(root_path);
         assert_eq!(root_parent, None);
     }
-    
+
     #[test]
     fn test_file_name() {
         let path = Path::new("/home/user/projects/file.txt");
         let name = file_name(path);
         assert_eq!(name, Some("file.txt".to_string()));
-        
+
         // Test with directory path - behavior depends on platform
         // On Unix, Path::new("/home/user/projects/") has no file name
         // On Windows, it might behave differently
@@ -243,29 +243,29 @@ mod tests {
         let dir_name = file_name(dir_path);
         assert_eq!(dir_name, Some("projects".to_string()));
     }
-    
+
     #[test]
     fn test_file_stem() {
         let path = Path::new("/home/user/projects/file.txt");
         let stem = file_stem(path);
         assert_eq!(stem, Some("file".to_string()));
-        
+
         let path_no_ext = Path::new("/home/user/projects/file");
         let stem_no_ext = file_stem(path_no_ext);
         assert_eq!(stem_no_ext, Some("file".to_string()));
     }
-    
+
     #[test]
     fn test_file_extension() {
         let path = Path::new("/home/user/projects/file.txt");
         let ext = file_extension(path);
         assert_eq!(ext, Some("txt".to_string()));
-        
+
         let path_no_ext = Path::new("/home/user/projects/file");
         let ext_no_ext = file_extension(path_no_ext);
         assert_eq!(ext_no_ext, None);
     }
-    
+
     #[test]
     fn test_is_relative() {
         #[cfg(unix)]
@@ -273,59 +273,59 @@ mod tests {
             assert!(is_relative(Path::new("relative/path")));
             assert!(!is_relative(Path::new("/absolute/path")));
         }
-        
+
         #[cfg(windows)]
         {
             assert!(is_relative(Path::new("relative\\path")));
             assert!(!is_relative(Path::new("C:\\absolute\\path")));
         }
     }
-    
+
     #[test]
     fn test_paths_equal() {
         let path1 = Path::new("/home/user/../user/projects/./file.txt");
         let path2 = Path::new("/home/user/projects/file.txt");
         assert!(paths_equal(path1, path2));
-        
+
         let path3 = Path::new("/home/user/projects/file.txt");
         let path4 = Path::new("/home/user/docs/file.txt");
         assert!(!paths_equal(path3, path4));
     }
-    
+
     #[test]
     fn test_common_prefix() {
         let path1 = Path::new("/home/user/projects/rust/src");
         let path2 = Path::new("/home/user/projects/python/src");
         let common = common_prefix(path1, path2);
         assert_eq!(common, Path::new("/home/user/projects"));
-        
+
         let path3 = Path::new("/home/user/docs");
         let path4 = Path::new("/home/user/projects");
         let common2 = common_prefix(path3, path4);
         assert_eq!(common2, Path::new("/home/user"));
     }
-    
+
     #[test]
     fn test_make_relative_to() {
         let base = Path::new("/home/user");
         let path = Path::new("/home/user/projects/rust/src");
         let relative = make_relative_to(path, base);
         assert_eq!(relative, Some(PathBuf::from("projects/rust/src")));
-        
+
         let unrelated = Path::new("/var/log");
         let relative_unrelated = make_relative_to(unrelated, base);
         assert_eq!(relative_unrelated, None);
     }
-    
+
     #[test]
     fn test_is_child_of() {
         let base = Path::new("/home/user");
         let child = Path::new("/home/user/projects/rust");
         assert!(is_child_of(child, base));
-        
+
         let not_child = Path::new("/var/log");
         assert!(!is_child_of(not_child, base));
-        
+
         let same = Path::new("/home/user");
         assert!(is_child_of(same, base));
     }

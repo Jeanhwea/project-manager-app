@@ -21,7 +21,7 @@ pub mod sync;
 pub trait Command {
     /// Type representing command-specific arguments
     type Args;
-    
+
     /// Execute the command with the given arguments
     fn execute(args: Self::Args) -> CommandResult;
 }
@@ -34,17 +34,16 @@ pub type CommandResult = Result<(), CommandError>;
 pub enum CommandError {
     #[error("Invalid arguments: {0}")]
     InvalidArguments(String),
-    
+
     #[error("Execution failed: {0}")]
     ExecutionFailed(String),
-    
+
     #[error("Domain error: {0}")]
     Domain(#[from] crate::domain::DomainError),
-    
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Validation error: {0}")]
     Validation(String),
 }
-

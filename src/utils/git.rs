@@ -24,7 +24,7 @@ pub fn git_command(repo_path: impl AsRef<Path>, args: &[&str]) -> std::io::Resul
         .current_dir(repo_path.as_ref())
         .args(args)
         .output()?;
-    
+
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -48,7 +48,7 @@ pub fn is_git_repo(path: impl AsRef<Path>) -> bool {
     if !path.is_dir() {
         return false;
     }
-    
+
     let git_dir = path.join(".git");
     git_dir.is_dir()
 }
@@ -90,7 +90,7 @@ pub fn get_remote_urls(repo_path: impl AsRef<Path>) -> std::io::Result<Vec<Strin
             }
         })
         .collect();
-    
+
     Ok(urls)
 }
 
@@ -300,12 +300,15 @@ pub fn get_upstream_url(repo_path: impl AsRef<Path>) -> std::io::Result<Option<S
         Ok(branch) => branch,
         Err(_) => return Ok(None), // No current branch (detached HEAD)
     };
-    
-    let output = git_command(&repo_path, &["config", &format!("branch.{}.remote", branch)])?;
+
+    let output = git_command(
+        &repo_path,
+        &["config", &format!("branch.{}.remote", branch)],
+    )?;
     if output.trim().is_empty() {
         return Ok(None);
     }
-    
+
     let remote = output.trim();
     let url_output = git_command(&repo_path, &["remote", "get-url", remote])?;
     if url_output.trim().is_empty() {
@@ -389,7 +392,7 @@ pub fn has_staged_changes(repo_path: impl AsRef<Path>) -> std::io::Result<bool> 
         .current_dir(repo_path.as_ref())
         .args(&["diff", "--staged", "--quiet"])
         .output()?;
-    
+
     Ok(!output.status.success())
 }
 
@@ -408,7 +411,7 @@ pub fn has_unstaged_changes(repo_path: impl AsRef<Path>) -> std::io::Result<bool
         .current_dir(repo_path.as_ref())
         .args(&["diff", "--quiet"])
         .output()?;
-    
+
     Ok(!output.status.success())
 }
 
@@ -436,7 +439,7 @@ pub fn get_branch_list(repo_path: impl AsRef<Path>) -> std::io::Result<Vec<Strin
         })
         .filter(|branch| !branch.is_empty())
         .collect();
-    
+
     Ok(branches)
 }
 
@@ -457,7 +460,7 @@ pub fn get_remote_list(repo_path: impl AsRef<Path>) -> std::io::Result<Vec<Strin
         .map(|line| line.trim().to_string())
         .filter(|remote| !remote.is_empty())
         .collect();
-    
+
     Ok(remotes)
 }
 
@@ -475,7 +478,7 @@ pub fn is_repo_clean(repo_path: impl AsRef<Path>) -> std::io::Result<bool> {
     let has_uncommitted = has_uncommitted_changes(&repo_path)?;
     let has_staged = has_staged_changes(&repo_path)?;
     let has_unstaged = has_unstaged_changes(&repo_path)?;
-    
+
     Ok(!has_uncommitted && !has_staged && !has_unstaged)
 }
 
@@ -549,7 +552,7 @@ pub fn get_file_count(repo_path: impl AsRef<Path>) -> std::io::Result<usize> {
 /// * Returns `std::io::Error` if Git command fails
 pub fn get_repo_size(repo_path: impl AsRef<Path>) -> std::io::Result<u64> {
     let output = git_command(repo_path, &["count-objects", "-v"])?;
-    
+
     // Parse output like:
     // count: 123
     // size: 456789
@@ -564,7 +567,7 @@ pub fn get_repo_size(repo_path: impl AsRef<Path>) -> std::io::Result<u64> {
             }
         }
     }
-    
+
     Ok(0)
 }
 
@@ -576,30 +579,30 @@ mod tests {
     #[test]
     fn test_is_git_repo() {
         let temp_dir = tempdir().unwrap();
-        
+
         // Non-Git directory should return false
         assert!(!is_git_repo(temp_dir.path()));
-        
+
         // TODO: Add test with actual Git repository
         // This would require creating a test Git repo
     }
-    
+
     #[test]
     fn test_git_command_error() {
         let temp_dir = tempdir().unwrap();
-        
+
         // Invalid Git command should return error
         let result = git_command(temp_dir.path(), &["invalid-command"]);
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_is_git_available() {
         // This test just checks that the function doesn't panic
         let _ = is_git_available();
         assert!(true);
     }
-    
+
     #[test]
     fn test_get_git_version() {
         if is_git_available() {
@@ -609,7 +612,7 @@ mod tests {
             assert!(version.contains("git version"));
         }
     }
-    
+
     #[test]
     fn test_get_git_user_name() {
         if is_git_available() {
@@ -620,7 +623,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_git_user_email() {
         if is_git_available() {
@@ -631,7 +634,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_head_commit() {
         if is_git_available() {
@@ -642,7 +645,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_head_commit_short() {
         if is_git_available() {
@@ -653,7 +656,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_head_commit_message() {
         if is_git_available() {
@@ -664,7 +667,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_head_tag() {
         if is_git_available() {
@@ -675,7 +678,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_head_or_nearest_tag() {
         if is_git_available() {
@@ -686,7 +689,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_is_detached_head() {
         if is_git_available() {
@@ -697,7 +700,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_origin_url() {
         if is_git_available() {
@@ -708,7 +711,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_upstream_url() {
         if is_git_available() {
@@ -719,7 +722,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_status_summary() {
         if is_git_available() {
@@ -730,7 +733,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_log() {
         if is_git_available() {
@@ -741,7 +744,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_staged_diff() {
         if is_git_available() {
@@ -752,7 +755,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_unstaged_diff() {
         if is_git_available() {
@@ -763,7 +766,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_has_staged_changes() {
         if is_git_available() {
@@ -774,7 +777,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_has_unstaged_changes() {
         if is_git_available() {
@@ -785,7 +788,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_branch_list() {
         if is_git_available() {
@@ -796,7 +799,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_remote_list() {
         if is_git_available() {
@@ -807,7 +810,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_is_repo_clean() {
         if is_git_available() {
@@ -818,7 +821,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_last_commit_date() {
         if is_git_available() {
@@ -829,7 +832,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_last_commit_author() {
         if is_git_available() {
@@ -840,7 +843,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_last_commit_author_email() {
         if is_git_available() {
@@ -851,7 +854,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_file_count() {
         if is_git_available() {
@@ -862,7 +865,7 @@ mod tests {
             assert!(true);
         }
     }
-    
+
     #[test]
     fn test_get_repo_size() {
         if is_git_available() {
