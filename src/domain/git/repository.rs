@@ -55,17 +55,6 @@ pub struct RepoInfo {
 }
 
 impl Repository {
-    /// Create a new repository instance from a path
-    ///
-    /// # Arguments
-    /// * `path` - Path to the repository
-    ///
-    /// # Returns
-    /// * `Result<Repository>` - Repository instance or error
-    ///
-    /// # Errors
-    /// * `GitError::RepositoryNotFound` - If the path is not a Git repository
-    /// * `GitError::Io` - If there's an I/O error reading the repository
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
 
@@ -106,14 +95,6 @@ impl Repository {
         Ok(repo)
     }
 
-    /// Refresh repository information (status, remotes, branches)
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git commands fail
-    /// * `GitError::Io` - If there's an I/O error
     pub fn refresh(&mut self) -> Result<()> {
         // Check repository status
         self.check_status()?;
@@ -170,13 +151,6 @@ impl Repository {
         Ok(())
     }
 
-    /// Load repository branches
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git branch commands fail
     fn load_branches(&mut self) -> Result<()> {
         use super::command::GitCommandRunner;
 
@@ -225,42 +199,34 @@ impl Repository {
         Ok(())
     }
 
-    /// Get the repository path
     pub fn path(&self) -> &Path {
         &self.path
     }
 
-    /// Get the repository status
     pub fn status(&self) -> &RepositoryStatus {
         &self.status
     }
 
-    /// Get the repository remotes
     pub fn remotes(&self) -> &[Remote] {
         &self.remotes
     }
 
-    /// Get the repository branches
     pub fn branches(&self) -> &[Branch] {
         &self.branches
     }
 
-    /// Get the repository type
     pub fn repo_type(&self) -> &RepoType {
         &self.repo_type
     }
 
-    /// Check if the repository is clean (no uncommitted changes)
     pub fn is_clean(&self) -> bool {
         self.status == RepositoryStatus::Clean
     }
 
-    /// Check if the repository is dirty (has uncommitted changes)
     pub fn is_dirty(&self) -> bool {
         self.status == RepositoryStatus::Dirty
     }
 
-    /// Get the current branch name, if any
     pub fn current_branch(&self) -> Option<&str> {
         self.branches
             .iter()
@@ -268,28 +234,15 @@ impl Repository {
             .map(|b| b.name.as_str())
     }
 
-    /// Get a remote by name
     pub fn remote(&self, name: &str) -> Option<&Remote> {
         self.remotes.iter().find(|r| r.name == name)
     }
 
-    /// Get a branch by name
     pub fn branch(&self, name: &str) -> Option<&Branch> {
         self.branches.iter().find(|b| b.name == name)
     }
 }
 
-/// Find Git repositories in a directory tree
-///
-/// # Arguments
-/// * `root_dir` - Root directory to search from
-/// * `max_depth` - Maximum depth to search (0 = only root directory)
-///
-/// # Returns
-/// * `Vec<RepoInfo>` - List of found repositories
-///
-/// # Errors
-/// * `GitError::Io` - If there's an I/O error reading directories
 pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoInfo>> {
     let mut repos = Vec::new();
 
@@ -333,7 +286,6 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<Re
     Ok(repos)
 }
 
-/// Get upstream tracking branch for a local branch
 fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
     use super::command::GitCommandRunner;
 
@@ -433,43 +385,24 @@ mod tests {
     }
 }
 
-/// Repository walker for iterating over multiple repositories
 pub struct RepoWalker {
     repos: Vec<RepoInfo>,
 }
 
 impl RepoWalker {
-    /// Create a new repository walker
-    ///
-    /// # Arguments
-    /// * `path` - Root path to search for repositories
-    /// * `max_depth` - Maximum search depth
-    ///
-    /// # Returns
-    /// * `Result<RepoWalker>` - Walker instance or error
     pub fn new(path: &Path, max_depth: usize) -> Result<Self> {
         let repos = find_git_repositories(path, max_depth)?;
         Ok(Self { repos })
     }
 
-    /// Check if no repositories were found
     pub fn is_empty(&self) -> bool {
         self.repos.is_empty()
     }
 
-    /// Get total number of repositories found
     pub fn total(&self) -> usize {
         self.repos.len()
     }
 
-    /// Walk through each repository and execute a callback
-    ///
-    /// # Arguments
-    /// * `callback` - Function to call for each repository
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    /// 遍历每个仓库执行回调，自动打印进入目录的信息。
     pub fn walk<F>(&self, mut callback: F) -> Result<()>
     where
         F: FnMut(&Path, usize, usize) -> Result<()>,
@@ -489,25 +422,11 @@ impl RepoWalker {
         Ok(())
     }
 
-    /// Get repository information for all found repositories
     pub fn repositories(&self) -> &[RepoInfo] {
         &self.repos
     }
 }
 
-/// Execute a callback for each Git repository found
-///
-/// # Arguments
-/// * `root_path` - Root path to search for repositories
-/// * `max_depth` - Maximum search depth
-/// * `callback` - Function to call for each repository
-///
-/// # Returns
-/// * `Result<()>` - Success or error
-///
-/// # Errors
-/// * `GitError::Io` - If there's an I/O error reading directories
-/// * Returns any error from the callback function
 pub fn for_each_repo<F>(root_path: &Path, max_depth: usize, mut callback: F) -> Result<()>
 where
     F: FnMut(&Path) -> Result<()>,

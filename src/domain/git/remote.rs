@@ -19,17 +19,6 @@ pub struct Remote {
 }
 
 impl Remote {
-    /// Create a new remote instance
-    ///
-    /// # Arguments
-    /// * `name` - Remote name
-    /// * `url` - Remote URL
-    ///
-    /// # Returns
-    /// * `Result<Remote>` - Remote instance or error
-    ///
-    /// # Errors
-    /// * `GitError::InvalidRemoteUrl` - If the URL is invalid
     pub fn new(name: impl Into<String>, url: impl Into<String>) -> Result<Self> {
         let name = name.into();
         let url = url.into();
@@ -43,16 +32,6 @@ impl Remote {
         })
     }
 
-    /// Parse a remote URL to determine protocol and validate it
-    ///
-    /// # Arguments
-    /// * `url` - Remote URL to parse
-    ///
-    /// # Returns
-    /// * `Result<GitProtocol>` - Protocol or error
-    ///
-    /// # Errors
-    /// * `GitError::InvalidRemoteUrl` - If the URL is invalid
     pub fn parse_url(url: &str) -> Result<GitProtocol> {
         let url = url.trim();
         if url.is_empty() {
@@ -88,7 +67,6 @@ impl Remote {
         Ok(protocol)
     }
 
-    /// Validate URL structure based on protocol
     fn validate_url_structure(url: &str, protocol: &GitProtocol) -> bool {
         match protocol {
             GitProtocol::Ssh => {
@@ -219,34 +197,17 @@ impl Remote {
     }
 }
 
-/// Remote manager for Git repository operations
-#[derive(Debug, Clone)]
 pub struct RemoteManager {
-    /// Git command runner
     runner: crate::domain::git::command::GitCommandRunner,
 }
 
 impl RemoteManager {
-    /// Create a new remote manager
     pub fn new() -> Self {
         Self {
             runner: crate::domain::git::command::GitCommandRunner::new(),
         }
     }
 
-    /// Add a remote to a repository
-    ///
-    /// # Arguments
-    /// * `repo_path` - Repository path
-    /// * `name` - Remote name
-    /// * `url` - Remote URL
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git command fails
-    /// * `GitError::InvalidRemoteUrl` - If URL is invalid
     pub fn add_remote(&self, repo_path: &Path, name: &str, url: &str) -> Result<()> {
         Remote::parse_url(url)?;
 
@@ -254,18 +215,6 @@ impl RemoteManager {
             .execute_with_success_in_dir(&["remote", "add", name, url], repo_path)
     }
 
-    /// Remove a remote from a repository
-    ///
-    /// # Arguments
-    /// * `repo_path` - Repository path
-    /// * `name` - Remote name
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git command fails
-    /// * `GitError::RemoteNotFound` - If remote doesn't exist
     pub fn remove_remote(&self, repo_path: &Path, name: &str) -> Result<()> {
         let remotes = self.list_remotes(repo_path)?;
         if !remotes.iter().any(|remote| remote.name == name) {
@@ -276,19 +225,6 @@ impl RemoteManager {
             .execute_with_success_in_dir(&["remote", "remove", name], repo_path)
     }
 
-    /// Rename a remote
-    ///
-    /// # Arguments
-    /// * `repo_path` - Repository path
-    /// * `old_name` - Current remote name
-    /// * `new_name` - New remote name
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git command fails
-    /// * `GitError::RemoteNotFound` - If remote doesn't exist
     pub fn rename_remote(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
         let remotes = self.list_remotes(repo_path)?;
         if !remotes.iter().any(|remote| remote.name == old_name) {
@@ -299,18 +235,6 @@ impl RemoteManager {
             .execute_with_success_in_dir(&["remote", "rename", old_name, new_name], repo_path)
     }
 
-    /// Get remote URL
-    ///
-    /// # Arguments
-    /// * `repo_path` - Repository path
-    /// * `name` - Remote name
-    ///
-    /// # Returns
-    /// * `Result<String>` - Remote URL or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git command fails
-    /// * `GitError::RemoteNotFound` - If remote doesn't exist
     pub fn get_remote_url(&self, repo_path: &Path, name: &str) -> Result<String> {
         let output = self
             .runner
@@ -349,16 +273,6 @@ impl RemoteManager {
             .execute_with_success_in_dir(&["remote", "set-url", name, url], repo_path)
     }
 
-    /// List all remotes in a repository
-    ///
-    /// # Arguments
-    /// * `repo_path` - Repository path
-    ///
-    /// # Returns
-    /// * `Result<Vec<Remote>>` - List of remotes or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git command fails
     pub fn list_remotes(&self, repo_path: &Path) -> Result<Vec<Remote>> {
         let remote_names_result = self.runner.execute_in_dir(&["remote"], repo_path);
 
