@@ -121,8 +121,9 @@ impl Repository {
         let runner = GitCommandRunner::new();
 
         // Get current branch
-        let _current_branch =
-            runner.execute_in_dir(&["branch", "--show-current"], &self.path).unwrap_or_default();
+        let _current_branch = runner
+            .execute_in_dir(&["branch", "--show-current"], &self.path)
+            .unwrap_or_default();
 
         // Get all local branches
         let branches_output = match runner.execute_in_dir(&["branch", "--list"], &self.path) {

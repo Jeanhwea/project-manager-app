@@ -57,7 +57,12 @@ pub trait FileEditor: Send + Sync {
     fn file_patterns(&self) -> &[&str];
     fn matches_file(&self, path: &Path) -> bool;
     fn parse(&self, content: &str) -> Result<VersionLocation>;
-    fn edit(&self, content: &str, location: &VersionLocation, new_version: &str) -> Result<String>;
+    fn edit(
+        &self,
+        content: &str,
+        location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String>;
     fn validate(&self, original: &str, edited: &str) -> Result<()>;
 }
 

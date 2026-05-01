@@ -545,13 +545,14 @@ fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
     if let Ok(entries) = std::fs::read_dir(output_path) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() && is_git_repo(&path)
+            if path.is_dir()
+                && is_git_repo(&path)
                 && let Ok(remote_urls) = get_remote_urls(&path)
             {
-                    for url in remote_urls {
-                        urls.insert(url.trim_end_matches('/').to_string());
-                    }
+                for url in remote_urls {
+                    urls.insert(url.trim_end_matches('/').to_string());
                 }
+            }
         }
     }
 

@@ -11,8 +11,8 @@ impl AuthManager {
         if let Ok(token) = env::var("GITLAB_TOKEN")
             && !token.trim().is_empty()
         {
-                return Ok(Some(token));
-            }
+            return Ok(Some(token));
+        }
 
         if let Some(token) = Self::read_token_file(&Self::config_dir()?.join("gitlab_token"))? {
             return Ok(Some(token));
@@ -21,8 +21,8 @@ impl AuthManager {
         if let Some(home) = dirs::home_dir()
             && let Some(token) = Self::read_token_file(&home.join(".gitlab_token"))?
         {
-                return Ok(Some(token));
-            }
+            return Ok(Some(token));
+        }
 
         Ok(None)
     }
