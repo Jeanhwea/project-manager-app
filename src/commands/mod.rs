@@ -26,7 +26,7 @@ pub enum CommandError {
     ExecutionFailed(String),
 
     #[error("Domain error: {0}")]
-    Domain(#[from] crate::domain::DomainError),
+    Domain(#[from] Box<crate::domain::DomainError>),
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),

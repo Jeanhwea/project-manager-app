@@ -183,10 +183,7 @@ fn list_branches(repo_path: &Path) {
     let runner = GitCommandRunner::new();
 
     // Get current branch
-    let current = match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
-        Ok(output) => output,
-        Err(_) => String::new(),
-    };
+    let current = runner.execute_in_dir(&["branch", "--show-current"], repo_path).unwrap_or_default();
 
     // Get local branches
     let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
@@ -243,10 +240,7 @@ fn switch_branch(
     dry_run: bool,
 ) -> Result<(), crate::domain::git::GitError> {
     // Get current branch
-    let current = match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
-        Ok(output) => output,
-        Err(_) => String::new(),
-    };
+    let current = runner.execute_in_dir(&["branch", "--show-current"], repo_path).unwrap_or_default();
 
     if current.trim() == branch_name {
         println!("  {} 已在分支 {} 上", "跳过".dimmed(), branch_name.yellow());
@@ -374,10 +368,7 @@ fn rename_branch(
     }
 
     // Get current branch
-    let current = match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
-        Ok(output) => output,
-        Err(_) => String::new(),
-    };
+    let current = runner.execute_in_dir(&["branch", "--show-current"], repo_path).unwrap_or_default();
     let is_current = current.trim() == old_name;
 
     if !dry_run {

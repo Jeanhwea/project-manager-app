@@ -1,3 +1,4 @@
+#[allow(clippy::module_inception)]
 pub mod cli;
 pub mod dispatcher;
 pub mod parser;

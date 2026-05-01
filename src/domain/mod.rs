@@ -15,7 +15,7 @@ pub enum DomainError {
     Git(#[from] git::GitError),
 
     #[error("GitLab error: {0}")]
-    GitLab(#[from] gitlab::GitLabError),
+    GitLab(#[from] Box<gitlab::GitLabError>),
 
     #[error("Configuration error: {0}")]
     Config(#[from] config::ConfigError),

@@ -14,8 +14,7 @@ pub fn git_command(repo_path: impl AsRef<Path>, args: &[&str]) -> std::io::Resul
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        Err(std::io::Error::other(
             format!("Git command failed: {}", stderr.trim()),
         ))
     }
