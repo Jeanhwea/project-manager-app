@@ -6,6 +6,9 @@ use std::path::Path;
 /// Git remote representation
 #[derive(Debug, Clone)]
 pub struct Remote {
+    pub name: String,
+    pub url: String,
+    pub protocol: GitProtocol,
 }
 
 impl Remote {

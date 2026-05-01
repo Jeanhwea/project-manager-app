@@ -40,7 +40,7 @@ impl ConfigDir {
         Ok(())
     }
 
-    // ── config.toml ────────────────────────────────────────────────
+    // ── config.toml ──────────────────────────────────────
 
     /// Load `~/.pma/config.toml`. Returns defaults if file doesn't exist
     pub fn load_config() -> AppConfig {
@@ -72,7 +72,7 @@ impl ConfigDir {
         Ok(())
     }
 
-    // ── gitlab.toml ────────────────────────────────────────────────
+    // ── gitlab.toml ─────────────────────────────────────
 
     /// Load `~/.pma/gitlab.toml`. Returns defaults if file doesn't exist
     pub fn load_gitlab() -> GitLabConfig {

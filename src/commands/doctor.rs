@@ -9,17 +9,11 @@ use std::path::Path;
 /// Doctor command arguments
 #[derive(Debug)]
 pub struct DoctorArgs {
-    /// Maximum depth to search for repositories
     pub max_depth: Option<usize>,
-    /// Whether to perform garbage collection
     pub gc: bool,
-    /// Whether to rename remotes to their canonical names
     pub rename: bool,
-    /// Whether to automatically fix detected issues
     pub fix: bool,
-    /// Path to the directory to search for repositories
     pub path: String,
-    /// Dry run: show what would be changed without making any modifications
     pub dry_run: bool,
 }
 
@@ -30,20 +24,15 @@ impl Command for DoctorCommand {
     type Args = DoctorArgs;
 
     fn execute(args: Self::Args) -> CommandResult {
-        // Convert domain errors to command errors
         match execute_doctor(args) {
             Ok(()) => Ok(()),
-            Err(e) => {
-                // Convert anyhow errors to CommandError
-                Err(CommandError::ExecutionFailed(format!("{}", e)))
-            }
+            Err(e) => Err(CommandError::ExecutionFailed(format!("{}", e))),
         }
     }
 }
 
 /// Main doctor execution function
 fn execute_doctor(args: DoctorArgs) -> Result<()> {
-    // Check dependencies first
     check_dependencies()?;
 
     let walker = RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3))?;
@@ -131,7 +120,6 @@ fn check_dependencies() -> Result<()> {
 
 /// Check if a command exists in PATH
 fn check_command_exists(cmd: &str) -> bool {
-    // Cross-platform way to check if a command exists
     if cfg!(windows) {
         std::process::Command::new("where")
             .arg(cmd)
@@ -212,7 +200,6 @@ fn check_detached_head(repo_path: &Path, issues: &mut Vec<String>) {
 fn check_stale_remote_refs(repo_path: &Path, issues: &mut Vec<String>) {
     let runner = GitCommandRunner::new();
 
-    // Get remote names
     let remotes = match runner.execute_in_dir(&["remote"], repo_path) {
         Ok(output) => output
             .lines()

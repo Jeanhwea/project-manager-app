@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::process::Command;
 
-/// Execute a Git command and return the output as a trimmed string.
+/// Execute a Git command and return the output as a trimmed string
 pub fn git_command(repo_path: impl AsRef<Path>, args: &[&str]) -> std::io::Result<String> {
     let output = Command::new("git")
         .current_dir(repo_path.as_ref())
@@ -21,18 +21,18 @@ pub fn git_command(repo_path: impl AsRef<Path>, args: &[&str]) -> std::io::Resul
     }
 }
 
-/// Check if a directory is a Git repository.
+/// Check if a directory is a Git repository
 pub fn is_git_repo(path: impl AsRef<Path>) -> bool {
     let path = path.as_ref();
     path.is_dir() && path.join(".git").is_dir()
 }
 
-/// Get current Git branch name.
+/// Get current Git branch name
 pub fn get_current_branch(repo_path: impl AsRef<Path>) -> std::io::Result<String> {
     git_command(repo_path, &["branch", "--show-current"])
 }
 
-/// Get Git remote URLs (fetch + push).
+/// Get Git remote URLs (fetch + push)
 pub fn get_remote_urls(repo_path: impl AsRef<Path>) -> std::io::Result<Vec<String>> {
     let output = git_command(repo_path, &["remote", "-v"])?;
     let urls: Vec<String> = output
@@ -49,13 +49,13 @@ pub fn get_remote_urls(repo_path: impl AsRef<Path>) -> std::io::Result<Vec<Strin
     Ok(urls)
 }
 
-/// Check if Git repository has uncommitted changes.
+/// Check if Git repository has uncommitted changes
 pub fn has_uncommitted_changes(repo_path: impl AsRef<Path>) -> std::io::Result<bool> {
     let output = git_command(repo_path, &["status", "--porcelain"])?;
     Ok(!output.trim().is_empty())
 }
 
-/// Get Git remote name list.
+/// Get Git remote name list
 pub fn get_remote_list(repo_path: impl AsRef<Path>) -> std::io::Result<Vec<String>> {
     let output = git_command(repo_path, &["remote"])?;
     let remotes: Vec<String> = output

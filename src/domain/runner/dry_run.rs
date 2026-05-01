@@ -24,7 +24,6 @@ impl DryRunContext {
             return Ok(());
         }
 
-        // 打印即将执行的命令
         println!(
             "{} {} {}",
             "=>".white(),
