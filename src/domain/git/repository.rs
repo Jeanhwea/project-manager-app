@@ -482,12 +482,21 @@ impl RepoWalker {
     ///
     /// # Returns
     /// * `Result<()>` - Success or error
+    /// 遍历每个仓库执行回调，自动打印进入目录的信息。
     pub fn walk<F>(&self, mut callback: F) -> Result<()>
     where
         F: FnMut(&Path, usize, usize) -> Result<()>,
     {
+        let total = self.repos.len();
         for (index, repo) in self.repos.iter().enumerate() {
-            callback(&repo.path, index, self.repos.len())?;
+            // 打印仓库路径头
+            println!(
+                "({}/{})>> {}",
+                index + 1,
+                total,
+                crate::utils::path::format_path(&repo.path)
+            );
+            callback(&repo.path, index, total)?;
         }
         Ok(())
     }
