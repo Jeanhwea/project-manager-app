@@ -5,6 +5,7 @@ use super::Result;
 
 /// Version bump type
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum BumpType {
     Major,
     Minor,
@@ -14,6 +15,7 @@ pub enum BumpType {
 }
 
 /// Apply version bump to a version string
+#[allow(dead_code)]
 pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
     let mut parts = version.split('.');
     let major = parts.next().and_then(|s| s.parse::<u32>().ok());
@@ -44,6 +46,7 @@ pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
 
 /// Version editing configuration
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct EditorConfig {
     pub dry_run: bool,
     pub skip_push: bool,

@@ -8,7 +8,6 @@ use std::path::PathBuf;
 pub struct ConfigDir;
 
 impl ConfigDir {
-    /// Get the configuration directory path
     pub fn dir() -> PathBuf {
         if let Ok(path) = std::env::var("PMA_CONFIG_DIR") {
             return PathBuf::from(path);
@@ -21,17 +20,14 @@ impl ConfigDir {
         PathBuf::from(home).join(".pma")
     }
 
-    /// Path to `config.toml`
     pub fn config_path() -> PathBuf {
         Self::dir().join("config.toml")
     }
 
-    /// Path to `gitlab.toml`
     pub fn gitlab_path() -> PathBuf {
         Self::dir().join("gitlab.toml")
     }
 
-    /// Ensure the config directory exists
     pub fn ensure_dir() -> Result<()> {
         let dir = Self::dir();
         if !dir.exists() {
@@ -40,9 +36,6 @@ impl ConfigDir {
         Ok(())
     }
 
-    // ── config.toml ──────────────────────────────────────
-
-    /// Load `~/.pma/config.toml`. Returns defaults if file doesn't exist
     pub fn load_config() -> AppConfig {
         let path = Self::config_path();
         if !path.exists() {
@@ -62,7 +55,7 @@ impl ConfigDir {
         }
     }
 
-    /// Save `~/.pma/config.toml`
+    #[allow(dead_code)]
     pub fn save_config(config: &AppConfig) -> Result<()> {
         Self::ensure_dir()?;
         let path = Self::config_path();
@@ -72,9 +65,6 @@ impl ConfigDir {
         Ok(())
     }
 
-    // ── gitlab.toml ─────────────────────────────────────
-
-    /// Load `~/.pma/gitlab.toml`. Returns defaults if file doesn't exist
     pub fn load_gitlab() -> GitLabConfig {
         let path = Self::gitlab_path();
         if !path.exists() {
@@ -93,7 +83,6 @@ impl ConfigDir {
         }
     }
 
-    /// Save `~/.pma/gitlab.toml`
     pub fn save_gitlab(config: &GitLabConfig) -> Result<()> {
         Self::ensure_dir()?;
         let path = Self::gitlab_path();

@@ -25,6 +25,7 @@ use std::path::Path;
 
 /// Editor-specific error type
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum EditorError {
     #[error("File not found: {0}")]
     FileNotFound(String),
@@ -68,6 +69,7 @@ pub trait FileEditor: Send + Sync {
 
 /// Location of version information within a file
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct VersionLocation {
     pub project_version: Option<VersionPosition>,
     pub parent_version: Option<VersionPosition>,
@@ -77,6 +79,7 @@ pub struct VersionLocation {
 
 /// Position of version information within a file
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct VersionPosition {
     pub start: usize,
     pub end: usize,
@@ -85,6 +88,7 @@ pub struct VersionPosition {
 
 /// Reference to a dependency version that might need updating
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DependencyRef {
     pub name_pattern: String,
     pub position: VersionPosition,
@@ -138,6 +142,7 @@ impl EditorRegistry {
     }
 
     /// Get an editor by name
+    #[allow(dead_code)]
     pub fn get(&self, name: &str) -> Option<std::sync::Arc<dyn FileEditor>> {
         self.editors.get(name).cloned()
     }
@@ -186,6 +191,7 @@ impl EditorRegistry {
     }
 
     /// Edit a file by path
+    #[allow(dead_code)]
     pub fn edit_file(&self, path: &Path, new_version: &str) -> Result<()> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
@@ -201,6 +207,7 @@ impl EditorRegistry {
     }
 
     /// List all registered editor names
+    #[allow(dead_code)]
     pub fn list(&self) -> Vec<&'static str> {
         self.editors.keys().copied().collect()
     }
@@ -245,6 +252,7 @@ pub fn preserve_line_endings(original: &str, edited: String) -> String {
 }
 
 /// Bump version in a file
+#[allow(dead_code)]
 pub fn bump_version_in_file(
     path: &Path,
     bump_type: BumpType,
@@ -300,6 +308,7 @@ pub fn bump_version_in_file(
 }
 
 /// Get version from a file
+#[allow(dead_code)]
 pub fn get_version_from_file(path: &Path) -> Result<String> {
     let registry = EditorRegistry::default_with_editors();
 

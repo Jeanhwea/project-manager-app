@@ -19,6 +19,7 @@ pub type CommandResult = Result<(), CommandError>;
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     #[error("Invalid arguments: {0}")]
+    #[allow(dead_code)]
     InvalidArguments(String),
 
     #[error("Execution failed: {0}")]
