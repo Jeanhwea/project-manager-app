@@ -43,23 +43,12 @@ pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
 }
 
 /// Version editing configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EditorConfig {
     pub dry_run: bool,
     pub skip_push: bool,
     pub force: bool,
     pub message: Option<String>,
-}
-
-impl Default for EditorConfig {
-    fn default() -> Self {
-        Self {
-            dry_run: false,
-            skip_push: false,
-            force: false,
-            message: None,
-        }
-    }
 }
 
 #[cfg(test)]

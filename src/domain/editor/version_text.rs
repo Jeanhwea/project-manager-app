@@ -73,7 +73,7 @@ impl FileEditor for VersionTextEditor {
     }
 
     fn validate(&self, original: &str, edited: &str) -> Result<()> {
-        if original.len() == 0 && edited.len() == 0 {
+        if original.is_empty() && edited.is_empty() {
             return Ok(());
         }
 

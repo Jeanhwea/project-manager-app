@@ -62,23 +62,12 @@ pub trait FileEditor: Send + Sync {
 }
 
 /// Location of version information within a file
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct VersionLocation {
     pub project_version: Option<VersionPosition>,
     pub parent_version: Option<VersionPosition>,
     pub is_workspace_root: bool,
     pub dependency_refs: Vec<DependencyRef>,
-}
-
-impl Default for VersionLocation {
-    fn default() -> Self {
-        Self {
-            project_version: None,
-            parent_version: None,
-            is_workspace_root: false,
-            dependency_refs: Vec::new(),
-        }
-    }
 }
 
 /// Position of version information within a file

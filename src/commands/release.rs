@@ -537,7 +537,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
     }
 
     let status = std::process::Command::new("npm")
-        .args(&["install", "--package-lock-only"])
+        .args(["install", "--package-lock-only"])
         .current_dir(&lock_dir)
         .status()
         .with_context(|| "无法执行 npm install")?;
@@ -579,7 +579,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     }
 
     let status = std::process::Command::new("pnpm")
-        .args(&["install", "--lockfile-only"])
+        .args(["install", "--lockfile-only"])
         .current_dir(&lock_dir)
         .status()
         .with_context(|| "无法执行 pnpm install")?;
