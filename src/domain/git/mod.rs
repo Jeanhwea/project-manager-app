@@ -44,6 +44,7 @@ pub enum GitProtocol {
 }
 
 /// Git repository status
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum RepositoryStatus {
     Clean,

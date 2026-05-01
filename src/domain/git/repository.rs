@@ -2,7 +2,7 @@
 //!
 //! This module provides a clean interface for Git repository operations.
 
-use super::{GitError, Result};
+use super::{GitError, RepositoryStatus, Result};
 use crate::utils::path::canonicalize_path;
 use std::fs;
 use std::path::{Path, PathBuf};
