@@ -1,13 +1,7 @@
-//! Runner domain module
-//!
-//! This module contains command execution abstractions, including
-//! the shared `DryRunContext` for `--dry-run` support.
-
 pub mod dry_run;
 
 pub use dry_run::DryRunContext;
 
-/// Runner-specific error type
 #[derive(Debug, thiserror::Error)]
 pub enum RunnerError {
     #[error("I/O error: {0}")]

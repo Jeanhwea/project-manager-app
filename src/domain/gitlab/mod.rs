@@ -1,12 +1,7 @@
-//! GitLab domain module
-//!
-//! This module contains GitLab API integration and data models.
-
 pub mod auth;
 pub mod client;
 pub mod models;
 
-/// GitLab-specific error type
 #[derive(Debug, thiserror::Error)]
 pub enum GitLabError {
     #[error("Network error: {0}")]
@@ -28,20 +23,19 @@ pub enum GitLabError {
     Io(#[from] std::io::Error),
 }
 
-/// GitLab clone protocol
-#[derive(Debug, Clone, PartialEq)]
-pub enum CloneProtocol {
-    Ssh,
-    Http,
-    Https,
-}
-
-/// GitLab API configuration
+/// GitLab API 客户端使用的内部配置（非持久化配置）
 #[derive(Debug, Clone)]
 pub struct GitLabConfig {
     pub server: Option<String>,
     pub token: Option<String>,
     pub default_protocol: CloneProtocol,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CloneProtocol {
+    Ssh,
+    Http,
+    Https,
 }
 
 impl Default for GitLabConfig {
@@ -54,5 +48,4 @@ impl Default for GitLabConfig {
     }
 }
 
-/// Common result type for GitLab operations
 pub type Result<T> = std::result::Result<T, GitLabError>;

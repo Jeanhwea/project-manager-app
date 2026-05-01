@@ -1,23 +1,16 @@
-//! CLI parser module
-//!
-//! This module handles command-line argument parsing and validation.
-
 use super::cli::{
     BranchCommands, BumpType, Cli, Commands, ConfigCommands, GitlabCommands, SelfCommands,
     SnapCommands,
 };
 use super::{CliParser, CommandArgs, CommandName, ParsedCommand};
-use anyhow;
 use clap::Parser;
 
-/// CLI parser implementation
 pub struct ClapParser;
 
 impl CliParser for ClapParser {
     fn parse() -> Result<ParsedCommand, anyhow::Error> {
         let cli = Cli::parse();
 
-        // Convert clap command to ParsedCommand with domain-specific arguments
         let parsed_command = match cli.command {
             Commands::Release {
                 bump_type,
@@ -29,7 +22,6 @@ impl CliParser for ClapParser {
                 message,
                 pre_release,
             } => {
-                // Convert BumpType from cli to commands::release::BumpType
                 let bump_type = match bump_type {
                     BumpType::Major => crate::commands::release::BumpType::Major,
                     BumpType::Minor => crate::commands::release::BumpType::Minor,
@@ -101,7 +93,6 @@ impl CliParser for ClapParser {
                 }),
             },
             Commands::Gitlab { command } => {
-                // Handle GitLab subcommands
                 match command {
                     GitlabCommands::Login {
                         server,
@@ -144,7 +135,6 @@ impl CliParser for ClapParser {
                 }
             }
             Commands::Snap { command } => {
-                // Handle Snap subcommands
                 match command {
                     SnapCommands::Create { path, dry_run } => ParsedCommand {
                         name: CommandName::Snap,
@@ -189,7 +179,6 @@ impl CliParser for ClapParser {
                 }),
             },
             Commands::Branch { command } => {
-                // Handle Branch subcommands
                 match command {
                     BranchCommands::List { max_depth, path } => ParsedCommand {
                         name: CommandName::Branch,
@@ -252,7 +241,6 @@ impl CliParser for ClapParser {
                 }
             }
             Commands::Self_ { command } => {
-                // Handle Self subcommands
                 match command {
                     SelfCommands::Update { force } => ParsedCommand {
                         name: CommandName::SelfMan,
@@ -271,7 +259,6 @@ impl CliParser for ClapParser {
                 }
             }
             Commands::Config { command } => {
-                // Handle Config subcommands
                 match command {
                     ConfigCommands::Init => ParsedCommand {
                         name: CommandName::Config,
@@ -298,16 +285,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_clap_parser_implements_trait() {
-        // Test that ClapParser implements CliParser trait
-        let parser = ClapParser;
-        // This is a compile-time test - if it compiles, the trait is implemented
-    }
-
-    #[test]
-    fn test_parsed_command_enum_variants() {
-        // Test that CommandArgs enum can be created with different variants
-        // This is a compile-time test
+    fn test_parsed_command_release_variant() {
         let release_args = crate::commands::release::ReleaseArgs {
             bump_type: crate::commands::release::BumpType::Patch,
             files: vec![],
@@ -320,11 +298,6 @@ mod tests {
         };
 
         let command_args = CommandArgs::Release(release_args);
-
-        // Test that we can match on the enum variant
-        match command_args {
-            CommandArgs::Release(_) => assert!(true),
-            _ => assert!(false, "Expected Release variant"),
-        }
+        assert!(matches!(command_args, CommandArgs::Release(_)));
     }
 }

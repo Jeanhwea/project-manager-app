@@ -1,12 +1,7 @@
-//! Git domain module
-//!
-//! This module contains Git repository abstractions and operations.
-
 pub mod command;
 pub mod remote;
 pub mod repository;
 
-/// Git-specific error type
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
     #[error("Repository not found: {0}")]
@@ -34,7 +29,6 @@ pub enum GitError {
     Anyhow(#[from] anyhow::Error),
 }
 
-/// Git protocol type
 #[derive(Debug, Clone, PartialEq)]
 pub enum GitProtocol {
     Ssh,
@@ -43,7 +37,6 @@ pub enum GitProtocol {
     Git,
 }
 
-/// Git repository status
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum RepositoryStatus {
@@ -54,5 +47,4 @@ pub enum RepositoryStatus {
     Unknown,
 }
 
-/// Common result type for Git operations
 pub type Result<T> = std::result::Result<T, GitError>;

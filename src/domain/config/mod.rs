@@ -1,10 +1,9 @@
-//! Configuration domain module
+//! 配置管理
 //!
-//! All persistent configuration lives under `~/.pma/` (or `$PMA_CONFIG_DIR`).
+//! 所有持久化配置统一存放在 `~/.pma/` 目录下（可通过 `$PMA_CONFIG_DIR` 覆盖）。
 //!
-//! Files:
-//! - `config.toml`  — main application config (repository, remote, sync)
-//! - `gitlab.toml`  — GitLab server credentials
+//! - `config.toml`  — 主配置 (repository, remote, sync)
+//! - `gitlab.toml`  — GitLab 服务器凭据
 
 pub mod manager;
 pub mod schema;
@@ -12,7 +11,6 @@ pub mod schema;
 pub use manager::ConfigDir;
 pub use schema::GitLabServer;
 
-/// Configuration-specific error type
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("Configuration file not found: {0}")]
@@ -25,5 +23,4 @@ pub enum ConfigError {
     Io(#[from] std::io::Error),
 }
 
-/// Common result type for configuration operations
 pub type Result<T> = std::result::Result<T, ConfigError>;

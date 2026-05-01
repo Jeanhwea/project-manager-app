@@ -1,8 +1,3 @@
-//! Command implementations module
-//!
-//! This module contains the implementation of individual CLI commands
-//! following the Command trait pattern.
-
 pub mod branch;
 pub mod config;
 pub mod doctor;
@@ -14,22 +9,13 @@ pub mod snap;
 pub mod status;
 pub mod sync;
 
-/// Command trait for all command implementations
-///
-/// Each command implements this trait with its own argument type.
-/// This ensures type safety and clear separation between command domains.
 pub trait Command {
-    /// Type representing command-specific arguments
     type Args;
-
-    /// Execute the command with the given arguments
     fn execute(args: Self::Args) -> CommandResult;
 }
 
-/// Command execution result
 pub type CommandResult = Result<(), CommandError>;
 
-/// Command error type
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     #[error("Invalid arguments: {0}")]

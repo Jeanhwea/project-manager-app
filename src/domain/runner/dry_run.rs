@@ -1,34 +1,25 @@
-//! Dry run context for previewing operations without executing them.
-//!
-//! Provides a shared `DryRunContext` used across all commands that support `--dry-run`.
-
 use crate::domain::git::command::GitCommandRunner;
 use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
 
-/// Context for dry-run mode that previews operations instead of executing them.
+/// 支持 `--dry-run` 的命令执行上下文。
 ///
-/// When `dry_run` is true, commands are printed but not executed.
-/// When `dry_run` is false, commands are executed normally via `GitCommandRunner`.
+/// dry_run=true 时只打印将要执行的命令，不实际执行。
 pub struct DryRunContext {
     dry_run: bool,
 }
 
 impl DryRunContext {
-    /// Create a new dry-run context.
     pub fn new(dry_run: bool) -> Self {
         Self { dry_run }
     }
 
-    /// Check if dry-run mode is enabled.
     pub fn is_dry_run(&self) -> bool {
         self.dry_run
     }
 
-    /// Run a git command, or print it in dry-run mode.
-    ///
-    /// When `dir` is `Some`, the command runs in that directory.
+    /// 执行 git 命令，dry-run 模式下只打印。
     pub fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
         if self.dry_run {
             self.print_dry_run_command(program, args, dir);
@@ -47,21 +38,18 @@ impl DryRunContext {
         }
     }
 
-    /// Print a section header (only in dry-run mode).
     pub fn print_header(&self, msg: &str) {
         if self.dry_run {
             println!("{}", msg.green().bold());
         }
     }
 
-    /// Print an informational message (only in dry-run mode).
     pub fn print_message(&self, msg: &str) {
         if self.dry_run {
             println!("  {} {}", "[DRY-RUN]".yellow(), msg);
         }
     }
 
-    /// Print a file diff showing before/after changes (only in dry-run mode).
     pub fn print_file_diff(&self, file_path: &str, old_content: &str, new_content: &str) {
         if !self.dry_run {
             return;

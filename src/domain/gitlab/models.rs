@@ -1,10 +1,5 @@
-//! GitLab data models module
-//!
-//! This module defines GitLab API data structures.
-
 use serde::{Deserialize, Serialize};
 
-/// GitLab project representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
     pub id: u64,
@@ -21,7 +16,6 @@ pub struct Project {
     pub visibility: Option<String>,
 }
 
-/// GitLab group representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Group {
     pub id: u64,
@@ -31,7 +25,6 @@ pub struct Group {
     pub description: Option<String>,
 }
 
-/// GitLab user representation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: u64,
