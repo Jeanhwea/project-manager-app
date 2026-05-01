@@ -73,7 +73,6 @@ impl FileEditor for HomebrewFormulaEditor {
     }
 
     fn validate(&self, _original: &str, edited: &str) -> Result<()> {
-        // For Ruby files, just ensure we didn't corrupt the syntax
         if edited.contains("version \"\"") {
             return Err(EditorError::FormatPreservationError(
                 "Homebrew formula version field is empty".to_string(),

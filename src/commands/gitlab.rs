@@ -126,10 +126,8 @@ fn execute_login(args: LoginArgs) -> CommandResult {
         CloneProtocol::Https => "https",
     };
 
-    // Save to ~/.pma/gitlab.toml
     let mut gitlab_cfg = ConfigDir::load_gitlab();
 
-    // Update or insert server entry
     let new_server = GitLabServer {
         url: resolved_url.clone(),
         token: final_token.clone(),
@@ -198,7 +196,6 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
         group_info.full_path.dimmed()
     );
 
-    // Get group projects
     let projects = client
         .get_group_projects(group_info.id, true, args.include_archived)
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to get projects: {}", e)))?;

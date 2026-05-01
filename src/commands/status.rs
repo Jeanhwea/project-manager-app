@@ -99,26 +99,21 @@ impl Command for StatusCommand {
         let total = walker.total();
         let mut stats = StatusStats::default();
 
-        // Walk through each repository
         for (index, repo_info) in walker.repositories().iter().enumerate() {
             let repo_path = &repo_info.path;
 
-            // Skip submodules
             if repo_info.repo_type == crate::domain::git::repository::RepoType::Submodule {
                 stats.submodules += 1;
                 continue;
             }
 
-            // Collect repository status
             let status = collect_repo_status(repo_path);
 
-            // Apply filter
             if !matches_filter(&status, &args.filter) {
                 stats.skipped += 1;
                 continue;
             }
 
-            // Print progress
             let progress = format!("({}/{})", index + 1, total);
             println!(
                 "{}>> {}",
@@ -128,7 +123,6 @@ impl Command for StatusCommand {
                     .underline(),
             );
 
-            // Print status
             if args.short {
                 print_short_status(&status);
             } else {

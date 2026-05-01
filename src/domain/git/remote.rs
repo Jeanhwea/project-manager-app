@@ -34,7 +34,6 @@ impl Remote {
         let name = name.into();
         let url = url.into();
 
-        // Validate the URL
         let protocol = Self::parse_url(&url)?;
 
         Ok(Self {
@@ -189,9 +188,6 @@ impl Remote {
     /// # Returns
     /// * `String` - Suggested remote name
     pub fn get_remote_name_by_url(_url: &str) -> String {
-        // For now, return "origin" as default
-        // In a real implementation, this would use configuration rules
-        // to determine appropriate remote names based on URL patterns
         "origin".to_string()
     }
 

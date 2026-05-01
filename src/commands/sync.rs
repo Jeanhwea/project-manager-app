@@ -39,11 +39,9 @@ impl Command for SyncCommand {
     type Args = SyncArgs;
 
     fn execute(args: Self::Args) -> CommandResult {
-        // Convert domain errors to command errors
         match execute_sync(args) {
             Ok(()) => Ok(()),
             Err(e) => {
-                // Convert anyhow errors to CommandError
                 Err(CommandError::ExecutionFailed(format!("{}", e)))
             }
         }
@@ -95,12 +93,10 @@ fn execute_sync(args: SyncArgs) -> Result<()> {
 fn do_info_repository(repo_path: &Path) -> Result<()> {
     let runner = GitCommandRunner::new();
 
-    // Get branch information
     if let Err(e) = runner.execute_with_success_in_dir(&["branch", "--list"], repo_path) {
         println!("  无法获取分支信息: {}", e);
     }
 
-    // Get remote information
     if let Err(e) = runner.execute_with_success_in_dir(&["remote", "-v"], repo_path) {
         println!("  无法获取远程信息: {}", e);
     }
@@ -134,7 +130,6 @@ fn do_sync_repository(
     fetch_only: bool,
     rebase: bool,
 ) {
-    // Get remote information
     let remote_manager = RemoteManager::new();
     let remotes = match remote_manager.list_remotes(repo_path) {
         Ok(remotes) => remotes

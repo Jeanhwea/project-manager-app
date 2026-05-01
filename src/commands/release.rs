@@ -99,21 +99,16 @@ impl Command for ReleaseCommand {
 
 /// Main release execution function
 fn execute_release(args: ReleaseArgs) -> Result<()> {
-    // Resolve file paths
     let resolved_files = resolve_file_paths(&args.files);
 
-    // Switch to git root if needed
     if !args.no_root {
         switch_to_git_root()?;
     }
 
-    // Validate git state and prepare release
     let state = validate_git_state(&args)?;
 
-    // Create editor registry
     let registry = EditorRegistry::default_with_editors();
 
-    // Resolve configuration files
     let config_files = resolve_config_files(&registry, &resolved_files)?;
 
     if args.dry_run {
@@ -157,42 +152,34 @@ fn switch_to_git_root() -> Result<()> {
 fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
     let runner = GitCommandRunner::new();
 
-    // Get current branch
     let current_branch = runner.execute(&["branch", "--show-current"])?;
     let current_branch = current_branch.trim().to_string();
 
-    // Check if on master branch (unless force is enabled)
     if !args.force && current_branch != "master" {
         anyhow::bail!("只能在 master 分支上执行 release");
     }
 
-    // Get current version tag
     let current_tag = get_current_version(&runner).unwrap_or_else(|| "v0.0.0".to_string());
 
-    // Check if HEAD is already tagged
     let rev_current_tag = runner.execute(&["rev-parse", &current_tag])?;
     let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
     if rev_current_tag.trim() == rev_head.trim() {
         anyhow::bail!("当前 HEAD 已被标记为 {}", current_tag);
     }
 
-    // Parse current version and bump it
     let version = parse_version_from_tag(&current_tag).unwrap_or_default();
     let new_version = version.bump(args.bump_type.as_str());
     let mut new_tag = new_version.to_tag();
 
-    // Add pre-release suffix if specified
     if let Some(pre) = &args.pre_release {
         new_tag = format!("{}-{}", new_tag, pre);
     }
 
-    // Prepare commit message
     let commit_message = match &args.message {
         Some(msg) => format!("{} {}", new_tag, msg),
         None => new_tag.clone(),
     };
 
-    // Print version change information
     println!(
         "{} {} -> {}",
         "版本变更:".green().bold(),
@@ -392,10 +379,8 @@ fn execute_release_operations(
     // Commit changes
     runner.execute_with_success(&["commit", "-m", &state.commit_message])?;
 
-    // Create tag
     runner.execute_with_success(&["tag", &state.new_tag])?;
 
-    // Push to remotes
     push_to_remotes(args.skip_push, &state.current_branch, &state.new_tag)?;
 
     Ok(())
@@ -514,8 +499,6 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     let pkg_name = read_cargo_package_name(cargo_toml_path)?;
     let runner = GitCommandRunner::new();
 
-    // Note: We're using the runner to execute cargo commands
-    // This assumes cargo is available on the system
     let status = std::process::Command::new("cargo")
         .args(&["update", "--package", &pkg_name])
         .current_dir(dir)

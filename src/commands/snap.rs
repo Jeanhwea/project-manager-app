@@ -54,11 +54,9 @@ impl Command for SnapCommand {
     type Args = SnapArgs;
 
     fn execute(args: Self::Args) -> CommandResult {
-        // Convert domain errors to command errors
         match execute_snap(args) {
             Ok(()) => Ok(()),
             Err(e) => {
-                // Convert anyhow errors to CommandError
                 Err(CommandError::ExecutionFailed(format!("{}", e)))
             }
         }

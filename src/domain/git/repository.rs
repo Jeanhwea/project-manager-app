@@ -430,8 +430,6 @@ mod tests {
         let _: Option<&Branch> = None::<&Repository>.and_then(|repo| repo.branch("main"));
         let _: &Path = Path::new(".");
         let _: &RepositoryStatus = &RepositoryStatus::Clean;
-
-        // Test passes if compilation succeeds
     }
 }
 
@@ -478,12 +476,13 @@ impl RepoWalker {
     {
         let total = self.repos.len();
         for (index, repo) in self.repos.iter().enumerate() {
-            // 打印仓库路径头
+            let abs_path =
+                std::fs::canonicalize(&repo.path).unwrap_or_else(|_| repo.path.clone());
             println!(
                 "({}/{})>> {}",
                 index + 1,
                 total,
-                crate::utils::path::format_path(&repo.path)
+                crate::utils::path::format_path(&abs_path)
             );
             callback(&repo.path, index, total)?;
         }
