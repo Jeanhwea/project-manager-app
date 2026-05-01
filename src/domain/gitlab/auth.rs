@@ -8,21 +8,21 @@ pub struct AuthManager;
 
 impl AuthManager {
     pub fn load_token() -> Result<Option<String>> {
-        if let Ok(token) = env::var("GITLAB_TOKEN") {
-            if !token.trim().is_empty() {
+        if let Ok(token) = env::var("GITLAB_TOKEN")
+            && !token.trim().is_empty()
+        {
                 return Ok(Some(token));
             }
-        }
 
         if let Some(token) = Self::read_token_file(&Self::config_dir()?.join("gitlab_token"))? {
             return Ok(Some(token));
         }
 
-        if let Some(home) = dirs::home_dir() {
-            if let Some(token) = Self::read_token_file(&home.join(".gitlab_token"))? {
+        if let Some(home) = dirs::home_dir()
+            && let Some(token) = Self::read_token_file(&home.join(".gitlab_token"))?
+        {
                 return Ok(Some(token));
             }
-        }
 
         Ok(None)
     }

@@ -137,7 +137,7 @@ fn switch_to_git_root() -> Result<()> {
     let root = output.trim();
 
     if !root.is_empty() {
-        std::env::set_current_dir(&root)
+        std::env::set_current_dir(root)
             .with_context(|| format!("无法切换到 git 根目录: {}", root))?;
     }
 
@@ -496,7 +496,7 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     let runner = GitCommandRunner::new();
 
     let status = std::process::Command::new("cargo")
-        .args(&["update", "--package", &pkg_name])
+        .args(["update", "--package", &pkg_name])
         .current_dir(dir)
         .status()
         .with_context(|| "无法执行 cargo update")?;

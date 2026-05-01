@@ -144,10 +144,7 @@ impl Repository {
 
         // Get current branch
         let _current_branch =
-            match runner.execute_in_dir(&["branch", "--show-current"], &self.path) {
-                Ok(output) => output,
-                Err(_) => String::new(),
-            };
+            runner.execute_in_dir(&["branch", "--show-current"], &self.path).unwrap_or_default();
 
         // Get all local branches
         let branches_output = match runner.execute_in_dir(&["branch", "--list"], &self.path) {
@@ -166,8 +163,8 @@ impl Repository {
                 continue;
             }
 
-            let (is_current, name) = if line.starts_with('*') {
-                (true, line[1..].trim())
+            let (is_current, name) = if let Some(stripped) = line.strip_prefix('*') {
+                (true, stripped.trim())
             } else {
                 (false, line)
             };

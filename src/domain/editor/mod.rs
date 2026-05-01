@@ -222,7 +222,7 @@ impl Default for EditorRegistry {
 pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
     let backup_path = format!("{}.bak", path);
 
-    std::fs::copy(path, &backup_path).map_err(|e| EditorError::WriteError(e))?;
+    std::fs::copy(path, &backup_path).map_err(EditorError::WriteError)?;
 
     match std::fs::write(path, content) {
         Ok(_) => {

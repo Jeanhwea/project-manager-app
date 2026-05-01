@@ -224,7 +224,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
                 args.output.cyan()
             );
         } else {
-            std::fs::create_dir_all(output_path).map_err(|e| CommandError::Io(e))?;
+            std::fs::create_dir_all(output_path).map_err(CommandError::Io)?;
         }
     }
 
@@ -361,12 +361,12 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 /// Prompt for user input
 fn prompt_input(prompt: &str) -> Result<String, CommandError> {
     print!("{}: ", prompt.white().bold());
-    io::stdout().flush().map_err(|e| CommandError::Io(e))?;
+    io::stdout().flush().map_err(CommandError::Io)?;
 
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
-        .map_err(|e| CommandError::Io(e))?;
+        .map_err(CommandError::Io)?;
     Ok(input.trim().to_string())
 }
 
@@ -545,13 +545,13 @@ fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
     if let Ok(entries) = std::fs::read_dir(output_path) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() && is_git_repo(&path) {
-                if let Ok(remote_urls) = get_remote_urls(&path) {
+            if path.is_dir() && is_git_repo(&path)
+                && let Ok(remote_urls) = get_remote_urls(&path)
+            {
                     for url in remote_urls {
                         urls.insert(url.trim_end_matches('/').to_string());
                     }
                 }
-            }
         }
     }
 

@@ -38,15 +38,15 @@ fn execute_init() -> CommandResult {
         )));
     }
 
-    std::fs::create_dir_all(&dir).map_err(|e| super::CommandError::Io(e))?;
+    std::fs::create_dir_all(&dir).map_err(super::CommandError::Io)?;
 
     let config_path = ConfigDir::config_path();
     std::fs::write(&config_path, schema::default_config_content())
-        .map_err(|e| super::CommandError::Io(e))?;
+        .map_err(super::CommandError::Io)?;
 
     let gitlab_path = ConfigDir::gitlab_path();
     std::fs::write(&gitlab_path, schema::default_gitlab_config_content())
-        .map_err(|e| super::CommandError::Io(e))?;
+        .map_err(super::CommandError::Io)?;
 
     println!("{} {}", "已创建配置目录:".green(), dir.display());
     println!("  {} {}", "主配置:".dimmed(), config_path.display());

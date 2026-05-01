@@ -67,7 +67,7 @@ impl Command for ForkCommand {
             )));
         }
 
-        let curr_dir = std::env::current_dir().map_err(|e| super::CommandError::Io(e))?;
+        let curr_dir = std::env::current_dir().map_err(super::CommandError::Io)?;
         let project_dir = curr_dir.join(&args.name);
 
         if project_dir.exists() {
