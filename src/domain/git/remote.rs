@@ -1,8 +1,4 @@
 //! Git remote management module
-//!
-//! This module handles remote URL parsing, validation, and remote operations abstraction.
-//!
-//! **Validates: Requirements 7.5**
 
 use crate::domain::git::{GitError, GitProtocol, Result};
 use std::path::Path;
@@ -10,12 +6,6 @@ use std::path::Path;
 /// Git remote representation
 #[derive(Debug, Clone)]
 pub struct Remote {
-    /// Remote name (e.g., "origin", "upstream")
-    pub name: String,
-    /// Remote URL
-    pub url: String,
-    /// Git protocol used for the remote
-    pub protocol: GitProtocol,
 }
 
 impl Remote {

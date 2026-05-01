@@ -1,5 +1,3 @@
-//! GitLab command implementation
-
 use super::{Command, CommandError, CommandResult};
 use crate::domain::config::{ConfigDir, GitLabServer};
 use crate::domain::gitlab::client::GitLabClient;

@@ -1,5 +1,3 @@
-//! Self management command implementation
-
 use super::{Command, CommandResult};
 use anyhow::{Context, Result};
 use colored::*;

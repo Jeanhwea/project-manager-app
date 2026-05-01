@@ -1,4 +1,4 @@
-//! Version bumping utilities for the editor module
+//! Version bumping utilities
 
 use super::EditorError;
 use super::Result;

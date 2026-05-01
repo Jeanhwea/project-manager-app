@@ -3,9 +3,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-/// GitLab token 管理。
-///
-/// 查找顺序: 环境变量 GITLAB_TOKEN → ~/.pma/gitlab_token → ~/.gitlab_token
+/// GitLab token 管理
 pub struct AuthManager;
 
 impl AuthManager {

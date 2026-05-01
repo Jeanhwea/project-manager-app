@@ -1,5 +1,3 @@
-//! Branch command implementation
-
 use super::{Command, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::RepoWalker;

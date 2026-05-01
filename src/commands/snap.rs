@@ -1,7 +1,3 @@
-//! Snapshot command implementation
-//!
-//! **Validates: Requirements 6.1, 10.1**
-
 use super::{Command, CommandError, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::runner::DryRunContext;

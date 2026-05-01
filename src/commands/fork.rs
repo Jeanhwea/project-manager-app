@@ -1,5 +1,3 @@
-//! Fork command implementation
-
 use super::{Command, CommandResult};
 use crate::domain::git::{GitProtocol, command::GitCommandRunner};
 use crate::domain::runner::DryRunContext;

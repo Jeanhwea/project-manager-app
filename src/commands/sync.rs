@@ -1,7 +1,3 @@
-//! Sync command implementation
-//!
-//! **Validates: Requirements 6.1, 6.4, 6.5**
-
 use super::{Command, CommandError, CommandResult};
 use crate::domain::config::ConfigDir;
 use crate::domain::git::command::GitCommandRunner;

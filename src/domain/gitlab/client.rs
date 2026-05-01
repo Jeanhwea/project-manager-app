@@ -1,6 +1,4 @@
 //! GitLab API client module
-//!
-//! This module implements the GitLab API client.
 
 use super::{GitLabConfig, GitLabError, Result};
 use crate::domain::gitlab::models::{Group, Project, User};

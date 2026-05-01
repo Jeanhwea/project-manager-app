@@ -1,4 +1,4 @@
-//! File type detection utilities for the editor module
+//! File type detection utilities
 
 use std::path::Path;
 

@@ -1,5 +1,3 @@
-//! Status command implementation
-
 use super::{Command, CommandResult};
 use crate::domain::git::repository::RepoWalker;
 use crate::utils::git;

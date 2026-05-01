@@ -1,6 +1,4 @@
 //! Git repository abstraction module
-//!
-//! This module provides a clean interface for Git repository operations.
 
 use super::{GitError, RepositoryStatus, Result};
 use crate::utils::path::canonicalize_path;
@@ -10,15 +8,10 @@ use std::path::{Path, PathBuf};
 /// Git repository abstraction
 #[derive(Debug, Clone)]
 pub struct Repository {
-    /// Repository root directory path
     pub path: PathBuf,
-    /// Repository status (clean, dirty, etc.)
     pub status: RepositoryStatus,
-    /// List of remote repositories
     pub remotes: Vec<Remote>,
-    /// List of branches
     pub branches: Vec<Branch>,
-    /// Repository type (regular or submodule)
     pub repo_type: RepoType,
 }
 
@@ -28,29 +21,22 @@ pub use super::remote::Remote;
 /// Git branch information
 #[derive(Debug, Clone)]
 pub struct Branch {
-    /// Branch name
     pub name: String,
-    /// Whether this is the current branch
     pub is_current: bool,
-    /// Upstream tracking branch (if any)
     pub upstream: Option<String>,
 }
 
 /// Repository type
 #[derive(Debug, Clone, PartialEq)]
 pub enum RepoType {
-    /// Regular Git repository
     Regular,
-    /// Git submodule
     Submodule,
 }
 
 /// Repository discovery information
 #[derive(Debug)]
 pub struct RepoInfo {
-    /// Repository path
     pub path: PathBuf,
-    /// Repository type
     pub repo_type: RepoType,
 }
 

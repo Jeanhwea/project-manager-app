@@ -1,7 +1,4 @@
 //! Git-specific utilities
-//!
-//! Simple Git helper functions that complement the domain Git module.
-//! These provide lightweight wrappers around `git` commands for common operations.
 
 use std::path::Path;
 use std::process::Command;

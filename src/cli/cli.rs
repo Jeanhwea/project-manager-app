@@ -1,7 +1,3 @@
-//! CLI definitions module
-//!
-//! This module contains the CLI structure definitions using clap.
-
 use crate::commands::gitlab::CloneProtocol;
 use crate::commands::status::StatusFilter;
 use clap::builder::styling::Styles;

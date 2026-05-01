@@ -1,29 +1,14 @@
 //! Configuration manager module
-//!
-//! Single source of truth for the `~/.pma/` configuration directory.
-//! All persistent files go through `ConfigDir`.
 
 use super::schema::{AppConfig, GitLabConfig};
 use super::{ConfigError, Result};
 use std::path::PathBuf;
 
-/// Central configuration directory manager.
-///
-/// All persistent files live under `$PMA_CONFIG_DIR` (default `~/.pma/`).
-///
-/// ```text
-/// ~/.pma/
-/// ├── config.toml       # main config (repository, remote, sync)
-/// └── gitlab.toml       # GitLab server credentials
-/// ```
+/// Central configuration directory manager
 pub struct ConfigDir;
 
 impl ConfigDir {
-    /// Get the configuration directory path.
-    ///
-    /// Resolution order:
-    /// 1. `$PMA_CONFIG_DIR` environment variable
-    /// 2. `$HOME/.pma` (Unix) / `$USERPROFILE/.pma` (Windows)
+    /// Get the configuration directory path
     pub fn dir() -> PathBuf {
         if let Ok(path) = std::env::var("PMA_CONFIG_DIR") {
             return PathBuf::from(path);
@@ -46,7 +31,7 @@ impl ConfigDir {
         Self::dir().join("gitlab.toml")
     }
 
-    /// Ensure the config directory exists.
+    /// Ensure the config directory exists
     pub fn ensure_dir() -> Result<()> {
         let dir = Self::dir();
         if !dir.exists() {
@@ -57,7 +42,7 @@ impl ConfigDir {
 
     // ── config.toml ────────────────────────────────────────────────
 
-    /// Load `~/.pma/config.toml`. Returns defaults if file doesn't exist.
+    /// Load `~/.pma/config.toml`. Returns defaults if file doesn't exist
     pub fn load_config() -> AppConfig {
         let path = Self::config_path();
         if !path.exists() {
@@ -77,7 +62,7 @@ impl ConfigDir {
         }
     }
 
-    /// Save `~/.pma/config.toml`.
+    /// Save `~/.pma/config.toml`
     pub fn save_config(config: &AppConfig) -> Result<()> {
         Self::ensure_dir()?;
         let path = Self::config_path();
@@ -89,7 +74,7 @@ impl ConfigDir {
 
     // ── gitlab.toml ────────────────────────────────────────────────
 
-    /// Load `~/.pma/gitlab.toml`. Returns defaults if file doesn't exist.
+    /// Load `~/.pma/gitlab.toml`. Returns defaults if file doesn't exist
     pub fn load_gitlab() -> GitLabConfig {
         let path = Self::gitlab_path();
         if !path.exists() {
@@ -108,7 +93,7 @@ impl ConfigDir {
         }
     }
 
-    /// Save `~/.pma/gitlab.toml`.
+    /// Save `~/.pma/gitlab.toml`
     pub fn save_gitlab(config: &GitLabConfig) -> Result<()> {
         Self::ensure_dir()?;
         let path = Self::gitlab_path();

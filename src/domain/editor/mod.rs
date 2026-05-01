@@ -1,6 +1,4 @@
 //! Editor domain module
-//!
-//! This module contains file editing utilities for version bumping.
 
 mod cargo_toml;
 mod cmake;
@@ -55,40 +53,20 @@ pub type Result<T> = std::result::Result<T, EditorError>;
 
 /// Trait for file editors that can modify version information
 pub trait FileEditor: Send + Sync {
-    /// Get the name of this editor
     fn name(&self) -> &'static str;
-
-    /// Get file patterns this editor can handle
     fn file_patterns(&self) -> &[&str];
-
-    /// Check if this editor can handle the given file
     fn matches_file(&self, path: &Path) -> bool;
-
-    /// Parse the file content to find version information
     fn parse(&self, content: &str) -> Result<VersionLocation>;
-
-    /// Edit the file content to update version
-    fn edit(
-        &self,
-        content: &str,
-        location: &VersionLocation,
-        new_version: &str,
-    ) -> Result<String>;
-
-    /// Validate the edited content
+    fn edit(&self, content: &str, location: &VersionLocation, new_version: &str) -> Result<String>;
     fn validate(&self, original: &str, edited: &str) -> Result<()>;
 }
 
 /// Location of version information within a file
 #[derive(Debug, Clone)]
 pub struct VersionLocation {
-    /// Position of the main project version
     pub project_version: Option<VersionPosition>,
-    /// Position of parent version (for workspace files)
     pub parent_version: Option<VersionPosition>,
-    /// Whether this is a workspace root file
     pub is_workspace_root: bool,
-    /// References to dependency versions that might need updating
     pub dependency_refs: Vec<DependencyRef>,
 }
 
@@ -106,20 +84,15 @@ impl Default for VersionLocation {
 /// Position of version information within a file
 #[derive(Debug, Clone)]
 pub struct VersionPosition {
-    /// Start byte offset
     pub start: usize,
-    /// End byte offset
     pub end: usize,
-    /// Line number (1-indexed)
     pub line: usize,
 }
 
 /// Reference to a dependency version that might need updating
 #[derive(Debug, Clone)]
 pub struct DependencyRef {
-    /// Pattern to match dependency name
     pub name_pattern: String,
-    /// Position of the version
     pub position: VersionPosition,
 }
 
