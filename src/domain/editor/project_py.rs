@@ -7,7 +7,6 @@ pub struct PythonVersionEditor;
 
 impl PythonVersionEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
-        // Look for __version__ = "x.y.z" pattern
         let version_pattern = regex::Regex::new(r#"__version__\s*=\s*["']([^"']+)["']"#).ok()?;
 
         if let Some(m) = version_pattern.find(content) {
@@ -74,7 +73,6 @@ impl FileEditor for PythonVersionEditor {
     }
 
     fn validate(&self, _original: &str, edited: &str) -> Result<()> {
-        // Check if Python syntax is still valid
         if edited.contains("__version__ = \"\"") {
             return Err(EditorError::FormatPreservationError(
                 "Python version field is empty".to_string(),

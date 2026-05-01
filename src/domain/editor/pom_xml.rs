@@ -73,7 +73,6 @@ impl FileEditor for PomXmlEditor {
     }
 
     fn validate(&self, _original: &str, edited: &str) -> Result<()> {
-        // Check if XML is still valid by looking for basic structure
         if !edited.contains("<version>") || !edited.contains("</version>") {
             return Err(EditorError::FormatPreservationError(
                 "pom.xml format validation failed".to_string(),

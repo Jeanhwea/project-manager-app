@@ -185,7 +185,6 @@ impl EditorRegistry {
             .and_then(|n| n.to_str())
             .unwrap_or("");
 
-        // Check file patterns
         for (pattern, editor_name) in &self.file_pattern_map {
             if pattern.contains("{parent}") {
                 let replaced = pattern.replace("{parent}", parent_dir);
@@ -197,7 +196,6 @@ impl EditorRegistry {
             }
         }
 
-        // Fall back to editor-specific matching
         for editor in self.editors.values() {
             if editor.matches_file(path) {
                 return Some(editor.clone());
@@ -296,7 +294,6 @@ pub fn bump_version_in_file(
 
     let location = editor.parse(&content)?;
 
-    // Extract current version
     let current_version = if let Some(pos) = &location.project_version {
         content[pos.start..pos.end].to_string()
     } else {
@@ -306,14 +303,12 @@ pub fn bump_version_in_file(
         )));
     };
 
-    // Clean version string (remove quotes, etc.)
     let cleaned_version = current_version
         .trim_matches('"')
         .trim_matches('\'')
         .trim()
         .to_string();
 
-    // Apply bump
     let new_version = apply_bump(&cleaned_version, &bump_type)?;
 
     if config.dry_run {
@@ -325,7 +320,6 @@ pub fn bump_version_in_file(
         ));
     }
 
-    // Edit file
     let edited = registry.edit_version(&*editor, &content, &new_version)?;
 
     write_with_backup(&path.to_string_lossy(), &edited)?;

@@ -225,7 +225,6 @@ impl GitLabClient {
 
     /// Test API connectivity
     pub fn test_connection(&self) -> Result<()> {
-        // Try to get current user as a connectivity test
         self.get_current_user()?;
         Ok(())
     }

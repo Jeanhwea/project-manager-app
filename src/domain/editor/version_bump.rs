@@ -15,7 +15,6 @@ pub enum BumpType {
 
 /// Apply version bump to a version string
 pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
-    // Parse semantic version
     let mut parts = version.split('.');
     let major = parts.next().and_then(|s| s.parse::<u32>().ok());
     let minor = parts.next().and_then(|s| s.parse::<u32>().ok());

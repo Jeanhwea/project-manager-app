@@ -7,7 +7,6 @@ pub struct VersionTextEditor;
 
 impl VersionTextEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
-        // Look for semantic version pattern
         let version_pattern = regex::Regex::new(r#"\d+\.\d+\.\d+"#).ok()?;
 
         if let Some(m) = version_pattern.find(content) {
@@ -74,7 +73,6 @@ impl FileEditor for VersionTextEditor {
     }
 
     fn validate(&self, original: &str, edited: &str) -> Result<()> {
-        // For text files, just ensure we didn't corrupt the file
         if original.len() == 0 && edited.len() == 0 {
             return Ok(());
         }

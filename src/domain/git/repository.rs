@@ -69,7 +69,6 @@ impl Repository {
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
 
-        // Check if the path exists
         if !path.exists() {
             return Err(GitError::RepositoryNotFound(format!(
                 "Path does not exist: {}",
@@ -102,7 +101,6 @@ impl Repository {
             repo_type,
         };
 
-        // Initialize repository data
         repo.refresh()?;
 
         Ok(repo)
@@ -166,7 +164,6 @@ impl Repository {
 
         let manager = RemoteManager::new();
 
-        // Get remotes using RemoteManager
         let remotes = manager.list_remotes(&self.path)?;
 
         self.remotes = remotes;
@@ -209,14 +206,12 @@ impl Repository {
                 continue;
             }
 
-            // Parse branch line (e.g., "* main" or "  feature/branch")
             let (is_current, name) = if line.starts_with('*') {
                 (true, line[1..].trim())
             } else {
                 (false, line)
             };
 
-            // Get upstream tracking information
             let upstream = get_upstream_tracking(&self.path, name).ok();
 
             branches.push(Branch {
@@ -302,7 +297,6 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<Re
         return Ok(repos);
     }
 
-    // Check if current directory is a Git repository
     let git_path = root_dir.join(".git");
     if git_path.exists() {
         let repo_type = if git_path.is_dir() {
@@ -318,7 +312,6 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<Re
         return Ok(repos);
     }
 
-    // Recursively search subdirectories
     let entries = fs::read_dir(root_dir).map_err(GitError::Io)?;
 
     for entry in entries {
@@ -329,7 +322,6 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<Re
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            // Skip .git directories
             if file_name_str == ".git" {
                 continue;
             }
@@ -356,10 +348,7 @@ fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
         path,
     ) {
         Ok(upstream) => Ok(upstream),
-        Err(_) => {
-            // No upstream or command failed - return empty string
-            Ok(String::new())
-        }
+        Err(_) => Ok(String::new())
     }
 }
 

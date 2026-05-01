@@ -43,7 +43,6 @@ impl DryRunContext {
         }
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-        // 打印 stdout/stderr
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         if !stdout.is_empty() {
