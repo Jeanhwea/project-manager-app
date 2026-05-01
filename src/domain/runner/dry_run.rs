@@ -6,6 +6,7 @@ use std::path::Path;
 /// 支持 `--dry-run` 的命令执行上下文。
 ///
 /// dry_run=true 时只打印将要执行的命令，不实际执行。
+/// dry_run=false 时打印命令、执行、并输出 stdout/stderr。
 pub struct DryRunContext {
     dry_run: bool,
 }
@@ -19,23 +20,44 @@ impl DryRunContext {
         self.dry_run
     }
 
-    /// 执行 git 命令，dry-run 模式下只打印。
+    /// 执行命令。dry-run 模式下只打印，否则打印并执行。
     pub fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
         if self.dry_run {
-            self.print_dry_run_command(program, args, dir);
+            self.print_dry_run_command(program, args);
             return Ok(());
         }
 
+        // 打印即将执行的命令
+        println!(
+            "{} {} {}",
+            "=>".white(),
+            program.yellow(),
+            args.join(" ").yellow()
+        );
+
         let runner = GitCommandRunner::new();
-        if let Some(dir) = dir {
-            runner
-                .execute_with_success_in_dir(args, dir)
-                .map_err(|e| anyhow::anyhow!("{}", e))
+        let output = if let Some(dir) = dir {
+            runner.execute_raw_in_dir(args, dir)
         } else {
-            runner
-                .execute_with_success(args)
-                .map_err(|e| anyhow::anyhow!("{}", e))
+            runner.execute_raw(args)
         }
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        // 打印 stdout/stderr
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if !stdout.is_empty() {
+            print!("{}", stdout);
+        }
+        if !stderr.is_empty() {
+            eprint!("{}", stderr);
+        }
+
+        if !output.status.success() {
+            anyhow::bail!("命令执行失败: {} {}", program, args.join(" "));
+        }
+
+        Ok(())
     }
 
     pub fn print_header(&self, msg: &str) {
@@ -71,18 +93,12 @@ impl DryRunContext {
         }
     }
 
-    fn print_dry_run_command(&self, program: &str, args: &[&str], dir: Option<&Path>) {
-        let args_str = args.join(" ");
-        if let Some(d) = dir {
-            println!(
-                "  {} {} {} (in {})",
-                "[DRY-RUN]".yellow(),
-                program.cyan(),
-                args_str,
-                d.display().to_string().dimmed()
-            );
-        } else {
-            println!("  {} {} {}", "[DRY-RUN]".yellow(), program.cyan(), args_str);
-        }
+    fn print_dry_run_command(&self, program: &str, args: &[&str]) {
+        println!(
+            "  {} {} {}",
+            "[DRY-RUN]".yellow(),
+            program.cyan(),
+            args.join(" ")
+        );
     }
 }
