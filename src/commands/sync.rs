@@ -321,6 +321,7 @@ fn is_workdir_clean(repo_path: &Path) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_dry_run_context() {
