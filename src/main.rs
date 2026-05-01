@@ -1,5 +1,4 @@
 mod cli;
-mod cli_old;
 mod commands;
 mod domain;
 mod utils;

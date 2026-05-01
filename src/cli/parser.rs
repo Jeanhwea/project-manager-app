@@ -5,7 +5,7 @@
 use anyhow;
 use clap::Parser;
 use super::{CliParser, CommandArgs, CommandName, ParsedCommand};
-use crate::cli_old::Cli;
+use super::cli::{Cli, Commands, BumpType, GitlabCommands, SnapCommands, BranchCommands, SelfCommands, ConfigCommands};
 
 /// CLI parser implementation
 pub struct ClapParser;
@@ -16,12 +16,12 @@ impl CliParser for ClapParser {
         
         // Convert clap command to ParsedCommand with domain-specific arguments
         let parsed_command = match cli.command {
-            crate::cli_old::Commands::Release { bump_type, files, no_root, force, skip_push, dry_run, message, pre_release } => {
-                // Convert BumpType from cli_old to commands::release::BumpType
+            Commands::Release { bump_type, files, no_root, force, skip_push, dry_run, message, pre_release } => {
+                // Convert BumpType from cli to commands::release::BumpType
                 let bump_type = match bump_type {
-                    crate::cli_old::BumpType::Major => crate::commands::release::BumpType::Major,
-                    crate::cli_old::BumpType::Minor => crate::commands::release::BumpType::Minor,
-                    crate::cli_old::BumpType::Patch => crate::commands::release::BumpType::Patch,
+                    BumpType::Major => crate::commands::release::BumpType::Major,
+                    BumpType::Minor => crate::commands::release::BumpType::Minor,
+                    BumpType::Patch => crate::commands::release::BumpType::Patch,
                 };
                 
                 ParsedCommand {
@@ -38,7 +38,7 @@ impl CliParser for ClapParser {
                     }),
                 }
             }
-            crate::cli_old::Commands::Sync { max_depth, skip_remotes, all_branch, path, dry_run, fetch_only, rebase } => {
+            Commands::Sync { max_depth, skip_remotes, all_branch, path, dry_run, fetch_only, rebase } => {
                 ParsedCommand {
                     name: CommandName::Sync,
                     args: CommandArgs::Sync(crate::commands::sync::SyncArgs {
@@ -52,7 +52,7 @@ impl CliParser for ClapParser {
                     }),
                 }
             }
-            crate::cli_old::Commands::Doctor { max_depth, gc, rename, fix, path, dry_run } => {
+            Commands::Doctor { max_depth, gc, rename, fix, path, dry_run } => {
                 ParsedCommand {
                     name: CommandName::Doctor,
                     args: CommandArgs::Doctor(crate::commands::doctor::DoctorArgs {
@@ -65,7 +65,7 @@ impl CliParser for ClapParser {
                     }),
                 }
             }
-            crate::cli_old::Commands::Fork { path, name, dry_run } => {
+            Commands::Fork { path, name, dry_run } => {
                 ParsedCommand {
                     name: CommandName::Fork,
                     args: CommandArgs::Fork(crate::commands::fork::ForkArgs {
@@ -75,10 +75,10 @@ impl CliParser for ClapParser {
                     }),
                 }
             }
-            crate::cli_old::Commands::Gitlab { command } => {
+            Commands::Gitlab { command } => {
                 // Handle GitLab subcommands
                 match command {
-                    crate::cli_old::GitlabCommands::Login { server, token, protocol } => {
+                    GitlabCommands::Login { server, token, protocol } => {
                         ParsedCommand {
                             name: CommandName::GitLab,
                             args: CommandArgs::GitLab(crate::commands::gitlab::GitLabArgs::Login(
@@ -90,7 +90,7 @@ impl CliParser for ClapParser {
                             )),
                         }
                     }
-                    crate::cli_old::GitlabCommands::Clone { group, server, token, protocol, output, include_archived, recursive, dry_run } => {
+                    GitlabCommands::Clone { group, server, token, protocol, output, include_archived, recursive, dry_run } => {
                         ParsedCommand {
                             name: CommandName::GitLab,
                             args: CommandArgs::GitLab(crate::commands::gitlab::GitLabArgs::Clone(
@@ -109,10 +109,10 @@ impl CliParser for ClapParser {
                     }
                 }
             }
-            crate::cli_old::Commands::Snap { command } => {
+            Commands::Snap { command } => {
                 // Handle Snap subcommands
                 match command {
-                    crate::cli_old::SnapCommands::Create { path, dry_run } => {
+                    SnapCommands::Create { path, dry_run } => {
                         ParsedCommand {
                             name: CommandName::Snap,
                             args: CommandArgs::Snap(crate::commands::snap::SnapArgs::Create(
@@ -123,7 +123,7 @@ impl CliParser for ClapParser {
                             )),
                         }
                     }
-                    crate::cli_old::SnapCommands::List { path } => {
+                    SnapCommands::List { path } => {
                         ParsedCommand {
                             name: CommandName::Snap,
                             args: CommandArgs::Snap(crate::commands::snap::SnapArgs::List(
@@ -133,7 +133,7 @@ impl CliParser for ClapParser {
                             )),
                         }
                     }
-                    crate::cli_old::SnapCommands::Restore { snapshot, path, dry_run } => {
+                    SnapCommands::Restore { snapshot, path, dry_run } => {
                         ParsedCommand {
                             name: CommandName::Snap,
                             args: CommandArgs::Snap(crate::commands::snap::SnapArgs::Restore(
@@ -147,7 +147,7 @@ impl CliParser for ClapParser {
                     }
                 }
             }
-            crate::cli_old::Commands::Status { max_depth, short, filter, path } => {
+            Commands::Status { max_depth, short, filter, path } => {
                 ParsedCommand {
                     name: CommandName::Status,
                     args: CommandArgs::Status(crate::commands::status::StatusArgs {
@@ -158,10 +158,10 @@ impl CliParser for ClapParser {
                     }),
                 }
             }
-            crate::cli_old::Commands::Branch { command } => {
+            Commands::Branch { command } => {
                 // Handle Branch subcommands
                 match command {
-                    crate::cli_old::BranchCommands::List { max_depth, path } => {
+                    BranchCommands::List { max_depth, path } => {
                         ParsedCommand {
                             name: CommandName::Branch,
                             args: CommandArgs::Branch(crate::commands::branch::BranchArgs::List(
@@ -172,7 +172,7 @@ impl CliParser for ClapParser {
                             )),
                         }
                     }
-                    crate::cli_old::BranchCommands::Clean { max_depth, remote, path, dry_run } => {
+                    BranchCommands::Clean { max_depth, remote, path, dry_run } => {
                         ParsedCommand {
                             name: CommandName::Branch,
                             args: CommandArgs::Branch(crate::commands::branch::BranchArgs::Clean(
@@ -185,7 +185,7 @@ impl CliParser for ClapParser {
                             )),
                         }
                     }
-                    crate::cli_old::BranchCommands::Switch { branch, create, max_depth, path, dry_run } => {
+                    BranchCommands::Switch { branch, create, max_depth, path, dry_run } => {
                         ParsedCommand {
                             name: CommandName::Branch,
                             args: CommandArgs::Branch(crate::commands::branch::BranchArgs::Switch(
@@ -199,7 +199,7 @@ impl CliParser for ClapParser {
                             )),
                         }
                     }
-                    crate::cli_old::BranchCommands::Rename { old_name, new_name, max_depth, path, dry_run } => {
+                    BranchCommands::Rename { old_name, new_name, max_depth, path, dry_run } => {
                         ParsedCommand {
                             name: CommandName::Branch,
                             args: CommandArgs::Branch(crate::commands::branch::BranchArgs::Rename(
@@ -215,10 +215,10 @@ impl CliParser for ClapParser {
                     }
                 }
             }
-            crate::cli_old::Commands::Self_ { command } => {
+            Commands::Self_ { command } => {
                 // Handle Self subcommands
                 match command {
-                    crate::cli_old::SelfCommands::Update { force } => {
+                    SelfCommands::Update { force } => {
                         ParsedCommand {
                             name: CommandName::SelfMan,
                             args: CommandArgs::SelfMan(crate::commands::selfman::SelfManArgs::Update(
@@ -228,7 +228,7 @@ impl CliParser for ClapParser {
                             )),
                         }
                     }
-                    crate::cli_old::SelfCommands::Version => {
+                    SelfCommands::Version => {
                         ParsedCommand {
                             name: CommandName::SelfMan,
                             args: CommandArgs::SelfMan(crate::commands::selfman::SelfManArgs::Version),
@@ -236,22 +236,22 @@ impl CliParser for ClapParser {
                     }
                 }
             }
-            crate::cli_old::Commands::Config { command } => {
+            Commands::Config { command } => {
                 // Handle Config subcommands
                 match command {
-                    crate::cli_old::ConfigCommands::Init => {
+                    ConfigCommands::Init => {
                         ParsedCommand {
                             name: CommandName::Config,
                             args: CommandArgs::Config(crate::commands::config::ConfigArgs::Init),
                         }
                     }
-                    crate::cli_old::ConfigCommands::Show => {
+                    ConfigCommands::Show => {
                         ParsedCommand {
                             name: CommandName::Config,
                             args: CommandArgs::Config(crate::commands::config::ConfigArgs::Show),
                         }
                     }
-                    crate::cli_old::ConfigCommands::Path => {
+                    ConfigCommands::Path => {
                         ParsedCommand {
                             name: CommandName::Config,
                             args: CommandArgs::Config(crate::commands::config::ConfigArgs::Path),

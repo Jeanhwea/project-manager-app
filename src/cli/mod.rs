@@ -3,6 +3,7 @@
 //! This module contains the command-line interface infrastructure including
 //! argument parsing, command dispatching, and user interaction.
 
+pub mod cli;
 pub mod parser;
 pub mod dispatcher;
 

@@ -29,10 +29,4 @@ pub enum DomainError {
     
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-    
-    #[error("Validation error: {0}")]
-    Validation(String),
 }
-
-/// Common result type for domain operations
-pub type Result<T> = std::result::Result<T, DomainError>;
