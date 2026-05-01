@@ -370,6 +370,7 @@ mod tests {
 
     #[test]
     fn test_remote_parsing() {
+        use crate::domain::git::GitProtocol;
         use crate::domain::git::remote::Remote;
 
         assert_eq!(

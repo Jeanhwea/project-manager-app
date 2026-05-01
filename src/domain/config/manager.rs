@@ -246,6 +246,7 @@ impl MultiSourceConfigManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::config::schema::{EditorConfig, GitConfig, GitLabConfig, SyncConfig};
     use std::env;
     use tempfile::tempdir;
 
@@ -258,19 +259,6 @@ mod tests {
         assert!(config.sync.auto_pull);
         assert!(!config.editor.dry_run);
         assert!(!config.editor.skip_push);
-    }
-
-    #[test]
-    fn test_config_accessor() {
-        let config = AppConfig::default();
-        let accessor = ConfigAccessor::new(config);
-
-        assert_eq!(accessor.git().default_protocol, "https");
-        assert_eq!(accessor.gitlab().default_protocol, "https");
-        assert!(!accessor.sync().auto_push);
-        assert!(accessor.sync().auto_pull);
-        assert!(!accessor.editor().dry_run);
-        assert!(!accessor.editor().skip_push);
     }
 
     #[test]

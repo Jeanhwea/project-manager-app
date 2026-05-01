@@ -369,7 +369,7 @@ pub fn get_version_from_file(path: &Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
+    use file_types::{FileType, detect_file_type};
 
     #[test]
     fn test_detect_file_type() {
