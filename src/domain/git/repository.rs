@@ -300,7 +300,7 @@ fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
         path,
     ) {
         Ok(upstream) => Ok(upstream),
-        Err(_) => Ok(String::new())
+        Err(_) => Ok(String::new()),
     }
 }
 

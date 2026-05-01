@@ -56,9 +56,7 @@ impl Command for SnapCommand {
     fn execute(args: Self::Args) -> CommandResult {
         match execute_snap(args) {
             Ok(()) => Ok(()),
-            Err(e) => {
-                Err(CommandError::ExecutionFailed(format!("{}", e)))
-            }
+            Err(e) => Err(CommandError::ExecutionFailed(format!("{}", e))),
         }
     }
 }

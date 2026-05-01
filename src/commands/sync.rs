@@ -41,9 +41,7 @@ impl Command for SyncCommand {
     fn execute(args: Self::Args) -> CommandResult {
         match execute_sync(args) {
             Ok(()) => Ok(()),
-            Err(e) => {
-                Err(CommandError::ExecutionFailed(format!("{}", e)))
-            }
+            Err(e) => Err(CommandError::ExecutionFailed(format!("{}", e))),
         }
     }
 }
