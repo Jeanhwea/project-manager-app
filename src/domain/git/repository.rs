@@ -94,45 +94,23 @@ impl Repository {
         Ok(())
     }
 
-    /// Check repository status
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git status command fails
     pub fn check_status(&mut self) -> Result<()> {
         use super::command::GitCommandRunner;
 
         let runner = GitCommandRunner::new();
-
-        // Execute git status --porcelain
         let output = runner.execute_in_dir(&["status", "--porcelain"], &self.path)?;
-
-        // Determine status based on output
         self.status = if output.trim().is_empty() {
             RepositoryStatus::Clean
         } else {
             RepositoryStatus::Dirty
         };
-
         Ok(())
     }
 
-    /// Load repository remotes
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git remote commands fail
     fn load_remotes(&mut self) -> Result<()> {
         use super::remote::RemoteManager;
-
         let manager = RemoteManager::new();
-
         let remotes = manager.list_remotes(&self.path)?;
-
         self.remotes = remotes;
         Ok(())
     }

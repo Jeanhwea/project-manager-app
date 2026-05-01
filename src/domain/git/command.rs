@@ -2,7 +2,6 @@ use super::{GitError, Result};
 use std::path::Path;
 use std::process::{Command, Output};
 
-/// 封装 git 命令执行
 #[derive(Debug, Clone)]
 pub struct GitCommandRunner;
 
@@ -11,7 +10,6 @@ impl GitCommandRunner {
         Self
     }
 
-    /// 执行 git 命令，返回 stdout 字符串
     pub fn execute(&self, args: &[&str]) -> Result<String> {
         let output = self.execute_raw(args)?;
         let stdout = String::from_utf8(output.stdout)
@@ -19,7 +17,6 @@ impl GitCommandRunner {
         Ok(stdout.trim().to_string())
     }
 
-    /// 在指定目录执行 git 命令，返回 stdout 字符串
     pub fn execute_in_dir(&self, args: &[&str], dir: &Path) -> Result<String> {
         let output = self.execute_raw_in_dir(args, dir)?;
         let stdout = String::from_utf8(output.stdout)
@@ -27,32 +24,26 @@ impl GitCommandRunner {
         Ok(stdout.trim().to_string())
     }
 
-    /// 执行 git 命令，返回原始 Output
     pub fn execute_raw(&self, args: &[&str]) -> Result<Output> {
         self.run(args, None)
     }
 
-    /// 在指定目录执行 git 命令，返回原始 Output
     pub fn execute_raw_in_dir(&self, args: &[&str], dir: &Path) -> Result<Output> {
         self.run(args, Some(dir))
     }
 
-    /// 执行 git 命令并检查退出码
     pub fn execute_with_success(&self, args: &[&str]) -> Result<()> {
         self.check_success(args, None)
     }
 
-    /// 在指定目录执行 git 命令并检查退出码
     pub fn execute_with_success_in_dir(&self, args: &[&str], dir: &Path) -> Result<()> {
         self.check_success(args, Some(dir))
     }
 
-    /// 静默执行 git 命令（不检查退出码）
     pub fn execute_quiet(&self, args: &[&str]) -> Result<Output> {
         self.run(args, None)
     }
 
-    /// 在指定目录静默执行 git 命令
     pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<Output> {
         self.run(args, Some(dir))
     }
@@ -69,8 +60,6 @@ impl GitCommandRunner {
     pub fn get_git_version(&self) -> Result<String> {
         self.execute(&["--version"])
     }
-
-    // ── internal ───────────────────────────────────────────────────
 
     fn run(&self, args: &[&str], dir: Option<&Path>) -> Result<Output> {
         let mut cmd = Command::new("git");

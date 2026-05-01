@@ -93,13 +93,6 @@ impl Remote {
         }
     }
 
-    /// Extract host and path from URL
-    ///
-    /// # Arguments
-    /// * `url` - Remote URL
-    ///
-    /// # Returns
-    /// * `Option<(String, String)>` - Host and path if URL is valid
     pub fn extract_host_and_path(url: &str) -> Option<(String, String)> {
         let url = url.trim();
         if url.is_empty() {
@@ -147,27 +140,12 @@ impl Remote {
         Some((host, path))
     }
 
-    /// Get remote name based on URL and configuration rules
-    ///
-    /// # Arguments
-    /// * `url` - Remote URL
-    ///
-    /// # Returns
-    /// * `String` - Suggested remote name
     pub fn get_remote_name_by_url(_url: &str) -> String {
         "origin".to_string()
     }
 
-    /// Check if this is a private IP address
-    ///
-    /// # Arguments
-    /// * `host` - Host string
-    ///
-    /// # Returns
-    /// * `bool` - True if host is a private IP address
     pub fn is_private_ip(host: &str) -> bool {
         let ip_part = host.split(':').next().unwrap_or(host);
-
         let octets: Vec<u8> = ip_part
             .split('.')
             .filter_map(|s| s.parse::<u8>().ok())
@@ -237,27 +215,12 @@ impl RemoteManager {
     }
 
     /// Set remote URL
-    ///
-    /// # Arguments
-    /// * `repo_path` - Repository path
-    /// * `name` - Remote name
-    /// * `url` - New remote URL
-    ///
-    /// # Returns
-    /// * `Result<()>` - Success or error
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git command fails
-    /// * `GitError::InvalidRemoteUrl` - If URL is invalid
-    /// * `GitError::RemoteNotFound` - If remote doesn't exist
     pub fn set_remote_url(&self, repo_path: &Path, name: &str, url: &str) -> Result<()> {
         Remote::parse_url(url)?;
-
         let remotes = self.list_remotes(repo_path)?;
         if !remotes.iter().any(|remote| remote.name == name) {
             return Err(GitError::RemoteNotFound(name.to_string()));
         }
-
         self.runner
             .execute_with_success_in_dir(&["remote", "set-url", name, url], repo_path)
     }
@@ -304,33 +267,11 @@ impl RemoteManager {
         Ok(remotes)
     }
 
-    /// Check if a remote exists
-    ///
-    /// # Arguments
-    /// * `repo_path` - Repository path
-    /// * `name` - Remote name
-    ///
-    /// # Returns
-    /// * `Result<bool>` - True if remote exists
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git command fails
     pub fn remote_exists(&self, repo_path: &Path, name: &str) -> Result<bool> {
         let remotes = self.list_remotes(repo_path)?;
         Ok(remotes.iter().any(|remote| remote.name == name))
     }
 
-    /// Get remote by name
-    ///
-    /// # Arguments
-    /// * `repo_path` - Repository path
-    /// * `name` - Remote name
-    ///
-    /// # Returns
-    /// * `Result<Option<Remote>>` - Remote if found, None otherwise
-    ///
-    /// # Errors
-    /// * `GitError::CommandFailed` - If Git command fails
     pub fn get_remote(&self, repo_path: &Path, name: &str) -> Result<Option<Remote>> {
         let remotes = self.list_remotes(repo_path)?;
         Ok(remotes.into_iter().find(|remote| remote.name == name))
