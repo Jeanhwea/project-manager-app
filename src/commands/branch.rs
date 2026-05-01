@@ -192,8 +192,8 @@ fn list_branches(repo_path: &Path) {
             .map(|line| line.trim())
             .filter(|line| !line.is_empty())
             .map(|line| {
-                if line.starts_with('*') {
-                    line[1..].trim().to_string()
+                if let Some(stripped) = line.strip_prefix('*') {
+                    stripped.trim().to_string()
                 } else {
                     line.to_string()
                 }
@@ -255,8 +255,8 @@ fn switch_branch(
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
                 .map(|line| {
-                    if line.starts_with('*') {
-                        line[1..].trim().to_string()
+                    if let Some(stripped) = line.strip_prefix('*') {
+                        stripped.trim().to_string()
                     } else {
                         line.to_string()
                     }
@@ -301,8 +301,8 @@ fn switch_branch(
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
                 .map(|line| {
-                    if line.starts_with('*') {
-                        line[1..].trim().to_string()
+                    if let Some(stripped) = line.strip_prefix('*') {
+                        stripped.trim().to_string()
                     } else {
                         line.to_string()
                     }
@@ -347,8 +347,8 @@ fn rename_branch(
             .map(|line| line.trim())
             .filter(|line| !line.is_empty())
             .map(|line| {
-                if line.starts_with('*') {
-                    line[1..].trim().to_string()
+                if let Some(stripped) = line.strip_prefix('*') {
+                    stripped.trim().to_string()
                 } else {
                     line.to_string()
                 }
@@ -430,8 +430,8 @@ fn clean_merged_branches(
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
                 .map(|line| {
-                    if line.starts_with('*') {
-                        line[1..].trim().to_string()
+                    if let Some(stripped) = line.strip_prefix('*') {
+                        stripped.trim().to_string()
                     } else {
                         line.to_string()
                     }

@@ -67,14 +67,10 @@ impl Remote {
                 // 1. git@host:path
                 // 2. ssh://git@host/path
                 // 3. ssh://host/path
-                if url.starts_with("git@") {
-                    // git@host:path format
-                    let without_prefix = &url[4..];
+                if let Some(without_prefix) = url.strip_prefix("git@") {
                     let parts: Vec<&str> = without_prefix.splitn(2, ':').collect();
                     parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
-                } else if url.starts_with("ssh://") {
-                    // ssh:// format
-                    let without_prefix = &url[6..];
+                } else if let Some(without_prefix) = url.strip_prefix("ssh://") {
                     let parts: Vec<&str> = without_prefix.splitn(2, '/').collect();
                     parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty()
                 } else {
