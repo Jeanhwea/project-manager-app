@@ -237,8 +237,32 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     let mut skip_count = 0usize;
     let mut fail_count = 0usize;
 
+    // Strip the group prefix from path_with_namespace to get the project path
+    // relative to the target group.
+    // e.g. group="my-org", path_with_namespace="my-org/api" → "api"
+    //      group="my-org", path_with_namespace="my-org/sub/api" → "sub/api" (子组，跳过)
+    let group_prefix = format!("{}/", group_info.full_path);
+
     for (index, project) in projects.iter().enumerate() {
         let progress = format!("({}/{})", index + 1, projects.len());
+
+        // Determine relative path within the group
+        let relative_path = project
+            .path_with_namespace
+            .strip_prefix(&group_prefix)
+            .unwrap_or(&project.path);
+
+        // Skip projects in subgroups — only clone direct children
+        if relative_path.contains('/') {
+            println!(
+                "{} {} {}",
+                progress.white().bold(),
+                "[SKIP]".dimmed(),
+                format!("{} (子组项目)", project.path_with_namespace).dimmed(),
+            );
+            skip_count += 1;
+            continue;
+        }
 
         let ssh_url = project.ssh_url.as_deref().unwrap_or("");
         let http_url = project.http_url.as_deref().unwrap_or("");
@@ -248,7 +272,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
             CloneProtocol::Https => http_url,
         };
 
-        let project_dir = output_path.join(&project.name);
+        let project_dir = output_path.join(relative_path);
         let is_archived = project.archived.unwrap_or(false);
 
         println!(
@@ -266,7 +290,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
             println!(
                 "  {} {} 已存在，跳过",
                 "[SKIP]".dimmed(),
-                project.name.yellow()
+                relative_path.yellow()
             );
             skip_count += 1;
             continue;
@@ -279,7 +303,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
             println!(
                 "  {} {} URL 已存在，跳过",
                 "[SKIP]".dimmed(),
-                project.name.yellow()
+                relative_path.yellow()
             );
             skip_count += 1;
             continue;
@@ -290,7 +314,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
                 "  {} git clone {} {}",
                 "[DRY-RUN]".yellow(),
                 clone_url.green(),
-                project.name.dimmed()
+                relative_path.dimmed()
             );
             if args.recursive {
                 println!("  {} (含子模块)", "[DRY-RUN]".yellow());
@@ -299,18 +323,24 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
             continue;
         }
 
-        let mut git_args = vec!["clone", clone_url, &project.name];
+        let project_dir_str = project_dir.to_string_lossy().to_string();
+        let mut git_args = vec!["clone", clone_url, &project_dir_str];
         if args.recursive {
             git_args.push("--recursive");
         }
 
         match git_command(output_path, &git_args) {
             Ok(_) => {
-                println!("  {} {}", "已克隆".green(), project.name.green());
+                println!("  {} {}", "已克隆".green(), relative_path.green());
                 success_count += 1;
             }
             Err(e) => {
-                println!("  {} {} - {}", "克隆失败".red(), project.name.red(), e);
+                println!(
+                    "  {} {} - {}",
+                    "克隆失败".red(),
+                    relative_path.red(),
+                    e
+                );
                 fail_count += 1;
             }
         }
@@ -506,15 +536,13 @@ fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
         return urls;
     }
 
-    // Walk through directories to find git repositories
     if let Ok(entries) = std::fs::read_dir(output_path) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() && is_git_repo(&path) {
                 if let Ok(remote_urls) = get_remote_urls(&path) {
                     for url in remote_urls {
-                        let url = url.trim_end_matches('/').to_string();
-                        urls.insert(url);
+                        urls.insert(url.trim_end_matches('/').to_string());
                     }
                 }
             }
