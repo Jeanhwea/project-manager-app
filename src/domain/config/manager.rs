@@ -98,19 +98,11 @@ impl ConfigDir {
 
         match std::fs::read_to_string(&path) {
             Ok(content) => toml::from_str(&content).unwrap_or_else(|e| {
-                eprintln!(
-                    "警告: GitLab 配置文件解析失败 ({}): {}",
-                    path.display(),
-                    e
-                );
+                eprintln!("警告: GitLab 配置文件解析失败 ({}): {}", path.display(), e);
                 GitLabConfig::default()
             }),
             Err(e) => {
-                eprintln!(
-                    "警告: 无法读取 GitLab 配置文件 ({}): {}",
-                    path.display(),
-                    e
-                );
+                eprintln!("警告: 无法读取 GitLab 配置文件 ({}): {}", path.display(), e);
                 GitLabConfig::default()
             }
         }

@@ -95,7 +95,11 @@ impl AuthManager {
             })?
             .trim()
             .to_string();
-        if token.is_empty() { Ok(None) } else { Ok(Some(token)) }
+        if token.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(token))
+        }
     }
 }
 

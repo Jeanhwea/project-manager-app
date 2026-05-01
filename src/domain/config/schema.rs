@@ -40,10 +40,31 @@ fn default_max_depth() -> usize {
 
 fn default_skip_dirs() -> Vec<String> {
     vec![
-        ".venv", "venv", "env", ".env", "node_modules", "__pycache__", ".tox", ".mypy_cache",
-        ".pytest_cache", ".ruff_cache", "dist", "build", "target", ".gradle", ".idea", ".vscode",
-        ".fleet", ".cache", ".next", ".nuxt", ".svelte-kit", ".angular", "bower_components",
-        ".terraform", ".cargo",
+        ".venv",
+        "venv",
+        "env",
+        ".env",
+        "node_modules",
+        "__pycache__",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        "target",
+        ".gradle",
+        ".idea",
+        ".vscode",
+        ".fleet",
+        ".cache",
+        ".next",
+        ".nuxt",
+        ".svelte-kit",
+        ".angular",
+        "bower_components",
+        ".terraform",
+        ".cargo",
     ]
     .into_iter()
     .map(String::from)

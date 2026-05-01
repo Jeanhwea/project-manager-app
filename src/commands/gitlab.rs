@@ -136,7 +136,11 @@ fn execute_login(args: LoginArgs) -> CommandResult {
         protocol: protocol_str.to_string(),
     };
 
-    if let Some(existing) = gitlab_cfg.servers.iter_mut().find(|s| s.url == resolved_url) {
+    if let Some(existing) = gitlab_cfg
+        .servers
+        .iter_mut()
+        .find(|s| s.url == resolved_url)
+    {
         existing.token = new_server.token;
         existing.protocol = new_server.protocol;
     } else {
@@ -386,9 +390,10 @@ fn resolve_gitlab_config(
         let resolved_url = resolve_base_url(s);
 
         // Look for a matching server entry in gitlab.toml
-        let matching = gitlab_cfg.servers.iter().find(|srv| {
-            resolve_base_url(&srv.url) == resolved_url
-        });
+        let matching = gitlab_cfg
+            .servers
+            .iter()
+            .find(|srv| resolve_base_url(&srv.url) == resolved_url);
 
         let resolved_token = token
             .map(|t| t.to_string())

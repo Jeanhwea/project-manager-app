@@ -1,8 +1,8 @@
 //! Configuration command implementation
 
 use super::{Command, CommandResult};
-use crate::domain::config::schema;
 use crate::domain::config::ConfigDir;
+use crate::domain::config::schema;
 use colored::Colorize;
 
 /// Configuration command arguments
