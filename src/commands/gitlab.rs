@@ -335,12 +335,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
                 success_count += 1;
             }
             Err(e) => {
-                println!(
-                    "  {} {} - {}",
-                    "克隆失败".red(),
-                    relative_path.red(),
-                    e
-                );
+                println!("  {} {} - {}", "克隆失败".red(), relative_path.red(), e);
                 fail_count += 1;
             }
         }
