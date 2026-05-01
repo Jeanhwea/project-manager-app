@@ -7,6 +7,7 @@ use crate::domain::config::manager::MultiSourceConfigManager;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::remote::RemoteManager;
 use crate::domain::git::repository::RepoWalker;
+use crate::domain::runner::DryRunContext;
 use crate::utils::path::format_path;
 use anyhow::Result;
 use colored::Colorize;
@@ -29,51 +30,6 @@ pub struct SyncArgs {
     pub fetch_only: bool,
     /// Use rebase instead of merge when pulling
     pub rebase: bool,
-}
-
-/// Dry run context for sync operations
-struct DryRunContext {
-    dry_run: bool,
-}
-
-impl DryRunContext {
-    fn new(dry_run: bool) -> Self {
-        Self { dry_run }
-    }
-
-    fn is_dry_run(&self) -> bool {
-        self.dry_run
-    }
-
-    fn print_header(&self, message: &str) {
-        if self.dry_run {
-            println!("\n{}", message.bold().cyan());
-        }
-    }
-
-    fn print_message(&self, message: &str) {
-        if self.dry_run {
-            println!("  {}", message.dimmed());
-        }
-    }
-
-    fn run_in_dir(&self, command: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        let runner = GitCommandRunner::new();
-        if self.dry_run {
-            println!("  [DRY-RUN] {} {}", command, args.join(" "));
-            Ok(())
-        } else {
-            if let Some(dir) = dir {
-                runner
-                    .execute_with_success_in_dir(args, dir)
-                    .map_err(|e| anyhow::anyhow!("{}", e))
-            } else {
-                runner
-                    .execute_with_success(args)
-                    .map_err(|e| anyhow::anyhow!("{}", e))
-            }
-        }
-    }
 }
 
 /// Sync command

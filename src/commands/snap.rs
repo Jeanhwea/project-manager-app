@@ -4,6 +4,7 @@
 
 use super::{Command, CommandError, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
+use crate::domain::runner::DryRunContext;
 use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
@@ -44,66 +45,6 @@ pub struct RestoreArgs {
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
     pub dry_run: bool,
-}
-
-/// Dry run context for snapshot operations
-#[derive(Debug, Clone)]
-struct DryRunContext {
-    dry_run: bool,
-}
-
-impl DryRunContext {
-    fn new(dry_run: bool) -> Self {
-        Self { dry_run }
-    }
-
-    fn is_dry_run(&self) -> bool {
-        self.dry_run
-    }
-
-    fn run_in_dir(
-        &self,
-        runner: &GitCommandRunner,
-        program: &str,
-        args: &[&str],
-        dir: &Path,
-    ) -> Result<()> {
-        if self.dry_run {
-            self.print_dry_run_command(program, args, Some(dir));
-            return Ok(());
-        }
-
-        runner
-            .execute_with_success_in_dir(args, dir)
-            .map_err(|e| anyhow::anyhow!("{}", e))
-    }
-
-    fn print_dry_run_command(&self, program: &str, args: &[&str], dir: Option<&Path>) {
-        let args_str = args.join(" ");
-        if let Some(d) = dir {
-            println!(
-                "  {} {} {} (in {})",
-                "[DRY-RUN]".yellow(),
-                program.cyan(),
-                args_str,
-                d.display().to_string().dimmed()
-            );
-        } else {
-            println!("  {} {} {}", "[DRY-RUN]".yellow(), program.cyan(), args_str);
-        }
-    }
-
-    fn print_message(&self, msg: &str) {
-        if self.dry_run {
-            println!("  {} {}", "[DRY-RUN]".yellow(), msg);
-        }
-    }
-
-    fn print_header(&self, msg: &str) {
-        if self.dry_run {
-            println!("{}", msg.green().bold());
-        }
-    }
 }
 
 /// Snap command
@@ -314,12 +255,12 @@ fn resolve_snapshot_ref(
 /// Initialize a new snapshot repository
 fn do_initialize_snapshot(
     ctx: &DryRunContext,
-    runner: &GitCommandRunner,
+    _runner: &GitCommandRunner,
     work_dir: &Path,
 ) -> Result<()> {
-    ctx.run_in_dir(runner, "git", &["init"], work_dir)?;
-    ctx.run_in_dir(runner, "git", &["add", "."], work_dir)?;
-    ctx.run_in_dir(runner, "git", &["commit", "-m", "snap-000000"], work_dir)?;
+    ctx.run_in_dir("git", &["init"], Some(work_dir))?;
+    ctx.run_in_dir("git", &["add", "."], Some(work_dir))?;
+    ctx.run_in_dir("git", &["commit", "-m", "snap-000000"], Some(work_dir))?;
 
     Ok(())
 }
@@ -344,12 +285,11 @@ fn do_incremental_snapshot(
         .trim()
         .parse::<usize>()?;
 
-    ctx.run_in_dir(runner, "git", &["add", "."], work_dir)?;
+    ctx.run_in_dir("git", &["add", "."], Some(work_dir))?;
     ctx.run_in_dir(
-        runner,
         "git",
         &["commit", "-m", &format!("snap-{:06}", num_commit)],
-        work_dir,
+        Some(work_dir),
     )?;
 
     Ok(())

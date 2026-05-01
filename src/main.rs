@@ -3,6 +3,9 @@ mod commands;
 mod domain;
 mod utils;
 
+// Note: The old `app` module has been removed.
+// All command logic now lives in `commands/` backed by `domain/` infrastructure.
+
 use anyhow::Result;
 use cli::{CliParser, CommandDispatcher, dispatcher::CommandDispatcherImpl, parser::ClapParser};
 

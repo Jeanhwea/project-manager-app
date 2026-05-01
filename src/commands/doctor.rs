@@ -5,6 +5,7 @@
 use super::{Command, CommandError, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::RepoWalker;
+use crate::domain::runner::DryRunContext;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use std::path::Path;
@@ -24,51 +25,6 @@ pub struct DoctorArgs {
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
     pub dry_run: bool,
-}
-
-/// Dry run context for doctor operations
-struct DryRunContext {
-    dry_run: bool,
-}
-
-impl DryRunContext {
-    fn new(dry_run: bool) -> Self {
-        Self { dry_run }
-    }
-
-    fn is_dry_run(&self) -> bool {
-        self.dry_run
-    }
-
-    fn print_header(&self, message: &str) {
-        if self.dry_run {
-            println!("\n{}", message.bold().cyan());
-        }
-    }
-
-    fn print_message(&self, message: &str) {
-        if self.dry_run {
-            println!("  {}", message.dimmed());
-        }
-    }
-
-    fn run_in_dir(&self, command: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        let runner = GitCommandRunner::new();
-        if self.dry_run {
-            println!("  [DRY-RUN] {} {}", command, args.join(" "));
-            Ok(())
-        } else {
-            if let Some(dir) = dir {
-                runner
-                    .execute_with_success_in_dir(args, dir)
-                    .map_err(|e| anyhow::anyhow!("{}", e))
-            } else {
-                runner
-                    .execute_with_success(args)
-                    .map_err(|e| anyhow::anyhow!("{}", e))
-            }
-        }
-    }
 }
 
 /// Doctor command

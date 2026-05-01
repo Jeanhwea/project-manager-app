@@ -2,6 +2,7 @@
 
 use super::{Command, CommandResult};
 use crate::domain::git::{GitProtocol, command::GitCommandRunner};
+use crate::domain::runner::DryRunContext;
 use anyhow::{Context, Result};
 use heck::{ToKebabCase, ToPascalCase};
 use serde::{Deserialize, Serialize};
@@ -20,67 +21,6 @@ pub struct ForkArgs {
 
 /// Fork command
 pub struct ForkCommand;
-
-/// Dry run context for fork operations
-struct DryRunContext {
-    dry_run: bool,
-}
-
-impl DryRunContext {
-    fn new(dry_run: bool) -> Self {
-        Self { dry_run }
-    }
-
-    fn is_dry_run(&self) -> bool {
-        self.dry_run
-    }
-
-    fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        if self.dry_run {
-            self.print_dry_run_command(program, args, dir);
-            return Ok(());
-        }
-
-        let runner = GitCommandRunner::new();
-        if let Some(d) = dir {
-            runner
-                .execute_with_success_in_dir(args, d)
-                .map_err(|e| anyhow::anyhow!("Command failed: {}", e))?;
-        } else {
-            runner
-                .execute_with_success(args)
-                .map_err(|e| anyhow::anyhow!("Command failed: {}", e))?;
-        }
-        Ok(())
-    }
-
-    fn print_dry_run_command(&self, program: &str, args: &[&str], dir: Option<&Path>) {
-        let args_str = args.join(" ");
-        if let Some(d) = dir {
-            println!(
-                "  {} {} {} (in {})",
-                "[DRY-RUN]",
-                program,
-                args_str,
-                d.display()
-            );
-        } else {
-            println!("  {} {} {}", "[DRY-RUN]", program, args_str);
-        }
-    }
-
-    fn print_message(&self, msg: &str) {
-        if self.dry_run {
-            println!("  {} {}", "[DRY-RUN]", msg);
-        }
-    }
-
-    fn print_header(&self, msg: &str) {
-        if self.dry_run {
-            println!("{}", msg);
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "action", rename_all = "kebab-case")]
