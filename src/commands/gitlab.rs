@@ -1,13 +1,516 @@
 //! GitLab command implementation
 
-use super::{Command, CommandArgs, CommandResult};
+use super::{Command, CommandResult, CommandError};
+use crate::domain::config::{DefaultConfigManager, ConfigManager};
+use crate::domain::gitlab::client::GitLabClient;
+use crate::domain::gitlab::models::User;
+use crate::utils::git::{git_command, get_remote_urls, is_git_repo};
+
+use colored::Colorize;
+use std::collections::HashSet;
+use std::io::{self, Write};
+use std::path::Path;
+
+/// GitLab command arguments
+#[derive(Debug)]
+pub enum GitLabArgs {
+    /// Login to a GitLab server and save credentials
+    Login(LoginArgs),
+    /// Clone all repositories from a GitLab group
+    Clone(CloneArgs),
+}
+
+/// Login command arguments
+#[derive(Debug)]
+pub struct LoginArgs {
+    /// GitLab server URL
+    pub server: Option<String>,
+    /// GitLab Personal Access Token
+    pub token: Option<String>,
+    /// Default clone protocol
+    pub protocol: CloneProtocol,
+}
+
+/// Clone command arguments
+#[derive(Debug)]
+pub struct CloneArgs {
+    /// GitLab group path (e.g. "my-org/team" or numeric ID)
+    pub group: String,
+    /// GitLab server URL (uses saved config if not specified)
+    pub server: Option<String>,
+    /// GitLab private token (overrides saved config)
+    pub token: Option<String>,
+    /// Clone protocol (overrides saved config)
+    pub protocol: Option<CloneProtocol>,
+    /// Output directory for cloned repositories
+    pub output: String,
+    /// Include archived projects
+    pub include_archived: bool,
+    /// Clone submodules recursively
+    pub recursive: bool,
+    /// Dry run: show what would be changed without making any modifications
+    pub dry_run: bool,
+}
+
+/// Clone protocol enumeration
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum CloneProtocol {
+    Ssh,
+    Https,
+}
 
 /// GitLab command
 pub struct GitLabCommand;
 
 impl Command for GitLabCommand {
-    fn execute(args: CommandArgs) -> CommandResult {
-        // Implementation will be added in Task 13.2
-        todo!("GitLab command not yet implemented")
+    type Args = GitLabArgs;
+    
+    fn execute(args: Self::Args) -> CommandResult {
+        match args {
+            GitLabArgs::Login(login_args) => execute_login(login_args),
+            GitLabArgs::Clone(clone_args) => execute_clone(clone_args),
+        }
     }
+}
+
+/// Execute login command
+fn execute_login(args: LoginArgs) -> CommandResult {
+    let resolved_url = if let Some(ref s) = args.server {
+        resolve_base_url(s)
+    } else {
+        println!("{}", "GitLab 登录".cyan().bold());
+        println!();
+        let server_url = prompt_input("服务器地址 (例如 https://gitlab.com 或 http://192.168.0.110/gitlab/)")?;
+        if server_url.is_empty() {
+            return Err(CommandError::Validation("服务器地址不能为空".to_string()));
+        }
+        resolve_base_url(&server_url)
+    };
+
+    let final_token = if let Some(ref t) = args.token {
+        t.clone()
+    } else {
+        println!("{} {}", "登录到:".cyan(), resolved_url.dimmed());
+        println!();
+
+        let input_token = prompt_input("Personal Access Token")?;
+
+        if input_token.is_empty() {
+            return Err(CommandError::Validation(
+                "Personal Access Token 不能为空\n\
+                 在 GitLab 中创建令牌: Settings -> Access Tokens (需要 api 权限)".to_string()
+            ));
+        }
+
+        input_token
+    };
+
+    println!("{} {}", "验证连接:".cyan(), resolved_url.dimmed());
+
+    let client = GitLabClient::with_url_and_token(&resolved_url, &final_token);
+    let user: User = client.get_current_user()
+        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to authenticate: {}", e)))?;
+
+    println!(
+        "{} {} ({})",
+        "已认证:".green(),
+        user.name.green().bold(),
+        user.username.yellow()
+    );
+
+    // Load existing config
+    let mut config = DefaultConfigManager::load()
+        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to load config: {}", e)))?;
+    
+    let protocol_str = match args.protocol {
+        CloneProtocol::Ssh => "ssh",
+        CloneProtocol::Https => "https",
+    };
+
+    // Update GitLab config
+    config.gitlab.server = Some(resolved_url.clone());
+    config.gitlab.token = Some(final_token.clone());
+    config.gitlab.default_protocol = protocol_str.to_string();
+
+    // Save config
+    DefaultConfigManager::new().save(&config)
+        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to save config: {}", e)))?;
+
+    println!("{} {} 凭据已保存", "保存:".green(), resolved_url.cyan());
+
+    Ok(())
+}
+
+/// Execute clone command
+fn execute_clone(args: CloneArgs) -> CommandResult {
+    // Try to extract server and group from URL
+    let (extracted_server, extracted_group) = parse_gitlab_url(&args.group);
+
+    let final_server = extracted_server.as_deref().or(args.server.as_deref());
+    let final_group = extracted_group.as_deref().unwrap_or(&args.group);
+
+    let (resolved_url, saved_token, saved_protocol) =
+        resolve_gitlab_config(final_server, args.token.as_deref(), args.protocol)?;
+
+    let resolved_base_url = resolve_base_url(&resolved_url);
+    let resolved_token = resolve_token(Some(&saved_token))?;
+    let resolved_protocol = saved_protocol;
+
+    println!(
+        "{} {} {}/",
+        "克隆组:".cyan(),
+        resolved_base_url.dimmed(),
+        final_group.yellow().bold()
+    );
+
+    let client = GitLabClient::with_url_and_token(&resolved_base_url, &resolved_token);
+
+    // Get group information
+    let groups = client.get_groups()
+        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to get groups: {}", e)))?;
+    
+    let group_info = groups.into_iter()
+        .find(|g| g.full_path == *final_group)
+        .ok_or_else(|| CommandError::ExecutionFailed(format!("Group not found: {}", final_group)))?;
+
+    println!(
+        "{} {} ({})",
+        "组名:".cyan(),
+        group_info.name.green().bold(),
+        group_info.full_path.dimmed()
+    );
+
+    // Get group projects
+    let projects = client.get_group_projects(group_info.id, true, args.include_archived)
+        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to get projects: {}", e)))?;
+
+    if projects.is_empty() {
+        println!("{}", "未找到项目".yellow());
+        return Ok(());
+    }
+
+    println!(
+        "{} {} 个项目{}",
+        "发现:".cyan(),
+        projects.len().to_string().white().bold(),
+        if args.include_archived {
+            " (含已归档)"
+        } else {
+            ""
+        }
+    );
+    println!();
+
+    let output_path = Path::new(&args.output);
+    if !output_path.exists() {
+        if args.dry_run {
+            println!("  {} 创建目录: {}", "[DRY-RUN]".yellow(), args.output.cyan());
+        } else {
+            std::fs::create_dir_all(output_path)
+                .map_err(|e| CommandError::Io(e))?;
+        }
+    }
+
+    let existing_urls = collect_existing_remote_urls(output_path);
+    if !existing_urls.is_empty() {
+        println!(
+            "{} {} 个已存在的仓库",
+            "检测:".cyan(),
+            existing_urls.len().to_string().white().bold()
+        );
+        println!();
+    }
+
+    let mut success_count = 0usize;
+    let mut skip_count = 0usize;
+    let mut fail_count = 0usize;
+
+    for (index, project) in projects.iter().enumerate() {
+        let progress = format!("({}/{})", index + 1, projects.len());
+
+        let ssh_url = project.ssh_url.as_deref().unwrap_or("");
+        let http_url = project.http_url.as_deref().unwrap_or("");
+
+        let clone_url = match resolved_protocol {
+            CloneProtocol::Ssh => ssh_url,
+            CloneProtocol::Https => http_url,
+        };
+
+        let project_dir = output_path.join(&project.name);
+        let is_archived = project.archived.unwrap_or(false);
+
+        println!(
+            "{} {} {}",
+            progress.white().bold(),
+            if is_archived {
+                "[归档]".dimmed()
+            } else {
+                "".dimmed()
+            },
+            project.path_with_namespace.cyan(),
+        );
+
+        if project_dir.exists() {
+            println!(
+                "  {} {} 已存在，跳过",
+                "[SKIP]".dimmed(),
+                project.name.yellow()
+            );
+            skip_count += 1;
+            continue;
+        }
+
+        if existing_urls.contains(clone_url)
+            || existing_urls.contains(ssh_url)
+            || existing_urls.contains(http_url)
+        {
+            println!(
+                "  {} {} URL 已存在，跳过",
+                "[SKIP]".dimmed(),
+                project.name.yellow()
+            );
+            skip_count += 1;
+            continue;
+        }
+
+        if args.dry_run {
+            println!(
+                "  {} git clone {} {}",
+                "[DRY-RUN]".yellow(),
+                clone_url.green(),
+                project.name.dimmed()
+            );
+            if args.recursive {
+                println!("  {} (含子模块)", "[DRY-RUN]".yellow());
+            }
+            success_count += 1;
+            continue;
+        }
+
+        let mut git_args = vec!["clone", clone_url, &project.name];
+        if args.recursive {
+            git_args.push("--recursive");
+        }
+
+        match git_command(output_path, &git_args) {
+            Ok(_) => {
+                println!("  {} {}", "已克隆".green(), project.name.green());
+                success_count += 1;
+            }
+            Err(e) => {
+                println!("  {} {} - {}", "克隆失败".red(), project.name.red(), e);
+                fail_count += 1;
+            }
+        }
+    }
+
+    println!();
+    println!(
+        "{} 成功 {}, 跳过 {}, 失败 {}",
+        "汇总:".cyan(),
+        success_count.to_string().green(),
+        skip_count.to_string().yellow(),
+        fail_count.to_string().red(),
+    );
+
+    Ok(())
+}
+
+/// Prompt for user input
+fn prompt_input(prompt: &str) -> Result<String, CommandError> {
+    print!("{}: ", prompt.white().bold());
+    io::stdout().flush()
+        .map_err(|e| CommandError::Io(e))?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)
+        .map_err(|e| CommandError::Io(e))?;
+    Ok(input.trim().to_string())
+}
+
+/// Resolve GitLab configuration from various sources
+fn resolve_gitlab_config(
+    server: Option<&str>,
+    token: Option<&str>,
+    protocol: Option<CloneProtocol>,
+) -> Result<(String, String, CloneProtocol), CommandError> {
+    // Load config
+    let config = DefaultConfigManager::load()
+        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to load config: {}", e)))?;
+    
+    let gitlab_config = config.gitlab;
+
+    if let Some(s) = server {
+        let resolved_url = resolve_base_url(s);
+
+        let resolved_token = token
+            .map(|t| t.to_string())
+            .or_else(|| gitlab_config.token.clone())
+            .unwrap_or_default();
+
+        let resolved_protocol = protocol
+            .or_else(|| {
+                match gitlab_config.default_protocol.as_str() {
+                    "https" => Some(CloneProtocol::Https),
+                    _ => Some(CloneProtocol::Ssh),
+                }
+            })
+            .unwrap_or(CloneProtocol::Ssh);
+
+        return Ok((resolved_url, resolved_token, resolved_protocol));
+    }
+
+    if gitlab_config.server.is_none() {
+        let default_url = "https://gitlab.com".to_string();
+        let resolved_token = token.map(|t| t.to_string()).unwrap_or_default();
+        let resolved_protocol = protocol.unwrap_or(CloneProtocol::Ssh);
+        return Ok((default_url, resolved_token, resolved_protocol));
+    }
+
+    if let Some(ref srv_url) = gitlab_config.server {
+        let resolved_token = token
+            .map(|t| t.to_string())
+            .unwrap_or_else(|| gitlab_config.token.unwrap_or_default());
+        let resolved_protocol = protocol
+            .or_else(|| {
+                match gitlab_config.default_protocol.as_str() {
+                    "https" => Some(CloneProtocol::Https),
+                    _ => Some(CloneProtocol::Ssh),
+                }
+            })
+            .unwrap_or(CloneProtocol::Ssh);
+        return Ok((srv_url.clone(), resolved_token, resolved_protocol));
+    }
+
+    println!("{}", "已配置的 GitLab 服务器:".cyan());
+    // In the new structure, we only have one GitLab config, not multiple servers
+    // So we just return an error if server is not specified
+    Err(CommandError::Validation(
+        "GitLab 服务器未配置，请使用 --server 指定或先运行 pma gitlab login".to_string()
+    ))
+}
+
+/// Resolve token from various sources
+fn resolve_token(token: Option<&str>) -> Result<String, CommandError> {
+    if let Some(t) = token
+        && !t.is_empty()
+    {
+        return Ok(t.to_string());
+    }
+
+    if let Ok(t) = std::env::var("GITLAB_TOKEN") {
+        return Ok(t);
+    }
+
+    if let Ok(t) = std::env::var("GL_TOKEN") {
+        return Ok(t);
+    }
+
+    Err(CommandError::Validation(
+        "未提供 GitLab 访问令牌。\n\
+         请通过以下方式之一提供：\n\
+         1. pma gitlab login --server <URL> --token <TOKEN>\n\
+         2. 命令行参数 --token <TOKEN>\n\
+         3. 环境变量 GITLAB_TOKEN 或 GL_TOKEN\n\n\
+         在 GitLab 中创建令牌: Settings -> Access Tokens (需要 read_api 权限)".to_string()
+    ))
+}
+
+/// Resolve base URL
+fn resolve_base_url(base_url: &str) -> String {
+    let url = base_url.trim_end_matches('/');
+    if url.starts_with("http://") || url.starts_with("https://") {
+        url.to_string()
+    } else {
+        format!("https://{}", url)
+    }
+}
+
+/// Parse GitLab URL to extract server and group/project path
+fn parse_gitlab_url(input: &str) -> (Option<String>, Option<String>) {
+    let input = input.trim_end_matches('/');
+
+    // Check if it's a URL
+    if !input.starts_with("http://") && !input.starts_with("https://") {
+        return (None, None);
+    }
+
+    // Parse URL
+    let parsed = match url::Url::parse(input) {
+        Ok(u) => u,
+        Err(_) => return (None, None),
+    };
+
+    let host = match parsed.host_str() {
+        Some(h) => h,
+        None => return (None, None),
+    };
+
+    let port = parsed.port().map(|p| format!(":{}", p)).unwrap_or_default();
+    let scheme = parsed.scheme();
+
+    // Get path part
+    let path = parsed.path().trim_start_matches('/');
+
+    // If path is empty, not a valid group/project URL
+    if path.is_empty() {
+        return (None, None);
+    }
+
+    // Separate base path and group/project path
+    // GitLab may be deployed under subpath, e.g., /gitlab/
+    // Group/project path usually doesn't contain .git suffix and contains at least one /
+
+    let path_segments: Vec<&str> = path.split('/').collect();
+
+    // Try to find the starting position of group/project path
+    // If the first segment is a common subpath identifier, then base URL includes it
+    let common_subpaths = ["gitlab", "gitlab-ce", "gitlab-ee"];
+
+    let (base_path, group_path) =
+        if path_segments.len() >= 2 && common_subpaths.contains(&path_segments[0]) {
+            // First segment is subpath, remaining is group/project path
+            let base = path_segments[0];
+            let group = path_segments[1..].join("/");
+            (format!("/{}", base), group)
+        } else {
+            // No subpath, entire path is group/project path
+            (String::new(), path.to_string())
+        };
+
+    let server_url = format!("{}://{}{}{}", scheme, host, port, base_path);
+    let group_path = group_path.trim_end_matches(".git").to_string();
+
+    // Ensure group path is not empty
+    if group_path.is_empty() {
+        return (None, None);
+    }
+
+    (Some(server_url), Some(group_path))
+}
+
+/// Collect existing remote URLs from repositories in output path
+fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
+    let mut urls = HashSet::new();
+
+    if !output_path.exists() {
+        return urls;
+    }
+
+    // Walk through directories to find git repositories
+    if let Ok(entries) = std::fs::read_dir(output_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && is_git_repo(&path) {
+                if let Ok(remote_urls) = get_remote_urls(&path) {
+                    for url in remote_urls {
+                        let url = url.trim_end_matches('/').to_string();
+                        urls.insert(url);
+                    }
+                }
+            }
+        }
+    }
+
+    urls
 }

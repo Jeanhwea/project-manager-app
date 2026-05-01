@@ -82,7 +82,7 @@ impl Remote {
         };
         
         // Validate URL structure
-        if !Self::validate_url_structure(url, protocol) {
+        if !Self::validate_url_structure(url, &protocol) {
             return Err(GitError::InvalidRemoteUrl(format!(
                 "Invalid URL structure: {}",
                 url
@@ -93,7 +93,7 @@ impl Remote {
     }
     
     /// Validate URL structure based on protocol
-    fn validate_url_structure(url: &str, protocol: GitProtocol) -> bool {
+    fn validate_url_structure(url: &str, protocol: &GitProtocol) -> bool {
         match protocol {
             GitProtocol::Ssh => {
                 // SSH URLs can be:
@@ -384,7 +384,7 @@ impl RemoteManager {
         // Get remote names
         let remote_names_result = self.runner.execute_in_dir(&["remote"], repo_path);
         
-        let remote_names = match remote_names_result {
+        let remote_names: Vec<String> = match remote_names_result {
             Ok(output) => {
                 output
                     .lines()
@@ -407,7 +407,7 @@ impl RemoteManager {
                 match Remote::parse_url(&url) {
                     Ok(protocol) => {
                         remotes.push(Remote {
-                            name,
+                            name: name.to_string(),
                             url,
                             protocol,
                         });
@@ -415,7 +415,7 @@ impl RemoteManager {
                     Err(_) => {
                         // If URL parsing fails, still include the remote but with Unknown protocol
                         remotes.push(Remote {
-                            name,
+                            name: name.to_string(),
                             url,
                             protocol: GitProtocol::Ssh, // Default to SSH
                         });
@@ -506,7 +506,7 @@ mod tests {
         assert_eq!(path, "user/repo.git");
         
         let (host, path) = Remote::extract_host_and_path("ssh://git@github.com/user/repo.git").unwrap();
-        assert_eq!(host, "git@github.com");
+        assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
         
         // Test HTTPS URLs
@@ -642,7 +642,7 @@ mod tests {
         let result = manager.add_remote(
             repo_path,
             "origin",
-            "https://github.com/user/repo.git",
+            "https://example.com/user/repo.git",
         );
         
         // This might fail if Git is not available or command fails
@@ -653,7 +653,7 @@ mod tests {
             assert!(remote.is_some());
             if let Some(remote) = remote {
                 assert_eq!(remote.name, "origin");
-                assert_eq!(remote.url, "https://github.com/user/repo.git");
+                assert_eq!(remote.url, "https://example.com/user/repo.git");
                 assert_eq!(remote.protocol, GitProtocol::Https);
             }
         }

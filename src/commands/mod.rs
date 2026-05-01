@@ -15,15 +15,15 @@ pub mod status;
 pub mod sync;
 
 /// Command trait for all command implementations
+///
+/// Each command implements this trait with its own argument type.
+/// This ensures type safety and clear separation between command domains.
 pub trait Command {
+    /// Type representing command-specific arguments
+    type Args;
+    
     /// Execute the command with the given arguments
-    fn execute(args: CommandArgs) -> CommandResult;
-}
-
-/// Command-specific arguments (to be refined per command)
-#[derive(Debug)]
-pub struct CommandArgs {
-    pub raw_args: Vec<String>,
+    fn execute(args: Self::Args) -> CommandResult;
 }
 
 /// Command execution result
@@ -43,11 +43,8 @@ pub enum CommandError {
     
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+    
+    #[error("Validation error: {0}")]
+    Validation(String),
 }
 
-/// Helper to convert domain errors to command errors
-impl From<crate::domain::DomainError> for CommandError {
-    fn from(error: crate::domain::DomainError) -> Self {
-        CommandError::Domain(error)
-    }
-}

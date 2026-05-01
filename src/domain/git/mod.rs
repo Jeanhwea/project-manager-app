@@ -29,6 +29,9 @@ pub enum GitError {
     
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+    
+    #[error("Anyhow error: {0}")]
+    Anyhow(#[from] anyhow::Error),
 }
 
 /// Git protocol type

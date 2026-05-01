@@ -31,10 +31,19 @@ pub struct ParsedCommand {
     pub args: CommandArgs,
 }
 
-/// Command arguments (to be refined per command)
+/// Command arguments enum - can hold different argument types for different commands
 #[derive(Debug)]
-pub struct CommandArgs {
-    pub raw_args: Vec<String>,
+pub enum CommandArgs {
+    Release(crate::commands::release::ReleaseArgs),
+    Sync(crate::commands::sync::SyncArgs),
+    Doctor(crate::commands::doctor::DoctorArgs),
+    Fork(crate::commands::fork::ForkArgs),
+    GitLab(crate::commands::gitlab::GitLabArgs),
+    Snap(crate::commands::snap::SnapArgs),
+    Status(crate::commands::status::StatusArgs),
+    Branch(crate::commands::branch::BranchArgs),
+    SelfMan(crate::commands::selfman::SelfManArgs),
+    Config(crate::commands::config::ConfigArgs),
 }
 
 /// CLI parser trait

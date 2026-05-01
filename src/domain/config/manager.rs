@@ -403,15 +403,17 @@ mod tests {
     #[test]
     fn test_env_config_loading() {
         // Set environment variables
-        env::set_var("TEST_GIT_SKIP_PUSH_HOSTS", "host1.com,host2.com");
-        env::set_var("TEST_GIT_DEFAULT_PROTOCOL", "ssh");
-        env::set_var("TEST_GITLAB_SERVER", "https://test.gitlab.com");
-        env::set_var("TEST_GITLAB_TOKEN", "env-token");
-        env::set_var("TEST_GITLAB_DEFAULT_PROTOCOL", "ssh");
-        env::set_var("TEST_SYNC_AUTO_PUSH", "true");
-        env::set_var("TEST_SYNC_AUTO_PULL", "false");
-        env::set_var("TEST_EDITOR_DRY_RUN", "true");
-        env::set_var("TEST_EDITOR_SKIP_PUSH", "true");
+        unsafe {
+            env::set_var("TEST_GIT_SKIP_PUSH_HOSTS", "host1.com,host2.com");
+            env::set_var("TEST_GIT_DEFAULT_PROTOCOL", "ssh");
+            env::set_var("TEST_GITLAB_SERVER", "https://test.gitlab.com");
+            env::set_var("TEST_GITLAB_TOKEN", "env-token");
+            env::set_var("TEST_GITLAB_DEFAULT_PROTOCOL", "ssh");
+            env::set_var("TEST_SYNC_AUTO_PUSH", "true");
+            env::set_var("TEST_SYNC_AUTO_PULL", "false");
+            env::set_var("TEST_EDITOR_DRY_RUN", "true");
+            env::set_var("TEST_EDITOR_SKIP_PUSH", "true");
+        }
         
         let manager = MultiSourceConfigManager::with_settings(
             None,
@@ -431,15 +433,17 @@ mod tests {
         assert!(env_config.editor.skip_push);
         
         // Clean up environment variables
-        env::remove_var("TEST_GIT_SKIP_PUSH_HOSTS");
-        env::remove_var("TEST_GIT_DEFAULT_PROTOCOL");
-        env::remove_var("TEST_GITLAB_SERVER");
-        env::remove_var("TEST_GITLAB_TOKEN");
-        env::remove_var("TEST_GITLAB_DEFAULT_PROTOCOL");
-        env::remove_var("TEST_SYNC_AUTO_PUSH");
-        env::remove_var("TEST_SYNC_AUTO_PULL");
-        env::remove_var("TEST_EDITOR_DRY_RUN");
-        env::remove_var("TEST_EDITOR_SKIP_PUSH");
+        unsafe {
+            env::remove_var("TEST_GIT_SKIP_PUSH_HOSTS");
+            env::remove_var("TEST_GIT_DEFAULT_PROTOCOL");
+            env::remove_var("TEST_GITLAB_SERVER");
+            env::remove_var("TEST_GITLAB_TOKEN");
+            env::remove_var("TEST_GITLAB_DEFAULT_PROTOCOL");
+            env::remove_var("TEST_SYNC_AUTO_PUSH");
+            env::remove_var("TEST_SYNC_AUTO_PULL");
+            env::remove_var("TEST_EDITOR_DRY_RUN");
+            env::remove_var("TEST_EDITOR_SKIP_PUSH");
+        }
     }
     
     #[test]

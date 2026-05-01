@@ -10,6 +10,8 @@ mod homebrew;
 mod pom_xml;
 mod project_py;
 mod pyproject;
+mod file_types;
+mod version_bump;
 
 pub use cargo_toml::CargoTomlEditor;
 pub use package_json::PackageJsonEditor;
@@ -19,6 +21,8 @@ pub use homebrew::HomebrewFormulaEditor;
 pub use pom_xml::PomXmlEditor;
 pub use project_py::PythonVersionEditor;
 pub use pyproject::PyprojectEditor;
+pub use file_types::{FileType, detect_file_type};
+pub use version_bump::{BumpType, EditorConfig, apply_bump};
 
 use std::path::Path;
 
@@ -45,49 +49,6 @@ pub enum EditorError {
     
     #[error("Format preservation error: {0}")]
     FormatPreservationError(String),
-}
-
-/// File types supported for version editing
-#[derive(Debug, Clone, PartialEq)]
-pub enum FileType {
-    CargoToml,
-    PackageJson,
-    PyProject,
-    VersionText,
-    Cmake,
-    PomXml,
-    Homebrew,
-    ProjectPy,
-}
-
-/// Version bump type
-#[derive(Debug, Clone, PartialEq)]
-pub enum BumpType {
-    Major,
-    Minor,
-    Patch,
-    PreRelease(String),
-    Build(String),
-}
-
-/// Version editing configuration
-#[derive(Debug, Clone)]
-pub struct EditorConfig {
-    pub dry_run: bool,
-    pub skip_push: bool,
-    pub force: bool,
-    pub message: Option<String>,
-}
-
-impl Default for EditorConfig {
-    fn default() -> Self {
-        Self {
-            dry_run: false,
-            skip_push: false,
-            force: false,
-            message: None,
-        }
-    }
 }
 
 /// Common result type for editor operations
@@ -313,53 +274,7 @@ pub fn preserve_line_endings(original: &str, edited: String) -> String {
     }
 }
 
-/// Detect file type from path
-pub fn detect_file_type(path: &Path) -> Option<FileType> {
-    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    
-    match (file_name, extension) {
-        ("Cargo.toml", _) => Some(FileType::CargoToml),
-        ("package.json", _) => Some(FileType::PackageJson),
-        ("pyproject.toml", _) => Some(FileType::PyProject),
-        ("CMakeLists.txt", _) => Some(FileType::Cmake),
-        ("pom.xml", _) => Some(FileType::PomXml),
-        (_, "txt") => Some(FileType::VersionText),
-        (_, "rb") => Some(FileType::Homebrew),
-        (_, "py") => Some(FileType::ProjectPy),
-        _ => None,
-    }
-}
 
-/// Apply version bump to a version string
-pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
-    // Parse semantic version
-    let mut parts = version.split('.');
-    let major = parts.next().and_then(|s| s.parse::<u32>().ok());
-    let minor = parts.next().and_then(|s| s.parse::<u32>().ok());
-    let patch = parts.next().and_then(|s| s.parse::<u32>().ok());
-    
-    match (major, minor, patch) {
-        (Some(major), Some(minor), Some(patch)) => {
-            let (new_major, new_minor, new_patch) = match bump_type {
-                BumpType::Major => (major + 1, 0, 0),
-                BumpType::Minor => (major, minor + 1, 0),
-                BumpType::Patch => (major, minor, patch + 1),
-                BumpType::PreRelease(label) => {
-                    return Ok(format!("{}.{}.{}-{}", major, minor, patch, label))
-                }
-                BumpType::Build(label) => {
-                    return Ok(format!("{}.{}.{}+{}", major, minor, patch, label))
-                }
-            };
-            Ok(format!("{}.{}.{}", new_major, new_minor, new_patch))
-        }
-        _ => Err(EditorError::VersionFormatError(format!(
-            "Invalid version format: {}",
-            version
-        ))),
-    }
-}
 
 /// Bump version in a file
 pub fn bump_version_in_file(path: &Path, bump_type: BumpType, config: &EditorConfig) -> Result<String> {

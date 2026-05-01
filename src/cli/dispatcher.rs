@@ -2,9 +2,9 @@
 //!
 //! This module routes parsed commands to appropriate handlers.
 
-use super::{CommandDispatcher, ParsedCommand, CommandName};
+use super::{CommandDispatcher, ParsedCommand, CommandName, CommandArgs};
 use crate::commands::{
-    Command, CommandArgs as CmdArgs, CommandError, CommandResult,
+    Command, CommandError,
     branch::BranchCommand,
     config::ConfigCommand,
     doctor::DoctorCommand,
@@ -22,53 +22,50 @@ pub struct CommandDispatcherImpl;
 
 impl CommandDispatcher for CommandDispatcherImpl {
     fn dispatch(command: ParsedCommand) -> super::CliResult {
-        // Convert CLI CommandArgs to domain CommandArgs
-        let cmd_args = CmdArgs {
-            raw_args: command.args.raw_args,
-        };
-
-        // Route command to appropriate handler based on command name
-        match command.name {
-            CommandName::Release => {
-                ReleaseCommand::execute(cmd_args)
+        // Route command to appropriate handler based on command name and arguments
+        match (command.name, command.args) {
+            (CommandName::Release, CommandArgs::Release(args)) => {
+                ReleaseCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "release"))
             }
-            CommandName::Sync => {
-                SyncCommand::execute(cmd_args)
+            (CommandName::Sync, CommandArgs::Sync(args)) => {
+                SyncCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "sync"))
             }
-            CommandName::Doctor => {
-                DoctorCommand::execute(cmd_args)
+            (CommandName::Doctor, CommandArgs::Doctor(args)) => {
+                DoctorCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "doctor"))
             }
-            CommandName::Fork => {
-                ForkCommand::execute(cmd_args)
+            (CommandName::Fork, CommandArgs::Fork(args)) => {
+                ForkCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "fork"))
             }
-            CommandName::GitLab => {
-                GitLabCommand::execute(cmd_args)
+            (CommandName::GitLab, CommandArgs::GitLab(args)) => {
+                GitLabCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "gitlab"))
             }
-            CommandName::Snap => {
-                SnapCommand::execute(cmd_args)
+            (CommandName::Snap, CommandArgs::Snap(args)) => {
+                SnapCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "snap"))
             }
-            CommandName::Status => {
-                StatusCommand::execute(cmd_args)
+            (CommandName::Status, CommandArgs::Status(args)) => {
+                StatusCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "status"))
             }
-            CommandName::Branch => {
-                BranchCommand::execute(cmd_args)
+            (CommandName::Branch, CommandArgs::Branch(args)) => {
+                BranchCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "branch"))
             }
-            CommandName::SelfMan => {
-                SelfManCommand::execute(cmd_args)
+            (CommandName::SelfMan, CommandArgs::SelfMan(args)) => {
+                SelfManCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "self"))
             }
-            CommandName::Config => {
-                ConfigCommand::execute(cmd_args)
+            (CommandName::Config, CommandArgs::Config(args)) => {
+                ConfigCommand::execute(args)
                     .map_err(|e| convert_command_error(e, "config"))
             }
+            // This should never happen if the parser works correctly
+            _ => Err(anyhow::anyhow!("Command name and argument type mismatch")),
         }
     }
 }
@@ -88,6 +85,9 @@ fn convert_command_error(error: CommandError, command_name: &str) -> anyhow::Err
         CommandError::Io(io_error) => {
             anyhow::anyhow!("I/O error in {} command: {}", command_name, io_error)
         }
+        CommandError::Validation(msg) => {
+            anyhow::anyhow!("Validation error in {} command: {}", command_name, msg)
+        }
     }
 }
 
@@ -101,19 +101,28 @@ mod tests {
     fn test_dispatcher_routes_to_correct_command() {
         // This test verifies that the dispatcher correctly routes commands
         // Note: Actual command execution is tested in command module tests
+        let release_args = crate::commands::release::ReleaseArgs {
+            bump_type: crate::commands::release::BumpType::Patch,
+            files: vec![],
+            no_root: false,
+            force: false,
+            skip_push: true,
+            dry_run: true,
+            message: None,
+            pre_release: None,
+        };
+        
         let command = ParsedCommand {
             name: CommandName::Release,
-            args: CommandArgs { raw_args: vec![] },
+            args: CommandArgs::Release(release_args),
         };
         
         // The dispatcher should call ReleaseCommand::execute
-        // Since ReleaseCommand::execute currently panics with todo!(),
-        // we expect a panic, which is correct for this stage of implementation
-        let result = std::panic::catch_unwind(|| {
-            CommandDispatcherImpl::dispatch(command);
-        });
+        // ReleaseCommand::execute returns a Result, and in test environment
+        // without a git repository, it should return an error
+        let result = CommandDispatcherImpl::dispatch(command);
         
-        // The dispatcher should panic because ReleaseCommand::execute panics
+        // The dispatcher should return an error since we're not in a git repo
         assert!(result.is_err());
     }
 

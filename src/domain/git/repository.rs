@@ -22,16 +22,8 @@ pub struct Repository {
     pub repo_type: RepoType,
 }
 
-/// Git remote repository
-#[derive(Debug, Clone)]
-pub struct Remote {
-    /// Remote name (e.g., "origin")
-    pub name: String,
-    /// Remote URL
-    pub url: String,
-    /// Git protocol used for the remote
-    pub protocol: GitProtocol,
-}
+/// Git remote repository (re-export from remote module)
+pub use super::remote::Remote;
 
 /// Git branch information
 #[derive(Debug, Clone)]
@@ -372,7 +364,7 @@ mod tests {
     
     #[test]
     fn test_remote_parsing() {
-        use super::remote::Remote;
+        use crate::domain::git::remote::Remote;
         
         assert_eq!(Remote::parse_url("ssh://git@example.com/repo.git").unwrap(), GitProtocol::Ssh);
         assert_eq!(Remote::parse_url("git@github.com:user/repo.git").unwrap(), GitProtocol::Ssh);

@@ -9,9 +9,6 @@ pub mod git;
 pub mod gitlab;
 pub mod runner;
 
-/// Common error type for domain operations
-pub type DomainResult<T> = Result<T, DomainError>;
-
 /// Domain error enumeration
 #[derive(Debug, thiserror::Error)]
 pub enum DomainError {

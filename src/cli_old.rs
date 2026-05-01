@@ -1,8 +1,8 @@
 use clap::builder::styling::Styles;
 use clap::{Parser, Subcommand, ValueEnum};
 
-use crate::app::handler::gitlab::CloneProtocol;
-use crate::app::handler::status::StatusFilter;
+use crate::commands::gitlab::CloneProtocol;
+use crate::commands::status::StatusFilter;
 
 fn get_styles() -> Styles {
     Styles::styled()
