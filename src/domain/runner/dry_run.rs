@@ -67,6 +67,7 @@ impl DryRunContext {
         }
     }
 
+    #[allow(dead_code)]
     pub fn print_file_diff(&self, file_path: &str, old_content: &str, new_content: &str) {
         if !self.dry_run {
             return;

@@ -164,34 +164,42 @@ impl Repository {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn path(&self) -> &Path {
         &self.path
     }
 
+    #[allow(dead_code)]
     pub fn status(&self) -> &RepositoryStatus {
         &self.status
     }
 
+    #[allow(dead_code)]
     pub fn remotes(&self) -> &[Remote] {
         &self.remotes
     }
 
+    #[allow(dead_code)]
     pub fn branches(&self) -> &[Branch] {
         &self.branches
     }
 
+    #[allow(dead_code)]
     pub fn repo_type(&self) -> &RepoType {
         &self.repo_type
     }
 
+    #[allow(dead_code)]
     pub fn is_clean(&self) -> bool {
         self.status == RepositoryStatus::Clean
     }
 
+    #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         self.status == RepositoryStatus::Dirty
     }
 
+    #[allow(dead_code)]
     pub fn current_branch(&self) -> Option<&str> {
         self.branches
             .iter()
@@ -199,10 +207,12 @@ impl Repository {
             .map(|b| b.name.as_str())
     }
 
+    #[allow(dead_code)]
     pub fn remote(&self, name: &str) -> Option<&Remote> {
         self.remotes.iter().find(|r| r.name == name)
     }
 
+    #[allow(dead_code)]
     pub fn branch(&self, name: &str) -> Option<&Branch> {
         self.branches.iter().find(|b| b.name == name)
     }
