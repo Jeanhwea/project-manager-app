@@ -61,7 +61,7 @@ impl GitLabClient {
             .set("PRIVATE-TOKEN", token)
             .set("User-Agent", "pma-gitlab")
             .call()
-            .map_err(GitLabError::NetworkError)?;
+            .map_err(|e| GitLabError::NetworkError(Box::new(e)))?;
 
         let status = response.status();
         if status == 429 {
@@ -104,7 +104,7 @@ impl GitLabClient {
             .set("PRIVATE-TOKEN", token)
             .set("User-Agent", "pma-gitlab")
             .call()
-            .map_err(GitLabError::NetworkError)?;
+            .map_err(|e| GitLabError::NetworkError(Box::new(e)))?;
 
         let status = response.status();
         if status == 429 {

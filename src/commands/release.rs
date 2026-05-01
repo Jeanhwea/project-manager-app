@@ -728,7 +728,6 @@ impl Version {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_bump_type_as_str() {

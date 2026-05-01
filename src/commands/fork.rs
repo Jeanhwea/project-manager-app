@@ -514,7 +514,6 @@ fn do_reinit_repo(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_fork_args_structure() {

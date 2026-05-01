@@ -346,7 +346,6 @@ impl Default for RemoteManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_remote_parse_url_valid() {
@@ -463,16 +462,12 @@ mod tests {
 
     #[test]
     fn test_remote_manager_new() {
-        let manager = RemoteManager::new();
-        // Just test that it can be created
-        assert!(true);
+        let _manager = RemoteManager::new();
     }
 
     #[test]
     fn test_remote_manager_default() {
-        let manager = RemoteManager::default();
-        // Just test that default works
-        assert!(true);
+        let _manager = RemoteManager::default();
     }
 
     #[test]

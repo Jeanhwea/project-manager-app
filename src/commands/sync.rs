@@ -321,7 +321,6 @@ fn is_workdir_clean(repo_path: &Path) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_dry_run_context() {
@@ -402,15 +401,11 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let repo_path = temp_dir.path();
 
-        // Initialize a git repository
         let _ = std::process::Command::new("git")
             .arg("init")
             .current_dir(repo_path)
             .output();
 
-        // New repository should be clean
-        let result = is_workdir_clean(repo_path);
-        // This might fail if git is not available, but we test the function signature
-        assert!(true);
+        let _result = is_workdir_clean(repo_path);
     }
 }

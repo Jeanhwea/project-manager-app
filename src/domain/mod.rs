@@ -1,12 +1,7 @@
-#[allow(dead_code)]
 pub mod config;
-#[allow(dead_code)]
 pub mod editor;
-#[allow(dead_code)]
 pub mod git;
-#[allow(dead_code)]
 pub mod gitlab;
-#[allow(dead_code)]
 pub mod runner;
 
 #[derive(Debug, thiserror::Error)]

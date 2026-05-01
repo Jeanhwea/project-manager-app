@@ -437,7 +437,6 @@ fn do_git_garbage_collect(ctx: &DryRunContext, repo_path: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_doctor_args_structure() {
@@ -469,9 +468,7 @@ mod tests {
 
     #[test]
     fn test_check_command_exists() {
-        // git should exist on most systems
-        let git_exists = check_command_exists("git");
-        // We can't guarantee git exists, but we can test the function doesn't panic
+        let _git_exists = check_command_exists("git");
         assert!(true);
     }
 

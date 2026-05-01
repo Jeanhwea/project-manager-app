@@ -104,7 +104,6 @@ impl Default for GitCommandRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_git_version() {
