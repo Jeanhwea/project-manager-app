@@ -1,6 +1,6 @@
 use crate::domain::git::command::GitCommandRunner;
+use crate::utils::output::Output;
 use anyhow::Result;
-use colored::Colorize;
 use std::path::Path;
 
 /// 支持 `--dry-run` 的命令执行上下文
@@ -24,12 +24,7 @@ impl DryRunContext {
             return Ok(());
         }
 
-        println!(
-            "{} {} {}",
-            "=>".white(),
-            program.yellow(),
-            args.join(" ").yellow()
-        );
+        Output::info(&format!("{} {}", program, args.join(" ")));
 
         let runner = GitCommandRunner::new();
         let output = if let Some(dir) = dir {
@@ -57,13 +52,13 @@ impl DryRunContext {
 
     pub fn print_header(&self, msg: &str) {
         if self.dry_run {
-            println!("{}", msg.green().bold());
+            Output::dry_run_header(msg);
         }
     }
 
     pub fn print_message(&self, msg: &str) {
         if self.dry_run {
-            println!("  {} {}", "[DRY-RUN]".yellow(), msg);
+            Output::message(&format!("[DRY-RUN] {}", msg));
         }
     }
 
@@ -73,28 +68,21 @@ impl DryRunContext {
             return;
         }
 
-        println!("\n  {}", file_path.blue().underline());
+        Output::blank();
+        Output::message(&format!("File: {}", file_path));
 
         let old_lines: Vec<&str> = old_content.lines().collect();
         let new_lines: Vec<&str> = new_content.lines().collect();
 
-        for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter()))
-        {
+        for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter())) {
             if old_line != new_line {
-                println!("    {} {}", format!("L{}:", line_num).dimmed(), "-".red());
-                println!("      {}", old_line.red());
-                println!("    {} {}", format!("L{}:", line_num).dimmed(), "+".green());
-                println!("      {}", new_line.green());
+                Output::detail(&format!("L{} -", line_num), old_line);
+                Output::detail(&format!("L{} +", line_num), new_line);
             }
         }
     }
 
     fn print_dry_run_command(&self, program: &str, args: &[&str]) {
-        println!(
-            "  {} {} {}",
-            "[DRY-RUN]".yellow(),
-            program.cyan(),
-            args.join(" ")
-        );
+        Output::message(&format!("[DRY-RUN] {} {}", program, args.join(" ")));
     }
 }
