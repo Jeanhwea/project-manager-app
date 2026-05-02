@@ -1,6 +1,6 @@
 use super::{Command, CommandResult};
 use anyhow::{Context, Result};
-use colored::*;
+use crate::utils::output::Output;
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::Deserialize;
 use std::env;
@@ -69,13 +69,13 @@ impl Command for SelfManCommand {
 }
 
 fn show_version() {
-    println!(
-        "{} {} ({}-{})",
+    Output::message(&format!(
+        "{} v{} ({}-{})",
         PKG_NAME,
-        format!("v{}", PKG_VERSION).green(),
+        PKG_VERSION,
         env::consts::OS,
         env::consts::ARCH,
-    );
+    ));
 }
 
 fn execute_update(args: UpdateArgs) -> CommandResult {
@@ -85,7 +85,7 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
         ));
     }
 
-    println!("{}", "检查最新版本...".cyan());
+    Output::info("检查最新版本...");
 
     let release = fetch_latest_release().map_err(|e| {
         super::CommandError::ExecutionFailed(format!("Failed to fetch release: {}", e))
@@ -93,8 +93,8 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
     let latest = release.tag_name.trim_start_matches('v');
     let current = PKG_VERSION;
 
-    println!("当前版本: {}", format!("v{}", current).yellow());
-    println!("最新版本: {}", format!("v{}", latest).green());
+    Output::item("当前版本", &format!("v{}", current));
+    Output::item("最新版本", &format!("v{}", latest));
 
     let latest_ver = semver::Version::parse(latest).map_err(|e| {
         super::CommandError::ExecutionFailed(format!("无法解析最新版本号: {} - {}", latest, e))
@@ -104,12 +104,12 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
     })?;
 
     if !args.force && current_ver >= latest_ver {
-        println!("{}", "已经是最新版本，无需更新。".green());
+        Output::success("已经是最新版本，无需更新。");
         return Ok(());
     }
 
     if args.force && current_ver >= latest_ver {
-        println!("{}", "强制更新模式，继续更新...".yellow());
+        Output::warning("强制更新模式，继续更新...");
     }
 
     let asset_name = get_asset_name(&release.tag_name).map_err(|e| {
@@ -126,12 +126,12 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
             ))
         })?;
 
-    println!("下载 {}...", asset.name.cyan());
+    Output::info(&format!("下载 {}...", asset.name));
     let data =
         download_asset(&asset.url, &asset.browser_download_url, &asset.name).map_err(|e| {
             super::CommandError::ExecutionFailed(format!("Failed to download asset: {}", e))
         })?;
-    println!("{}", "下载完成".green());
+    Output::success("下载完成");
 
     let current_exe = env::current_exe().map_err(|e| {
         super::CommandError::ExecutionFailed(format!("无法获取当前可执行文件路径: {}", e))
@@ -140,10 +140,7 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
         super::CommandError::ExecutionFailed(format!("Failed to install binary: {}", e))
     })?;
 
-    println!(
-        "{}",
-        format!("更新成功! v{} -> v{}", current, latest).green()
-    );
+    Output::success(&format!("更新成功! v{} -> v{}", current, latest));
     Ok(())
 }
 

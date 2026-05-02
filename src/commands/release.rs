@@ -1,9 +1,9 @@
 use super::{Command, CommandError, CommandResult};
 use crate::domain::editor::{EditorRegistry, FileEditor, write_with_backup};
 use crate::domain::git::command::GitCommandRunner;
+use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
 use anyhow::{Context, Result};
-use colored::Colorize;
 use regex::Regex;
 use std::path::{Path, PathBuf};
 
@@ -176,15 +176,14 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
         None => new_tag.clone(),
     };
 
-    println!(
-        "{} {} -> {}",
-        "版本变更:".green().bold(),
-        current_tag.cyan(),
-        new_tag.yellow().bold()
+    Output::item_colored(
+        &format!("版本变更: {} ->", current_tag),
+        &new_tag,
+        ItemColor::Yellow,
     );
 
     if args.message.is_some() {
-        println!("{} {}", "提交消息:".green().bold(), commit_message.yellow());
+        Output::item("提交消息", &commit_message);
     }
 
     Ok(GitState {
@@ -334,19 +333,19 @@ fn execute_dry_run(
     config_files: &[ConfigFileEntry],
     state: &GitState,
 ) -> Result<()> {
-    println!("\n[DRY-RUN] 将要修改的文件:");
+    Output::dry_run_header("将要修改的文件:");
     for (file_path, editor) in config_files {
         print_file_diff(registry, editor.as_ref(), &state.new_tag, file_path)?;
     }
 
-    println!("\n[DRY-RUN] 将要执行的操作:");
+    Output::dry_run_header("将要执行的操作:");
     for (file_path, _editor) in config_files {
         print_lockfile_update_plan(file_path);
     }
 
-    println!("  [DRY-RUN] git add <files>");
-    println!("  [DRY-RUN] git commit -m \"{}\"", state.commit_message);
-    println!("  [DRY-RUN] git tag {}", state.new_tag);
+    Output::message(&format!("git add <files>"));
+    Output::message(&format!("git commit -m \"{}\"", state.commit_message));
+    Output::message(&format!("git tag {}", state.new_tag));
 
     print_push_plan(args.skip_push, &state.current_branch, &state.new_tag);
 
@@ -391,17 +390,15 @@ fn print_file_diff(
 ) -> Result<()> {
     let (original, edited) = compute_edited_content(registry, editor, tag, config_file)?;
 
-    println!("\n  {}", config_file.blue().underline());
+    Output::message(&format!("{}", config_file));
 
     let old_lines: Vec<&str> = original.lines().collect();
     let new_lines: Vec<&str> = edited.lines().collect();
 
     for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter())) {
         if old_line != new_line {
-            println!("    {} {}", format!("L{}:", line_num).dimmed(), "-".red());
-            println!("      {}", old_line.red());
-            println!("    {} {}", format!("L{}:", line_num).dimmed(), "+".green());
-            println!("      {}", new_line.green());
+            Output::detail(&format!("L{} -", line_num), old_line);
+            Output::detail(&format!("L{} +", line_num), new_line);
         }
     }
 
@@ -446,13 +443,13 @@ fn print_lockfile_update_plan(config_file: &str) {
     };
 
     if config_file.ends_with("Cargo.toml") && dir.join("Cargo.lock").exists() {
-        println!("  [DRY-RUN] cargo update --package <name>");
+        Output::message("cargo update --package <name>");
     } else if config_file.ends_with("package.json") {
         if dir.join("package-lock.json").exists() {
-            println!("  [DRY-RUN] npm install --package-lock-only");
+            Output::message("npm install --package-lock-only");
         }
         if dir.join("pnpm-lock.yaml").exists() {
-            println!("  [DRY-RUN] pnpm install --lockfile-only");
+            Output::message("pnpm install --lockfile-only");
         }
     }
 }
@@ -485,10 +482,7 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     }
 
     if is_gitignored(&lock_path) {
-        println!(
-            "  {} Cargo.lock 在 .gitignore 中，跳过更新",
-            "[SKIP]".dimmed()
-        );
+        Output::skip("Cargo.lock 在 .gitignore 中，跳过更新");
         return Ok(());
     }
 
@@ -529,10 +523,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
     let lock_path = lock_dir.join("package-lock.json");
 
     if is_gitignored(&lock_path) {
-        println!(
-            "  {} package-lock.json 在 .gitignore 中，跳过更新",
-            "[SKIP]".dimmed()
-        );
+        Output::skip("package-lock.json 在 .gitignore 中，跳过更新");
         return Ok(());
     }
 
@@ -543,7 +534,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
         .with_context(|| "无法执行 npm install")?;
 
     if !status.success() {
-        eprintln!("npm install --package-lock-only 执行失败");
+        Output::error("npm install --package-lock-only 执行失败");
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
@@ -571,10 +562,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     let lock_path = lock_dir.join("pnpm-lock.yaml");
 
     if is_gitignored(&lock_path) {
-        println!(
-            "  {} pnpm-lock.yaml 在 .gitignore 中，跳过更新",
-            "[SKIP]".dimmed()
-        );
+        Output::skip("pnpm-lock.yaml 在 .gitignore 中，跳过更新");
         return Ok(());
     }
 
@@ -585,7 +573,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
         .with_context(|| "无法执行 pnpm install")?;
 
     if !status.success() {
-        eprintln!("pnpm install --lockfile-only 执行失败");
+        Output::error("pnpm install --lockfile-only 执行失败");
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
@@ -659,8 +647,8 @@ fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
     };
 
     for remote in remotes {
-        println!("  [DRY-RUN] git push {} {}", remote, new_tag);
-        println!("  [DRY-RUN] git push {} {}", remote, current_branch);
+        Output::message(&format!("git push {} {}", remote, new_tag));
+        Output::message(&format!("git push {} {}", remote, current_branch));
     }
 }
 
@@ -681,10 +669,10 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
 
     for remote in remotes {
         if let Err(e) = runner.execute_with_success(&["push", &remote, new_tag]) {
-            eprintln!("警告: 推送标签失败: {}", e);
+            Output::warning(&format!("推送标签失败: {}", e));
         }
         if let Err(e) = runner.execute_with_success(&["push", &remote, current_branch]) {
-            eprintln!("警告: 推送分支失败: {}", e);
+            Output::warning(&format!("推送分支失败: {}", e));
         }
     }
 

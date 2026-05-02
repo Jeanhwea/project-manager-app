@@ -3,8 +3,8 @@ use crate::domain::config::{ConfigDir, GitLabServer};
 use crate::domain::gitlab::client::GitLabClient;
 use crate::domain::gitlab::models::User;
 use crate::utils::git::{get_remote_urls, git_command, is_git_repo};
+use crate::utils::output::{ItemColor, Output};
 
-use colored::Colorize;
 use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::Path;
@@ -76,8 +76,7 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     let resolved_url = if let Some(ref s) = args.server {
         resolve_base_url(s)
     } else {
-        println!("{}", "GitLab 登录".cyan().bold());
-        println!();
+        Output::section("GitLab 登录");
         let server_url =
             prompt_input("服务器地址 (例如 https://gitlab.com 或 http://192.168.0.110/gitlab/)")?;
         if server_url.is_empty() {
@@ -89,8 +88,7 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     let final_token = if let Some(ref t) = args.token {
         t.clone()
     } else {
-        println!("{} {}", "登录到:".cyan(), resolved_url.dimmed());
-        println!();
+        Output::item("登录到", &resolved_url);
 
         let input_token = prompt_input("Personal Access Token")?;
 
@@ -105,18 +103,17 @@ fn execute_login(args: LoginArgs) -> CommandResult {
         input_token
     };
 
-    println!("{} {}", "验证连接:".cyan(), resolved_url.dimmed());
+    Output::item("验证连接", &resolved_url);
 
     let client = GitLabClient::with_url_and_token(&resolved_url, &final_token);
     let user: User = client
         .get_current_user()
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to authenticate: {}", e)))?;
 
-    println!(
-        "{} {} ({})",
-        "已认证:".green(),
-        user.name.green().bold(),
-        user.username.yellow()
+    Output::item_colored(
+        "已认证",
+        &format!("{} ({})", user.name, user.username),
+        ItemColor::Green,
     );
 
     let protocol_str = match args.protocol {
@@ -146,7 +143,7 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     ConfigDir::save_gitlab(&gitlab_cfg)
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to save config: {}", e)))?;
 
-    println!("{} {} 凭据已保存", "保存:".green(), resolved_url.cyan());
+    Output::success(&format!("{} 凭据已保存", resolved_url));
 
     Ok(())
 }
@@ -166,11 +163,10 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     let resolved_token = resolve_token(Some(&saved_token))?;
     let resolved_protocol = saved_protocol;
 
-    println!(
-        "{} {} {}/",
-        "克隆组:".cyan(),
-        resolved_base_url.dimmed(),
-        final_group.yellow().bold()
+    Output::item_colored(
+        "克隆组",
+        &format!("{}/{}", resolved_base_url, final_group),
+        ItemColor::Yellow,
     );
 
     let client = GitLabClient::with_url_and_token(&resolved_base_url, &resolved_token);
@@ -187,11 +183,10 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
             CommandError::ExecutionFailed(format!("Group not found: {}", final_group))
         })?;
 
-    println!(
-        "{} {} ({})",
-        "组名:".cyan(),
-        group_info.name.green().bold(),
-        group_info.full_path.dimmed()
+    Output::item_colored(
+        "组名",
+        &format!("{} ({})", group_info.name, group_info.full_path),
+        ItemColor::Green,
     );
 
     let projects = client
@@ -199,30 +194,25 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
         .map_err(|e| CommandError::ExecutionFailed(format!("Failed to get projects: {}", e)))?;
 
     if projects.is_empty() {
-        println!("{}", "未找到项目".yellow());
+        Output::warning("未找到项目");
         return Ok(());
     }
 
-    println!(
-        "{} {} 个项目{}",
-        "发现:".cyan(),
-        projects.len().to_string().white().bold(),
+    let project_count = format!(
+        "{} 个项目{}",
+        projects.len(),
         if args.include_archived {
             " (含已归档)"
         } else {
             ""
         }
     );
-    println!();
+    Output::item("发现", &project_count);
 
     let output_path = Path::new(&args.output);
     if !output_path.exists() {
         if args.dry_run {
-            println!(
-                "  {} 创建目录: {}",
-                "[DRY-RUN]".yellow(),
-                args.output.cyan()
-            );
+            Output::dry_run_header(&format!("创建目录: {}", args.output));
         } else {
             std::fs::create_dir_all(output_path).map_err(CommandError::Io)?;
         }
@@ -230,12 +220,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 
     let existing_urls = collect_existing_remote_urls(output_path);
     if !existing_urls.is_empty() {
-        println!(
-            "{} {} 个已存在的仓库",
-            "检测:".cyan(),
-            existing_urls.len().to_string().white().bold()
-        );
-        println!();
+        Output::item("检测", &format!("{} 个已存在的仓库", existing_urls.len()));
     }
 
     let mut success_count = 0usize;
@@ -259,12 +244,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 
         // Skip projects in subgroups — only clone direct children
         if relative_path.contains('/') {
-            println!(
-                "{} {} {}",
-                progress.white().bold(),
-                "[SKIP]".dimmed(),
-                format!("{} (子组项目)", project.path_with_namespace).dimmed(),
-            );
+            Output::skip(&format!("{} {} (子组项目)", progress, project.path_with_namespace));
             skip_count += 1;
             continue;
         }
@@ -280,23 +260,11 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
         let project_dir = output_path.join(relative_path);
         let is_archived = project.archived.unwrap_or(false);
 
-        println!(
-            "{} {} {}",
-            progress.white().bold(),
-            if is_archived {
-                "[归档]".dimmed()
-            } else {
-                "".dimmed()
-            },
-            project.path_with_namespace.cyan(),
-        );
+        let status = if is_archived { "[归档] " } else { "" };
+        Output::message(&format!("{} {} {}", progress, status, project.path_with_namespace));
 
         if project_dir.exists() {
-            println!(
-                "  {} {} 已存在，跳过",
-                "[SKIP]".dimmed(),
-                relative_path.yellow()
-            );
+            Output::skip(&format!("{} 已存在，跳过", relative_path));
             skip_count += 1;
             continue;
         }
@@ -305,24 +273,15 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
             || existing_urls.contains(ssh_url)
             || existing_urls.contains(http_url)
         {
-            println!(
-                "  {} {} URL 已存在，跳过",
-                "[SKIP]".dimmed(),
-                relative_path.yellow()
-            );
+            Output::skip(&format!("{} URL 已存在，跳过", relative_path));
             skip_count += 1;
             continue;
         }
 
         if args.dry_run {
-            println!(
-                "  {} git clone {} {}",
-                "[DRY-RUN]".yellow(),
-                clone_url.green(),
-                relative_path.dimmed()
-            );
+            Output::info(&format!("git clone {} {}", clone_url, relative_path));
             if args.recursive {
-                println!("  {} (含子模块)", "[DRY-RUN]".yellow());
+                Output::info("(含子模块)");
             }
             success_count += 1;
             continue;
@@ -336,23 +295,21 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 
         match git_command(output_path, &git_args) {
             Ok(_) => {
-                println!("  {} {}", "已克隆".green(), relative_path.green());
+                Output::success(&format!("已克隆 {}", relative_path));
                 success_count += 1;
             }
             Err(e) => {
-                println!("  {} {} - {}", "克隆失败".red(), relative_path.red(), e);
+                Output::error(&format!("克隆失败 {} - {}", relative_path, e));
                 fail_count += 1;
             }
         }
     }
 
-    println!();
-    println!(
-        "{} 成功 {}, 跳过 {}, 失败 {}",
-        "汇总:".cyan(),
-        success_count.to_string().green(),
-        skip_count.to_string().yellow(),
-        fail_count.to_string().red(),
+    Output::blank();
+    Output::item_colored(
+        "汇总",
+        &format!("成功 {}, 跳过 {}, 失败 {}", success_count, skip_count, fail_count),
+        ItemColor::Cyan,
     );
 
     Ok(())
@@ -360,7 +317,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 
 /// Prompt for user input
 fn prompt_input(prompt: &str) -> Result<String, CommandError> {
-    print!("{}: ", prompt.white().bold());
+    print!("{}: ", prompt);
     io::stdout().flush().map_err(CommandError::Io)?;
 
     let mut input = String::new();

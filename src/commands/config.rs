@@ -1,7 +1,7 @@
 use super::{Command, CommandResult};
 use crate::domain::config::ConfigDir;
 use crate::domain::config::schema;
-use colored::Colorize;
+use crate::utils::output::Output;
 
 /// Configuration command arguments
 #[derive(Debug)]
@@ -48,9 +48,9 @@ fn execute_init() -> CommandResult {
     std::fs::write(&gitlab_path, schema::default_gitlab_config_content())
         .map_err(super::CommandError::Io)?;
 
-    println!("{} {}", "已创建配置目录:".green(), dir.display());
-    println!("  {} {}", "主配置:".dimmed(), config_path.display());
-    println!("  {} {}", "GitLab:".dimmed(), gitlab_path.display());
+    Output::item("已创建配置目录", &dir.display().to_string());
+    Output::detail("主配置", &config_path.display().to_string());
+    Output::detail("GitLab", &gitlab_path.display().to_string());
     Ok(())
 }
 
@@ -60,50 +60,39 @@ fn execute_show() -> CommandResult {
     let gitlab_cfg = ConfigDir::load_gitlab();
     let dir_exists = dir.exists();
 
-    println!(
-        "{} {} {}",
-        "配置目录:".green(),
-        dir.display(),
-        if dir_exists {
-            "".to_string()
-        } else {
-            "(未创建, 使用默认值)".yellow().to_string()
-        }
-    );
-    println!();
+    let dir_status = if dir_exists {
+        "".to_string()
+    } else {
+        " (未创建, 使用默认值)".to_string()
+    };
+    Output::item("配置目录", &format!("{}{}", dir.display(), dir_status));
 
-    println!("{}", "[repository]".cyan());
-    println!("  max_depth  = {}", cfg.repository.max_depth);
-    println!("  skip_dirs  = {:?}", cfg.repository.skip_dirs);
-    println!();
+    Output::section("[repository]");
+    Output::message(&format!("max_depth  = {}", cfg.repository.max_depth));
+    Output::message(&format!("skip_dirs  = {:?}", cfg.repository.skip_dirs));
 
-    println!("{}", "[remote]".cyan());
+    Output::section("[remote]");
     for rule in &cfg.remote.rules {
-        println!("  {} <- {:?}", rule.name.yellow(), rule.hosts);
+        Output::item(&rule.name, &format!("{:?}", rule.hosts));
         if let Some(ref url_prefix) = rule.url_prefix {
-            println!("    {} = {}", "url_prefix".dimmed(), url_prefix.dimmed());
+            Output::detail("url_prefix", url_prefix);
         }
         if !rule.path_prefixes.is_empty()
             && let Some(ref prefix_name) = rule.path_prefix_name
         {
-            println!("    {} <- {:?}", prefix_name.yellow(), rule.path_prefixes);
+            Output::detail(prefix_name, &format!("{:?}", rule.path_prefixes));
         }
     }
-    println!();
 
-    println!("{}", "[sync]".cyan());
-    println!("  skip_push_hosts = {:?}", cfg.sync.skip_push_hosts);
-    println!();
+    Output::section("[sync]");
+    Output::message(&format!("skip_push_hosts = {:?}", cfg.sync.skip_push_hosts));
 
-    println!("{}", "[gitlab]".cyan());
+    Output::section("[gitlab]");
     if gitlab_cfg.servers.is_empty() {
-        println!(
-            "  {}",
-            "未配置 GitLab 服务器 (使用 pma gitlab login 添加)".dimmed()
-        );
+        Output::skip("未配置 GitLab 服务器 (使用 pma gitlab login 添加)");
     } else {
         for srv in &gitlab_cfg.servers {
-            println!("  {} ({})", srv.url.cyan(), srv.protocol.dimmed());
+            Output::detail(&srv.url, &srv.protocol);
         }
     }
 
@@ -111,6 +100,6 @@ fn execute_show() -> CommandResult {
 }
 
 fn execute_path() -> CommandResult {
-    println!("{}", ConfigDir::dir().display());
+    Output::message(&ConfigDir::dir().display().to_string());
     Ok(())
 }
