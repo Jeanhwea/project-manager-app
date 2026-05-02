@@ -218,6 +218,24 @@ impl Repository {
     }
 }
 
+/// Search for a Git repository by traversing up the directory tree.
+/// Returns the first Git repository found, or None if not found.
+pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
+    let mut current = start_dir;
+
+    loop {
+        let git_path = current.join(".git");
+        if git_path.exists() {
+            return Some(current.to_path_buf());
+        }
+
+        match current.parent() {
+            Some(parent) => current = parent,
+            None => return None,
+        }
+    }
+}
+
 pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoInfo>> {
     let mut repos = Vec::new();
 
