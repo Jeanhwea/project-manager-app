@@ -2,7 +2,7 @@ use super::{Command, CommandError, CommandResult};
 use crate::domain::config::ConfigDir;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::remote::RemoteManager;
-use crate::domain::git::repository::{find_git_repository_upwards, RepoWalker};
+use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::domain::runner::DryRunContext;
 use crate::utils::path::format_path;
 use anyhow::Result;
@@ -46,8 +46,7 @@ impl Command for SyncCommand {
 fn execute_sync(args: SyncArgs) -> Result<()> {
     let search_path = Path::new(&args.path);
     let effective_path = if !search_path.join(".git").exists() {
-        find_git_repository_upwards(search_path)
-            .unwrap_or_else(|| search_path.to_path_buf())
+        find_git_repository_upwards(search_path).unwrap_or_else(|| search_path.to_path_buf())
     } else {
         search_path.to_path_buf()
     };
