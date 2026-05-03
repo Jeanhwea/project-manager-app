@@ -6,7 +6,7 @@ pub struct Output;
 impl Output {
     pub fn header(title: &str) {
         println!();
-        println!("{}", format!("── {} ──", title).green().bold());
+        println!("{}", format!("-- {} --", title).green().bold());
     }
 
     pub fn section(title: &str) {
@@ -24,23 +24,23 @@ impl Output {
     }
 
     pub fn success(msg: &str) {
-        println!("  {} {}", "✔".green(), msg.green());
+        println!("  {} {}", "[OK]".green(), msg.green());
     }
 
     pub fn error(msg: &str) {
-        println!("  {} {}", "✗".red(), msg.red());
+        println!("  {} {}", "[ERR]".red(), msg.red());
     }
 
     pub fn warning(msg: &str) {
-        println!("  {} {}", "⚠".yellow(), msg.yellow());
+        println!("  {} {}", "[WARN]".yellow(), msg.yellow());
     }
 
     pub fn info(msg: &str) {
-        println!("  {} {}", "→".cyan(), msg);
+        println!("  {} {}", "[INFO]".cyan(), msg);
     }
 
     pub fn skip(msg: &str) {
-        println!("  {} {}", "○".dimmed(), msg.dimmed());
+        println!("  {} {}", "[SKIP]".dimmed(), msg.dimmed());
     }
 
     pub fn item(label: &str, value: &str) {
