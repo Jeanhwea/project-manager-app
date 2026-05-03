@@ -433,10 +433,56 @@ fn update_lockfile_after_edit(config_file: &str) -> Result<()> {
     if config_file.ends_with("Cargo.toml") {
         update_cargo_lock(config_file)?;
     } else if config_file.ends_with("package.json") {
-        update_npm_lock(config_file)?;
-        update_pnpm_lock(config_file)?;
+        update_js_lockfile(config_file)?;
     }
     Ok(())
+}
+
+/// Detect and update JS lockfile based on actual package manager
+fn update_js_lockfile(package_json_path: &str) -> Result<()> {
+    let parent = Path::new(package_json_path)
+        .parent()
+        .unwrap_or(Path::new("."));
+    let pkg_dir = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+
+    // 检测实际使用的包管理器
+    let pkg_manager = detect_package_manager(pkg_dir);
+
+    match pkg_manager {
+        PackageManager::Pnpm => update_pnpm_lock(package_json_path),
+        PackageManager::Npm => update_npm_lock(package_json_path),
+        PackageManager::Yarn => update_yarn_lock(package_json_path),
+        PackageManager::None => Ok(()),
+    }
+}
+
+/// Detected package manager type
+enum PackageManager {
+    Pnpm,
+    Npm,
+    Yarn,
+    None,
+}
+
+/// Detect which package manager is used by checking lockfiles
+fn detect_package_manager(pkg_dir: &Path) -> PackageManager {
+    // 优先检查 pnpm-lock.yaml
+    if find_lock_dir(pkg_dir, "pnpm-lock.yaml").is_some() {
+        return PackageManager::Pnpm;
+    }
+    // 然后检查 yarn.lock
+    if find_lock_dir(pkg_dir, "yarn.lock").is_some() {
+        return PackageManager::Yarn;
+    }
+    // 最后检查 package-lock.json
+    if find_lock_dir(pkg_dir, "package-lock.json").is_some() {
+        return PackageManager::Npm;
+    }
+    PackageManager::None
 }
 
 /// Update Cargo.lock file
@@ -548,6 +594,45 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
 
     if !status.success() {
         Output::error("pnpm install --lockfile-only 执行失败");
+    }
+
+    let lock_str = lock_path.to_string_lossy().to_string();
+    let runner = GitCommandRunner::new();
+    runner.execute_with_success(&["add", &lock_str])?;
+    Ok(())
+}
+
+/// Update yarn lockfile
+fn update_yarn_lock(package_json_path: &str) -> Result<()> {
+    let parent = Path::new(package_json_path)
+        .parent()
+        .unwrap_or(Path::new("."));
+    let pkg_dir = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+
+    let lock_dir = find_lock_dir(pkg_dir, "yarn.lock");
+    let Some(lock_dir) = lock_dir else {
+        return Ok(());
+    };
+
+    let lock_path = lock_dir.join("yarn.lock");
+
+    if is_gitignored(&lock_path) {
+        Output::skip("yarn.lock 在 .gitignore 中，跳过更新");
+        return Ok(());
+    }
+
+    let status = std::process::Command::new("yarn")
+        .args(["install", "--mode", "update-lockfile"])
+        .current_dir(&lock_dir)
+        .status()
+        .with_context(|| "无法执行 yarn install")?;
+
+    if !status.success() {
+        Output::error("yarn install --mode update-lockfile 执行失败");
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
