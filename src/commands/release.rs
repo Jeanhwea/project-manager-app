@@ -195,7 +195,9 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
 
 /// Get current version from git tags
 fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
-    let output = runner.execute(&["describe", "--tags", "--match", "v*"]).ok()?;
+    let output = runner
+        .execute(&["describe", "--tags", "--match", "v*"])
+        .ok()?;
     // git describe may return "v1.0.0-3-g1234567" format, we only need the version part
     output.split('-').next().map(|s| s.to_string())
 }

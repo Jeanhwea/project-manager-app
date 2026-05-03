@@ -96,10 +96,9 @@ fn get_effective_path(path: &Option<String>) -> PathBuf {
 
 fn execute_list(args: ListArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
-    let walker =
-        RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
-        })?;
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
+    })?;
 
     if walker.is_empty() {
         return Ok(());
@@ -119,10 +118,9 @@ fn execute_list(args: ListArgs) -> CommandResult {
 
 fn execute_clean(args: CleanArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
-    let walker =
-        RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
-        })?;
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
+    })?;
 
     if walker.is_empty() {
         return Ok(());
@@ -144,10 +142,9 @@ fn execute_clean(args: CleanArgs) -> CommandResult {
 
 fn execute_switch(args: SwitchArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
-    let walker =
-        RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
-        })?;
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
+    })?;
 
     if walker.is_empty() {
         return Ok(());
@@ -169,10 +166,9 @@ fn execute_switch(args: SwitchArgs) -> CommandResult {
 
 fn execute_rename(args: RenameArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
-    let walker =
-        RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
-        })?;
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
+        super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
+    })?;
 
     if walker.is_empty() {
         return Ok(());

@@ -83,13 +83,16 @@ impl Command for StatusCommand {
         let search_path = match args.path {
             Some(ref p) => PathBuf::from(p),
             None => std::env::current_dir().map_err(|e| {
-                super::CommandError::ExecutionFailed(format!("Failed to get current directory: {}", e))
+                super::CommandError::ExecutionFailed(format!(
+                    "Failed to get current directory: {}",
+                    e
+                ))
             })?,
         };
 
         // Search upwards for git repository root
-        let effective_path = find_git_repository_upwards(&search_path)
-            .unwrap_or_else(|| search_path.clone());
+        let effective_path =
+            find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone());
 
         // Create repository walker
         let walker =

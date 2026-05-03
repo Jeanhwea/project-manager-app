@@ -42,8 +42,8 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
     };
 
     // Search upwards for git repository root
-    let effective_path = find_git_repository_upwards(&search_path)
-        .unwrap_or_else(|| search_path.clone());
+    let effective_path =
+        find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone());
 
     let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 
