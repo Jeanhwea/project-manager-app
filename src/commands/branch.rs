@@ -1,7 +1,7 @@
 use super::{Command, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::RepoWalker;
-use colored::Colorize;
+use crate::utils::output::{ItemColor, Output};
 use std::path::Path;
 
 /// Branch command arguments
@@ -205,12 +205,12 @@ fn list_branches(repo_path: &Path) {
     };
 
     if !local_branches.is_empty() {
-        println!("  本地分支:");
+        Output::section("本地分支:");
         for branch in &local_branches {
             if Some(branch.as_str()) == Some(current.as_str()) {
-                println!("    {} {}", "*".green(), branch.yellow());
+                Output::item_colored("*", branch, ItemColor::Yellow);
             } else {
-                println!("     {}", branch);
+                Output::message(&format!("     {}", branch));
             }
         }
     }
@@ -227,9 +227,9 @@ fn list_branches(repo_path: &Path) {
     };
 
     if !remote_branches.is_empty() {
-        println!("  远程分支:");
+        Output::section("远程分支:");
         for branch in &remote_branches {
-            println!("    {}", branch.dimmed());
+            Output::detail("", branch);
         }
     }
 }
@@ -247,7 +247,7 @@ fn switch_branch(
         .unwrap_or_default();
 
     if current.trim() == branch_name {
-        println!("  {} 已在分支 {} 上", "跳过".dimmed(), branch_name.yellow());
+        Output::skip(&format!("已在分支 {} 上", branch_name));
         return Ok(());
     }
 
@@ -272,11 +272,7 @@ fn switch_branch(
         let branch_exists = local_branches.iter().any(|b| b == branch_name);
 
         if branch_exists {
-            println!(
-                "  {} 分支 {} 已存在，直接切换",
-                "提示".yellow(),
-                branch_name.yellow()
-            );
+            Output::warning(&format!("分支 {} 已存在，直接切换", branch_name));
             if !dry_run {
                 runner.execute_with_success_in_dir(&["checkout", branch_name], repo_path)?;
             }
@@ -284,17 +280,9 @@ fn switch_branch(
             if !dry_run {
                 runner
                     .execute_with_success_in_dir(&["checkout", "-b", branch_name], repo_path)?;
-                println!(
-                    "  {} 创建并切换到分支 {}",
-                    "完成".green(),
-                    branch_name.yellow()
-                );
+                Output::success(&format!("创建并切换到分支 {}", branch_name));
             } else {
-                println!(
-                    "  {} 创建并切换到分支 {}",
-                    "模拟".cyan(),
-                    branch_name.yellow()
-                );
+                Output::info(&format!("创建并切换到分支 {}", branch_name));
             }
         }
     } else {
@@ -318,19 +306,18 @@ fn switch_branch(
         let branch_exists = local_branches.iter().any(|b| b == branch_name);
 
         if !branch_exists {
-            println!(
-                "  {} 分支 {} 不存在 (使用 --create 创建新分支)",
-                "跳过".red(),
-                branch_name.red()
-            );
+            Output::error(&format!(
+                "分支 {} 不存在 (使用 --create 创建新分支)",
+                branch_name
+            ));
             return Ok(());
         }
 
         if !dry_run {
             runner.execute_with_success_in_dir(&["checkout", branch_name], repo_path)?;
-            println!("  {} 切换到分支 {}", "完成".green(), branch_name.yellow());
+            Output::success(&format!("切换到分支 {}", branch_name));
         } else {
-            println!("  {} 切换到分支 {}", "模拟".cyan(), branch_name.yellow());
+            Output::info(&format!("切换到分支 {}", branch_name));
         }
     }
 
@@ -362,12 +349,12 @@ fn rename_branch(
     };
 
     if !local_branches.iter().any(|b| b == old_name) {
-        println!("  {} 分支 {} 不存在", "跳过".dimmed(), old_name.red());
+        Output::skip(&format!("分支 {} 不存在", old_name));
         return Ok(());
     }
 
     if local_branches.iter().any(|b| b == new_name) {
-        println!("  {} 分支 {} 已存在", "跳过".red(), new_name.red());
+        Output::error(&format!("分支 {} 已存在", new_name));
         return Ok(());
     }
 
@@ -381,35 +368,15 @@ fn rename_branch(
         runner.execute_with_success_in_dir(&["branch", "-m", old_name, new_name], repo_path)?;
 
         if is_current {
-            println!(
-                "  {} 当前分支 {} -> {}",
-                "重命名".green(),
-                old_name.red(),
-                new_name.yellow()
-            );
+            Output::success(&format!("当前分支 {} -> {}", old_name, new_name));
         } else {
-            println!(
-                "  {} 分支 {} -> {}",
-                "重命名".green(),
-                old_name.red(),
-                new_name.yellow()
-            );
+            Output::success(&format!("分支 {} -> {}", old_name, new_name));
         }
     } else {
         if is_current {
-            println!(
-                "  {} 当前分支 {} -> {}",
-                "模拟重命名".cyan(),
-                old_name.red(),
-                new_name.yellow()
-            );
+            Output::info(&format!("模拟重命名 当前分支 {} -> {}", old_name, new_name));
         } else {
-            println!(
-                "  {} 分支 {} -> {}",
-                "模拟重命名".cyan(),
-                old_name.red(),
-                new_name.yellow()
-            );
+            Output::info(&format!("模拟重命名 分支 {} -> {}", old_name, new_name));
         }
     }
 
@@ -448,17 +415,17 @@ fn clean_merged_branches(
         };
 
     if merged_branches.is_empty() {
-        println!("  {}", "无已合并分支".green());
+        Output::success("无已合并分支");
         return Ok(());
     }
 
     for branch in &merged_branches {
         if dry_run {
-            println!("  {} 删除本地分支 {}", "模拟".cyan(), branch.red());
+            Output::info(&format!("删除本地分支 {}", branch));
         } else {
             match runner.execute_with_success_in_dir(&["branch", "-d", branch], repo_path) {
-                Ok(_) => println!("  {} 本地分支 {}", "已删除".green(), branch.red()),
-                Err(e) => println!("  {} 本地分支 {} - {}", "删除失败".red(), branch.red(), e),
+                Ok(_) => Output::success(&format!("本地分支 {}", branch)),
+                Err(e) => Output::error(&format!("本地分支 {} - {}", branch, e)),
             }
         }
     }
@@ -485,20 +452,18 @@ fn clean_merged_branches(
             };
 
         if remote_merged.is_empty() {
-            println!("  {}", "无已合并的远程分支".green());
+            Output::success("无已合并的远程分支");
         } else {
             for branch in &remote_merged {
                 if dry_run {
-                    println!("  {} 删除远程分支 {}", "模拟".cyan(), branch.red());
+                    Output::info(&format!("删除远程分支 {}", branch));
                 } else {
                     match runner.execute_with_success_in_dir(
                         &["push", "origin", "--delete", branch],
                         repo_path,
                     ) {
-                        Ok(_) => println!("  {} 远程分支 {}", "已删除".green(), branch.red()),
-                        Err(e) => {
-                            println!("  {} 远程分支 {} - {}", "删除失败".red(), branch.red(), e)
-                        }
+                        Ok(_) => Output::success(&format!("远程分支 {}", branch)),
+                        Err(e) => Output::error(&format!("远程分支 {} - {}", branch, e)),
                     }
                 }
             }

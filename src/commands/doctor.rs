@@ -2,8 +2,8 @@ use super::{Command, CommandError, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::RepoWalker;
 use crate::domain::runner::DryRunContext;
+use crate::utils::output::Output;
 use anyhow::{Context, Result};
-use colored::Colorize;
 use std::path::Path;
 
 /// Doctor command arguments
@@ -38,7 +38,7 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
     let walker = RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
-        println!("未找到 Git 仓库");
+        Output::not_found("未找到 Git 仓库");
         return Ok(());
     }
 
@@ -55,12 +55,12 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
         check_stash(repo_path, &mut issues);
 
         if !issues.is_empty() {
-            println!("  {}", "发现问题:".yellow());
+            Output::warning("发现问题:");
             for issue in &issues {
-                println!("    {} {}", "⚠".yellow(), issue);
+                Output::warning(issue);
             }
         } else {
-            println!("  {} {}", "✔".green(), "仓库健康".green());
+            Output::success("仓库健康");
         }
 
         if args.fix && !issues.is_empty() {
@@ -76,11 +76,9 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
                 if let Some(new_name) = get_remote_name_by_url(&remote_url)
                     && new_name != remote_name
                 {
-                    println!(
-                        "  {} => {}: {}",
-                        remote_name.yellow(),
-                        new_name.yellow(),
-                        remote_url
+                    Output::item(
+                        &format!("{} => {}", remote_name, new_name),
+                        &remote_url,
                     );
                     do_rename_git_remote(&ctx, repo_path, &remote_name, &new_name)?;
                 }
@@ -97,14 +95,14 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
 fn check_dependencies() -> Result<()> {
     const REQUIRED_TOOLS: &[(&str, &str)] = &[("git", "版本控制工具，所有仓库操作的核心依赖")];
 
-    println!("{}", "检查依赖工具...".cyan());
+    Output::section("检查依赖工具...");
 
     let mut missing = Vec::new();
     for (cmd, desc) in REQUIRED_TOOLS {
         if check_command_exists(cmd) {
-            println!("  {} {}", "✔".green(), cmd);
+            Output::success(cmd);
         } else {
-            println!("  {} {} ({})", "✘".red(), cmd.red(), desc);
+            Output::error(&format!("{} ({})", cmd, desc));
             missing.push(*cmd);
         }
     }
@@ -113,8 +111,8 @@ fn check_dependencies() -> Result<()> {
         anyhow::bail!("缺少必要的命令行工具: {}", missing.join(", "));
     }
 
-    println!("{}", "所有依赖工具已就绪".green());
-    println!();
+    Output::success("所有依赖工具已就绪");
+    Output::blank();
     Ok(())
 }
 
@@ -337,18 +335,15 @@ fn check_stash(repo_path: &Path, issues: &mut Vec<String>) {
 
 /// Fix detected issues
 fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Result<()> {
-    println!("  {}", "修复问题:".cyan());
+    Output::section("修复问题:");
 
     for issue in issues {
         if issue.contains("陈旧的远程跟踪分支") {
-            println!("  {} 清理陈旧的远程跟踪分支", "修复".green());
+            Output::success("清理陈旧的远程跟踪分支");
             ctx.run_in_dir("git", &["remote", "prune", "origin"], Some(repo_path))
                 .with_context(|| "无法清理陈旧的远程跟踪分支")?;
         } else if issue.contains("detached") {
-            println!(
-                "  {} 无法自动修复 detached HEAD，请手动切换到分支",
-                "跳过".yellow()
-            );
+            Output::skip("无法自动修复 detached HEAD，请手动切换到分支");
         } else if issue.contains("上游跟踪分支") {
             let runner = GitCommandRunner::new();
             let branch = match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
@@ -358,12 +353,7 @@ fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Resul
 
             if !branch.is_empty() {
                 let upstream = format!("origin/{}", branch);
-                println!(
-                    "  {} 设置 {} 的上游为 {}",
-                    "修复".green(),
-                    branch.yellow(),
-                    upstream.yellow()
-                );
+                Output::item("修复", &format!("设置 {} 的上游为 {}", branch, upstream));
                 ctx.run_in_dir(
                     "git",
                     &["branch", "--set-upstream-to", &upstream, &branch],
@@ -372,14 +362,11 @@ fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Resul
                 .with_context(|| format!("无法设置 {} 的上游跟踪分支", branch))?;
             }
         } else if issue.contains("体积较大") {
-            println!("  {} 执行 git gc --aggressive", "修复".green());
+            Output::success("执行 git gc --aggressive");
             ctx.run_in_dir("git", &["gc", "--aggressive"], Some(repo_path))
                 .with_context(|| "无法执行 git gc --aggressive")?;
         } else if issue.contains("stash") {
-            println!(
-                "  {} stash 条目较多，请手动清理 (git stash drop/pop)",
-                "提示".yellow()
-            );
+            Output::warning("stash 条目较多，请手动清理 (git stash drop/pop)");
         }
     }
 
@@ -409,7 +396,7 @@ fn do_rename_git_remote(
             );
         }
 
-        println!("  {} => {}", new_name.yellow(), alt_name.yellow(),);
+        Output::item(&format!("{} => {}", new_name, alt_name), "");
         ctx.run_in_dir(
             "git",
             &["remote", "rename", new_name, &alt_name],

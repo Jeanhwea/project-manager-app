@@ -1,7 +1,7 @@
 use super::{Command, CommandResult};
 use crate::domain::git::repository::RepoWalker;
 use crate::utils::git;
-use colored::Colorize;
+use crate::utils::output::{ItemColor, Output, SummaryBuilder};
 use std::path::Path;
 
 /// Status command arguments
@@ -90,7 +90,7 @@ impl Command for StatusCommand {
         })?;
 
         if walker.is_empty() {
-            println!("未找到git仓库");
+            Output::not_found("未找到git仓库");
             return Ok(());
         }
 
@@ -112,14 +112,7 @@ impl Command for StatusCommand {
                 continue;
             }
 
-            let progress = format!("({}/{})", index + 1, total);
-            println!(
-                "{}>> {}",
-                progress.white().bold(),
-                crate::utils::path::format_path(repo_path)
-                    .cyan()
-                    .underline(),
-            );
+            Output::repo_header(index + 1, total, repo_path);
 
             if args.short {
                 print_short_status(&status);
@@ -231,47 +224,39 @@ fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
 
 /// Print summary statistics
 fn print_summary(stats: &StatusStats, total: usize) {
-    println!();
-    println!("{}", "── 汇总 ──".green().bold());
-    println!(
-        "  仓库: {} (显示 {}, 跳过 {}, 子模块 {})",
-        total.to_string().white().bold(),
-        stats.total_shown.to_string().cyan(),
-        stats.skipped.to_string().dimmed(),
-        stats.submodules.to_string().dimmed(),
+    Output::header("汇总");
+
+    let repo_value = format!(
+        "{} (显示 {}, 跳过 {}, 子模块 {})",
+        total, stats.total_shown, stats.skipped, stats.submodules
     );
-    println!(
-        "  状态: {} {} {} {}",
-        "✔".green(),
-        format!("{} 干净", stats.clean_count).green(),
-        "✗".red(),
-        format!("{} 脏", stats.dirty_count).red(),
-    );
+    Output::item("仓库", &repo_value);
+
+    let status_value = format!("{} 干净, {} 脏", stats.clean_count, stats.dirty_count);
+    Output::item_colored("状态", &status_value, ItemColor::Yellow);
+
     if stats.ahead_count > 0 || stats.behind_count > 0 {
-        println!(
-            "  同步: {} 领先, {} 落后",
-            stats.ahead_count.to_string().yellow(),
-            stats.behind_count.to_string().yellow(),
-        );
+        SummaryBuilder::new()
+            .add("同步", format!("{} 领先, {} 落后", stats.ahead_count, stats.behind_count))
+            .print();
     }
+
     if stats.total_staged > 0 || stats.total_unstaged > 0 || stats.total_untracked > 0 {
-        println!(
-            "  文件: {} 已暂存, {} 未暂存, {} 未跟踪",
-            stats.total_staged.to_string().yellow(),
-            stats.total_unstaged.to_string().yellow(),
-            stats.total_untracked.to_string().yellow(),
-        );
+        SummaryBuilder::new()
+            .add("文件", format!("{} 已暂存, {} 未暂存, {} 未跟踪", stats.total_staged, stats.total_unstaged, stats.total_untracked))
+            .print();
     }
 }
 
 /// Print short status format
 fn print_short_status(status: &RepoStatus) {
     let branch_display = status.branch.as_deref().unwrap_or("HEAD");
-    let status_icon = if status.dirty {
-        "✗".red()
+
+    if status.dirty {
+        Output::error(&format!("{} (dirty)", branch_display));
     } else {
-        "✔".green()
-    };
+        Output::success(&format!("{} (clean)", branch_display));
+    }
 
     let mut extra = Vec::new();
     if status.ahead > 0 {
@@ -281,39 +266,22 @@ fn print_short_status(status: &RepoStatus) {
         extra.push(format!("↓{}", status.behind));
     }
 
-    let extra_str = if extra.is_empty() {
-        String::new()
-    } else {
-        format!(" {}", extra.join(" ").yellow())
-    };
-
-    println!(
-        "  {} {} {}{}",
-        status_icon,
-        branch_display.yellow(),
-        if status.dirty {
-            "(dirty)".red().to_string()
-        } else {
-            "(clean)".green().to_string()
-        },
-        extra_str,
-    );
+    if !extra.is_empty() {
+        Output::message(&extra.join(" "));
+    }
 }
 
 /// Print full status format
 fn print_full_status(repo_path: &Path, status: &RepoStatus) {
     let branch_display = status.branch.as_deref().unwrap_or("HEAD (detached)");
-    let status_label = if status.dirty {
-        "脏工作目录".red().to_string()
-    } else {
-        "干净工作目录".green().to_string()
-    };
 
-    println!("  分支: {}", branch_display.yellow());
-    println!("  状态: {}", status_label);
+    Output::item("分支", branch_display);
 
     if status.dirty {
+        Output::item_colored("状态", "脏工作目录", ItemColor::Red);
         print_dirty_details_from_counts(status);
+    } else {
+        Output::item_colored("状态", "干净工作目录", ItemColor::Green);
     }
 
     print_ahead_behind_from_status(status);
@@ -322,11 +290,11 @@ fn print_full_status(repo_path: &Path, status: &RepoStatus) {
 
     let remotes = git::get_remote_list(repo_path).unwrap_or_default();
     if !remotes.is_empty() {
-        println!("  远程:");
+        Output::message("远程:");
         for remote in &remotes {
             let url =
                 git::git_command(repo_path, &["remote", "get-url", remote]).unwrap_or_default();
-            println!("    {} {}", remote.green(), url.dimmed());
+            Output::detail(remote, &url);
         }
     }
 }
@@ -335,24 +303,24 @@ fn print_full_status(repo_path: &Path, status: &RepoStatus) {
 fn print_dirty_details_from_counts(status: &RepoStatus) {
     let mut parts = Vec::new();
     if status.staged > 0 {
-        parts.push(format!("{} 已暂存", status.staged.to_string().yellow()));
+        parts.push(format!("{} 已暂存", status.staged));
     }
     if status.unstaged > 0 {
-        parts.push(format!("{} 未暂存", status.unstaged.to_string().yellow()));
+        parts.push(format!("{} 未暂存", status.unstaged));
     }
     if status.untracked > 0 {
-        parts.push(format!("{} 未跟踪", status.untracked.to_string().yellow()));
+        parts.push(format!("{} 未跟踪", status.untracked));
     }
 
     if !parts.is_empty() {
-        println!("  详情: {}", parts.join(", "));
+        Output::item("详情", &parts.join(", "));
     }
 }
 
 /// Print ahead/behind information
 fn print_ahead_behind_from_status(status: &RepoStatus) {
     if status.ahead == 0 && status.behind == 0 {
-        println!("  同步: {}", "与远程一致".green());
+        Output::item_colored("同步", "与远程一致", ItemColor::Green);
     } else {
         let mut msg = String::new();
         if status.ahead > 0 {
@@ -364,7 +332,7 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
             }
             msg.push_str(&format!("↓{} 落后", status.behind));
         }
-        println!("  同步: {}", msg.yellow());
+        Output::item_colored("同步", &msg, ItemColor::Yellow);
     }
 }
 
@@ -379,7 +347,7 @@ fn print_latest_tag(repo_path: &Path) {
     if let Some(tag) = output.lines().next() {
         let tag = tag.trim();
         if !tag.is_empty() {
-            println!("  标签: {}", tag.cyan());
+            Output::item_colored("标签", tag, ItemColor::Cyan);
         }
     }
 }

@@ -1,8 +1,8 @@
 use super::{Command, CommandError, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::runner::DryRunContext;
+use crate::utils::output::Output;
 use anyhow::Result;
-use colored::Colorize;
 use std::path::Path;
 
 /// Snap command arguments
@@ -99,7 +99,7 @@ fn execute_list(args: ListArgs) -> Result<()> {
     }
 
     if !project_path.join(".git").exists() {
-        println!("{} 项目尚未初始化快照", "提示".yellow());
+        Output::warning("项目尚未初始化快照");
         return Ok(());
     }
 
@@ -114,34 +114,25 @@ fn execute_list(args: ListArgs) -> Result<()> {
         .collect();
 
     if snap_commits.is_empty() {
-        println!("{} 无快照记录", "提示".yellow());
+        Output::warning("无快照记录");
         return Ok(());
     }
 
-    println!("{}", "快照历史:".cyan());
+    Output::section("快照历史:");
     for (index, commit) in snap_commits.iter().enumerate() {
         let parts: Vec<&str> = commit.splitn(2, ' ').collect();
         if parts.len() == 2 {
             let hash = parts[0];
             let message = parts[1];
-            println!(
-                "  {} {} {}",
-                format!("#{}", index).dimmed(),
-                hash.yellow(),
-                message.green(),
-            );
+            Output::message(&format!("#{} {} {}", index, hash, message));
         } else {
-            println!("  {} {}", format!("#{}", index).dimmed(), commit);
+            Output::message(&format!("#{} {}", index, commit));
         }
     }
 
     let total = snap_commits.len();
-    println!();
-    println!(
-        "{} 共 {} 个快照",
-        "汇总".cyan(),
-        total.to_string().white().bold()
-    );
+    Output::blank();
+    Output::item("汇总", &format!("共 {} 个快照", total));
 
     Ok(())
 }
@@ -177,11 +168,8 @@ fn execute_restore(args: RestoreArgs) -> Result<()> {
         print!("{}", stdout);
     }
 
-    println!("{} 已恢复到快照 {}", "完成".green(), commit_ref.yellow());
-    println!(
-        "{} 若要回到最新状态，请执行: git checkout -",
-        "提示".yellow()
-    );
+    Output::success(&format!("已恢复到快照 {}", commit_ref));
+    Output::warning("若要回到最新状态，请执行: git checkout -");
 
     Ok(())
 }
@@ -266,7 +254,7 @@ fn do_incremental_snapshot(
     let has_changes = check_pending_changes(runner, work_dir);
 
     if !has_changes {
-        println!("{} 无变更，跳过快照", "提示".dimmed());
+        Output::skip("无变更，跳过快照");
         return Ok(());
     }
 
