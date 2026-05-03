@@ -83,10 +83,7 @@ impl Command for StatusCommand {
         let search_path = match args.path {
             Some(ref p) => PathBuf::from(p),
             None => std::env::current_dir().map_err(|e| {
-                super::CommandError::ExecutionFailed(format!(
-                    "获取当前目录失败: {}",
-                    e
-                ))
+                super::CommandError::ExecutionFailed(format!("获取当前目录失败: {}", e))
             })?,
         };
 
@@ -97,10 +94,7 @@ impl Command for StatusCommand {
         // Create repository walker
         let walker =
             RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-                super::CommandError::ExecutionFailed(format!(
-                    "创建仓库遍历器失败: {}",
-                    e
-                ))
+                super::CommandError::ExecutionFailed(format!("创建仓库遍历器失败: {}", e))
             })?;
 
         if walker.is_empty() {
