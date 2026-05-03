@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn test_dispatch_release_without_git_repo() {
         let args = crate::commands::release::ReleaseArgs {
-            bump_type: crate::commands::release::BumpType::Patch,
+            bump_type: crate::cli::BumpType::Patch,
             files: vec![],
             no_root: false,
             force: false,

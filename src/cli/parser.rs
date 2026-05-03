@@ -1,5 +1,5 @@
 use super::{
-    BranchCommands, BumpType, Cli, CliParser, CommandArgs, CommandName, Commands, ConfigCommands,
+    BranchCommands, Cli, CliParser, CommandArgs, CommandName, Commands, ConfigCommands,
     GitlabCommands, ParsedCommand, SelfCommands, SnapCommands,
 };
 use clap::Parser;
@@ -20,27 +20,19 @@ impl CliParser for ClapParser {
                 dry_run,
                 message,
                 pre_release,
-            } => {
-                let bump_type = match bump_type {
-                    BumpType::Major => crate::commands::release::BumpType::Major,
-                    BumpType::Minor => crate::commands::release::BumpType::Minor,
-                    BumpType::Patch => crate::commands::release::BumpType::Patch,
-                };
-
-                ParsedCommand {
-                    name: CommandName::Release,
-                    args: CommandArgs::Release(crate::commands::release::ReleaseArgs {
-                        bump_type,
-                        files,
-                        no_root,
-                        force,
-                        skip_push,
-                        dry_run,
-                        message,
-                        pre_release,
-                    }),
-                }
-            }
+            } => ParsedCommand {
+                name: CommandName::Release,
+                args: CommandArgs::Release(crate::commands::release::ReleaseArgs {
+                    bump_type,
+                    files,
+                    no_root,
+                    force,
+                    skip_push,
+                    dry_run,
+                    message,
+                    pre_release,
+                }),
+            },
             Commands::Sync {
                 max_depth,
                 skip_remotes,
@@ -272,7 +264,7 @@ mod tests {
     #[test]
     fn test_parsed_command_release_variant() {
         let release_args = crate::commands::release::ReleaseArgs {
-            bump_type: crate::commands::release::BumpType::Patch,
+            bump_type: crate::cli::BumpType::Patch,
             files: vec![],
             no_root: false,
             force: false,
