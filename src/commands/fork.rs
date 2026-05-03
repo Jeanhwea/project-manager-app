@@ -133,10 +133,10 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
             &["config", "--file", ".gitmodules", "--get-regexp", "path"],
             project_dir,
         )
-        .with_context(|| "Failed to read .gitmodules configuration")?;
+        .with_context(|| "读取 .gitmodules 配置失败")?;
 
     let content =
-        String::from_utf8(output.stdout).with_context(|| "Failed to parse .gitmodules output")?;
+        String::from_utf8(output.stdout).with_context(|| "解析 .gitmodules 输出失败")?;
 
     let mut submodules = Vec::new();
 
@@ -162,10 +162,10 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
                 ],
                 project_dir,
             )
-            .with_context(|| format!("Failed to get URL for submodule {}", submodule_path))?;
+            .with_context(|| format!("获取子模块 {} 的 URL 失败", submodule_path))?;
 
         let url = String::from_utf8(url_output.stdout)
-            .with_context(|| "Failed to parse submodule URL")?;
+            .with_context(|| "解析子模块 URL 失败")?;
         let url = url.trim();
 
         if !url.is_empty() {
@@ -186,7 +186,7 @@ fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::
     let remote_names: Vec<String> = match remote_names_output {
         Ok(output) => {
             let stdout = String::from_utf8(output.stdout)
-                .with_context(|| "Failed to parse remote names output")?;
+                .with_context(|| "解析远程仓库名称输出失败")?;
             stdout
                 .lines()
                 .map(|s| s.trim().to_string())
@@ -204,7 +204,7 @@ fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::
         let url_output = runner.execute_quiet_in_dir(&["remote", "get-url", &name], project_dir);
         if let Ok(output) = url_output {
             let url = String::from_utf8(output.stdout)
-                .with_context(|| format!("Failed to parse URL for remote {}", name))?;
+                .with_context(|| format!("解析远程仓库 {} 的 URL 失败", name))?;
             let url = url.trim().to_string();
             if !url.is_empty() {
                 remotes.push((name, url));
@@ -231,7 +231,7 @@ fn do_init_project(
         .execute_with_success(&["clone", repo_url, project_dir.to_str().unwrap_or("")])
         .with_context(|| {
             format!(
-                "Failed to clone repository {} to {}",
+                "克隆仓库 {} 到 {} 失败",
                 repo_url,
                 project_dir.display()
             )
@@ -253,10 +253,10 @@ fn do_perform_actions(
     }
 
     let pma_content = std::fs::read_to_string(&pma_config)
-        .with_context(|| format!("Failed to read .pma.json file: {}", pma_config.display()))?;
+        .with_context(|| format!("读取 .pma.json 文件失败: {}", pma_config.display()))?;
 
     let config: PmaConfig = serde_json::from_str(&pma_content)
-        .with_context(|| "Failed to parse .pma.json file content")?;
+        .with_context(|| "解析 .pma.json 文件内容失败")?;
 
     for action in config.actions {
         match action {
@@ -311,12 +311,12 @@ fn do_replace_action(
         }
 
         let content = std::fs::read_to_string(&full_path)
-            .with_context(|| format!("Failed to read file: {}", full_path.display()))?;
+            .with_context(|| format!("读取文件失败: {}", full_path.display()))?;
 
         let new_content = content.replace(str_old, &str_new);
 
         std::fs::write(&full_path, new_content)
-            .with_context(|| format!("Failed to write file: {}", full_path.display()))?;
+            .with_context(|| format!("写入文件失败: {}", full_path.display()))?;
     }
 
     Ok(())
@@ -338,7 +338,7 @@ fn do_add_git_remote_action(
     )
     .with_context(|| {
         format!(
-            "Failed to add Git remote {} to {}",
+            "添加 Git 远程仓库 {} 到 {} 失败",
             remote_name,
             project_dir.display()
         )
@@ -452,7 +452,7 @@ fn do_reinit_repo(
     ctx.run_in_dir("git", &["init"], Some(project_dir))
         .with_context(|| {
             format!(
-                "Failed to initialize Git repository at {}",
+                "初始化 Git 仓库失败: {}",
                 project_dir.display()
             )
         })?;
@@ -465,7 +465,7 @@ fn do_reinit_repo(
         )
         .with_context(|| {
             format!(
-                "Failed to add submodule {} to {}",
+                "添加子模块 {} 到 {} 失败",
                 submodule.path,
                 project_dir.display()
             )
@@ -485,7 +485,7 @@ fn do_reinit_repo(
             )
             .with_context(|| {
                 format!(
-                    "Failed to add Git remote {} to {}",
+                    "添加 Git 远程仓库 {} 到 {} 失败",
                     remote_name,
                     project_dir.display()
                 )
@@ -496,7 +496,7 @@ fn do_reinit_repo(
     ctx.run_in_dir("git", &["add", "."], Some(project_dir))
         .with_context(|| {
             format!(
-                "Failed to add all files to Git repository {}",
+                "添加所有文件到 Git 仓库失败: {}",
                 project_dir.display()
             )
         })?;
@@ -504,7 +504,7 @@ fn do_reinit_repo(
     ctx.run_in_dir("git", &["commit", "-m", "v0.0.0"], Some(project_dir))
         .with_context(|| {
             format!(
-                "Failed to commit initialization to Git repository {}",
+                "提交初始化到 Git 仓库失败: {}",
                 project_dir.display()
             )
         })?;
