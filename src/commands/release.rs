@@ -343,7 +343,7 @@ fn execute_dry_run(
         print_lockfile_update_plan(file_path);
     }
 
-    Output::message(&format!("git add <files>"));
+    Output::message("git add <files>");
     Output::message(&format!("git commit -m \"{}\"", state.commit_message));
     Output::message(&format!("git tag {}", state.new_tag));
 
@@ -390,7 +390,7 @@ fn print_file_diff(
 ) -> Result<()> {
     let (original, edited) = compute_edited_content(registry, editor, tag, config_file)?;
 
-    Output::message(&format!("{}", config_file));
+    Output::message(config_file);
 
     let old_lines: Vec<&str> = original.lines().collect();
     let new_lines: Vec<&str> = edited.lines().collect();
