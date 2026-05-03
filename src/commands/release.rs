@@ -110,8 +110,9 @@ fn switch_to_git_root() -> CommandResult {
     let root = output.trim();
 
     if !root.is_empty() {
-        std::env::set_current_dir(root)
-            .map_err(|e| CommandError::ExecutionFailed(format!("无法切换到 git 根目录: {} - {}", root, e)))?;
+        std::env::set_current_dir(root).map_err(|e| {
+            CommandError::ExecutionFailed(format!("无法切换到 git 根目录: {} - {}", root, e))
+        })?;
     }
 
     Ok(())
@@ -125,7 +126,9 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState, CommandError> {
     let current_branch = current_branch.trim().to_string();
 
     if !args.force && current_branch != "master" {
-        return Err(CommandError::Validation("只能在 master 分支上执行 release".to_string()));
+        return Err(CommandError::Validation(
+            "只能在 master 分支上执行 release".to_string(),
+        ));
     }
 
     let current_tag = get_current_version(&runner).unwrap_or_else(|| "v0.0.0".to_string());
@@ -133,7 +136,10 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState, CommandError> {
     let rev_current_tag = runner.execute(&["rev-parse", &current_tag])?;
     let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
     if rev_current_tag.trim() == rev_head.trim() {
-        return Err(CommandError::Validation(format!("当前 HEAD 已被标记为 {}", current_tag)));
+        return Err(CommandError::Validation(format!(
+            "当前 HEAD 已被标记为 {}",
+            current_tag
+        )));
     }
 
     let version = parse_version_from_tag(&current_tag).unwrap_or_default();
@@ -231,7 +237,9 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>
     }
 
     if result.is_empty() {
-        return Err(CommandError::Validation("未检测到可编辑的配置文件".to_string()));
+        return Err(CommandError::Validation(
+            "未检测到可编辑的配置文件".to_string(),
+        ));
     }
 
     Ok(result)
@@ -680,8 +688,9 @@ fn is_gitignored(file_path: &Path) -> bool {
 
 /// Read package name from Cargo.toml
 fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String, CommandError> {
-    let content = std::fs::read_to_string(cargo_toml_path)
-        .map_err(|e| CommandError::ExecutionFailed(format!("无法读取 {}: {}", cargo_toml_path, e)))?;
+    let content = std::fs::read_to_string(cargo_toml_path).map_err(|e| {
+        CommandError::ExecutionFailed(format!("无法读取 {}: {}", cargo_toml_path, e))
+    })?;
     let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)
         .map_err(|e| CommandError::ExecutionFailed(format!("正则表达式错误: {}", e)))?;
     let mut in_package = false;

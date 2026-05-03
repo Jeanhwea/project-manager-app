@@ -102,11 +102,10 @@ fn execute_list(args: ListArgs) -> CommandResult {
         return Ok(());
     }
 
-    walker
-        .walk(|path, _index, _total| {
-            list_branches(path);
-            Ok(())
-        })?;
+    walker.walk(|path, _index, _total| {
+        list_branches(path);
+        Ok(())
+    })?;
 
     Ok(())
 }
@@ -123,11 +122,10 @@ fn execute_clean(args: CleanArgs) -> CommandResult {
     let remote = args.remote;
     let dry_run = args.dry_run;
 
-    walker
-        .walk(|path, _index, _total| {
-            clean_merged_branches(&runner, path, remote, dry_run)?;
-            Ok(())
-        })?;
+    walker.walk(|path, _index, _total| {
+        clean_merged_branches(&runner, path, remote, dry_run)?;
+        Ok(())
+    })?;
 
     Ok(())
 }
@@ -145,11 +143,10 @@ fn execute_switch(args: SwitchArgs) -> CommandResult {
     let create = args.create;
     let dry_run = args.dry_run;
 
-    walker
-        .walk(|path, _index, _total| {
-            switch_branch(&runner, path, &branch, create, dry_run)?;
-            Ok(())
-        })?;
+    walker.walk(|path, _index, _total| {
+        switch_branch(&runner, path, &branch, create, dry_run)?;
+        Ok(())
+    })?;
 
     Ok(())
 }
@@ -167,11 +164,10 @@ fn execute_rename(args: RenameArgs) -> CommandResult {
     let new_name = args.new_name.clone();
     let dry_run = args.dry_run;
 
-    walker
-        .walk(|path, _index, _total| {
-            rename_branch(&runner, path, &old_name, &new_name, dry_run)?;
-            Ok(())
-        })?;
+    walker.walk(|path, _index, _total| {
+        rename_branch(&runner, path, &old_name, &new_name, dry_run)?;
+        Ok(())
+    })?;
 
     Ok(())
 }

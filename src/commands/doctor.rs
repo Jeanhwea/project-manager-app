@@ -74,11 +74,13 @@ fn execute_doctor(args: DoctorArgs) -> CommandResult {
         }
 
         if fix && !issues.is_empty() {
-            fix_issues(&ctx, repo_path, &issues).map_err(|e| crate::domain::git::GitError::Anyhow(anyhow::anyhow!("{}", e)))?;
+            fix_issues(&ctx, repo_path, &issues)
+                .map_err(|e| crate::domain::git::GitError::Anyhow(anyhow::anyhow!("{}", e)))?;
         }
 
         if gc {
-            do_git_garbage_collect(&ctx, repo_path).map_err(|e| crate::domain::git::GitError::Anyhow(anyhow::anyhow!("{}", e)))?;
+            do_git_garbage_collect(&ctx, repo_path)
+                .map_err(|e| crate::domain::git::GitError::Anyhow(anyhow::anyhow!("{}", e)))?;
         }
 
         if rename {
@@ -87,7 +89,9 @@ fn execute_doctor(args: DoctorArgs) -> CommandResult {
                     && new_name != remote_name
                 {
                     Output::item(&format!("{} => {}", remote_name, new_name), &remote_url);
-                    do_rename_git_remote(&ctx, repo_path, &remote_name, &new_name).map_err(|e| crate::domain::git::GitError::Anyhow(anyhow::anyhow!("{}", e)))?;
+                    do_rename_git_remote(&ctx, repo_path, &remote_name, &new_name).map_err(
+                        |e| crate::domain::git::GitError::Anyhow(anyhow::anyhow!("{}", e)),
+                    )?;
                 }
             }
         }
@@ -351,7 +355,9 @@ fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Comma
         if issue.contains("陈旧的远程跟踪分支") {
             Output::success("清理陈旧的远程跟踪分支");
             ctx.run_in_dir("git", &["remote", "prune", "origin"], Some(repo_path))
-                .map_err(|e| CommandError::ExecutionFailed(format!("无法清理陈旧的远程跟踪分支: {}", e)))?;
+                .map_err(|e| {
+                    CommandError::ExecutionFailed(format!("无法清理陈旧的远程跟踪分支: {}", e))
+                })?;
         } else if issue.contains("detached") {
             Output::skip("无法自动修复 detached HEAD，请手动切换到分支");
         } else if issue.contains("上游跟踪分支") {
@@ -369,12 +375,19 @@ fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Comma
                     &["branch", "--set-upstream-to", &upstream, &branch],
                     Some(repo_path),
                 )
-                .map_err(|e| CommandError::ExecutionFailed(format!("无法设置 {} 的上游跟踪分支: {}", branch, e)))?;
+                .map_err(|e| {
+                    CommandError::ExecutionFailed(format!(
+                        "无法设置 {} 的上游跟踪分支: {}",
+                        branch, e
+                    ))
+                })?;
             }
         } else if issue.contains("体积较大") {
             Output::success("执行 git gc --aggressive");
             ctx.run_in_dir("git", &["gc", "--aggressive"], Some(repo_path))
-                .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 git gc --aggressive: {}", e)))?;
+                .map_err(|e| {
+                    CommandError::ExecutionFailed(format!("无法执行 git gc --aggressive: {}", e))
+                })?;
         } else if issue.contains("stash") {
             Output::warning("stash 条目较多，请手动清理 (git stash drop/pop)");
         }
@@ -410,7 +423,12 @@ fn do_rename_git_remote(
             &["remote", "rename", new_name, &alt_name],
             Some(repo_path),
         )
-        .map_err(|e| CommandError::ExecutionFailed(format!("无法重命名远程仓库 {} -> {}: {}", new_name, alt_name, e)))?;
+        .map_err(|e| {
+            CommandError::ExecutionFailed(format!(
+                "无法重命名远程仓库 {} -> {}: {}",
+                new_name, alt_name, e
+            ))
+        })?;
     }
 
     ctx.run_in_dir(
@@ -418,7 +436,12 @@ fn do_rename_git_remote(
         &["remote", "rename", old_name, new_name],
         Some(repo_path),
     )
-    .map_err(|e| CommandError::ExecutionFailed(format!("无法重命名远程仓库 {} -> {}: {}", old_name, new_name, e)))?;
+    .map_err(|e| {
+        CommandError::ExecutionFailed(format!(
+            "无法重命名远程仓库 {} -> {}: {}",
+            old_name, new_name, e
+        ))
+    })?;
     Ok(())
 }
 
