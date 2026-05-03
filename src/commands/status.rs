@@ -80,7 +80,7 @@ impl Command for StatusCommand {
 
     fn execute(args: Self::Args) -> CommandResult {
         let search_path = Path::new(&args.path);
-        
+
         // If current path doesn't have .git, search upwards
         let effective_path = if !search_path.join(".git").exists() {
             find_git_repository_upwards(search_path).unwrap_or_else(|| search_path.to_path_buf())
@@ -89,12 +89,13 @@ impl Command for StatusCommand {
         };
 
         // Create repository walker
-        let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-            super::CommandError::ExecutionFailed(format!(
-                "Failed to create repository walker: {}",
-                e
-            ))
-        })?;
+        let walker =
+            RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
+                super::CommandError::ExecutionFailed(format!(
+                    "Failed to create repository walker: {}",
+                    e
+                ))
+            })?;
 
         if walker.is_empty() {
             Output::not_found("未找到git仓库");
