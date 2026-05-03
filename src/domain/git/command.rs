@@ -85,6 +85,42 @@ impl GitCommandRunner {
         }
         Ok(())
     }
+
+    pub fn get_current_branch(&self, repo_path: &Path) -> Result<String> {
+        self.execute_in_dir(&["branch", "--show-current"], repo_path)
+    }
+
+    #[allow(dead_code)]
+    pub fn get_remote_urls(&self, repo_path: &Path) -> Result<Vec<String>> {
+        let output = self.execute_in_dir(&["remote", "-v"], repo_path)?;
+        let urls: Vec<String> = output
+            .lines()
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    Some(parts[1].to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Ok(urls)
+    }
+
+    pub fn get_remote_list(&self, repo_path: &Path) -> Result<Vec<String>> {
+        let output = self.execute_in_dir(&["remote"], repo_path)?;
+        let remotes: Vec<String> = output
+            .lines()
+            .map(|line| line.trim().to_string())
+            .filter(|remote| !remote.is_empty())
+            .collect();
+        Ok(remotes)
+    }
+
+    pub fn has_uncommitted_changes(&self, repo_path: &Path) -> Result<bool> {
+        let output = self.execute_in_dir(&["status", "--porcelain"], repo_path)?;
+        Ok(!output.is_empty())
+    }
 }
 
 impl Default for GitCommandRunner {

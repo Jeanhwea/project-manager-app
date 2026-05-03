@@ -218,6 +218,12 @@ impl Repository {
     }
 }
 
+/// Check if a path is a Git repository by verifying the `.git` directory exists.
+#[allow(dead_code)]
+pub fn is_git_repo(path: &Path) -> bool {
+    path.is_dir() && path.join(".git").is_dir()
+}
+
 /// Search for a Git repository by traversing up the directory tree.
 /// Returns the first Git repository found, or None if not found.
 pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {

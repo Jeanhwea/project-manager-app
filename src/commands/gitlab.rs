@@ -1,8 +1,9 @@
 use super::{Command, CommandError, CommandResult};
 use crate::domain::config::{ConfigDir, GitLabServer};
+use crate::domain::git::command::GitCommandRunner;
+use crate::domain::git::repository::is_git_repo;
 use crate::domain::gitlab::client::GitLabClient;
 use crate::domain::gitlab::models::User;
-use crate::utils::git::{get_remote_urls, git_command, is_git_repo};
 use crate::utils::output::{ItemColor, Output};
 
 use std::collections::HashSet;
@@ -299,7 +300,8 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
             git_args.push("--recursive");
         }
 
-        match git_command(output_path, &git_args) {
+        let runner = GitCommandRunner::new();
+        match runner.execute_in_dir(&git_args, output_path) {
             Ok(_) => {
                 Output::success(&format!("已克隆 {}", relative_path));
                 success_count += 1;
@@ -508,12 +510,13 @@ fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
         return urls;
     }
 
+    let runner = GitCommandRunner::new();
     if let Ok(entries) = std::fs::read_dir(output_path) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir()
                 && is_git_repo(&path)
-                && let Ok(remote_urls) = get_remote_urls(&path)
+                && let Ok(remote_urls) = runner.get_remote_urls(&path)
             {
                 for url in remote_urls {
                     urls.insert(url.trim_end_matches('/').to_string());

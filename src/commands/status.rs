@@ -1,6 +1,6 @@
 use super::{Command, CommandResult};
+use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
-use crate::utils::git;
 use crate::utils::output::{ItemColor, Output, SummaryBuilder};
 use std::path::{Path, PathBuf};
 
@@ -156,8 +156,9 @@ fn matches_filter(status: &RepoStatus, filter: &Option<StatusFilter>) -> bool {
 
 /// Collect repository status information
 fn collect_repo_status(repo_path: &Path) -> RepoStatus {
-    let branch = git::get_current_branch(repo_path).ok();
-    let dirty = git::has_uncommitted_changes(repo_path).unwrap_or(false);
+    let runner = GitCommandRunner::new();
+    let branch = runner.get_current_branch(repo_path).ok();
+    let dirty = runner.has_uncommitted_changes(repo_path).unwrap_or(false);
     let (ahead, behind) = get_ahead_behind(repo_path);
     let (staged, unstaged, untracked) = get_dirty_counts(repo_path);
 
@@ -174,15 +175,16 @@ fn collect_repo_status(repo_path: &Path) -> RepoStatus {
 
 /// Get ahead/behind counts
 fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
-    let branch = match git::get_current_branch(repo_path) {
+    let runner = GitCommandRunner::new();
+    let branch = match runner.get_current_branch(repo_path) {
         Ok(b) => b,
         Err(_) => return (0, 0),
     };
 
     let upstream = format!("{}@{{upstream}}...HEAD", branch);
-    let output = match git::git_command(
-        repo_path,
+    let output = match runner.execute_in_dir(
         &["rev-list", "--count", "--left-right", &upstream],
+        repo_path,
     ) {
         Ok(o) => o,
         Err(_) => return (0, 0),
@@ -206,7 +208,8 @@ fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
 
 /// Get dirty file counts
 fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
-    let output = match git::git_command(repo_path, &["status", "--porcelain"]) {
+    let runner = GitCommandRunner::new();
+    let output = match runner.execute_in_dir(&["status", "--porcelain"], repo_path) {
         Ok(o) => o,
         Err(_) => return (0, 0, 0),
     };
@@ -296,6 +299,7 @@ fn print_short_status(status: &RepoStatus) {
 
 /// Print full status format
 fn print_full_status(repo_path: &Path, status: &RepoStatus) {
+    let runner = GitCommandRunner::new();
     let branch_display = status.branch.as_deref().unwrap_or("HEAD (detached)");
 
     Output::item("分支", branch_display);
@@ -311,12 +315,13 @@ fn print_full_status(repo_path: &Path, status: &RepoStatus) {
 
     print_latest_tag(repo_path);
 
-    let remotes = git::get_remote_list(repo_path).unwrap_or_default();
+    let remotes = runner.get_remote_list(repo_path).unwrap_or_default();
     if !remotes.is_empty() {
         Output::message("远程:");
         for remote in &remotes {
-            let url =
-                git::git_command(repo_path, &["remote", "get-url", remote]).unwrap_or_default();
+            let url = runner
+                .execute_in_dir(&["remote", "get-url", remote], repo_path)
+                .unwrap_or_default();
             Output::detail(remote, &url);
         }
     }
@@ -361,8 +366,9 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
 
 /// Print latest tag
 fn print_latest_tag(repo_path: &Path) {
+    let runner = GitCommandRunner::new();
     let output =
-        match git::git_command(repo_path, &["tag", "-l", "v*", "--sort=-version:refname"]) {
+        match runner.execute_in_dir(&["tag", "-l", "v*", "--sort=-version:refname"], repo_path) {
             Ok(o) => o,
             Err(_) => return,
         };
