@@ -219,25 +219,6 @@ fn parse_version_from_tag(tag: &str) -> Option<Version> {
     })
 }
 
-/// Compare two version strings
-fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
-    let va = parse_version_from_tag(a);
-    let vb = parse_version_from_tag(b);
-
-    match (va, vb) {
-        (Some(va), Some(vb)) => {
-            if va.major != vb.major {
-                vb.major.cmp(&va.major)
-            } else if va.minor != vb.minor {
-                vb.minor.cmp(&va.minor)
-            } else {
-                vb.patch.cmp(&va.patch)
-            }
-        }
-        _ => b.cmp(a),
-    }
-}
-
 /// Resolve configuration files
 fn resolve_config_files(
     registry: &EditorRegistry,
@@ -779,39 +760,6 @@ mod tests {
             patch: 3,
         };
         assert_eq!(version.to_tag(), "v1.2.3");
-    }
-
-    #[test]
-    fn test_compare_versions() {
-        // Test version comparison
-        assert_eq!(
-            compare_versions("v1.2.3", "v1.2.4"),
-            std::cmp::Ordering::Greater
-        );
-        assert_eq!(
-            compare_versions("v1.2.4", "v1.2.3"),
-            std::cmp::Ordering::Less
-        );
-        assert_eq!(
-            compare_versions("v1.2.3", "v1.2.3"),
-            std::cmp::Ordering::Equal
-        );
-
-        // Test with different major versions
-        assert_eq!(
-            compare_versions("v2.0.0", "v1.9.9"),
-            std::cmp::Ordering::Less
-        );
-        assert_eq!(
-            compare_versions("v1.9.9", "v2.0.0"),
-            std::cmp::Ordering::Greater
-        );
-
-        // Test invalid versions fall back to string comparison
-        assert_eq!(
-            compare_versions("invalid", "v1.2.3"),
-            std::cmp::Ordering::Greater
-        );
     }
 
     #[test]
