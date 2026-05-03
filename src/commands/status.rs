@@ -84,7 +84,7 @@ impl Command for StatusCommand {
             Some(ref p) => PathBuf::from(p),
             None => std::env::current_dir().map_err(|e| {
                 super::CommandError::ExecutionFailed(format!(
-                    "Failed to get current directory: {}",
+                    "获取当前目录失败: {}",
                     e
                 ))
             })?,
@@ -98,7 +98,7 @@ impl Command for StatusCommand {
         let walker =
             RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
                 super::CommandError::ExecutionFailed(format!(
-                    "Failed to create repository walker: {}",
+                    "创建仓库遍历器失败: {}",
                     e
                 ))
             })?;

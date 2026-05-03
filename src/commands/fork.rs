@@ -54,7 +54,7 @@ impl Command for ForkCommand {
 
         if !root_dir.exists() {
             return Err(super::CommandError::Validation(format!(
-                "Directory does not exist: {}",
+                "目录不存在: {}",
                 args.path
             )));
         }
@@ -62,7 +62,7 @@ impl Command for ForkCommand {
         let repo_dir = root_dir.join(".git");
         if !repo_dir.exists() {
             return Err(super::CommandError::Validation(format!(
-                "Git repository directory does not exist: {}",
+                "Git 仓库目录不存在: {}",
                 repo_dir.display()
             )));
         }
@@ -72,7 +72,7 @@ impl Command for ForkCommand {
 
         if project_dir.exists() {
             return Err(super::CommandError::Validation(format!(
-                "Project directory already exists: {}",
+                "项目目录已存在: {}",
                 project_dir.display()
             )));
         }

@@ -109,7 +109,7 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     let client = GitLabClient::with_url_and_token(&resolved_url, &final_token);
     let user: User = client
         .get_current_user()
-        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to authenticate: {}", e)))?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("认证失败: {}", e)))?;
 
     Output::item_colored(
         "已认证",
@@ -142,7 +142,7 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     }
 
     ConfigDir::save_gitlab(&gitlab_cfg)
-        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to save config: {}", e)))?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("保存配置失败: {}", e)))?;
 
     Output::success(&format!("{} 凭据已保存", resolved_url));
 
@@ -175,7 +175,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     // Get group information
     let groups = client
         .get_groups()
-        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to get groups: {}", e)))?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("获取组列表失败: {}", e)))?;
 
     let group_info = groups
         .into_iter()
@@ -192,7 +192,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 
     let projects = client
         .get_group_projects(group_info.id, true, args.include_archived)
-        .map_err(|e| CommandError::ExecutionFailed(format!("Failed to get projects: {}", e)))?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("获取项目列表失败: {}", e)))?;
 
     if projects.is_empty() {
         Output::warning("未找到项目");
