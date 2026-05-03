@@ -4,7 +4,7 @@ use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::domain::runner::DryRunContext;
 use crate::utils::output::Output;
 use anyhow::{Context, Result};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Doctor command arguments
 #[derive(Debug)]
@@ -13,7 +13,7 @@ pub struct DoctorArgs {
     pub gc: bool,
     pub rename: bool,
     pub fix: bool,
-    pub path: String,
+    pub path: Option<String>,
     pub dry_run: bool,
 }
 
@@ -35,12 +35,15 @@ impl Command for DoctorCommand {
 fn execute_doctor(args: DoctorArgs) -> Result<()> {
     check_dependencies()?;
 
-    let search_path = Path::new(&args.path);
-    let effective_path = if !search_path.join(".git").exists() {
-        find_git_repository_upwards(search_path).unwrap_or_else(|| search_path.to_path_buf())
-    } else {
-        search_path.to_path_buf()
+    // Get search path: use provided path or current directory
+    let search_path = match args.path {
+        Some(ref p) => PathBuf::from(p),
+        None => std::env::current_dir()?,
     };
+
+    // Search upwards for git repository root
+    let effective_path = find_git_repository_upwards(&search_path)
+        .unwrap_or_else(|| search_path.clone());
 
     let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 

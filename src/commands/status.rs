@@ -2,7 +2,7 @@ use super::{Command, CommandResult};
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::utils::git;
 use crate::utils::output::{ItemColor, Output, SummaryBuilder};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Status command arguments
 #[derive(Debug)]
@@ -14,7 +14,7 @@ pub struct StatusArgs {
     /// Filter repositories by status
     pub filter: Option<StatusFilter>,
     /// Path to the directory to search for repositories
-    pub path: String,
+    pub path: Option<String>,
 }
 
 /// Status filter enumeration
@@ -79,14 +79,17 @@ impl Command for StatusCommand {
     type Args = StatusArgs;
 
     fn execute(args: Self::Args) -> CommandResult {
-        let search_path = Path::new(&args.path);
-
-        // If current path doesn't have .git, search upwards
-        let effective_path = if !search_path.join(".git").exists() {
-            find_git_repository_upwards(search_path).unwrap_or_else(|| search_path.to_path_buf())
-        } else {
-            search_path.to_path_buf()
+        // Get search path: use provided path or current directory
+        let search_path = match args.path {
+            Some(ref p) => PathBuf::from(p),
+            None => std::env::current_dir().map_err(|e| {
+                super::CommandError::ExecutionFailed(format!("Failed to get current directory: {}", e))
+            })?,
         };
+
+        // Search upwards for git repository root
+        let effective_path = find_git_repository_upwards(&search_path)
+            .unwrap_or_else(|| search_path.clone());
 
         // Create repository walker
         let walker =

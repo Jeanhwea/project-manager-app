@@ -1,8 +1,8 @@
 use super::{Command, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::repository::RepoWalker;
+use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::utils::output::{ItemColor, Output};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Branch command arguments
 #[derive(Debug)]
@@ -23,7 +23,7 @@ pub struct ListArgs {
     /// Maximum depth to search for repositories
     pub max_depth: Option<usize>,
     /// Path to the directory to search for repositories
-    pub path: String,
+    pub path: Option<String>,
 }
 
 /// Clean branches arguments
@@ -34,7 +34,7 @@ pub struct CleanArgs {
     /// Also delete remote merged branches
     pub remote: bool,
     /// Path to the directory to search for repositories
-    pub path: String,
+    pub path: Option<String>,
     /// Dry run: show what would be changed without making any modifications
     pub dry_run: bool,
 }
@@ -49,7 +49,7 @@ pub struct SwitchArgs {
     /// Maximum depth to search for repositories
     pub max_depth: Option<usize>,
     /// Path to the directory to search for repositories
-    pub path: String,
+    pub path: Option<String>,
     /// Dry run: show what would be changed without making any modifications
     pub dry_run: bool,
 }
@@ -64,7 +64,7 @@ pub struct RenameArgs {
     /// Maximum depth to search for repositories
     pub max_depth: Option<usize>,
     /// Path to the directory to search for repositories
-    pub path: String,
+    pub path: Option<String>,
     /// Dry run: show what would be changed without making any modifications
     pub dry_run: bool,
 }
@@ -85,9 +85,19 @@ impl Command for BranchCommand {
     }
 }
 
+/// Get effective path by searching upwards for git repository
+fn get_effective_path(path: &Option<String>) -> PathBuf {
+    let search_path = match path {
+        Some(p) => PathBuf::from(p),
+        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    };
+    find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone())
+}
+
 fn execute_list(args: ListArgs) -> CommandResult {
+    let effective_path = get_effective_path(&args.path);
     let walker =
-        RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3)).map_err(|e| {
+        RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
             super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
         })?;
 
@@ -108,8 +118,9 @@ fn execute_list(args: ListArgs) -> CommandResult {
 }
 
 fn execute_clean(args: CleanArgs) -> CommandResult {
+    let effective_path = get_effective_path(&args.path);
     let walker =
-        RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3)).map_err(|e| {
+        RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
             super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
         })?;
 
@@ -132,8 +143,9 @@ fn execute_clean(args: CleanArgs) -> CommandResult {
 }
 
 fn execute_switch(args: SwitchArgs) -> CommandResult {
+    let effective_path = get_effective_path(&args.path);
     let walker =
-        RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3)).map_err(|e| {
+        RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
             super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
         })?;
 
@@ -156,8 +168,9 @@ fn execute_switch(args: SwitchArgs) -> CommandResult {
 }
 
 fn execute_rename(args: RenameArgs) -> CommandResult {
+    let effective_path = get_effective_path(&args.path);
     let walker =
-        RepoWalker::new(Path::new(&args.path), args.max_depth.unwrap_or(3)).map_err(|e| {
+        RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
             super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
         })?;
 

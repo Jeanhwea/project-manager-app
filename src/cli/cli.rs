@@ -153,12 +153,11 @@ pub enum Commands {
             help = "Whether to pull all local branches"
         )]
         all_branch: bool,
-        /// Path to the directory to search for repositories, defaults to current directory
+        /// Path to the directory to search for repositories
         #[arg(
-            default_value = ".",
-            help = "Path to the directory to search for repositories, defaults to current directory"
+            help = "Path to the directory to search for repositories (default: search upwards from current directory)"
         )]
-        path: String,
+        path: Option<String>,
         /// Dry run: show what would be changed without making any modifications
         #[arg(
             long,
@@ -216,12 +215,11 @@ pub enum Commands {
             help = "Whether to automatically fix detected issues"
         )]
         fix: bool,
-        /// Path to the directory to search for repositories, defaults to current directory
+        /// Path to the directory to search for repositories
         #[arg(
-            default_value = ".",
-            help = "Path to the directory to search for repositories, defaults to current directory"
+            help = "Path to the directory to search for repositories (default: search upwards from current directory)"
         )]
-        path: String,
+        path: Option<String>,
         /// Dry run: show what would be changed without making any modifications
         #[arg(
             long,
@@ -290,12 +288,11 @@ pub enum Commands {
             help = "Filter repositories by status: dirty, clean, ahead, behind"
         )]
         filter: Option<StatusFilter>,
-        /// Path to the directory to search for repositories, defaults to current directory
+        /// Path to the directory to search for repositories
         #[arg(
-            default_value = ".",
-            help = "Path to the directory to search for repositories, defaults to current directory"
+            help = "Path to the directory to search for repositories (default: search upwards from current directory)"
         )]
-        path: String,
+        path: Option<String>,
     },
     /// Manage branches across repositories
     #[command(visible_alias = "br")]
@@ -463,12 +460,11 @@ pub enum BranchCommands {
             help = "Maximum depth to search for repositories"
         )]
         max_depth: Option<usize>,
-        /// Path to the directory to search for repositories, defaults to current directory
+        /// Path to the directory to search for repositories
         #[arg(
-            default_value = ".",
-            help = "Path to the directory to search for repositories, defaults to current directory"
+            help = "Path to the directory to search for repositories (default: search upwards from current directory)"
         )]
-        path: String,
+        path: Option<String>,
     },
     /// Clean merged branches across all repositories
     #[command(about = "Clean merged branches across all repositories")]
@@ -489,12 +485,11 @@ pub enum BranchCommands {
             help = "Also delete remote merged branches"
         )]
         remote: bool,
-        /// Path to the directory to search for repositories, defaults to current directory
+        /// Path to the directory to search for repositories
         #[arg(
-            default_value = ".",
-            help = "Path to the directory to search for repositories, defaults to current directory"
+            help = "Path to the directory to search for repositories (default: search upwards from current directory)"
         )]
-        path: String,
+        path: Option<String>,
         /// Dry run: show what would be changed without making any modifications
         #[arg(
             long,
@@ -526,12 +521,11 @@ pub enum BranchCommands {
             help = "Maximum depth to search for repositories"
         )]
         max_depth: Option<usize>,
-        /// Path to the directory to search for repositories, defaults to current directory
+        /// Path to the directory to search for repositories
         #[arg(
-            default_value = ".",
-            help = "Path to the directory to search for repositories, defaults to current directory"
+            help = "Path to the directory to search for repositories (default: search upwards from current directory)"
         )]
-        path: String,
+        path: Option<String>,
         /// Dry run: show what would be changed without making any modifications
         #[arg(
             long,
@@ -558,12 +552,11 @@ pub enum BranchCommands {
             help = "Maximum depth to search for repositories"
         )]
         max_depth: Option<usize>,
-        /// Path to the directory to search for repositories, defaults to current directory
+        /// Path to the directory to search for repositories
         #[arg(
-            default_value = ".",
-            help = "Path to the directory to search for repositories, defaults to current directory"
+            help = "Path to the directory to search for repositories (default: search upwards from current directory)"
         )]
-        path: String,
+        path: Option<String>,
         /// Dry run: show what would be changed without making any modifications
         #[arg(
             long,
