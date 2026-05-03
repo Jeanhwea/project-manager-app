@@ -5,7 +5,7 @@ use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
 use anyhow::{Context, Result};
 use regex::Regex;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Release command arguments
 #[derive(Debug)]
@@ -469,37 +469,48 @@ enum PackageManager {
 }
 
 /// Detect which package manager is used by checking lockfiles
-fn detect_package_manager(pkg_dir: &Path) -> PackageManager {
-    // 优先检查 pnpm-lock.yaml
-    if find_lock_dir(pkg_dir, "pnpm-lock.yaml").is_some() {
-        return PackageManager::Pnpm;
+fn is_pnpm_available() -> bool {
+    // Windows 上需要使用 cmd /c 来执行 pnpm
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "pnpm", "--version"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
     }
-    // 然后检查 yarn.lock
-    if find_lock_dir(pkg_dir, "yarn.lock").is_some() {
-        return PackageManager::Yarn;
-    }
-    // 检查 package-lock.json，但优先使用 pnpm 命令
-    if find_lock_dir(pkg_dir, "package-lock.json").is_some() {
-        // 检查 pnpm 是否可用，优先使用 pnpm
-        if std::process::Command::new("pnpm")
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new("pnpm")
             .arg("--version")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
             .is_ok_and(|s| s.success())
-        {
+    }
+}
+
+fn detect_package_manager(pkg_dir: &Path) -> PackageManager {
+    // 只在 package.json 所在目录检测 lockfile
+    // 优先检查 pnpm-lock.yaml
+    if pkg_dir.join("pnpm-lock.yaml").exists() {
+        return PackageManager::Pnpm;
+    }
+    // 然后检查 yarn.lock
+    if pkg_dir.join("yarn.lock").exists() {
+        return PackageManager::Yarn;
+    }
+    // 检查 package-lock.json，但优先使用 pnpm 命令
+    if pkg_dir.join("package-lock.json").exists() {
+        // 检查 pnpm 是否可用，优先使用 pnpm
+        if is_pnpm_available() {
             return PackageManager::Pnpm;
         }
         return PackageManager::Npm;
     }
     // 没有 lockfile 时，检查 pnpm 是否可用
-    if std::process::Command::new("pnpm")
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-    {
+    if is_pnpm_available() {
         return PackageManager::Pnpm;
     }
     PackageManager::None
@@ -555,21 +566,24 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
         parent
     };
 
-    let lock_dir = find_lock_dir(pkg_dir, "package-lock.json");
-    let Some(lock_dir) = lock_dir else {
-        return Ok(());
-    };
-
-    let lock_path = lock_dir.join("package-lock.json");
+    let lock_path = pkg_dir.join("package-lock.json");
 
     if is_gitignored(&lock_path) {
         Output::skip("package-lock.json 在 .gitignore 中，跳过更新");
         return Ok(());
     }
 
+    #[cfg(target_os = "windows")]
+    let status = std::process::Command::new("cmd")
+        .args(["/c", "npm", "install", "--package-lock-only"])
+        .current_dir(pkg_dir)
+        .status()
+        .with_context(|| "无法执行 npm install")?;
+
+    #[cfg(not(target_os = "windows"))]
     let status = std::process::Command::new("npm")
         .args(["install", "--package-lock-only"])
-        .current_dir(&lock_dir)
+        .current_dir(pkg_dir)
         .status()
         .with_context(|| "无法执行 npm install")?;
 
@@ -577,9 +591,11 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
         Output::error("npm install --package-lock-only 执行失败");
     }
 
-    let lock_str = lock_path.to_string_lossy().to_string();
-    let runner = GitCommandRunner::new();
-    runner.execute_with_success(&["add", &lock_str])?;
+    if lock_path.exists() {
+        let lock_str = lock_path.to_string_lossy().to_string();
+        let runner = GitCommandRunner::new();
+        runner.execute_with_success(&["add", &lock_str])?;
+    }
     Ok(())
 }
 
@@ -601,6 +617,14 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
         return Ok(());
     }
 
+    #[cfg(target_os = "windows")]
+    let status = std::process::Command::new("cmd")
+        .args(["/c", "pnpm", "install", "--lockfile-only"])
+        .current_dir(pkg_dir)
+        .status()
+        .with_context(|| "无法执行 pnpm install")?;
+
+    #[cfg(not(target_os = "windows"))]
     let status = std::process::Command::new("pnpm")
         .args(["install", "--lockfile-only"])
         .current_dir(pkg_dir)
@@ -611,7 +635,6 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
         Output::error("pnpm install --lockfile-only 执行失败");
     }
 
-    // 只有 pnpm-lock.yaml 存在时才 git add
     if lock_path.exists() {
         let lock_str = lock_path.to_string_lossy().to_string();
         let runner = GitCommandRunner::new();
@@ -631,21 +654,24 @@ fn update_yarn_lock(package_json_path: &str) -> Result<()> {
         parent
     };
 
-    let lock_dir = find_lock_dir(pkg_dir, "yarn.lock");
-    let Some(lock_dir) = lock_dir else {
-        return Ok(());
-    };
-
-    let lock_path = lock_dir.join("yarn.lock");
+    let lock_path = pkg_dir.join("yarn.lock");
 
     if is_gitignored(&lock_path) {
         Output::skip("yarn.lock 在 .gitignore 中，跳过更新");
         return Ok(());
     }
 
+    #[cfg(target_os = "windows")]
+    let status = std::process::Command::new("cmd")
+        .args(["/c", "yarn", "install", "--mode", "update-lockfile"])
+        .current_dir(pkg_dir)
+        .status()
+        .with_context(|| "无法执行 yarn install")?;
+
+    #[cfg(not(target_os = "windows"))]
     let status = std::process::Command::new("yarn")
         .args(["install", "--mode", "update-lockfile"])
-        .current_dir(&lock_dir)
+        .current_dir(pkg_dir)
         .status()
         .with_context(|| "无法执行 yarn install")?;
 
@@ -653,31 +679,12 @@ fn update_yarn_lock(package_json_path: &str) -> Result<()> {
         Output::error("yarn install --mode update-lockfile 执行失败");
     }
 
-    let lock_str = lock_path.to_string_lossy().to_string();
-    let runner = GitCommandRunner::new();
-    runner.execute_with_success(&["add", &lock_str])?;
+    if lock_path.exists() {
+        let lock_str = lock_path.to_string_lossy().to_string();
+        let runner = GitCommandRunner::new();
+        runner.execute_with_success(&["add", &lock_str])?;
+    }
     Ok(())
-}
-
-/// Find directory containing lockfile
-/// Searches from pkg_dir up to git root
-fn find_lock_dir(pkg_dir: &Path, lock_file: &str) -> Option<PathBuf> {
-    // Check pkg_dir itself
-    if pkg_dir.join(lock_file).exists() {
-        return Some(pkg_dir.to_path_buf());
-    }
-
-    // Find git root and check there
-    let runner = GitCommandRunner::new();
-    if let Ok(git_root) = runner.execute_in_dir(&["rev-parse", "--show-toplevel"], pkg_dir) {
-        let git_root = git_root.trim();
-        let git_root_path = Path::new(git_root);
-        if git_root_path.join(lock_file).exists() {
-            return Some(git_root_path.to_path_buf());
-        }
-    }
-
-    None
 }
 
 /// Check if file is gitignored
