@@ -478,9 +478,29 @@ fn detect_package_manager(pkg_dir: &Path) -> PackageManager {
     if find_lock_dir(pkg_dir, "yarn.lock").is_some() {
         return PackageManager::Yarn;
     }
-    // 最后检查 package-lock.json
+    // 检查 package-lock.json，但优先使用 pnpm 命令
     if find_lock_dir(pkg_dir, "package-lock.json").is_some() {
+        // 检查 pnpm 是否可用，优先使用 pnpm
+        if std::process::Command::new("pnpm")
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+        {
+            return PackageManager::Pnpm;
+        }
         return PackageManager::Npm;
+    }
+    // 没有 lockfile 时，检查 pnpm 是否可用
+    if std::process::Command::new("pnpm")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+    {
+        return PackageManager::Pnpm;
     }
     PackageManager::None
 }
