@@ -594,12 +594,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
         parent
     };
 
-    let lock_dir = find_lock_dir(pkg_dir, "pnpm-lock.yaml");
-    let Some(lock_dir) = lock_dir else {
-        return Ok(());
-    };
-
-    let lock_path = lock_dir.join("pnpm-lock.yaml");
+    let lock_path = pkg_dir.join("pnpm-lock.yaml");
 
     if is_gitignored(&lock_path) {
         Output::skip("pnpm-lock.yaml 在 .gitignore 中，跳过更新");
@@ -608,7 +603,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
 
     let status = std::process::Command::new("pnpm")
         .args(["install", "--lockfile-only"])
-        .current_dir(&lock_dir)
+        .current_dir(pkg_dir)
         .status()
         .with_context(|| "无法执行 pnpm install")?;
 
@@ -616,9 +611,12 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
         Output::error("pnpm install --lockfile-only 执行失败");
     }
 
-    let lock_str = lock_path.to_string_lossy().to_string();
-    let runner = GitCommandRunner::new();
-    runner.execute_with_success(&["add", &lock_str])?;
+    // 只有 pnpm-lock.yaml 存在时才 git add
+    if lock_path.exists() {
+        let lock_str = lock_path.to_string_lossy().to_string();
+        let runner = GitCommandRunner::new();
+        runner.execute_with_success(&["add", &lock_str])?;
+    }
     Ok(())
 }
 
