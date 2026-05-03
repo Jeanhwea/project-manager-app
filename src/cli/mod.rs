@@ -1,7 +1,17 @@
+mod args;
+mod styles;
+
 #[allow(clippy::module_inception)]
 pub mod cli;
 pub mod dispatcher;
 pub mod parser;
+
+pub use args::{
+    BranchCommands, BumpType, Commands, ConfigCommands, GitlabCommands, SelfCommands,
+    SnapCommands,
+};
+pub use cli::Cli;
+pub use styles::get_styles;
 
 pub type CliResult = Result<(), anyhow::Error>;
 

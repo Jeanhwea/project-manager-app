@@ -1,8 +1,7 @@
-use super::cli::{
+use super::{
     BranchCommands, BumpType, Cli, Commands, ConfigCommands, GitlabCommands, SelfCommands,
-    SnapCommands,
+    SnapCommands, CliParser, CommandArgs, CommandName, ParsedCommand,
 };
-use super::{CliParser, CommandArgs, CommandName, ParsedCommand};
 use clap::Parser;
 
 pub struct ClapParser;

@@ -557,14 +557,23 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
 }
 
 /// Find directory containing lockfile
+/// Searches from pkg_dir up to git root
 fn find_lock_dir(pkg_dir: &Path, lock_file: &str) -> Option<PathBuf> {
+    // Check pkg_dir itself
     if pkg_dir.join(lock_file).exists() {
         return Some(pkg_dir.to_path_buf());
     }
-    let cwd = std::env::current_dir().ok()?;
-    if cwd.join(lock_file).exists() {
-        return Some(cwd);
+
+    // Find git root and check there
+    let runner = GitCommandRunner::new();
+    if let Ok(git_root) = runner.execute_in_dir(&["rev-parse", "--show-toplevel"], pkg_dir) {
+        let git_root = git_root.trim();
+        let git_root_path = Path::new(git_root);
+        if git_root_path.join(lock_file).exists() {
+            return Some(git_root_path.to_path_buf());
+        }
     }
+
     None
 }
 
