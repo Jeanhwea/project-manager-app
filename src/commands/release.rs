@@ -1,5 +1,5 @@
 use super::{Command, CommandError, CommandResult};
-use crate::domain::editor::{EditorRegistry, FileEditor, write_with_backup};
+use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version, write_with_backup};
 use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
@@ -11,7 +11,7 @@ use std::path::Path;
 #[derive(Debug)]
 pub struct ReleaseArgs {
     /// Bump type: major, minor, or patch
-    pub bump_type: BumpType,
+    pub bump_type: crate::cli::BumpType,
     /// Files to update version (auto-detect if empty)
     pub files: Vec<String>,
     /// Stay in current directory instead of switching to git root
@@ -26,25 +26,6 @@ pub struct ReleaseArgs {
     pub message: Option<String>,
     /// Pre-release suffix (e.g. "alpha", "rc.1" -> v1.0.0-alpha)
     pub pre_release: Option<String>,
-}
-
-/// Bump type enumeration
-#[derive(Debug, Clone, Copy)]
-pub enum BumpType {
-    Major,
-    Minor,
-    Patch,
-}
-
-impl BumpType {
-    /// Convert to string representation
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            BumpType::Major => "major",
-            BumpType::Minor => "minor",
-            BumpType::Patch => "patch",
-        }
-    }
 }
 
 /// Git state for release operations
@@ -164,7 +145,7 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
     }
 
     let version = parse_version_from_tag(&current_tag).unwrap_or_default();
-    let new_version = version.bump(args.bump_type.as_str());
+    let new_version = version.bump(&to_domain_bump_type(args.bump_type.clone()));
     let mut new_tag = new_version.to_tag();
 
     if let Some(pre) = &args.pre_release {
@@ -204,19 +185,16 @@ fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
 
 /// Parse version from tag string
 fn parse_version_from_tag(tag: &str) -> Option<Version> {
-    let tag = tag.trim();
-    let tag = tag.strip_prefix('v').unwrap_or(tag);
-    let parts: Vec<&str> = tag.split('.').collect();
+    Version::from_tag(tag)
+}
 
-    if parts.len() != 3 {
-        return None;
+/// Convert release BumpType to domain BumpType
+fn to_domain_bump_type(bump_type: crate::cli::BumpType) -> BumpType {
+    match bump_type {
+        crate::cli::BumpType::Major => BumpType::Major,
+        crate::cli::BumpType::Minor => BumpType::Minor,
+        crate::cli::BumpType::Patch => BumpType::Patch,
     }
-
-    Some(Version {
-        major: parts[0].parse().ok()?,
-        minor: parts[1].parse().ok()?,
-        patch: parts[2].parse().ok()?,
-    })
 }
 
 /// Resolve configuration files
@@ -772,51 +750,10 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
     Ok(())
 }
 
-/// Version structure for parsing and bumping
-#[derive(Debug, Clone, Default)]
-struct Version {
-    major: u32,
-    minor: u32,
-    patch: u32,
-}
-
-impl Version {
-    fn bump(&self, bump_type: &str) -> Self {
-        match bump_type {
-            "major" => Version {
-                major: self.major + 1,
-                minor: 0,
-                patch: 0,
-            },
-            "minor" => Version {
-                major: self.major,
-                minor: self.minor + 1,
-                patch: 0,
-            },
-            _ => Version {
-                major: self.major,
-                minor: self.minor,
-                patch: self.patch + 1,
-            },
-        }
-    }
-
-    fn to_tag(&self) -> String {
-        format!("v{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_bump_type_as_str() {
-        assert_eq!(BumpType::Major.as_str(), "major");
-        assert_eq!(BumpType::Minor.as_str(), "minor");
-        assert_eq!(BumpType::Patch.as_str(), "patch");
-    }
 
     #[test]
     fn test_version_parsing() {
@@ -847,25 +784,19 @@ mod tests {
         };
 
         // Test major bump
-        let bumped = version.bump("major");
+        let bumped = version.bump(&BumpType::Major);
         assert_eq!(bumped.major, 2);
         assert_eq!(bumped.minor, 0);
         assert_eq!(bumped.patch, 0);
 
         // Test minor bump
-        let bumped = version.bump("minor");
+        let bumped = version.bump(&BumpType::Minor);
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 3);
         assert_eq!(bumped.patch, 0);
 
         // Test patch bump
-        let bumped = version.bump("patch");
-        assert_eq!(bumped.major, 1);
-        assert_eq!(bumped.minor, 2);
-        assert_eq!(bumped.patch, 4);
-
-        // Test default bump (should be patch)
-        let bumped = version.bump("unknown");
+        let bumped = version.bump(&BumpType::Patch);
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 2);
         assert_eq!(bumped.patch, 4);
@@ -956,9 +887,8 @@ serde = "1.0""#;
 
     #[test]
     fn test_release_args_structure() {
-        // Test that ReleaseArgs can be created
         let args = ReleaseArgs {
-            bump_type: BumpType::Patch,
+            bump_type: crate::cli::BumpType::Patch,
             files: vec!["Cargo.toml".to_string()],
             no_root: false,
             force: false,
@@ -968,7 +898,6 @@ serde = "1.0""#;
             pre_release: None,
         };
 
-        assert_eq!(args.bump_type.as_str(), "patch");
         assert_eq!(args.files.len(), 1);
         assert!(!args.no_root);
         assert!(!args.force);
