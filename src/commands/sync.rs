@@ -336,7 +336,7 @@ mod tests {
             max_depth: Some(3),
             skip_remotes: vec!["origin".to_string()],
             all_branch: true,
-            path: ".".to_string(),
+            path: Some(".".to_string()),
             dry_run: true,
             fetch_only: false,
             rebase: true,
@@ -345,7 +345,7 @@ mod tests {
         assert_eq!(args.max_depth, Some(3));
         assert_eq!(args.skip_remotes, vec!["origin"]);
         assert!(args.all_branch);
-        assert_eq!(args.path, ".");
+        assert_eq!(args.path, Some(".".to_string()));
         assert!(args.dry_run);
         assert!(!args.fetch_only);
         assert!(args.rebase);

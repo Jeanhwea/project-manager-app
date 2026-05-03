@@ -439,7 +439,7 @@ mod tests {
             gc: true,
             rename: false,
             fix: true,
-            path: ".".to_string(),
+            path: Some(".".to_string()),
             dry_run: true,
         };
 
@@ -447,7 +447,7 @@ mod tests {
         assert!(args.gc);
         assert!(!args.rename);
         assert!(args.fix);
-        assert_eq!(args.path, ".");
+        assert_eq!(args.path, Some(".".to_string()));
         assert!(args.dry_run);
     }
 
