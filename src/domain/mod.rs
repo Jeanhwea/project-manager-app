@@ -5,6 +5,7 @@ pub mod gitlab;
 pub mod runner;
 
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum DomainError {
     #[error("Git error: {0}")]
     Git(#[from] git::GitError),

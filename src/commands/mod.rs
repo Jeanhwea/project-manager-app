@@ -25,8 +25,14 @@ pub enum CommandError {
     #[error("Execution failed: {0}")]
     ExecutionFailed(String),
 
-    #[error("Domain error: {0}")]
-    Domain(#[from] Box<crate::domain::DomainError>),
+    #[error("Git error: {0}")]
+    Git(#[from] crate::domain::git::GitError),
+
+    #[error("Editor error: {0}")]
+    Editor(#[from] crate::domain::editor::EditorError),
+
+    #[error("Configuration error: {0}")]
+    Config(#[from] crate::domain::config::ConfigError),
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
