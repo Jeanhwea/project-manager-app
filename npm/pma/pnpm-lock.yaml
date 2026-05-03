@@ -1,0 +1,69 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    optionalDependencies:
+      '@jeansoft/pma-darwin-arm64':
+        specifier: 1.1.1
+        version: 1.1.1
+      '@jeansoft/pma-darwin-x64':
+        specifier: 1.1.1
+        version: 1.1.1
+      '@jeansoft/pma-linux-x64':
+        specifier: 1.1.1
+        version: 1.1.1
+      '@jeansoft/pma-win32-arm64':
+        specifier: 1.1.1
+        version: 1.1.1
+      '@jeansoft/pma-win32-x64':
+        specifier: 1.1.1
+        version: 1.1.1
+
+packages:
+
+  '@jeansoft/pma-darwin-arm64@1.1.1':
+    resolution: {integrity: sha512-UXm7MQCxYvVFrZmqdhd3HKmAAdma4uz7OLSQAtUAZSST9w9yg45A71paYm4/C+QwwMwIMUPM7ab+BiYgX40Gbw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@jeansoft/pma-darwin-x64@1.1.1':
+    resolution: {integrity: sha512-2/gVIS8YrWC9KzKSTjBT/XVxsgqaMfUmdvQXctXwDmGiOihsmFb8+9PztdPjtJKlTkDyWea9hxvMoxCgOGwrog==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@jeansoft/pma-linux-x64@1.1.1':
+    resolution: {integrity: sha512-0GQGoo6Qb6yeH8dFQZPTZHcsjaE3bpFpLOjJ718Rxm4YhPu4WysHYbe/C0tT7Y4xRDVYIZhzq+PSLrzeW2C2VA==}
+    cpu: [x64]
+    os: [linux]
+
+  '@jeansoft/pma-win32-arm64@1.1.1':
+    resolution: {integrity: sha512-K+6HZIAcxTXxN2oay6Di2T4C/xXOdDvsxST2/sVYJ8mcLAZ65aeKKgtPuGfJUs+k9UiUTXjlm/6+Q21MX1udCw==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@jeansoft/pma-win32-x64@1.1.1':
+    resolution: {integrity: sha512-5CZFJraWWl3ONikyUmJt/uXwQx0TDhH+kgdUycmvy5JIbZAi/CELaAh5dvbg9blbDX8eSxng8CqVA+kHLxGdSA==}
+    cpu: [x64]
+    os: [win32]
+
+snapshots:
+
+  '@jeansoft/pma-darwin-arm64@1.1.1':
+    optional: true
+
+  '@jeansoft/pma-darwin-x64@1.1.1':
+    optional: true
+
+  '@jeansoft/pma-linux-x64@1.1.1':
+    optional: true
+
+  '@jeansoft/pma-win32-arm64@1.1.1':
+    optional: true
+
+  '@jeansoft/pma-win32-x64@1.1.1':
+    optional: true
