@@ -1,6 +1,17 @@
 use colored::Colorize;
 use std::path::Path;
 
+/// ASCII-only symbols for terminal output
+const SYMBOL_SUCCESS: &str = "OK>";
+const SYMBOL_ERROR: &str = "FAIL";
+const SYMBOL_WARNING: &str = "WARN";
+const SYMBOL_INFO: &str = "INFO";
+const SYMBOL_SKIP: &str = "SKIP";
+const SYMBOL_CMD: &str = "==>";
+
+/// Alignment width for all symbols
+const SYMBOL_WIDTH: usize = 4;
+
 pub struct Output;
 
 impl Output {
@@ -24,23 +35,30 @@ impl Output {
     }
 
     pub fn success(msg: &str) {
-        println!("  {} {}", "vv=".green(), msg.green());
+        let symbol = format!("{:<width$}", SYMBOL_SUCCESS, width = SYMBOL_WIDTH);
+        println!("  {} {}", symbol.green(), msg.green());
     }
 
     pub fn error(msg: &str) {
-        println!("  {} {}", "xx=".red(), msg.red());
+        println!("  {} {}", SYMBOL_ERROR.red(), msg.red());
     }
 
     pub fn warning(msg: &str) {
-        println!("  {} {}", "!!=".yellow(), msg.yellow());
+        println!("  {} {}", SYMBOL_WARNING.yellow(), msg.yellow());
     }
 
     pub fn info(msg: &str) {
-        println!("  {} {}", "==>".cyan(), msg);
+        println!("  {} {}", SYMBOL_INFO.cyan(), msg);
     }
 
     pub fn skip(msg: &str) {
-        println!("  {} {}", "oo=".dimmed(), msg.dimmed());
+        println!("  {} {}", SYMBOL_SKIP.dimmed(), msg.dimmed());
+    }
+
+    /// Display a command that will be executed.
+    /// Used for dry-run previews and actual execution confirmation.
+    pub fn cmd(cmd: &str) {
+        println!("  {} {}", SYMBOL_CMD.cyan(), cmd);
     }
 
     pub fn item(label: &str, value: &str) {
