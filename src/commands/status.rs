@@ -237,13 +237,22 @@ fn print_summary(stats: &StatusStats, total: usize) {
 
     if stats.ahead_count > 0 || stats.behind_count > 0 {
         SummaryBuilder::new()
-            .add("同步", format!("{} 领先, {} 落后", stats.ahead_count, stats.behind_count))
+            .add(
+                "同步",
+                format!("{} 领先, {} 落后", stats.ahead_count, stats.behind_count),
+            )
             .print();
     }
 
     if stats.total_staged > 0 || stats.total_unstaged > 0 || stats.total_untracked > 0 {
         SummaryBuilder::new()
-            .add("文件", format!("{} 已暂存, {} 未暂存, {} 未跟踪", stats.total_staged, stats.total_unstaged, stats.total_untracked))
+            .add(
+                "文件",
+                format!(
+                    "{} 已暂存, {} 未暂存, {} 未跟踪",
+                    stats.total_staged, stats.total_unstaged, stats.total_untracked
+                ),
+            )
             .print();
     }
 }

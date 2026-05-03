@@ -71,7 +71,10 @@ fn execute_sync(args: SyncArgs) -> Result<()> {
         if !ctx.is_dry_run() && !is_workdir_clean(repo_path)? {
             let runner = GitCommandRunner::new();
             runner.execute_with_success_in_dir(&["status"], repo_path)?;
-            Output::warning(&format!("无法同步不干净工作目录: {}", format_path(repo_path)));
+            Output::warning(&format!(
+                "无法同步不干净工作目录: {}",
+                format_path(repo_path)
+            ));
             return Ok(());
         }
 
@@ -155,11 +158,7 @@ fn do_sync_repository(
     };
 
     if skip_remotes.contains(&track_remote) {
-        Output::skip(&format!(
-            "git pull {} ({})",
-            track_remote,
-            track_remote_url
-        ));
+        Output::skip(&format!("git pull {} ({})", track_remote, track_remote_url));
     } else if fetch_only {
         ctx.run_in_dir("git", &["fetch", &track_remote], Some(repo_path))
             .unwrap_or_else(|e| Output::error(&format!("拉取仓库失败: {}", e)));

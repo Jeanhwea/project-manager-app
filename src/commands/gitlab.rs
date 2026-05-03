@@ -244,7 +244,10 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 
         // Skip projects in subgroups — only clone direct children
         if relative_path.contains('/') {
-            Output::skip(&format!("{} {} (子组项目)", progress, project.path_with_namespace));
+            Output::skip(&format!(
+                "{} {} (子组项目)",
+                progress, project.path_with_namespace
+            ));
             skip_count += 1;
             continue;
         }
@@ -261,7 +264,10 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
         let is_archived = project.archived.unwrap_or(false);
 
         let status = if is_archived { "[归档] " } else { "" };
-        Output::message(&format!("{} {} {}", progress, status, project.path_with_namespace));
+        Output::message(&format!(
+            "{} {} {}",
+            progress, status, project.path_with_namespace
+        ));
 
         if project_dir.exists() {
             Output::skip(&format!("{} 已存在，跳过", relative_path));
@@ -308,7 +314,10 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     Output::blank();
     Output::item_colored(
         "汇总",
-        &format!("成功 {}, 跳过 {}, 失败 {}", success_count, skip_count, fail_count),
+        &format!(
+            "成功 {}, 跳过 {}, 失败 {}",
+            success_count, skip_count, fail_count
+        ),
         ItemColor::Cyan,
     );
 

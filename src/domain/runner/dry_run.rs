@@ -74,7 +74,8 @@ impl DryRunContext {
         let old_lines: Vec<&str> = old_content.lines().collect();
         let new_lines: Vec<&str> = new_content.lines().collect();
 
-        for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter())) {
+        for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter()))
+        {
             if old_line != new_line {
                 Output::detail(&format!("L{} -", line_num), old_line);
                 Output::detail(&format!("L{} +", line_num), new_line);

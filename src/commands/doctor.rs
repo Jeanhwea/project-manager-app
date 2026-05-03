@@ -76,10 +76,7 @@ fn execute_doctor(args: DoctorArgs) -> Result<()> {
                 if let Some(new_name) = get_remote_name_by_url(&remote_url)
                     && new_name != remote_name
                 {
-                    Output::item(
-                        &format!("{} => {}", remote_name, new_name),
-                        &remote_url,
-                    );
+                    Output::item(&format!("{} => {}", remote_name, new_name), &remote_url);
                     do_rename_git_remote(&ctx, repo_path, &remote_name, &new_name)?;
                 }
             }

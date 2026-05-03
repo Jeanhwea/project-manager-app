@@ -1,6 +1,6 @@
 use super::{Command, CommandResult};
-use anyhow::{Context, Result};
 use crate::utils::output::Output;
+use anyhow::{Context, Result};
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::Deserialize;
 use std::env;
