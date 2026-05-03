@@ -24,7 +24,7 @@ impl Output {
     }
 
     pub fn success(msg: &str) {
-        println!("  {} {}", "==>".green(), msg.green());
+        println!("  {} {}", "vv=".green(), msg.green());
     }
 
     pub fn error(msg: &str) {
@@ -36,7 +36,7 @@ impl Output {
     }
 
     pub fn info(msg: &str) {
-        println!("  {} {}", "===".cyan(), msg);
+        println!("  {} {}", "==>".cyan(), msg);
     }
 
     pub fn skip(msg: &str) {
