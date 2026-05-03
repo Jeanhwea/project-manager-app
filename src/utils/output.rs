@@ -24,23 +24,23 @@ impl Output {
     }
 
     pub fn success(msg: &str) {
-        println!("  {} {}", "[OK]".green(), msg.green());
+        println!("  {} {}", "==>".green(), msg.green());
     }
 
     pub fn error(msg: &str) {
-        println!("  {} {}", "[ERR]".red(), msg.red());
+        println!("  {} {}", "xx=".red(), msg.red());
     }
 
     pub fn warning(msg: &str) {
-        println!("  {} {}", "[WARN]".yellow(), msg.yellow());
+        println!("  {} {}", "!!=".yellow(), msg.yellow());
     }
 
     pub fn info(msg: &str) {
-        println!("  {} {}", "[INFO]".cyan(), msg);
+        println!("  {} {}", "===".cyan(), msg);
     }
 
     pub fn skip(msg: &str) {
-        println!("  {} {}", "[SKIP]".dimmed(), msg.dimmed());
+        println!("  {} {}", "oo=".dimmed(), msg.dimmed());
     }
 
     pub fn item(label: &str, value: &str) {
