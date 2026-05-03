@@ -24,7 +24,7 @@ impl DryRunContext {
             return Ok(());
         }
 
-        Output::info(&format!("{} {}", program, args.join(" ")));
+        Output::cmd(&format!("{} {}", program, args.join(" ")));
 
         let runner = GitCommandRunner::new();
         let output = if let Some(dir) = dir {
@@ -84,6 +84,6 @@ impl DryRunContext {
     }
 
     fn print_dry_run_command(&self, program: &str, args: &[&str]) {
-        Output::message(&format!("[DRY-RUN] {} {}", program, args.join(" ")));
+        Output::cmd(&format!("{} {}", program, args.join(" ")));
     }
 }
