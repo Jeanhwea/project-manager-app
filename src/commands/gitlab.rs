@@ -180,9 +180,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     let group_info = groups
         .into_iter()
         .find(|g| g.full_path == *final_group)
-        .ok_or_else(|| {
-            CommandError::ExecutionFailed(format!("Group not found: {}", final_group))
-        })?;
+        .ok_or_else(|| CommandError::ExecutionFailed(format!("未找到组: {}", final_group)))?;
 
     Output::item_colored(
         "组名",
