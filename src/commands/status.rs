@@ -1,5 +1,5 @@
 use super::{Command, CommandResult};
-use crate::domain::git::repository::RepoWalker;
+use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::utils::git;
 use crate::utils::output::{ItemColor, Output, SummaryBuilder};
 use std::path::Path;
@@ -79,10 +79,17 @@ impl Command for StatusCommand {
     type Args = StatusArgs;
 
     fn execute(args: Self::Args) -> CommandResult {
-        let path = Path::new(&args.path);
+        let search_path = Path::new(&args.path);
+        
+        // If current path doesn't have .git, search upwards
+        let effective_path = if !search_path.join(".git").exists() {
+            find_git_repository_upwards(search_path).unwrap_or_else(|| search_path.to_path_buf())
+        } else {
+            search_path.to_path_buf()
+        };
 
         // Create repository walker
-        let walker = RepoWalker::new(path, args.max_depth.unwrap_or(3)).map_err(|e| {
+        let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
             super::CommandError::ExecutionFailed(format!(
                 "Failed to create repository walker: {}",
                 e
