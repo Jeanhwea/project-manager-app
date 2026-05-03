@@ -96,9 +96,7 @@ fn get_effective_path(path: &Option<String>) -> PathBuf {
 
 fn execute_list(args: ListArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
-    })?;
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
         return Ok(());
@@ -108,9 +106,6 @@ fn execute_list(args: ListArgs) -> CommandResult {
         .walk(|path, _index, _total| {
             list_branches(path);
             Ok(())
-        })
-        .map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to walk repositories: {}", e))
         })?;
 
     Ok(())
@@ -118,23 +113,20 @@ fn execute_list(args: ListArgs) -> CommandResult {
 
 fn execute_clean(args: CleanArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
-    })?;
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
         return Ok(());
     }
 
     let runner = GitCommandRunner::new();
+    let remote = args.remote;
+    let dry_run = args.dry_run;
 
     walker
         .walk(|path, _index, _total| {
-            clean_merged_branches(&runner, path, args.remote, args.dry_run)?;
+            clean_merged_branches(&runner, path, remote, dry_run)?;
             Ok(())
-        })
-        .map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to clean branches: {}", e))
         })?;
 
     Ok(())
@@ -142,23 +134,21 @@ fn execute_clean(args: CleanArgs) -> CommandResult {
 
 fn execute_switch(args: SwitchArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
-    })?;
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
         return Ok(());
     }
 
     let runner = GitCommandRunner::new();
+    let branch = args.branch.clone();
+    let create = args.create;
+    let dry_run = args.dry_run;
 
     walker
         .walk(|path, _index, _total| {
-            switch_branch(&runner, path, &args.branch, args.create, args.dry_run)?;
+            switch_branch(&runner, path, &branch, create, dry_run)?;
             Ok(())
-        })
-        .map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to switch branches: {}", e))
         })?;
 
     Ok(())
@@ -166,23 +156,21 @@ fn execute_switch(args: SwitchArgs) -> CommandResult {
 
 fn execute_rename(args: RenameArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("Failed to find repositories: {}", e))
-    })?;
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
         return Ok(());
     }
 
     let runner = GitCommandRunner::new();
+    let old_name = args.old_name.clone();
+    let new_name = args.new_name.clone();
+    let dry_run = args.dry_run;
 
     walker
         .walk(|path, _index, _total| {
-            rename_branch(&runner, path, &args.old_name, &args.new_name, args.dry_run)?;
+            rename_branch(&runner, path, &old_name, &new_name, dry_run)?;
             Ok(())
-        })
-        .map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to rename branches: {}", e))
         })?;
 
     Ok(())
