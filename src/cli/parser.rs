@@ -1,6 +1,6 @@
 use super::{
-    BranchCommands, BumpType, Cli, Commands, ConfigCommands, GitlabCommands, SelfCommands,
-    SnapCommands, CliParser, CommandArgs, CommandName, ParsedCommand,
+    BranchCommands, BumpType, Cli, CliParser, CommandArgs, CommandName, Commands, ConfigCommands,
+    GitlabCommands, ParsedCommand, SelfCommands, SnapCommands,
 };
 use clap::Parser;
 

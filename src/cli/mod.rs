@@ -1,8 +1,6 @@
 mod args;
 mod styles;
 
-#[allow(clippy::module_inception)]
-pub mod cli;
 pub mod dispatcher;
 pub mod parser;
 
@@ -10,8 +8,19 @@ pub use args::{
     BranchCommands, BumpType, Commands, ConfigCommands, GitlabCommands, SelfCommands,
     SnapCommands,
 };
-pub use cli::Cli;
 pub use styles::get_styles;
+
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(name = "pma")]
+#[command(about = "Project Manager Application (项目管理工具)")]
+#[command(version)]
+#[command(styles = get_styles())]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
 
 pub type CliResult = Result<(), anyhow::Error>;
 

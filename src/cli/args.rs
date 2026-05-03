@@ -1,6 +1,16 @@
 use crate::commands::gitlab::CloneProtocol;
 use crate::commands::status::StatusFilter;
-use clap::{Subcommand, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
+
+#[derive(Parser)]
+#[command(name = "pma")]
+#[command(about = "Project Manager Application (项目管理工具)")]
+#[command(version)]
+#[command(styles = crate::cli::get_styles())]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
 
 #[derive(ValueEnum, Clone, Debug)]
 pub enum BumpType {
