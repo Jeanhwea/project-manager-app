@@ -1,9 +1,8 @@
 use super::{Command, CommandError, CommandResult};
-use crate::domain::editor::{EditorRegistry, FileEditor, write_with_backup};
+use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version, write_with_backup};
 use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
-use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::Path;
 
@@ -11,7 +10,7 @@ use std::path::Path;
 #[derive(Debug)]
 pub struct ReleaseArgs {
     /// Bump type: major, minor, or patch
-    pub bump_type: BumpType,
+    pub bump_type: crate::cli::BumpType,
     /// Files to update version (auto-detect if empty)
     pub files: Vec<String>,
     /// Stay in current directory instead of switching to git root
@@ -26,25 +25,6 @@ pub struct ReleaseArgs {
     pub message: Option<String>,
     /// Pre-release suffix (e.g. "alpha", "rc.1" -> v1.0.0-alpha)
     pub pre_release: Option<String>,
-}
-
-/// Bump type enumeration
-#[derive(Debug, Clone, Copy)]
-pub enum BumpType {
-    Major,
-    Minor,
-    Patch,
-}
-
-impl BumpType {
-    /// Convert to string representation
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            BumpType::Major => "major",
-            BumpType::Minor => "minor",
-            BumpType::Patch => "patch",
-        }
-    }
 }
 
 /// Git state for release operations
@@ -82,19 +62,12 @@ impl Command for ReleaseCommand {
     type Args = ReleaseArgs;
 
     fn execute(args: Self::Args) -> CommandResult {
-        // Convert domain errors to command errors
-        match execute_release(args) {
-            Ok(()) => Ok(()),
-            Err(e) => {
-                // Convert anyhow errors to CommandError
-                Err(CommandError::ExecutionFailed(format!("{}", e)))
-            }
-        }
+        execute_release(args)
     }
 }
 
 /// Main release execution function
-fn execute_release(args: ReleaseArgs) -> Result<()> {
+fn execute_release(args: ReleaseArgs) -> CommandResult {
     let resolved_files = resolve_file_paths(&args.files);
 
     if !args.no_root {
@@ -131,28 +104,31 @@ fn resolve_file_paths(files: &[String]) -> Vec<String> {
 }
 
 /// Switch to git root directory
-fn switch_to_git_root() -> Result<()> {
+fn switch_to_git_root() -> CommandResult {
     let runner = GitCommandRunner::new();
     let output = runner.execute(&["rev-parse", "--show-toplevel"])?;
     let root = output.trim();
 
     if !root.is_empty() {
-        std::env::set_current_dir(root)
-            .with_context(|| format!("无法切换到 git 根目录: {}", root))?;
+        std::env::set_current_dir(root).map_err(|e| {
+            CommandError::ExecutionFailed(format!("无法切换到 git 根目录: {} - {}", root, e))
+        })?;
     }
 
     Ok(())
 }
 
 /// Validate git state and prepare release
-fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
+fn validate_git_state(args: &ReleaseArgs) -> Result<GitState, CommandError> {
     let runner = GitCommandRunner::new();
 
     let current_branch = runner.execute(&["branch", "--show-current"])?;
     let current_branch = current_branch.trim().to_string();
 
     if !args.force && current_branch != "master" {
-        anyhow::bail!("只能在 master 分支上执行 release");
+        return Err(CommandError::Validation(
+            "只能在 master 分支上执行 release".to_string(),
+        ));
     }
 
     let current_tag = get_current_version(&runner).unwrap_or_else(|| "v0.0.0".to_string());
@@ -160,11 +136,14 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
     let rev_current_tag = runner.execute(&["rev-parse", &current_tag])?;
     let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
     if rev_current_tag.trim() == rev_head.trim() {
-        anyhow::bail!("当前 HEAD 已被标记为 {}", current_tag);
+        return Err(CommandError::Validation(format!(
+            "当前 HEAD 已被标记为 {}",
+            current_tag
+        )));
     }
 
     let version = parse_version_from_tag(&current_tag).unwrap_or_default();
-    let new_version = version.bump(args.bump_type.as_str());
+    let new_version = version.bump(&to_domain_bump_type(args.bump_type.clone()));
     let mut new_tag = new_version.to_tag();
 
     if let Some(pre) = &args.pre_release {
@@ -204,26 +183,23 @@ fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
 
 /// Parse version from tag string
 fn parse_version_from_tag(tag: &str) -> Option<Version> {
-    let tag = tag.trim();
-    let tag = tag.strip_prefix('v').unwrap_or(tag);
-    let parts: Vec<&str> = tag.split('.').collect();
+    Version::from_tag(tag)
+}
 
-    if parts.len() != 3 {
-        return None;
+/// Convert release BumpType to domain BumpType
+fn to_domain_bump_type(bump_type: crate::cli::BumpType) -> BumpType {
+    match bump_type {
+        crate::cli::BumpType::Major => BumpType::Major,
+        crate::cli::BumpType::Minor => BumpType::Minor,
+        crate::cli::BumpType::Patch => BumpType::Patch,
     }
-
-    Some(Version {
-        major: parts[0].parse().ok()?,
-        minor: parts[1].parse().ok()?,
-        patch: parts[2].parse().ok()?,
-    })
 }
 
 /// Resolve configuration files
 fn resolve_config_files(
     registry: &EditorRegistry,
     files: &[String],
-) -> Result<Vec<ConfigFileEntry>> {
+) -> Result<Vec<ConfigFileEntry>, CommandError> {
     if files.is_empty() {
         return detect_config_files(registry);
     }
@@ -234,14 +210,14 @@ fn resolve_config_files(
             let path = Path::new(f);
             let editor = registry
                 .detect_editor(path)
-                .with_context(|| format!("无法识别文件类型: {}", f))?;
+                .ok_or_else(|| CommandError::Validation(format!("无法识别文件类型: {}", f)))?;
             Ok((f.clone(), editor))
         })
         .collect()
 }
 
 /// Detect configuration files automatically
-fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>> {
+fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>, CommandError> {
     let mut result = Vec::new();
 
     for (pattern, is_dynamic) in CONFIG_FILE_CANDIDATES {
@@ -261,7 +237,9 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>
     }
 
     if result.is_empty() {
-        anyhow::bail!("未检测到可编辑的配置文件");
+        return Err(CommandError::Validation(
+            "未检测到可编辑的配置文件".to_string(),
+        ));
     }
 
     Ok(result)
@@ -306,7 +284,7 @@ fn execute_dry_run(
     registry: &EditorRegistry,
     config_files: &[ConfigFileEntry],
     state: &GitState,
-) -> Result<()> {
+) -> CommandResult {
     Output::dry_run_header("将要修改的文件:");
     for (file_path, editor) in config_files {
         print_file_diff(registry, editor.as_ref(), &state.new_tag, file_path)?;
@@ -332,7 +310,7 @@ fn execute_release_operations(
     registry: &EditorRegistry,
     config_files: &[ConfigFileEntry],
     state: &GitState,
-) -> Result<()> {
+) -> CommandResult {
     let runner = GitCommandRunner::new();
 
     // Update files and lockfiles
@@ -361,7 +339,7 @@ fn print_file_diff(
     editor: &dyn FileEditor,
     tag: &str,
     config_file: &str,
-) -> Result<()> {
+) -> CommandResult {
     let (original, edited) = compute_edited_content(registry, editor, tag, config_file)?;
 
     Output::message(config_file);
@@ -385,10 +363,10 @@ fn compute_edited_content(
     editor: &dyn FileEditor,
     tag: &str,
     config_file: &str,
-) -> Result<(String, String)> {
+) -> Result<(String, String), CommandError> {
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file)
-        .with_context(|| format!("无法读取 {}", config_file))?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("无法读取 {}: {}", config_file, e)))?;
 
     let edited = registry.edit_version(editor, &content, version)?;
 
@@ -401,9 +379,9 @@ fn edit_version_in_file(
     editor: &dyn FileEditor,
     tag: &str,
     config_file: &str,
-) -> Result<()> {
+) -> CommandResult {
     let (_original, edited) = compute_edited_content(registry, editor, tag, config_file)?;
-    write_with_backup(config_file, &edited).map_err(|e| anyhow::anyhow!("{}", e))?;
+    write_with_backup(config_file, &edited)?;
     Ok(())
 }
 
@@ -429,7 +407,7 @@ fn print_lockfile_update_plan(config_file: &str) {
 }
 
 /// Update lockfile after editing a configuration file
-fn update_lockfile_after_edit(config_file: &str) -> Result<()> {
+fn update_lockfile_after_edit(config_file: &str) -> CommandResult {
     if config_file.ends_with("Cargo.toml") {
         update_cargo_lock(config_file)?;
     } else if config_file.ends_with("package.json") {
@@ -439,7 +417,7 @@ fn update_lockfile_after_edit(config_file: &str) -> Result<()> {
 }
 
 /// Detect and update JS lockfile based on actual package manager
-fn update_js_lockfile(package_json_path: &str) -> Result<()> {
+fn update_js_lockfile(package_json_path: &str) -> CommandResult {
     let parent = Path::new(package_json_path)
         .parent()
         .unwrap_or(Path::new("."));
@@ -517,7 +495,7 @@ fn detect_package_manager(pkg_dir: &Path) -> PackageManager {
 }
 
 /// Update Cargo.lock file
-fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
+fn update_cargo_lock(cargo_toml_path: &str) -> CommandResult {
     let parent = Path::new(cargo_toml_path)
         .parent()
         .unwrap_or(Path::new("."));
@@ -544,10 +522,13 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
         .args(["update", "--package", &pkg_name])
         .current_dir(dir)
         .status()
-        .with_context(|| "无法执行 cargo update")?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 cargo update: {}", e)))?;
 
     if !status.success() {
-        anyhow::bail!("cargo update --package {} 执行失败", pkg_name);
+        return Err(CommandError::ExecutionFailed(format!(
+            "cargo update --package {} 执行失败",
+            pkg_name
+        )));
     }
 
     let lock_str = lock_path.to_string_lossy().to_string();
@@ -556,7 +537,7 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
 }
 
 /// Update npm lockfile
-fn update_npm_lock(package_json_path: &str) -> Result<()> {
+fn update_npm_lock(package_json_path: &str) -> CommandResult {
     let parent = Path::new(package_json_path)
         .parent()
         .unwrap_or(Path::new("."));
@@ -578,14 +559,14 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
         .args(["/c", "npm", "install", "--package-lock-only"])
         .current_dir(pkg_dir)
         .status()
-        .with_context(|| "无法执行 npm install")?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 npm install: {}", e)))?;
 
     #[cfg(not(target_os = "windows"))]
     let status = std::process::Command::new("npm")
         .args(["install", "--package-lock-only"])
         .current_dir(pkg_dir)
         .status()
-        .with_context(|| "无法执行 npm install")?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 npm install: {}", e)))?;
 
     if !status.success() {
         Output::error("npm install --package-lock-only 执行失败");
@@ -600,7 +581,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
 }
 
 /// Update pnpm lockfile
-fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
+fn update_pnpm_lock(package_json_path: &str) -> CommandResult {
     let parent = Path::new(package_json_path)
         .parent()
         .unwrap_or(Path::new("."));
@@ -622,14 +603,14 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
         .args(["/c", "pnpm", "install", "--lockfile-only"])
         .current_dir(pkg_dir)
         .status()
-        .with_context(|| "无法执行 pnpm install")?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 pnpm install: {}", e)))?;
 
     #[cfg(not(target_os = "windows"))]
     let status = std::process::Command::new("pnpm")
         .args(["install", "--lockfile-only"])
         .current_dir(pkg_dir)
         .status()
-        .with_context(|| "无法执行 pnpm install")?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 pnpm install: {}", e)))?;
 
     if !status.success() {
         Output::error("pnpm install --lockfile-only 执行失败");
@@ -644,7 +625,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
 }
 
 /// Update yarn lockfile
-fn update_yarn_lock(package_json_path: &str) -> Result<()> {
+fn update_yarn_lock(package_json_path: &str) -> CommandResult {
     let parent = Path::new(package_json_path)
         .parent()
         .unwrap_or(Path::new("."));
@@ -666,14 +647,14 @@ fn update_yarn_lock(package_json_path: &str) -> Result<()> {
         .args(["/c", "yarn", "install", "--mode", "update-lockfile"])
         .current_dir(pkg_dir)
         .status()
-        .with_context(|| "无法执行 yarn install")?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 yarn install: {}", e)))?;
 
     #[cfg(not(target_os = "windows"))]
     let status = std::process::Command::new("yarn")
         .args(["install", "--mode", "update-lockfile"])
         .current_dir(pkg_dir)
         .status()
-        .with_context(|| "无法执行 yarn install")?;
+        .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 yarn install: {}", e)))?;
 
     if !status.success() {
         Output::error("yarn install --mode update-lockfile 执行失败");
@@ -706,10 +687,12 @@ fn is_gitignored(file_path: &Path) -> bool {
 }
 
 /// Read package name from Cargo.toml
-fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
-    let content = std::fs::read_to_string(cargo_toml_path)
-        .with_context(|| format!("无法读取 {}", cargo_toml_path))?;
-    let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)?;
+fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String, CommandError> {
+    let content = std::fs::read_to_string(cargo_toml_path).map_err(|e| {
+        CommandError::ExecutionFailed(format!("无法读取 {}: {}", cargo_toml_path, e))
+    })?;
+    let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)
+        .map_err(|e| CommandError::ExecutionFailed(format!("正则表达式错误: {}", e)))?;
     let mut in_package = false;
     for line in content.lines() {
         if line.trim() == "[package]" {
@@ -721,7 +704,10 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
             return Ok(caps[1].to_string());
         }
     }
-    anyhow::bail!("未在 {} 中找到 [package] name", cargo_toml_path)
+    Err(CommandError::ExecutionFailed(format!(
+        "未在 {} 中找到 [package] name",
+        cargo_toml_path
+    )))
 }
 
 /// Print push plan for dry run
@@ -746,7 +732,7 @@ fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
 }
 
 /// Push to remotes
-fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Result<()> {
+fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> CommandResult {
     if skip_push {
         return Ok(());
     }
@@ -772,51 +758,10 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
     Ok(())
 }
 
-/// Version structure for parsing and bumping
-#[derive(Debug, Clone, Default)]
-struct Version {
-    major: u32,
-    minor: u32,
-    patch: u32,
-}
-
-impl Version {
-    fn bump(&self, bump_type: &str) -> Self {
-        match bump_type {
-            "major" => Version {
-                major: self.major + 1,
-                minor: 0,
-                patch: 0,
-            },
-            "minor" => Version {
-                major: self.major,
-                minor: self.minor + 1,
-                patch: 0,
-            },
-            _ => Version {
-                major: self.major,
-                minor: self.minor,
-                patch: self.patch + 1,
-            },
-        }
-    }
-
-    fn to_tag(&self) -> String {
-        format!("v{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_bump_type_as_str() {
-        assert_eq!(BumpType::Major.as_str(), "major");
-        assert_eq!(BumpType::Minor.as_str(), "minor");
-        assert_eq!(BumpType::Patch.as_str(), "patch");
-    }
 
     #[test]
     fn test_version_parsing() {
@@ -847,25 +792,19 @@ mod tests {
         };
 
         // Test major bump
-        let bumped = version.bump("major");
+        let bumped = version.bump(&BumpType::Major);
         assert_eq!(bumped.major, 2);
         assert_eq!(bumped.minor, 0);
         assert_eq!(bumped.patch, 0);
 
         // Test minor bump
-        let bumped = version.bump("minor");
+        let bumped = version.bump(&BumpType::Minor);
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 3);
         assert_eq!(bumped.patch, 0);
 
         // Test patch bump
-        let bumped = version.bump("patch");
-        assert_eq!(bumped.major, 1);
-        assert_eq!(bumped.minor, 2);
-        assert_eq!(bumped.patch, 4);
-
-        // Test default bump (should be patch)
-        let bumped = version.bump("unknown");
+        let bumped = version.bump(&BumpType::Patch);
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 2);
         assert_eq!(bumped.patch, 4);
@@ -956,9 +895,8 @@ serde = "1.0""#;
 
     #[test]
     fn test_release_args_structure() {
-        // Test that ReleaseArgs can be created
         let args = ReleaseArgs {
-            bump_type: BumpType::Patch,
+            bump_type: crate::cli::BumpType::Patch,
             files: vec!["Cargo.toml".to_string()],
             no_root: false,
             force: false,
@@ -968,7 +906,6 @@ serde = "1.0""#;
             pre_release: None,
         };
 
-        assert_eq!(args.bump_type.as_str(), "patch");
         assert_eq!(args.files.len(), 1);
         assert!(!args.no_root);
         assert!(!args.force);

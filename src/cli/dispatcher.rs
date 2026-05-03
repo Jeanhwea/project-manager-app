@@ -53,8 +53,14 @@ fn convert_command_error(error: CommandError, command_name: &str) -> anyhow::Err
         CommandError::ExecutionFailed(msg) => {
             anyhow::anyhow!("{} command execution failed: {}", command_name, msg)
         }
-        CommandError::Domain(domain_error) => {
-            anyhow::anyhow!("Domain error in {} command: {}", command_name, domain_error)
+        CommandError::Git(git_error) => {
+            anyhow::anyhow!("Git error in {} command: {}", command_name, git_error)
+        }
+        CommandError::Editor(editor_error) => {
+            anyhow::anyhow!("Editor error in {} command: {}", command_name, editor_error)
+        }
+        CommandError::Config(config_error) => {
+            anyhow::anyhow!("Config error in {} command: {}", command_name, config_error)
         }
         CommandError::Io(io_error) => {
             anyhow::anyhow!("I/O error in {} command: {}", command_name, io_error)
@@ -73,7 +79,7 @@ mod tests {
     #[test]
     fn test_dispatch_release_without_git_repo() {
         let args = crate::commands::release::ReleaseArgs {
-            bump_type: crate::commands::release::BumpType::Patch,
+            bump_type: crate::cli::BumpType::Patch,
             files: vec![],
             no_root: false,
             force: false,

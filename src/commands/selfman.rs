@@ -88,7 +88,7 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
     Output::info("检查最新版本...");
 
     let release = fetch_latest_release().map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("Failed to fetch release: {}", e))
+        super::CommandError::ExecutionFailed(format!("获取发布信息失败: {}", e))
     })?;
     let latest = release.tag_name.trim_start_matches('v');
     let current = PKG_VERSION;
@@ -113,7 +113,7 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
     }
 
     let asset_name = get_asset_name(&release.tag_name).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("Failed to get asset name: {}", e))
+        super::CommandError::ExecutionFailed(format!("获取资源名称失败: {}", e))
     })?;
     let asset = release
         .assets
@@ -129,7 +129,7 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
     Output::info(&format!("下载 {}...", asset.name));
     let data =
         download_asset(&asset.url, &asset.browser_download_url, &asset.name).map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("Failed to download asset: {}", e))
+            super::CommandError::ExecutionFailed(format!("下载资源失败: {}", e))
         })?;
     Output::success("下载完成");
 
@@ -137,7 +137,7 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
         super::CommandError::ExecutionFailed(format!("无法获取当前可执行文件路径: {}", e))
     })?;
     install_binary(&data, &asset.name, &current_exe).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("Failed to install binary: {}", e))
+        super::CommandError::ExecutionFailed(format!("安装二进制文件失败: {}", e))
     })?;
 
     Output::success(&format!("更新成功! v{} -> v{}", current, latest));

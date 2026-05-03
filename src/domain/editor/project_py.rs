@@ -26,13 +26,13 @@ impl FileEditor for PythonVersionEditor {
     }
 
     fn file_patterns(&self) -> &[&str] {
-        &["__init__.py", "version.py"]
+        &["__init__.py", "version.py", "__version__.py"]
     }
 
     fn matches_file(&self, path: &Path) -> bool {
         path.file_name()
             .and_then(|n| n.to_str())
-            .map(|n| n == "__init__.py" || n == "version.py")
+            .map(|n| n == "__init__.py" || n == "version.py" || n == "__version__.py")
             .unwrap_or(false)
     }
 

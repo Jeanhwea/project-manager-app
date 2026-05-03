@@ -18,7 +18,8 @@ pub use package_json::PackageJsonEditor;
 pub use pom_xml::PomXmlEditor;
 pub use project_py::PythonVersionEditor;
 pub use pyproject::PyprojectEditor;
-pub use version_bump::{BumpType, EditorConfig, apply_bump};
+#[allow(unused_imports)]
+pub use version_bump::{BumpType, EditorConfig, Version, apply_bump};
 pub use version_text::VersionTextEditor;
 
 use std::path::Path;

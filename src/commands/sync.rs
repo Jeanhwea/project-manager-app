@@ -1,4 +1,4 @@
-use super::{Command, CommandError, CommandResult};
+use super::{Command, CommandResult};
 use crate::domain::config::ConfigDir;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::remote::RemoteManager;
@@ -6,7 +6,6 @@ use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::domain::runner::DryRunContext;
 use crate::utils::output::Output;
 use crate::utils::path::format_path;
-use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 /// Sync command arguments
@@ -35,15 +34,12 @@ impl Command for SyncCommand {
     type Args = SyncArgs;
 
     fn execute(args: Self::Args) -> CommandResult {
-        match execute_sync(args) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(CommandError::ExecutionFailed(format!("{}", e))),
-        }
+        execute_sync(args)
     }
 }
 
 /// Main sync execution function
-fn execute_sync(args: SyncArgs) -> Result<()> {
+fn execute_sync(args: SyncArgs) -> CommandResult {
     // Get search path: use provided path or current directory
     let search_path = match args.path {
         Some(ref p) => PathBuf::from(p),
@@ -97,7 +93,7 @@ fn execute_sync(args: SyncArgs) -> Result<()> {
 }
 
 /// Display repository information
-fn do_info_repository(repo_path: &Path) -> Result<()> {
+fn do_info_repository(repo_path: &Path) -> Result<(), crate::domain::git::GitError> {
     let runner = GitCommandRunner::new();
 
     if let Err(e) = runner.execute_with_success_in_dir(&["branch", "--list"], repo_path) {
@@ -310,7 +306,7 @@ fn do_pull_repository(repo_path: &Path, rebase: bool) {
 }
 
 /// Check if working directory is clean
-fn is_workdir_clean(repo_path: &Path) -> Result<bool> {
+fn is_workdir_clean(repo_path: &Path) -> Result<bool, crate::domain::git::GitError> {
     let runner = GitCommandRunner::new();
     let output = runner.execute_in_dir(&["status", "--porcelain"], repo_path)?;
     Ok(output.trim().is_empty())
