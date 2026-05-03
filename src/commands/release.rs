@@ -195,18 +195,9 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
 
 /// Get current version from git tags
 fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
-    let output = runner.execute(&["tag", "-l", "v*"]).ok()?;
-    let tags: Vec<&str> = output.lines().collect();
-
-    if tags.is_empty() {
-        return None;
-    }
-
-    // Sort tags by version
-    let mut sorted_tags: Vec<String> = tags.iter().map(|s| s.to_string()).collect();
-    sorted_tags.sort_by(|a, b| compare_versions(a, b));
-
-    sorted_tags.last().cloned()
+    let output = runner.execute(&["describe", "--tags", "--match", "v*"]).ok()?;
+    // git describe may return "v1.0.0-3-g1234567" format, we only need the version part
+    output.split('-').next().map(|s| s.to_string())
 }
 
 /// Parse version from tag string
