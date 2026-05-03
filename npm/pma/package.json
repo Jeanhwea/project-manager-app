@@ -1,25 +1,25 @@
 {
-  "name": "@jeansoft/pma",
-  "version": "1.1.1",
-  "description": "Project Manager Application - Git repository batch management tool",
-  "readme": "readme.md",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Jeanhwea/project-manager-app"
-  },
   "bin": {
     "pma": "bin/pma"
   },
+  "description": "Project Manager Application - Git repository batch management tool",
   "files": [
     "bin",
     "readme.md"
   ],
+  "license": "MIT",
+  "name": "@jeansoft/pma",
   "optionalDependencies": {
-    "@jeansoft/pma-win32-x64": "1.1.1",
-    "@jeansoft/pma-win32-arm64": "1.1.1",
-    "@jeansoft/pma-linux-x64": "1.1.1",
+    "@jeansoft/pma-darwin-arm64": "1.1.1",
     "@jeansoft/pma-darwin-x64": "1.1.1",
-    "@jeansoft/pma-darwin-arm64": "1.1.1"
-  }
+    "@jeansoft/pma-linux-x64": "1.1.1",
+    "@jeansoft/pma-win32-arm64": "1.1.1",
+    "@jeansoft/pma-win32-x64": "1.1.1"
+  },
+  "readme": "readme.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jeanhwea/project-manager-app"
+  },
+  "version": "1.1.2"
 }

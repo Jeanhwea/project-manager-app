@@ -1,13 +1,19 @@
 {
-  "name": "@jeansoft/pma-win32-x64",
-  "version": "1.1.1",
+  "cpu": [
+    "x64"
+  ],
   "description": "pma binary for Windows x64",
+  "files": [
+    "bin"
+  ],
   "license": "MIT",
+  "name": "@jeansoft/pma-win32-x64",
+  "os": [
+    "win32"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/Jeanhwea/project-manager-app"
   },
-  "os": ["win32"],
-  "cpu": ["x64"],
-  "files": ["bin"]
+  "version": "1.1.2"
 }

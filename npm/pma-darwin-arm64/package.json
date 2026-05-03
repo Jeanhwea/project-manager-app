@@ -1,13 +1,19 @@
 {
-  "name": "@jeansoft/pma-darwin-arm64",
-  "version": "1.1.1",
+  "cpu": [
+    "arm64"
+  ],
   "description": "pma binary for macOS ARM64",
+  "files": [
+    "bin"
+  ],
   "license": "MIT",
+  "name": "@jeansoft/pma-darwin-arm64",
+  "os": [
+    "darwin"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/Jeanhwea/project-manager-app"
   },
-  "os": ["darwin"],
-  "cpu": ["arm64"],
-  "files": ["bin"]
+  "version": "1.1.2"
 }
