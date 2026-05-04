@@ -10,7 +10,7 @@ pub use commands::{
     ParsedCommand, SelfCommands, SnapCommands,
 };
 pub use dispatcher::{CommandDispatcher, CommandDispatcherImpl};
-pub use parser::{CliParser, ClapParser};
+pub use parser::{ClapParser, CliParser};
 pub use styles::get_styles;
 
 pub type CliResult = Result<(), anyhow::Error>;

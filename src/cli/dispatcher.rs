@@ -2,7 +2,7 @@
 
 use super::{CliResult, CommandArgs, CommandName, ParsedCommand};
 use crate::commands::{
-    branch::BranchCommand, Command, CommandError, config::ConfigCommand, doctor::DoctorCommand,
+    Command, CommandError, branch::BranchCommand, config::ConfigCommand, doctor::DoctorCommand,
     fork::ForkCommand, gitlab::GitLabCommand, release::ReleaseCommand, selfman::SelfManCommand,
     snap::SnapCommand, status::StatusCommand, sync::SyncCommand,
 };
@@ -108,7 +108,8 @@ mod tests {
     #[test]
     fn test_error_conversion() {
         let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
-        let converted = convert_command_error(crate::commands::CommandError::Io(io_error), "test");
+        let converted =
+            convert_command_error(crate::commands::CommandError::Io(io_error), "test");
         let msg = converted.to_string();
         assert!(msg.contains("I/O error in test command"));
         assert!(msg.contains("file not found"));

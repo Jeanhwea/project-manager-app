@@ -1,8 +1,8 @@
 //! CLI parser implementation
 
 use super::{
-    BranchCommands, Cli, CommandArgs, CommandName, Commands, ConfigCommands,
-    GitlabCommands, ParsedCommand, SelfCommands, SnapCommands,
+    BranchCommands, Cli, CommandArgs, CommandName, Commands, ConfigCommands, GitlabCommands,
+    ParsedCommand, SelfCommands, SnapCommands,
 };
 use crate::commands::{
     branch::{BranchArgs, CleanArgs, ListArgs as BranchListArgs, RenameArgs, SwitchArgs},
@@ -177,7 +177,10 @@ impl CliParser for ClapParser {
             Commands::Branch { command } => match command {
                 BranchCommands::List { max_depth, path } => ParsedCommand {
                     name: CommandName::Branch,
-                    args: CommandArgs::Branch(BranchArgs::List(BranchListArgs { max_depth, path })),
+                    args: CommandArgs::Branch(BranchArgs::List(BranchListArgs {
+                        max_depth,
+                        path,
+                    })),
                 },
                 BranchCommands::Clean {
                     max_depth,
