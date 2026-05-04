@@ -1,14 +1,21 @@
-use super::{CommandArgs, CommandDispatcher, CommandName, ParsedCommand};
+//! Command dispatcher implementation
+
+use super::{CliResult, CommandArgs, CommandName, ParsedCommand};
 use crate::commands::{
-    Command, CommandError, branch::BranchCommand, config::ConfigCommand, doctor::DoctorCommand,
+    branch::BranchCommand, Command, CommandError, config::ConfigCommand, doctor::DoctorCommand,
     fork::ForkCommand, gitlab::GitLabCommand, release::ReleaseCommand, selfman::SelfManCommand,
     snap::SnapCommand, status::StatusCommand, sync::SyncCommand,
 };
 
+/// Trait for dispatching parsed commands to their handlers
+pub trait CommandDispatcher {
+    fn dispatch(command: ParsedCommand) -> CliResult;
+}
+
 pub struct CommandDispatcherImpl;
 
 impl CommandDispatcher for CommandDispatcherImpl {
-    fn dispatch(command: ParsedCommand) -> super::CliResult {
+    fn dispatch(command: ParsedCommand) -> CliResult {
         match (command.name, command.args) {
             (CommandName::Release, CommandArgs::Release(args)) => {
                 ReleaseCommand::execute(args).map_err(|e| convert_command_error(e, "release"))
@@ -101,8 +108,7 @@ mod tests {
     #[test]
     fn test_error_conversion() {
         let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
-        let converted =
-            convert_command_error(crate::commands::CommandError::Io(io_error), "test");
+        let converted = convert_command_error(crate::commands::CommandError::Io(io_error), "test");
         let msg = converted.to_string();
         assert!(msg.contains("I/O error in test command"));
         assert!(msg.contains("file not found"));
