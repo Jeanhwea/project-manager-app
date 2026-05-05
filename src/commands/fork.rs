@@ -16,7 +16,11 @@ pub struct ForkArgs {
     #[arg(help = "Name of the project")]
     pub name: String,
     /// Dry run: show what would be changed without making any modifications
-    #[arg(long, default_value = "false", help = "Dry run: show what would be changed without making any modifications")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 

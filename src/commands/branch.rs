@@ -27,10 +27,18 @@ pub enum BranchArgs {
 #[derive(Debug, clap::Args)]
 pub struct ListArgs {
     /// Maximum depth to search for repositories
-    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(default_value = ".", help = "Path to the directory to search for repositories, defaults to current directory")]
+    #[arg(
+        default_value = ".",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
     pub path: String,
 }
 
@@ -38,16 +46,33 @@ pub struct ListArgs {
 #[derive(Debug, clap::Args)]
 pub struct CleanArgs {
     /// Maximum depth to search for repositories
-    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     /// Also delete remote merged branches
-    #[arg(long, short, default_value = "false", help = "Also delete remote merged branches")]
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Also delete remote merged branches"
+    )]
     pub remote: bool,
     /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(default_value = ".", help = "Path to the directory to search for repositories, defaults to current directory")]
+    #[arg(
+        default_value = ".",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
-    #[arg(long, default_value = "false", help = "Dry run: show what would be changed without making any modifications")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
@@ -58,16 +83,33 @@ pub struct SwitchArgs {
     #[arg(help = "Branch name to switch to")]
     pub branch: String,
     /// Create the branch if it does not exist
-    #[arg(long, short = 'c', default_value = "false", help = "Create the branch if it does not exist")]
+    #[arg(
+        long,
+        short = 'c',
+        default_value = "false",
+        help = "Create the branch if it does not exist"
+    )]
     pub create: bool,
     /// Maximum depth to search for repositories
-    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(default_value = ".", help = "Path to the directory to search for repositories, defaults to current directory")]
+    #[arg(
+        default_value = ".",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
-    #[arg(long, default_value = "false", help = "Dry run: show what would be changed without making any modifications")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
@@ -81,13 +123,25 @@ pub struct RenameArgs {
     #[arg(help = "New branch name")]
     pub new_name: String,
     /// Maximum depth to search for repositories
-    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(default_value = ".", help = "Path to the directory to search for repositories, defaults to current directory")]
+    #[arg(
+        default_value = ".",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
-    #[arg(long, default_value = "false", help = "Dry run: show what would be changed without making any modifications")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 

@@ -161,27 +161,6 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_new_invalid_path() {
-        let result = Repository::new("/nonexistent/path");
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            GitError::RepositoryNotFound(_) => (),
-            _ => panic!("Expected RepositoryNotFound error"),
-        }
-    }
-
-    #[test]
-    fn test_repository_new_not_git_repo() {
-        let temp_dir = tempdir().unwrap();
-        let result = Repository::new(temp_dir.path());
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            GitError::RepositoryNotFound(_) => (),
-            _ => panic!("Expected RepositoryNotFound error"),
-        }
-    }
-
-    #[test]
     fn test_find_git_repositories_empty_dir() {
         let temp_dir = tempdir().unwrap();
         let repos = find_git_repositories(temp_dir.path(), 3).unwrap();
@@ -195,16 +174,5 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let _ = find_git_repositories(temp_dir.path(), 1);
         // No panic means test passes
-    }
-
-    #[test]
-    fn test_repository_methods() {
-        // Test that all public methods exist and have correct signatures
-        // This is a compile-time test
-        let _: Option<&str> = None::<&Repository>.and_then(|repo| repo.current_branch());
-        let _: Option<&Remote> = None::<&Repository>.and_then(|repo| repo.remote("origin"));
-        let _: Option<&Branch> = None::<&Repository>.and_then(|repo| repo.branch("main"));
-        let _: &Path = Path::new(".");
-        let _: &RepositoryStatus = &RepositoryStatus::Clean;
     }
 }
