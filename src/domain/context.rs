@@ -65,4 +65,37 @@ mod tests {
         assert_eq!(config.repository.max_depth, 3);
         assert!(!config.repository.skip_dirs.is_empty());
     }
+
+    #[test]
+    fn test_multiple_calls_return_same_git_runner() {
+        // This test verifies that multiple calls to git_runner() return the same instance
+        // confirming the singleton pattern is working correctly
+        let ctx = AppContext::global();
+
+        // Collect multiple references
+        let runners: Vec<&GitCommandRunner> = (0..10).map(|_| ctx.git_runner()).collect();
+
+        // All should point to the same instance
+        let first = runners[0];
+        for runner in &runners[1..] {
+            assert!(
+                std::ptr::eq(first, *runner),
+                "GitCommandRunner instances should be identical"
+            );
+        }
+    }
+
+    #[test]
+    fn test_singleton_persists_across_multiple_global_calls() {
+        // Verify that the singleton persists across multiple global() calls
+        let ctx1 = AppContext::global();
+        let runner1 = ctx1.git_runner();
+
+        let ctx2 = AppContext::global();
+        let runner2 = ctx2.git_runner();
+
+        // Both should be the same instance
+        assert!(std::ptr::eq(ctx1, ctx2));
+        assert!(std::ptr::eq(runner1, runner2));
+    }
 }

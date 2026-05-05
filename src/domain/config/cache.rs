@@ -9,6 +9,10 @@ pub struct ConfigCache {
     gitlab_config: RwLock<Option<GitLabConfig>>,
 }
 
+// Test-only counter to verify lazy loading behavior
+#[cfg(test)]
+static CONFIG_LOAD_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 #[allow(dead_code)]
 impl ConfigCache {
     pub fn new() -> Self {
@@ -25,6 +29,9 @@ impl ConfigCache {
                 return config.clone();
             }
         }
+
+        #[cfg(test)]
+        CONFIG_LOAD_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         let config = ConfigDir::load_config();
         let mut guard = self.config.write().unwrap();
@@ -67,6 +74,7 @@ impl Default for ConfigCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn test_cache_returns_same_values() {
@@ -97,5 +105,49 @@ mod tests {
 
         assert_eq!(config.repository.max_depth, 3);
         assert!(!config.repository.skip_dirs.is_empty());
+    }
+
+    #[test]
+    fn test_lazy_loading_only_loads_once() {
+        // Reset the counter before this test
+        CONFIG_LOAD_COUNT.store(0, Ordering::SeqCst);
+
+        let cache = ConfigCache::new();
+
+        // First call should trigger load
+        let _config1 = cache.get();
+        let loads_after_first = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
+        assert_eq!(loads_after_first, 1, "Config should be loaded once on first access");
+
+        // Second call should use cache, not load again
+        let _config2 = cache.get();
+        let loads_after_second = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
+        assert_eq!(loads_after_second, 1, "Config should not be loaded again on second access");
+
+        // Third call should still use cache
+        let _config3 = cache.get();
+        let loads_after_third = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
+        assert_eq!(loads_after_third, 1, "Config should still use cache on subsequent accesses");
+    }
+
+    #[test]
+    fn test_refresh_clears_cache_and_reloads() {
+        // Reset the counter before this test
+        CONFIG_LOAD_COUNT.store(0, Ordering::SeqCst);
+
+        let cache = ConfigCache::new();
+
+        // First load
+        let _config1 = cache.get();
+        let loads_after_first = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
+        assert_eq!(loads_after_first, 1);
+
+        // Refresh should clear cache
+        cache.refresh();
+
+        // Next access should reload
+        let _config2 = cache.get();
+        let loads_after_refresh = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
+        assert_eq!(loads_after_refresh, 2, "Config should be reloaded after refresh");
     }
 }
