@@ -1,4 +1,4 @@
-use crate::domain::git::command::GitCommandRunner;
+use crate::domain::context::AppContext;
 use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
@@ -24,7 +24,7 @@ impl DryRunContext {
 
         Output::cmd(&format!("{} {}", program, args.join(" ")));
 
-        let runner = GitCommandRunner::new();
+        let runner = AppContext::global().git_runner();
         let output = if let Some(dir) = dir {
             runner.execute_raw_in_dir(args, dir)
         } else {
