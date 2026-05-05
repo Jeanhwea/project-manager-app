@@ -1,9 +1,6 @@
-//! CLI parser implementation
-
 use super::commands::{Cli, CommandArgs, CommandName, Commands, ParsedCommand};
 use clap::Parser;
 
-/// Trait for parsing CLI arguments into commands
 pub trait CliParser {
     fn parse() -> Result<ParsedCommand, anyhow::Error>;
 }

@@ -1,7 +1,3 @@
-//! Commands module
-//!
-//! Defines command implementations and their argument types.
-
 pub mod branch;
 pub mod config;
 pub mod doctor;
@@ -13,16 +9,13 @@ pub mod snap;
 pub mod status;
 pub mod sync;
 
-/// Command trait for executing commands
 pub trait Command {
     type Args;
     fn execute(args: Self::Args) -> CommandResult;
 }
 
-/// Command result type
 pub type CommandResult = Result<(), CommandError>;
 
-/// Command error type
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     #[error("参数无效: {0}")]

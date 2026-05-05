@@ -1,5 +1,3 @@
-//! Command dispatcher implementation
-
 use super::{CliResult, CommandArgs, CommandName, ParsedCommand};
 use crate::commands::{
     Command, CommandError, branch::BranchCommand, config::ConfigCommand, doctor::DoctorCommand,
@@ -7,7 +5,6 @@ use crate::commands::{
     snap::SnapCommand, status::StatusCommand, sync::SyncCommand,
 };
 
-/// Trait for dispatching parsed commands to their handlers
 pub trait CommandDispatcher {
     fn dispatch(command: ParsedCommand) -> CliResult;
 }
