@@ -7,6 +7,10 @@ impl ErrorHandler {
         eprintln!("错误: {} - {}", context, error);
     }
 
+    pub fn print_error_anyhow(context: &str, error: &anyhow::Error) {
+        eprintln!("错误: {} - {}", context, error);
+    }
+
     pub fn print_warning(msg: &str) {
         eprintln!("警告: {}", msg);
     }
@@ -17,6 +21,14 @@ impl ErrorHandler {
         while let Some(e) = source {
             msg.push_str(&format!("\n  原因: {}", e));
             source = e.source();
+        }
+        msg
+    }
+
+    pub fn format_anyhow_with_chain(error: &anyhow::Error) -> String {
+        let mut msg = error.to_string();
+        for e in error.chain().skip(1) {
+            msg.push_str(&format!("\n  原因: {}", e));
         }
         msg
     }
