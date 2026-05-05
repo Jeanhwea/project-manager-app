@@ -8,12 +8,16 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, clap::Args)]
 pub struct StatusArgs {
     /// Maximum depth to search for repositories
+    #[arg(long)]
     pub max_depth: Option<usize>,
     /// Show short status (branch + clean/dirty only)
+    #[arg(long)]
     pub short: bool,
     /// Filter repositories by status
+    #[arg(long)]
     pub filter: Option<StatusFilter>,
     /// Path to the directory to search for repositories
+    #[arg(long)]
     pub path: Option<String>,
 }
 
