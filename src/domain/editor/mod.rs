@@ -16,14 +16,13 @@ pub use package_json::PackageJsonEditor;
 pub use pom_xml::PomXmlEditor;
 pub use project_py::PythonVersionEditor;
 pub use pyproject::PyprojectEditor;
-#[allow(unused_imports)]
-pub use version_bump::{apply_bump, BumpType, EditorConfig, Version};
+pub use version_bump::{BumpType, EditorConfig, Version, apply_bump};
 pub use version_text::VersionTextEditor;
 
 use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
+
 pub enum EditorError {
     #[error("File not found: {0}")]
     FileNotFound(String),
@@ -64,7 +63,7 @@ pub trait FileEditor: Send + Sync {
 }
 
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
+
 pub struct VersionLocation {
     pub project_version: Option<VersionPosition>,
     pub parent_version: Option<VersionPosition>,
@@ -73,7 +72,7 @@ pub struct VersionLocation {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+
 pub struct VersionPosition {
     pub start: usize,
     pub end: usize,
@@ -81,7 +80,7 @@ pub struct VersionPosition {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+
 pub struct DependencyRef {
     pub name_pattern: String,
     pub position: VersionPosition,
@@ -130,7 +129,6 @@ impl EditorRegistry {
         self
     }
 
-    #[allow(dead_code)]
     pub fn get(&self, name: &str) -> Option<std::sync::Arc<dyn FileEditor>> {
         self.editors.get(name).cloned()
     }
@@ -176,7 +174,6 @@ impl EditorRegistry {
         Ok(edited)
     }
 
-    #[allow(dead_code)]
     pub fn edit_file(&self, path: &Path, new_version: &str) -> Result<()> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
@@ -191,7 +188,6 @@ impl EditorRegistry {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn list(&self) -> Vec<&'static str> {
         self.editors.keys().copied().collect()
     }
@@ -233,7 +229,6 @@ pub fn preserve_line_endings(original: &str, edited: String) -> String {
     }
 }
 
-#[allow(dead_code)]
 pub fn bump_version_in_file(
     path: &Path,
     bump_type: BumpType,
@@ -288,7 +283,6 @@ pub fn bump_version_in_file(
     ))
 }
 
-#[allow(dead_code)]
 pub fn get_version_from_file(path: &Path) -> Result<String> {
     let registry = EditorRegistry::default_with_editors();
 
@@ -420,7 +414,7 @@ mod tests {
         let content = r#"[package]
 name = "test"
 version = "1.2.3"
-        
+
 [dependencies]
 serde = "1.0""#;
 

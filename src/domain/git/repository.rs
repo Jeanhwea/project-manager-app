@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+
 pub struct Repository {
     pub path: PathBuf,
     pub status: RepositoryStatus,
@@ -18,7 +18,7 @@ pub use super::remote::Remote;
 
 /// Git branch information
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+
 pub struct Branch {
     pub name: String,
     pub is_current: bool,
@@ -40,7 +40,6 @@ pub struct RepoInfo {
 }
 
 impl Repository {
-    #[allow(dead_code)]
     pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
 
@@ -161,42 +160,34 @@ impl Repository {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn path(&self) -> &Path {
         &self.path
     }
 
-    #[allow(dead_code)]
     pub fn status(&self) -> &RepositoryStatus {
         &self.status
     }
 
-    #[allow(dead_code)]
     pub fn remotes(&self) -> &[Remote] {
         &self.remotes
     }
 
-    #[allow(dead_code)]
     pub fn branches(&self) -> &[Branch] {
         &self.branches
     }
 
-    #[allow(dead_code)]
     pub fn repo_type(&self) -> &RepoType {
         &self.repo_type
     }
 
-    #[allow(dead_code)]
     pub fn is_clean(&self) -> bool {
         self.status == RepositoryStatus::Clean
     }
 
-    #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         self.status == RepositoryStatus::Dirty
     }
 
-    #[allow(dead_code)]
     pub fn current_branch(&self) -> Option<&str> {
         self.branches
             .iter()
@@ -204,19 +195,17 @@ impl Repository {
             .map(|b| b.name.as_str())
     }
 
-    #[allow(dead_code)]
     pub fn remote(&self, name: &str) -> Option<&Remote> {
         self.remotes.iter().find(|r| r.name == name)
     }
 
-    #[allow(dead_code)]
     pub fn branch(&self, name: &str) -> Option<&Branch> {
         self.branches.iter().find(|b| b.name == name)
     }
 }
 
 /// Check if a path is a Git repository by verifying the `.git` directory exists.
-#[allow(dead_code)]
+
 pub fn is_git_repo(path: &Path) -> bool {
     path.is_dir() && path.join(".git").is_dir()
 }
@@ -423,7 +412,6 @@ impl RepoWalker {
     }
 }
 
-#[allow(dead_code)]
 pub fn for_each_repo<F>(root_path: &Path, max_depth: usize, mut callback: F) -> Result<()>
 where
     F: FnMut(&Path) -> Result<()>,

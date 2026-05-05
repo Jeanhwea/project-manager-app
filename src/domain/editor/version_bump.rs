@@ -6,7 +6,7 @@ use std::fmt;
 
 /// Version bump type
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
+
 pub enum BumpType {
     Major,
     Minor,
@@ -52,7 +52,7 @@ impl Version {
     }
 
     /// Parse version from tag like "v1.2.3"
-    #[allow(dead_code)]
+
     pub fn from_tag(tag: &str) -> Option<Self> {
         let tag = tag.trim();
         let version_str = tag.strip_prefix('v').unwrap_or(tag);
@@ -82,7 +82,7 @@ impl Version {
     }
 
     /// Convert version to tag string like "v1.2.3"
-    #[allow(dead_code)]
+
     pub fn to_tag(&self) -> String {
         format!("v{}.{}.{}", self.major, self.minor, self.patch)
     }
@@ -95,7 +95,7 @@ impl fmt::Display for Version {
 }
 
 /// Apply version bump to a version string
-#[allow(dead_code)]
+
 pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
     let v = Version::parse(version)?;
 
@@ -110,7 +110,7 @@ pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
 
 /// Version editing configuration
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
+
 pub struct EditorConfig {
     pub dry_run: bool,
     pub skip_push: bool,

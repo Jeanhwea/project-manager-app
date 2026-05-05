@@ -27,12 +27,12 @@ pub enum GitLabError {
 pub struct GitLabConfig {
     pub server: Option<String>,
     pub token: Option<String>,
-    #[allow(dead_code)]
+
     pub default_protocol: CloneProtocol,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
+
 pub enum CloneProtocol {
     Ssh,
     Http,

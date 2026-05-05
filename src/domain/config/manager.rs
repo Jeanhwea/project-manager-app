@@ -52,7 +52,6 @@ impl ConfigDir {
         }
     }
 
-    #[allow(dead_code)]
     pub fn save_config(config: &AppConfig) -> Result<()> {
         Self::ensure_dir()?;
         let path = Self::config_path();
