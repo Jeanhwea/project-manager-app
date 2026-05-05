@@ -2,6 +2,7 @@ use super::{Command, CommandResult};
 use crate::domain::context::AppContext;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
+use crate::utils::error::ErrorHandler;
 use crate::utils::output::{ItemColor, Output};
 use std::path::{Path, PathBuf};
 
@@ -459,13 +460,14 @@ fn clean_merged_branches(
     remote: bool,
     dry_run: bool,
 ) -> Result<(), crate::domain::git::GitError> {
-    // Get current branch
     let current = match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
         Ok(output) => output.trim().to_string(),
-        Err(_) => "master".to_string(),
+        Err(e) => {
+            ErrorHandler::print_error("无法获取当前分支", &e);
+            "master".to_string()
+        }
     };
 
-    // Get merged branches
     let merged_branches =
         match runner.execute_in_dir(&["branch", "--merged", &current], repo_path) {
             Ok(output) => output
@@ -495,13 +497,12 @@ fn clean_merged_branches(
         } else {
             match runner.execute_with_success_in_dir(&["branch", "-d", branch], repo_path) {
                 Ok(_) => Output::success(&format!("本地分支 {}", branch)),
-                Err(e) => Output::error(&format!("本地分支 {} - {}", branch, e)),
+                Err(e) => ErrorHandler::print_error(&format!("删除本地分支 {}", branch), &e),
             }
         }
     }
 
     if remote {
-        // Get remote merged branches
         let remote_merged =
             match runner.execute_in_dir(&["branch", "-r", "--merged", &current], repo_path) {
                 Ok(output) => output
@@ -533,7 +534,9 @@ fn clean_merged_branches(
                         repo_path,
                     ) {
                         Ok(_) => Output::success(&format!("远程分支 {}", branch)),
-                        Err(e) => Output::error(&format!("远程分支 {} - {}", branch, e)),
+                        Err(e) => {
+                            ErrorHandler::print_error(&format!("删除远程分支 {}", branch), &e)
+                        }
                     }
                 }
             }
