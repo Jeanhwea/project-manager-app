@@ -14,16 +14,22 @@ pub struct ReleaseArgs {
     /// Files to update version (auto-detect if empty)
     pub files: Vec<String>,
     /// Stay in current directory instead of switching to git root
+    #[arg(long)]
     pub no_root: bool,
     /// Force release even if not on master branch
+    #[arg(long)]
     pub force: bool,
     /// Skip pushing tags and branches to remotes
+    #[arg(long)]
     pub skip_push: bool,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(long)]
     pub dry_run: bool,
     /// Custom commit message (tag name will be prepended automatically)
+    #[arg(long)]
     pub message: Option<String>,
     /// Pre-release suffix (e.g. "alpha", "rc.1" -> v1.0.0-alpha)
+    #[arg(long)]
     pub pre_release: Option<String>,
 }
 

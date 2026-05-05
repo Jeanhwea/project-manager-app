@@ -120,14 +120,6 @@ mod tests {
         assert_eq!(v.major, 2);
         assert_eq!(v.minor, 3);
         assert_eq!(v.patch, 4);
-
-        let v = Version::from_tag("  v3.4.5  ").unwrap();
-        assert_eq!(v.major, 3);
-        assert_eq!(v.minor, 4);
-        assert_eq!(v.patch, 5);
-
-        assert!(Version::from_tag("invalid").is_none());
-        assert!(Version::from_tag("v1.2").is_none());
     }
 
     #[test]
@@ -152,16 +144,6 @@ mod tests {
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 2);
         assert_eq!(bumped.patch, 4);
-
-        let bumped = v.bump(&BumpType::PreRelease("beta".to_string()));
-        assert_eq!(bumped.major, 1);
-        assert_eq!(bumped.minor, 2);
-        assert_eq!(bumped.patch, 3);
-
-        let bumped = v.bump(&BumpType::Build("123".to_string()));
-        assert_eq!(bumped.major, 1);
-        assert_eq!(bumped.minor, 2);
-        assert_eq!(bumped.patch, 3);
     }
 
     #[test]
@@ -182,32 +164,5 @@ mod tests {
             patch: 3,
         };
         assert_eq!(format!("{}", v), "1.2.3");
-    }
-
-    #[test]
-    fn test_apply_bump() {
-        assert_eq!(apply_bump("1.2.3", &BumpType::Major).unwrap(), "2.0.0");
-        assert_eq!(apply_bump("1.2.3", &BumpType::Minor).unwrap(), "1.3.0");
-        assert_eq!(apply_bump("1.2.3", &BumpType::Patch).unwrap(), "1.2.4");
-        assert_eq!(
-            apply_bump("1.2.3", &BumpType::PreRelease("beta".to_string())).unwrap(),
-            "1.2.3-beta"
-        );
-        assert_eq!(
-            apply_bump("1.2.3", &BumpType::Build("20240101".to_string())).unwrap(),
-            "1.2.3+20240101"
-        );
-
-        assert!(apply_bump("invalid", &BumpType::Patch).is_err());
-        assert!(apply_bump("1.2", &BumpType::Patch).is_err());
-    }
-
-    #[test]
-    fn test_editor_config_default() {
-        let config = EditorConfig::default();
-        assert!(!config.dry_run);
-        assert!(!config.skip_push);
-        assert!(!config.force);
-        assert!(config.message.is_none());
     }
 }

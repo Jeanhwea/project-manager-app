@@ -8,11 +8,23 @@ use std::path::{Path, PathBuf};
 /// Doctor command arguments
 #[derive(Debug, clap::Args)]
 pub struct DoctorArgs {
+    /// Maximum depth to search for repositories
+    #[arg(long)]
     pub max_depth: Option<usize>,
+    /// Run garbage collection
+    #[arg(long)]
     pub gc: bool,
+    /// Rename remotes based on URL
+    #[arg(long)]
     pub rename: bool,
+    /// Automatically fix issues
+    #[arg(long)]
     pub fix: bool,
+    /// Path to the directory to search for repositories
+    #[arg(long)]
     pub path: Option<String>,
+    /// Dry run: show what would be changed without making any modifications
+    #[arg(long)]
     pub dry_run: bool,
 }
 

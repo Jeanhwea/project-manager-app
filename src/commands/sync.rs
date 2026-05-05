@@ -12,18 +12,25 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
     /// Maximum depth to search for repositories
+    #[arg(long)]
     pub max_depth: Option<usize>,
     /// Remotes to skip
+    #[arg(long)]
     pub skip_remotes: Vec<String>,
     /// Whether to pull all local branches
+    #[arg(long)]
     pub all_branch: bool,
     /// Path to the directory to search for repositories
+    #[arg(long)]
     pub path: Option<String>,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(long)]
     pub dry_run: bool,
     /// Only fetch from remotes, do not pull or push
+    #[arg(long)]
     pub fetch_only: bool,
     /// Use rebase instead of merge when pulling
+    #[arg(long)]
     pub rebase: bool,
 }
 

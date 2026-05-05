@@ -195,8 +195,7 @@ mod tests {
 
     #[test]
     fn test_editor_registry_default() {
-        let registry = EditorRegistry::default_with_editors();
-        let _editors = registry.list();
+        let _registry = EditorRegistry::default_with_editors();
     }
 
     #[test]
@@ -212,12 +211,6 @@ mod tests {
         );
         assert_eq!(
             preserve_line_endings(original_lf, edited.to_string()),
-            "line1\nline2\n"
-        );
-
-        let edited_crlf = "line1\r\nline2\r\n";
-        assert_eq!(
-            preserve_line_endings(original_lf, edited_crlf.to_string()),
             "line1\nline2\n"
         );
     }

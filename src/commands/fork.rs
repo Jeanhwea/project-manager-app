@@ -14,6 +14,7 @@ pub struct ForkArgs {
     /// Name of the project
     pub name: String,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(long)]
     pub dry_run: bool,
 }
 
