@@ -8,17 +8,17 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, clap::Args)]
 pub struct StatusArgs {
     /// Maximum depth to search for repositories
-    #[arg(long)]
+    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
     pub max_depth: Option<usize>,
     /// Show short status (branch + clean/dirty only)
-    #[arg(long)]
+    #[arg(long, short, default_value = "false", help = "Show short status (branch + clean/dirty only)")]
     pub short: bool,
     /// Filter repositories by status
-    #[arg(long)]
+    #[arg(long, short, value_enum, help = "Filter repositories by status: dirty, clean, ahead, behind")]
     pub filter: Option<StatusFilter>,
-    /// Path to the directory to search for repositories
-    #[arg(long)]
-    pub path: Option<String>,
+    /// Path to the directory to search for repositories, defaults to current directory
+    #[arg(default_value = ".", help = "Path to the directory to search for repositories, defaults to current directory")]
+    pub path: String,
 }
 
 /// Status filter enumeration
