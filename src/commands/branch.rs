@@ -36,7 +36,7 @@ pub struct ListArgs {
     pub max_depth: Option<usize>,
     /// Path to the directory to search for repositories, defaults to current directory
     #[arg(
-        default_value = ".",
+        default_value = "",
         help = "Path to the directory to search for repositories, defaults to current directory"
     )]
     pub path: String,
@@ -63,7 +63,7 @@ pub struct CleanArgs {
     pub remote: bool,
     /// Path to the directory to search for repositories, defaults to current directory
     #[arg(
-        default_value = ".",
+        default_value = "",
         help = "Path to the directory to search for repositories, defaults to current directory"
     )]
     pub path: String,
@@ -100,7 +100,7 @@ pub struct SwitchArgs {
     pub max_depth: Option<usize>,
     /// Path to the directory to search for repositories, defaults to current directory
     #[arg(
-        default_value = ".",
+        default_value = "",
         help = "Path to the directory to search for repositories, defaults to current directory"
     )]
     pub path: String,

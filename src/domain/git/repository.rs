@@ -1,10 +1,6 @@
 use super::{GitError, Result};
-use crate::utils::path::canonicalize_path;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-/// Git remote repository (re-export from remote module)
-pub use super::remote::Remote;
 
 /// Repository type
 #[derive(Debug, Clone, PartialEq)]
@@ -26,7 +22,6 @@ pub fn is_git_repo(path: &Path) -> bool {
 }
 
 /// Search for a Git repository by traversing up the directory tree.
-/// Returns the first Git repository found, or None if not found.
 pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
     let mut current = start_dir;
 
@@ -169,10 +164,7 @@ mod tests {
 
     #[test]
     fn test_find_git_repositories_nested() {
-        // This test would require creating a mock Git repository structure
-        // For now, just test that the function doesn't panic
         let temp_dir = tempdir().unwrap();
         let _ = find_git_repositories(temp_dir.path(), 1);
-        // No panic means test passes
     }
 }

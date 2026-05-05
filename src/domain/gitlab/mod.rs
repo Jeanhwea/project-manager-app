@@ -1,4 +1,3 @@
-pub mod auth;
 pub mod client;
 pub mod models;
 
@@ -27,16 +26,6 @@ pub enum GitLabError {
 pub struct GitLabConfig {
     pub server: Option<String>,
     pub token: Option<String>,
-
-    pub default_protocol: CloneProtocol,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-
-pub enum CloneProtocol {
-    Ssh,
-    Http,
-    Https,
 }
 
 impl Default for GitLabConfig {
@@ -44,7 +33,6 @@ impl Default for GitLabConfig {
         Self {
             server: None,
             token: None,
-            default_protocol: CloneProtocol::Https,
         }
     }
 }

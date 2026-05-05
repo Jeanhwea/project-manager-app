@@ -4,9 +4,6 @@ pub mod repository;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
-    #[error("Repository not found: {0}")]
-    RepositoryNotFound(String),
-
     #[error("Git command failed: {0}")]
     CommandFailed(String),
 
@@ -29,15 +26,6 @@ pub enum GitProtocol {
     Http,
     Https,
     Git,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum RepositoryStatus {
-    Clean,
-    Dirty,
-    UnpushedCommits,
-    Diverged,
-    Unknown,
 }
 
 pub type Result<T> = std::result::Result<T, GitError>;

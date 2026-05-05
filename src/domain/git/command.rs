@@ -40,25 +40,8 @@ impl GitCommandRunner {
         self.check_success(args, Some(dir))
     }
 
-    pub fn execute_quiet(&self, args: &[&str]) -> Result<Output> {
-        self.run(args, None)
-    }
-
     pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<Output> {
         self.run(args, Some(dir))
-    }
-
-    pub fn is_git_available(&self) -> bool {
-        Command::new("git")
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok()
-    }
-
-    pub fn get_git_version(&self) -> Result<String> {
-        self.execute(&["--version"])
     }
 
     fn run(&self, args: &[&str], dir: Option<&Path>) -> Result<Output> {
@@ -129,15 +112,6 @@ impl Default for GitCommandRunner {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_git_version() {
-        let runner = GitCommandRunner::new();
-        if runner.is_git_available() {
-            let version = runner.get_git_version().unwrap();
-            assert!(version.contains("git version"));
-        }
-    }
 
     #[test]
     fn test_execute_in_nonexistent_dir() {
