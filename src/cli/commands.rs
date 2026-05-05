@@ -1,36 +1,23 @@
-//! Command definitions and types
+//! Command definitions for CLI parsing
 //!
-//! This module contains all CLI command definitions organized by functionality.
-//! Each command is defined in its own module for better maintainability.
+//! This module re-exports command types from the commands module for CLI parsing.
+//! The Args structures derive clap::Args/Subcommand/ValueEnum for CLI parsing.
 
-mod branch;
-mod config;
-mod doctor;
-mod fork;
-mod gitlab;
-mod release;
-mod selfman;
-mod snap;
-mod status;
-mod sync;
-
-pub use branch::BranchCommands;
-pub use config::ConfigCommands;
-pub use doctor::DoctorCmd;
-pub use fork::ForkCmd;
-pub use gitlab::{CloneProtocol, GitlabCommands};
-pub use release::ReleaseCmd;
-pub use selfman::SelfCommands;
-pub use snap::SnapCommands;
-pub use status::{StatusCmd, StatusFilter};
-pub use sync::SyncCmd;
-
-use crate::commands::{
-    branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs,
-    gitlab::GitLabArgs, release::ReleaseArgs, selfman::SelfManArgs, snap::SnapArgs,
-    status::StatusArgs, sync::SyncArgs,
+// Re-export types from commands module
+pub use crate::commands::{
+    branch::BranchArgs,
+    config::ConfigArgs,
+    doctor::DoctorArgs,
+    fork::ForkArgs,
+    gitlab::GitLabArgs,
+    release::ReleaseArgs,
+    selfman::SelfManArgs,
+    snap::SnapArgs,
+    status::StatusArgs,
+    sync::SyncArgs,
 };
-use clap::{Parser, Subcommand};
+
+use clap::Parser;
 
 /// Main CLI structure
 #[derive(Parser)]
@@ -81,51 +68,56 @@ pub enum CommandArgs {
 }
 
 /// All available commands
-#[derive(Subcommand)]
+#[derive(clap::Subcommand)]
 pub enum Commands {
     /// Release a new version
-    Release(ReleaseCmd),
+    #[command(visible_alias = "re")]
+    Release(ReleaseArgs),
 
     /// Synchronize all code repositories
-    Sync(SyncCmd),
+    #[command(visible_alias = "s")]
+    Sync(SyncArgs),
 
     /// Diagnostic project health
-    Doctor(DoctorCmd),
+    Doctor(DoctorArgs),
 
     /// Fork a new project from a template
-    Fork(ForkCmd),
+    Fork(ForkArgs),
 
     /// GitLab integration commands
+    #[command(visible_alias = "gl")]
     Gitlab {
         #[command(subcommand)]
-        command: GitlabCommands,
+        command: GitLabArgs,
     },
 
     /// Snapshot a project
     Snap {
         #[command(subcommand)]
-        command: SnapCommands,
+        command: SnapArgs,
     },
 
     /// Show status of all code repositories
-    Status(StatusCmd),
+    #[command(visible_alias = "st")]
+    Status(StatusArgs),
 
     /// Manage branches across repositories
+    #[command(visible_alias = "br")]
     Branch {
         #[command(subcommand)]
-        command: BranchCommands,
+        command: BranchArgs,
     },
 
     /// Self management commands
     #[command(name = "self")]
     Self_ {
         #[command(subcommand)]
-        command: SelfCommands,
+        command: SelfManArgs,
     },
 
     /// Manage configuration
     Config {
         #[command(subcommand)]
-        command: ConfigCommands,
+        command: ConfigArgs,
     },
 }

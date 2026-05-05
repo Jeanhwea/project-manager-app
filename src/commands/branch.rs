@@ -5,20 +5,26 @@ use crate::utils::output::{ItemColor, Output};
 use std::path::{Path, PathBuf};
 
 /// Branch command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Subcommand)]
 pub enum BranchArgs {
     /// List branches across all repositories
+    #[command(visible_alias = "ls")]
     List(ListArgs),
+
     /// Clean merged branches across all repositories
     Clean(CleanArgs),
+
     /// Switch to a branch across all repositories
+    #[command(visible_alias = "sw")]
     Switch(SwitchArgs),
+
     /// Rename a branch across all repositories
+    #[command(visible_alias = "mv")]
     Rename(RenameArgs),
 }
 
 /// List branches arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct ListArgs {
     /// Maximum depth to search for repositories
     pub max_depth: Option<usize>,
@@ -27,7 +33,7 @@ pub struct ListArgs {
 }
 
 /// Clean branches arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct CleanArgs {
     /// Maximum depth to search for repositories
     pub max_depth: Option<usize>,
@@ -40,7 +46,7 @@ pub struct CleanArgs {
 }
 
 /// Switch branch arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct SwitchArgs {
     /// Branch name to switch to
     pub branch: String,
@@ -55,7 +61,7 @@ pub struct SwitchArgs {
 }
 
 /// Rename branch arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct RenameArgs {
     /// Old branch name
     pub old_name: String,

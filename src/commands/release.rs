@@ -7,7 +7,7 @@ use regex::Regex;
 use std::path::Path;
 
 /// Release command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct ReleaseArgs {
     /// Bump type: major, minor, or patch
     pub bump_type: crate::cli::BumpType,

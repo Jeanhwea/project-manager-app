@@ -9,7 +9,7 @@ use crate::utils::path::format_path;
 use std::path::{Path, PathBuf};
 
 /// Sync command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct SyncArgs {
     /// Maximum depth to search for repositories
     pub max_depth: Option<usize>,

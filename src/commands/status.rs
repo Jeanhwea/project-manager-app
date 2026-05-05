@@ -5,7 +5,7 @@ use crate::utils::output::{ItemColor, Output, SummaryBuilder};
 use std::path::{Path, PathBuf};
 
 /// Status command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct StatusArgs {
     /// Maximum depth to search for repositories
     pub max_depth: Option<usize>,

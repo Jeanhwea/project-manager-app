@@ -4,7 +4,7 @@ use crate::domain::config::schema;
 use crate::utils::output::Output;
 
 /// Configuration command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Subcommand)]
 pub enum ConfigArgs {
     /// Initialize a default configuration file
     Init,

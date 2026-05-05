@@ -6,7 +6,7 @@ use crate::utils::output::Output;
 use std::path::{Path, PathBuf};
 
 /// Doctor command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct DoctorArgs {
     pub max_depth: Option<usize>,
     pub gc: bool,

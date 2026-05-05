@@ -1,5 +1,10 @@
+//! CLI command definitions
+//!
+//! This module re-exports command types from the commands module for CLI parsing.
+//! The Args structures derive clap::Args/Subcommand/ValueEnum for CLI parsing.
+
 mod args;
-pub mod commands;
+mod commands;
 mod dispatcher;
 mod parser;
 mod styles;

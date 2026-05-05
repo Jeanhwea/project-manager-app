@@ -6,40 +6,65 @@ use anyhow::Result;
 use std::path::Path;
 
 /// Snap command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Subcommand)]
 pub enum SnapArgs {
     /// Create a snapshot of the current project state
     Create(CreateArgs),
     /// List snapshot history
+    #[command(visible_alias = "ls")]
     List(ListArgs),
     /// Restore project to a specific snapshot
+    #[command(visible_alias = "rs")]
     Restore(RestoreArgs),
 }
 
 /// Create snapshot arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct CreateArgs {
-    /// Path to the project to snapshot
+    /// Path to the project to snapshot, defaults to current directory
+    #[arg(
+        default_value = ".",
+        help = "Path to the project to snapshot, defaults to current directory"
+    )]
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
 /// List snapshots arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct ListArgs {
-    /// Path to the project
+    /// Path to the project, defaults to current directory
+    #[arg(
+        default_value = ".",
+        help = "Path to the project, defaults to current directory"
+    )]
     pub path: String,
 }
 
 /// Restore snapshot arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct RestoreArgs {
     /// Snapshot reference (e.g. snap-000001, #0, or commit hash)
+    #[arg(help = "Snapshot reference (e.g. snap-000001, #0, or commit hash)")]
     pub snapshot: String,
-    /// Path to the project
+    /// Path to the project, defaults to current directory
+    #[arg(
+        default_value = ".",
+        help = "Path to the project, defaults to current directory"
+    )]
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Fork command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct ForkArgs {
     /// Path to fork the project from
     pub path: String,

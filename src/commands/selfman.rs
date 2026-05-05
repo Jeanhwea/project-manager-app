@@ -36,18 +36,26 @@ struct Asset {
 }
 
 /// Self management command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Subcommand)]
 pub enum SelfManArgs {
     /// Update to the latest version from GitHub releases
+    #[command(visible_alias = "up")]
     Update(UpdateArgs),
     /// Display the current version
+    #[command(visible_alias = "ver")]
     Version,
 }
 
 /// Update command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct UpdateArgs {
     /// Force update even if already on the latest version
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Force update even if already on the latest version"
+    )]
     pub force: bool,
 }
 
