@@ -4,7 +4,6 @@ use std::fs;
 use std::path::PathBuf;
 
 /// GitLab token 管理
-
 pub struct AuthManager;
 
 impl AuthManager {

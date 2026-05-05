@@ -16,7 +16,6 @@ pub struct Repository {
 /// Git remote repository (re-export from remote module)
 pub use super::remote::Remote;
 
-/// Git branch information
 #[derive(Debug, Clone)]
 
 pub struct Branch {
@@ -205,7 +204,6 @@ impl Repository {
 }
 
 /// Check if a path is a Git repository by verifying the `.git` directory exists.
-
 pub fn is_git_repo(path: &Path) -> bool {
     path.is_dir() && path.join(".git").is_dir()
 }

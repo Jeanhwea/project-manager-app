@@ -213,7 +213,6 @@ impl RemoteManager {
     }
 
     /// Set remote URL
-
     pub fn set_remote_url(&self, repo_path: &Path, name: &str, url: &str) -> Result<()> {
         Remote::parse_url(url)?;
         let remotes = self.list_remotes(repo_path)?;

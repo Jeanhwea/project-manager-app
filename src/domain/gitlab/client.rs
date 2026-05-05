@@ -178,7 +178,6 @@ impl GitLabClient {
     }
 
     /// Get all projects accessible to the authenticated user
-
     pub fn get_projects(&self, owned: bool) -> Result<Vec<Project>> {
         let path = "projects";
         let query = if owned {
@@ -191,7 +190,6 @@ impl GitLabClient {
     }
 
     /// Get a specific project by ID
-
     pub fn get_project(&self, project_id: u64) -> Result<Project> {
         let path = format!("projects/{}", project_id);
         self.get(&path)
@@ -207,7 +205,6 @@ impl GitLabClient {
     }
 
     /// Get a specific group by ID
-
     pub fn get_group(&self, group_id: u64) -> Result<Group> {
         let path = format!("groups/{}", group_id);
         self.get(&path)
@@ -222,20 +219,17 @@ impl GitLabClient {
     }
 
     /// Test API connectivity
-
     pub fn test_connection(&self) -> Result<()> {
         self.get_current_user()?;
         Ok(())
     }
 
     /// Get the base URL
-
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
 
     /// Check if authentication is configured
-
     pub fn is_authenticated(&self) -> bool {
         self.config.token.is_some()
     }

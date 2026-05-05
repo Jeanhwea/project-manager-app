@@ -4,7 +4,6 @@ use std::path::Path;
 
 /// File types supported for version editing
 #[derive(Debug, Clone, PartialEq)]
-
 pub enum FileType {
     CargoToml,
     PackageJson,
@@ -17,7 +16,6 @@ pub enum FileType {
 }
 
 /// Detect file type from path
-
 pub fn detect_file_type(path: &Path) -> Option<FileType> {
     let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
