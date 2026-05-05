@@ -67,7 +67,6 @@ impl Output {
             ItemColor::Yellow => value.yellow(),
             ItemColor::Red => value.red(),
             ItemColor::Cyan => value.cyan(),
-            ItemColor::Dimmed => value.dimmed(),
         };
         println!("  {}: {}", label, colored_value);
     }
@@ -99,7 +98,6 @@ pub enum ItemColor {
     Yellow,
     Red,
     Cyan,
-    Dimmed,
 }
 
 pub struct SummaryBuilder {

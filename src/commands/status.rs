@@ -84,11 +84,12 @@ impl Command for StatusCommand {
 
     fn execute(args: Self::Args) -> CommandResult {
         // Get search path: use provided path or current directory
-        let search_path = match args.path {
-            Some(ref p) => PathBuf::from(p),
-            None => std::env::current_dir().map_err(|e| {
+        let search_path = if args.path.is_empty() || args.path == "." {
+            std::env::current_dir().map_err(|e| {
                 super::CommandError::ExecutionFailed(format!("获取当前目录失败: {}", e))
-            })?,
+            })?
+        } else {
+            PathBuf::from(&args.path)
         };
 
         // Search upwards for git repository root

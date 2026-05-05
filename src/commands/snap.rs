@@ -22,17 +22,10 @@ pub enum SnapArgs {
 #[derive(Debug, clap::Args)]
 pub struct CreateArgs {
     /// Path to the project to snapshot, defaults to current directory
-    #[arg(
-        default_value = ".",
-        help = "Path to the project to snapshot, defaults to current directory"
-    )]
+    #[arg(default_value = ".", help = "Path to the project to snapshot, defaults to current directory")]
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Dry run: show what would be changed without making any modifications"
-    )]
+    #[arg(long, default_value = "false", help = "Dry run: show what would be changed without making any modifications")]
     pub dry_run: bool,
 }
 
@@ -40,10 +33,7 @@ pub struct CreateArgs {
 #[derive(Debug, clap::Args)]
 pub struct ListArgs {
     /// Path to the project, defaults to current directory
-    #[arg(
-        default_value = ".",
-        help = "Path to the project, defaults to current directory"
-    )]
+    #[arg(default_value = ".", help = "Path to the project, defaults to current directory")]
     pub path: String,
 }
 
@@ -54,17 +44,10 @@ pub struct RestoreArgs {
     #[arg(help = "Snapshot reference (e.g. snap-000001, #0, or commit hash)")]
     pub snapshot: String,
     /// Path to the project, defaults to current directory
-    #[arg(
-        default_value = ".",
-        help = "Path to the project, defaults to current directory"
-    )]
+    #[arg(default_value = ".", help = "Path to the project, defaults to current directory")]
     pub path: String,
     /// Dry run: show what would be changed without making any modifications
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Dry run: show what would be changed without making any modifications"
-    )]
+    #[arg(long, default_value = "false", help = "Dry run: show what would be changed without making any modifications")]
     pub dry_run: bool,
 }
 

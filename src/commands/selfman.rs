@@ -50,12 +50,7 @@ pub enum SelfManArgs {
 #[derive(Debug, clap::Args)]
 pub struct UpdateArgs {
     /// Force update even if already on the latest version
-    #[arg(
-        long,
-        short,
-        default_value = "false",
-        help = "Force update even if already on the latest version"
-    )]
+    #[arg(long, short, default_value = "false", help = "Force update even if already on the latest version")]
     pub force: bool,
 }
 

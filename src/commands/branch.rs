@@ -108,10 +108,11 @@ impl Command for BranchCommand {
 }
 
 /// Get effective path by searching upwards for git repository
-fn get_effective_path(path: &Option<String>) -> PathBuf {
-    let search_path = match path {
-        Some(p) => PathBuf::from(p),
-        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+fn get_effective_path(path: &str) -> PathBuf {
+    let search_path = if path.is_empty() || path == "." {
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    } else {
+        PathBuf::from(path)
     };
     find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone())
 }

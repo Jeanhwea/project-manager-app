@@ -24,23 +24,13 @@ pub enum GitLabArgs {
 #[derive(Debug, clap::Args)]
 pub struct LoginArgs {
     /// GitLab server URL (will prompt if not provided)
-    #[arg(
-        long,
-        short,
-        help = "GitLab server URL (e.g. https://gitlab.com, http://192.168.0.110/gitlab/)"
-    )]
+    #[arg(long, short, help = "GitLab server URL (e.g. https://gitlab.com, http://192.168.0.110/gitlab/)")]
     pub server: Option<String>,
     /// GitLab Personal Access Token (required, will prompt if not provided)
     #[arg(long, short = 't', help = "GitLab Personal Access Token (required)")]
     pub token: Option<String>,
     /// Default clone protocol
-    #[arg(
-        long,
-        short = 'p',
-        value_enum,
-        default_value = "ssh",
-        help = "Default clone protocol: ssh or https"
-    )]
+    #[arg(long, short = 'p', value_enum, default_value = "ssh", help = "Default clone protocol: ssh or https")]
     pub protocol: CloneProtocol,
 }
 
@@ -51,34 +41,16 @@ pub struct CloneArgs {
     #[arg(help = "GitLab group path (e.g. \"my-org/team\" or numeric ID)")]
     pub group: String,
     /// GitLab server URL (uses saved config if not specified)
-    #[arg(
-        long,
-        short,
-        help = "GitLab server URL (uses saved config if not specified)"
-    )]
+    #[arg(long, short, help = "GitLab server URL (uses saved config if not specified)")]
     pub server: Option<String>,
     /// GitLab private token (overrides saved config)
-    #[arg(
-        long,
-        short = 't',
-        help = "GitLab private token (overrides saved config)"
-    )]
+    #[arg(long, short = 't', help = "GitLab private token (overrides saved config)")]
     pub token: Option<String>,
     /// Clone protocol (overrides saved config)
-    #[arg(
-        long,
-        short = 'p',
-        value_enum,
-        help = "Clone protocol: ssh or https (uses saved config if not specified)"
-    )]
+    #[arg(long, short = 'p', value_enum, help = "Clone protocol: ssh or https (uses saved config if not specified)")]
     pub protocol: Option<CloneProtocol>,
     /// Output directory for cloned repositories
-    #[arg(
-        long,
-        short = 'o',
-        default_value = ".",
-        help = "Output directory for cloned repositories"
-    )]
+    #[arg(long, short = 'o', default_value = ".", help = "Output directory for cloned repositories")]
     pub output: String,
     /// Include archived projects
     #[arg(long, default_value = "false", help = "Include archived projects")]
@@ -87,11 +59,7 @@ pub struct CloneArgs {
     #[arg(long, default_value = "false", help = "Clone submodules recursively")]
     pub recursive: bool,
     /// Dry run: show what would be changed without making any modifications
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Dry run: show what would be changed without making any modifications"
-    )]
+    #[arg(long, default_value = "false", help = "Dry run: show what would be changed without making any modifications")]
     pub dry_run: bool,
 }
 
