@@ -7,13 +7,20 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Fork command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct ForkArgs {
     /// Path to fork the project from
+    #[arg(help = "Path to fork the project from")]
     pub path: String,
     /// Name of the project
+    #[arg(help = "Name of the project")]
     pub name: String,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
@@ -164,8 +171,7 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
             )
             .with_context(|| format!("获取子模块 {} 的 URL 失败", submodule_path))?;
 
-        let url = String::from_utf8(url_output.stdout)
-            .with_context(|| "解析子模块 URL 失败")?;
+        let url = String::from_utf8(url_output.stdout).with_context(|| "解析子模块 URL 失败")?;
         let url = url.trim();
 
         if !url.is_empty() {
@@ -185,8 +191,8 @@ fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::
 
     let remote_names: Vec<String> = match remote_names_output {
         Ok(output) => {
-            let stdout = String::from_utf8(output.stdout)
-                .with_context(|| "解析远程仓库名称输出失败")?;
+            let stdout =
+                String::from_utf8(output.stdout).with_context(|| "解析远程仓库名称输出失败")?;
             stdout
                 .lines()
                 .map(|s| s.trim().to_string())
@@ -229,13 +235,7 @@ fn do_init_project(
     let runner = GitCommandRunner::new();
     runner
         .execute_with_success(&["clone", repo_url, project_dir.to_str().unwrap_or("")])
-        .with_context(|| {
-            format!(
-                "克隆仓库 {} 到 {} 失败",
-                repo_url,
-                project_dir.display()
-            )
-        })?;
+        .with_context(|| format!("克隆仓库 {} 到 {} 失败", repo_url, project_dir.display()))?;
 
     let submodules = get_submodules(project_dir)?;
 
@@ -255,8 +255,8 @@ fn do_perform_actions(
     let pma_content = std::fs::read_to_string(&pma_config)
         .with_context(|| format!("读取 .pma.json 文件失败: {}", pma_config.display()))?;
 
-    let config: PmaConfig = serde_json::from_str(&pma_content)
-        .with_context(|| "解析 .pma.json 文件内容失败")?;
+    let config: PmaConfig =
+        serde_json::from_str(&pma_content).with_context(|| "解析 .pma.json 文件内容失败")?;
 
     for action in config.actions {
         match action {
@@ -450,12 +450,7 @@ fn do_reinit_repo(
     }
 
     ctx.run_in_dir("git", &["init"], Some(project_dir))
-        .with_context(|| {
-            format!(
-                "初始化 Git 仓库失败: {}",
-                project_dir.display()
-            )
-        })?;
+        .with_context(|| format!("初始化 Git 仓库失败: {}", project_dir.display()))?;
 
     for submodule in submodules {
         ctx.run_in_dir(
@@ -494,20 +489,10 @@ fn do_reinit_repo(
     }
 
     ctx.run_in_dir("git", &["add", "."], Some(project_dir))
-        .with_context(|| {
-            format!(
-                "添加所有文件到 Git 仓库失败: {}",
-                project_dir.display()
-            )
-        })?;
+        .with_context(|| format!("添加所有文件到 Git 仓库失败: {}", project_dir.display()))?;
 
     ctx.run_in_dir("git", &["commit", "-m", "v0.0.0"], Some(project_dir))
-        .with_context(|| {
-            format!(
-                "提交初始化到 Git 仓库失败: {}",
-                project_dir.display()
-            )
-        })?;
+        .with_context(|| format!("提交初始化到 Git 仓库失败: {}", project_dir.display()))?;
 
     Ok(())
 }

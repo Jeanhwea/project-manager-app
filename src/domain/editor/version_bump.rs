@@ -6,13 +6,10 @@ use std::fmt;
 
 /// Version bump type
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub enum BumpType {
     Major,
     Minor,
     Patch,
-    PreRelease(String),
-    Build(String),
 }
 
 /// Semantic version representation
@@ -52,7 +49,6 @@ impl Version {
     }
 
     /// Parse version from tag like "v1.2.3"
-    #[allow(dead_code)]
     pub fn from_tag(tag: &str) -> Option<Self> {
         let tag = tag.trim();
         let version_str = tag.strip_prefix('v').unwrap_or(tag);
@@ -77,12 +73,10 @@ impl Version {
                 minor: self.minor,
                 patch: self.patch + 1,
             },
-            BumpType::PreRelease(_) | BumpType::Build(_) => self.clone(),
         }
     }
 
     /// Convert version to tag string like "v1.2.3"
-    #[allow(dead_code)]
     pub fn to_tag(&self) -> String {
         format!("v{}.{}.{}", self.major, self.minor, self.patch)
     }
@@ -92,30 +86,6 @@ impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
     }
-}
-
-/// Apply version bump to a version string
-#[allow(dead_code)]
-pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
-    let v = Version::parse(version)?;
-
-    match bump_type {
-        BumpType::PreRelease(label) => {
-            Ok(format!("{}.{}.{}-{}", v.major, v.minor, v.patch, label))
-        }
-        BumpType::Build(label) => Ok(format!("{}.{}.{}+{}", v.major, v.minor, v.patch, label)),
-        _ => Ok(v.bump(bump_type).to_string()),
-    }
-}
-
-/// Version editing configuration
-#[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
-pub struct EditorConfig {
-    pub dry_run: bool,
-    pub skip_push: bool,
-    pub force: bool,
-    pub message: Option<String>,
 }
 
 #[cfg(test)]
@@ -150,14 +120,6 @@ mod tests {
         assert_eq!(v.major, 2);
         assert_eq!(v.minor, 3);
         assert_eq!(v.patch, 4);
-
-        let v = Version::from_tag("  v3.4.5  ").unwrap();
-        assert_eq!(v.major, 3);
-        assert_eq!(v.minor, 4);
-        assert_eq!(v.patch, 5);
-
-        assert!(Version::from_tag("invalid").is_none());
-        assert!(Version::from_tag("v1.2").is_none());
     }
 
     #[test]
@@ -182,16 +144,6 @@ mod tests {
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 2);
         assert_eq!(bumped.patch, 4);
-
-        let bumped = v.bump(&BumpType::PreRelease("beta".to_string()));
-        assert_eq!(bumped.major, 1);
-        assert_eq!(bumped.minor, 2);
-        assert_eq!(bumped.patch, 3);
-
-        let bumped = v.bump(&BumpType::Build("123".to_string()));
-        assert_eq!(bumped.major, 1);
-        assert_eq!(bumped.minor, 2);
-        assert_eq!(bumped.patch, 3);
     }
 
     #[test]
@@ -212,32 +164,5 @@ mod tests {
             patch: 3,
         };
         assert_eq!(format!("{}", v), "1.2.3");
-    }
-
-    #[test]
-    fn test_apply_bump() {
-        assert_eq!(apply_bump("1.2.3", &BumpType::Major).unwrap(), "2.0.0");
-        assert_eq!(apply_bump("1.2.3", &BumpType::Minor).unwrap(), "1.3.0");
-        assert_eq!(apply_bump("1.2.3", &BumpType::Patch).unwrap(), "1.2.4");
-        assert_eq!(
-            apply_bump("1.2.3", &BumpType::PreRelease("beta".to_string())).unwrap(),
-            "1.2.3-beta"
-        );
-        assert_eq!(
-            apply_bump("1.2.3", &BumpType::Build("20240101".to_string())).unwrap(),
-            "1.2.3+20240101"
-        );
-
-        assert!(apply_bump("invalid", &BumpType::Patch).is_err());
-        assert!(apply_bump("1.2", &BumpType::Patch).is_err());
-    }
-
-    #[test]
-    fn test_editor_config_default() {
-        let config = EditorConfig::default();
-        assert!(!config.dry_run);
-        assert!(!config.skip_push);
-        assert!(!config.force);
-        assert!(config.message.is_none());
     }
 }

@@ -9,21 +9,54 @@ use crate::utils::path::format_path;
 use std::path::{Path, PathBuf};
 
 /// Sync command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct SyncArgs {
     /// Maximum depth to search for repositories
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     /// Remotes to skip
+    #[arg(long, short, help = "Remotes to skip")]
     pub skip_remotes: Vec<String>,
     /// Whether to pull all local branches
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Whether to pull all local branches"
+    )]
     pub all_branch: bool,
-    /// Path to the directory to search for repositories
-    pub path: Option<String>,
+    /// Path to the directory to search for repositories, defaults to current directory
+    #[arg(
+        default_value = "",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
+    pub path: String,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
     /// Only fetch from remotes, do not pull or push
+    #[arg(
+        long,
+        short = 'f',
+        default_value = "false",
+        help = "Only fetch from remotes, do not pull or push"
+    )]
     pub fetch_only: bool,
     /// Use rebase instead of merge when pulling
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Use rebase instead of merge when pulling"
+    )]
     pub rebase: bool,
 }
 
@@ -38,15 +71,13 @@ impl Command for SyncCommand {
     }
 }
 
-/// Main sync execution function
 fn execute_sync(args: SyncArgs) -> CommandResult {
-    // Get search path: use provided path or current directory
-    let search_path = match args.path {
-        Some(ref p) => PathBuf::from(p),
-        None => std::env::current_dir()?,
+    let search_path = if args.path.is_empty() || args.path == "." {
+        std::env::current_dir()?
+    } else {
+        PathBuf::from(&args.path)
     };
 
-    // Search upwards for git repository root
     let effective_path =
         find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone());
 
@@ -332,7 +363,7 @@ mod tests {
             max_depth: Some(3),
             skip_remotes: vec!["origin".to_string()],
             all_branch: true,
-            path: Some(".".to_string()),
+            path: ".".to_string(),
             dry_run: true,
             fetch_only: false,
             rebase: true,
@@ -341,7 +372,7 @@ mod tests {
         assert_eq!(args.max_depth, Some(3));
         assert_eq!(args.skip_remotes, vec!["origin"]);
         assert!(args.all_branch);
-        assert_eq!(args.path, Some(".".to_string()));
+        assert_eq!(args.path, ".");
         assert!(args.dry_run);
         assert!(!args.fetch_only);
         assert!(args.rebase);
@@ -349,7 +380,6 @@ mod tests {
 
     #[test]
     fn test_parse_git_remote_url() {
-        // Test SSH URL
         let result = parse_git_remote_url("git@github.com:user/repo.git");
         assert!(result.is_some());
         if let Some((protocol, host, path)) = result {
@@ -359,7 +389,6 @@ mod tests {
             assert_eq!(path, "user/repo.git");
         }
 
-        // Test HTTPS URL
         let result = parse_git_remote_url("https://github.com/user/repo.git");
         assert!(result.is_some());
         if let Some((protocol, host, path)) = result {
@@ -369,21 +398,18 @@ mod tests {
             assert_eq!(path, "user/repo.git");
         }
 
-        // Test invalid URL
         let result = parse_git_remote_url("invalid-url");
         assert!(result.is_none());
     }
 
     #[test]
     fn test_should_skip_push() {
-        // Test skip by remote name
         assert!(should_skip_push(
             "origin",
             "https://example.com/repo.git",
             &["origin".to_string()]
         ));
 
-        // Test not skipped
         assert!(!should_skip_push(
             "origin",
             "https://example.com/repo.git",

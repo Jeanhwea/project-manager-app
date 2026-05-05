@@ -1,8 +1,5 @@
-//! Editor domain module
-
 mod cargo_toml;
 mod cmake;
-mod file_types;
 mod homebrew;
 mod package_json;
 mod pom_xml;
@@ -18,22 +15,14 @@ pub use package_json::PackageJsonEditor;
 pub use pom_xml::PomXmlEditor;
 pub use project_py::PythonVersionEditor;
 pub use pyproject::PyprojectEditor;
-#[allow(unused_imports)]
-pub use version_bump::{BumpType, EditorConfig, Version, apply_bump};
+pub use version_bump::{BumpType, Version};
 pub use version_text::VersionTextEditor;
 
 use std::path::Path;
 
-/// Editor-specific error type
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
+
 pub enum EditorError {
-    #[error("File not found: {0}")]
-    FileNotFound(String),
-
-    #[error("Unsupported file type: {0}")]
-    UnsupportedFileType(String),
-
     #[error("Parse error: {0}")]
     ParseError(String),
 
@@ -50,10 +39,8 @@ pub enum EditorError {
     FormatPreservationError(String),
 }
 
-/// Common result type for editor operations
 pub type Result<T> = std::result::Result<T, EditorError>;
 
-/// Trait for file editors that can modify version information
 pub trait FileEditor: Send + Sync {
     fn name(&self) -> &'static str;
     fn file_patterns(&self) -> &[&str];
@@ -68,41 +55,24 @@ pub trait FileEditor: Send + Sync {
     fn validate(&self, original: &str, edited: &str) -> Result<()>;
 }
 
-/// Location of version information within a file
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
 pub struct VersionLocation {
     pub project_version: Option<VersionPosition>,
-    pub parent_version: Option<VersionPosition>,
     pub is_workspace_root: bool,
-    pub dependency_refs: Vec<DependencyRef>,
 }
 
-/// Position of version information within a file
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct VersionPosition {
     pub start: usize,
     pub end: usize,
-    pub line: usize,
 }
 
-/// Reference to a dependency version that might need updating
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct DependencyRef {
-    pub name_pattern: String,
-    pub position: VersionPosition,
-}
-
-/// Registry for managing multiple file editors
 pub struct EditorRegistry {
     editors: std::collections::HashMap<&'static str, std::sync::Arc<dyn FileEditor>>,
     file_pattern_map: std::collections::HashMap<String, &'static str>,
 }
 
 impl EditorRegistry {
-    /// Create a new empty editor registry
     pub fn new() -> Self {
         Self {
             editors: std::collections::HashMap::new(),
@@ -110,7 +80,6 @@ impl EditorRegistry {
         }
     }
 
-    /// Create a default registry with all built-in editors registered
     pub fn default_with_editors() -> Self {
         Self::new()
             .register(CargoTomlEditor)
@@ -123,7 +92,6 @@ impl EditorRegistry {
             .register(PyprojectEditor)
     }
 
-    /// Register an editor with the registry
     pub fn register(mut self, editor: impl FileEditor + 'static) -> Self {
         let name = editor.name();
         let patterns: Vec<String> = editor
@@ -142,13 +110,6 @@ impl EditorRegistry {
         self
     }
 
-    /// Get an editor by name
-    #[allow(dead_code)]
-    pub fn get(&self, name: &str) -> Option<std::sync::Arc<dyn FileEditor>> {
-        self.editors.get(name).cloned()
-    }
-
-    /// Detect which editor can handle the given file
     pub fn detect_editor(&self, path: &Path) -> Option<std::sync::Arc<dyn FileEditor>> {
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
@@ -178,7 +139,6 @@ impl EditorRegistry {
         None
     }
 
-    /// Edit version using the specified editor
     pub fn edit_version(
         &self,
         editor: &dyn FileEditor,
@@ -190,28 +150,6 @@ impl EditorRegistry {
         editor.validate(content, &edited)?;
         Ok(edited)
     }
-
-    /// Edit a file by path
-    #[allow(dead_code)]
-    pub fn edit_file(&self, path: &Path, new_version: &str) -> Result<()> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-
-        let editor = self
-            .detect_editor(path)
-            .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-
-        let edited = self.edit_version(&*editor, &content, new_version)?;
-
-        write_with_backup(&path.to_string_lossy(), &edited)?;
-        Ok(())
-    }
-
-    /// List all registered editor names
-    #[allow(dead_code)]
-    pub fn list(&self) -> Vec<&'static str> {
-        self.editors.keys().copied().collect()
-    }
 }
 
 impl Default for EditorRegistry {
@@ -220,7 +158,6 @@ impl Default for EditorRegistry {
     }
 }
 
-/// Utility function to write file with backup
 pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
     let backup_path = format!("{}.bak", path);
 
@@ -238,7 +175,6 @@ pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
     }
 }
 
-/// Utility function to preserve line endings
 pub fn preserve_line_endings(original: &str, edited: String) -> String {
     let original_has_crlf = original.contains("\r\n");
     let edited_has_crlf = edited.contains("\r\n");
@@ -252,165 +188,13 @@ pub fn preserve_line_endings(original: &str, edited: String) -> String {
     }
 }
 
-/// Bump version in a file
-#[allow(dead_code)]
-pub fn bump_version_in_file(
-    path: &Path,
-    bump_type: BumpType,
-    config: &EditorConfig,
-) -> Result<String> {
-    let registry = EditorRegistry::default_with_editors();
-
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-
-    let editor = registry
-        .detect_editor(path)
-        .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-
-    let location = editor.parse(&content)?;
-
-    let current_version = if let Some(pos) = &location.project_version {
-        content[pos.start..pos.end].to_string()
-    } else {
-        return Err(EditorError::VersionNotFound(format!(
-            "No version found in {}",
-            path.display()
-        )));
-    };
-
-    let cleaned_version = current_version
-        .trim_matches('"')
-        .trim_matches('\'')
-        .trim()
-        .to_string();
-
-    let new_version = apply_bump(&cleaned_version, &bump_type)?;
-
-    if config.dry_run {
-        return Ok(format!(
-            "Would update {} from {} to {}",
-            path.display(),
-            cleaned_version,
-            new_version
-        ));
-    }
-
-    let edited = registry.edit_version(&*editor, &content, &new_version)?;
-
-    write_with_backup(&path.to_string_lossy(), &edited)?;
-
-    Ok(format!(
-        "Updated {} from {} to {}",
-        path.display(),
-        cleaned_version,
-        new_version
-    ))
-}
-
-/// Get version from a file
-#[allow(dead_code)]
-pub fn get_version_from_file(path: &Path) -> Result<String> {
-    let registry = EditorRegistry::default_with_editors();
-
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-
-    let editor = registry
-        .detect_editor(path)
-        .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-
-    let location = editor.parse(&content)?;
-
-    if let Some(pos) = &location.project_version {
-        let version = content[pos.start..pos.end].to_string();
-        Ok(version
-            .trim_matches('"')
-            .trim_matches('\'')
-            .trim()
-            .to_string())
-    } else {
-        Err(EditorError::VersionNotFound(format!(
-            "No version found in {}",
-            path.display()
-        )))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use file_types::{FileType, detect_file_type};
-
-    #[test]
-    fn test_detect_file_type() {
-        assert_eq!(
-            detect_file_type(Path::new("Cargo.toml")),
-            Some(FileType::CargoToml)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("package.json")),
-            Some(FileType::PackageJson)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("pyproject.toml")),
-            Some(FileType::PyProject)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("CMakeLists.txt")),
-            Some(FileType::Cmake)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("pom.xml")),
-            Some(FileType::PomXml)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("version.txt")),
-            Some(FileType::VersionText)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("test.rb")),
-            Some(FileType::Homebrew)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("test.py")),
-            Some(FileType::ProjectPy)
-        );
-        assert_eq!(detect_file_type(Path::new("unknown.txt")), None);
-    }
-
-    #[test]
-    fn test_apply_bump() {
-        assert_eq!(apply_bump("1.2.3", &BumpType::Major).unwrap(), "2.0.0");
-        assert_eq!(apply_bump("1.2.3", &BumpType::Minor).unwrap(), "1.3.0");
-        assert_eq!(apply_bump("1.2.3", &BumpType::Patch).unwrap(), "1.2.4");
-        assert_eq!(
-            apply_bump("1.2.3", &BumpType::PreRelease("beta".to_string())).unwrap(),
-            "1.2.3-beta"
-        );
-        assert_eq!(
-            apply_bump("1.2.3", &BumpType::Build("20240101".to_string())).unwrap(),
-            "1.2.3+20240101"
-        );
-
-        // Test invalid versions
-        assert!(apply_bump("invalid", &BumpType::Patch).is_err());
-        assert!(apply_bump("1.2", &BumpType::Patch).is_err());
-    }
 
     #[test]
     fn test_editor_registry_default() {
-        let registry = EditorRegistry::default_with_editors();
-        let editors = registry.list();
-
-        assert!(editors.contains(&"cargo_toml"));
-        assert!(editors.contains(&"package_json"));
-        assert!(editors.contains(&"version_text"));
-        assert!(editors.contains(&"cmake"));
-        assert!(editors.contains(&"homebrew"));
-        assert!(editors.contains(&"pom_xml"));
-        assert!(editors.contains(&"project_py"));
-        assert!(editors.contains(&"pyproject"));
+        let _registry = EditorRegistry::default_with_editors();
     }
 
     #[test]
@@ -428,12 +212,6 @@ mod tests {
             preserve_line_endings(original_lf, edited.to_string()),
             "line1\nline2\n"
         );
-
-        let edited_crlf = "line1\r\nline2\r\n";
-        assert_eq!(
-            preserve_line_endings(original_lf, edited_crlf.to_string()),
-            "line1\nline2\n"
-        );
     }
 
     #[test]
@@ -441,7 +219,7 @@ mod tests {
         let content = r#"[package]
 name = "test"
 version = "1.2.3"
-        
+
 [dependencies]
 serde = "1.0""#;
 

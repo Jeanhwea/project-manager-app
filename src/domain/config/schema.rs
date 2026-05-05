@@ -1,10 +1,5 @@
-//! Configuration schema
-
 use serde::{Deserialize, Serialize};
 
-// ── config.toml ────────────────────────────────────────────────────
-
-/// Main application configuration (`~/.pma/config.toml`)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(default)]
@@ -150,16 +145,12 @@ fn default_skip_push_hosts() -> Vec<String> {
     ]
 }
 
-// ── gitlab.toml ────────────────────────────────────────────────────
-
-/// GitLab configuration (`~/.pma/gitlab.toml`)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GitLabConfig {
     #[serde(default)]
     pub servers: Vec<GitLabServer>,
 }
 
-/// A single GitLab server entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitLabServer {
     pub url: String,
@@ -180,8 +171,6 @@ impl Default for GitLabServer {
         }
     }
 }
-
-// ── default file content (for `pma config init`) ───────────────────
 
 pub fn default_config_content() -> &'static str {
     r#"[repository]

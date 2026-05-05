@@ -6,13 +6,51 @@ use crate::utils::output::Output;
 use std::path::{Path, PathBuf};
 
 /// Doctor command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct DoctorArgs {
+    /// Maximum depth to search for repositories
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
+    /// Whether to perform garbage collection
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Whether to perform garbage collection"
+    )]
     pub gc: bool,
+    /// Whether to rename remotes to their canonical names
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Whether to rename remotes to their canonical names"
+    )]
     pub rename: bool,
+    /// Whether to automatically fix detected issues
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Whether to automatically fix detected issues"
+    )]
     pub fix: bool,
-    pub path: Option<String>,
+    /// Path to the directory to search for repositories, defaults to current directory
+    #[arg(
+        default_value = ".",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
+    pub path: String,
+    /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
@@ -32,9 +70,10 @@ fn execute_doctor(args: DoctorArgs) -> CommandResult {
     check_dependencies()?;
 
     // Get search path: use provided path or current directory
-    let search_path = match args.path {
-        Some(ref p) => PathBuf::from(p),
-        None => std::env::current_dir()?,
+    let search_path = if args.path.is_empty() || args.path == "." {
+        std::env::current_dir()?
+    } else {
+        PathBuf::from(&args.path)
     };
 
     // Search upwards for git repository root
@@ -463,7 +502,7 @@ mod tests {
             gc: true,
             rename: false,
             fix: true,
-            path: Some(".".to_string()),
+            path: ".".to_string(),
             dry_run: true,
         };
 
@@ -471,7 +510,7 @@ mod tests {
         assert!(args.gc);
         assert!(!args.rename);
         assert!(args.fix);
-        assert_eq!(args.path, Some(".".to_string()));
+        assert_eq!(args.path, ".");
         assert!(args.dry_run);
     }
 
@@ -487,7 +526,6 @@ mod tests {
     #[test]
     fn test_check_command_exists() {
         let _git_exists = check_command_exists("git");
-        assert!(true);
     }
 
     #[test]

@@ -1,7 +1,6 @@
 use colored::Colorize;
 use std::path::Path;
 
-/// ASCII-only symbols for terminal output
 const SYMBOL_SUCCESS: &str = "OK>";
 const SYMBOL_ERROR: &str = "FAIL";
 const SYMBOL_WARNING: &str = "WARN";
@@ -9,7 +8,6 @@ const SYMBOL_INFO: &str = "INFO";
 const SYMBOL_SKIP: &str = "SKIP";
 const SYMBOL_CMD: &str = "==>";
 
-/// Alignment width for all symbols
 const SYMBOL_WIDTH: usize = 4;
 
 pub struct Output;
@@ -55,8 +53,6 @@ impl Output {
         println!("  {} {}", SYMBOL_SKIP.dimmed(), msg.dimmed());
     }
 
-    /// Display a command that will be executed.
-    /// Used for dry-run previews and actual execution confirmation.
     pub fn cmd(cmd: &str) {
         println!("  {} {}", SYMBOL_CMD.cyan(), cmd);
     }
@@ -71,7 +67,6 @@ impl Output {
             ItemColor::Yellow => value.yellow(),
             ItemColor::Red => value.red(),
             ItemColor::Cyan => value.cyan(),
-            ItemColor::Dimmed => value.dimmed(),
         };
         println!("  {}: {}", label, colored_value);
     }
@@ -98,13 +93,11 @@ impl Output {
     }
 }
 
-#[allow(dead_code)]
 pub enum ItemColor {
     Green,
     Yellow,
     Red,
     Cyan,
-    Dimmed,
 }
 
 pub struct SummaryBuilder {

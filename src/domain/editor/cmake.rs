@@ -14,8 +14,7 @@ impl CMakeListsEditor {
         {
             let start = version_match.start();
             let end = version_match.end();
-            let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
-            return Some(VersionPosition { start, end, line });
+            return Some(VersionPosition { start, end });
         }
         None
     }
@@ -48,9 +47,7 @@ impl FileEditor for CMakeListsEditor {
 
         Ok(VersionLocation {
             project_version,
-            parent_version: None,
             is_workspace_root: false,
-            dependency_refs: Vec::new(),
         })
     }
 

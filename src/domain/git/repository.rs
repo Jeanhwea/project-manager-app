@@ -1,32 +1,6 @@
-//! Git repository abstraction module
-
-use super::{GitError, RepositoryStatus, Result};
-use crate::utils::path::canonicalize_path;
+use super::{GitError, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-/// Git repository abstraction
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct Repository {
-    pub path: PathBuf,
-    pub status: RepositoryStatus,
-    pub remotes: Vec<Remote>,
-    pub branches: Vec<Branch>,
-    pub repo_type: RepoType,
-}
-
-/// Git remote repository (re-export from remote module)
-pub use super::remote::Remote;
-
-/// Git branch information
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct Branch {
-    pub name: String,
-    pub is_current: bool,
-    pub upstream: Option<String>,
-}
 
 /// Repository type
 #[derive(Debug, Clone, PartialEq)]
@@ -42,190 +16,12 @@ pub struct RepoInfo {
     pub repo_type: RepoType,
 }
 
-impl Repository {
-    #[allow(dead_code)]
-    pub fn new(path: impl Into<PathBuf>) -> Result<Self> {
-        let path = path.into();
-
-        if !path.exists() {
-            return Err(GitError::RepositoryNotFound(format!(
-                "Path does not exist: {}",
-                path.display()
-            )));
-        }
-
-        // Check if it's a Git repository
-        let git_path = path.join(".git");
-        if !git_path.exists() {
-            return Err(GitError::RepositoryNotFound(format!(
-                "Not a Git repository: {}",
-                path.display()
-            )));
-        }
-
-        // Determine repository type
-        let repo_type = if git_path.is_dir() {
-            RepoType::Regular
-        } else {
-            RepoType::Submodule
-        };
-
-        // Create initial repository instance
-        let mut repo = Self {
-            path: canonicalize_path(&path).map_err(GitError::Io)?,
-            status: RepositoryStatus::Unknown,
-            remotes: Vec::new(),
-            branches: Vec::new(),
-            repo_type,
-        };
-
-        repo.refresh()?;
-
-        Ok(repo)
-    }
-
-    pub fn refresh(&mut self) -> Result<()> {
-        // Check repository status
-        self.check_status()?;
-
-        // Load remotes
-        self.load_remotes()?;
-
-        // Load branches
-        self.load_branches()?;
-
-        Ok(())
-    }
-
-    pub fn check_status(&mut self) -> Result<()> {
-        use super::command::GitCommandRunner;
-
-        let runner = GitCommandRunner::new();
-        let output = runner.execute_in_dir(&["status", "--porcelain"], &self.path)?;
-        self.status = if output.trim().is_empty() {
-            RepositoryStatus::Clean
-        } else {
-            RepositoryStatus::Dirty
-        };
-        Ok(())
-    }
-
-    fn load_remotes(&mut self) -> Result<()> {
-        use super::remote::RemoteManager;
-        let manager = RemoteManager::new();
-        let remotes = manager.list_remotes(&self.path)?;
-        self.remotes = remotes;
-        Ok(())
-    }
-
-    fn load_branches(&mut self) -> Result<()> {
-        use super::command::GitCommandRunner;
-
-        let runner = GitCommandRunner::new();
-
-        // Get current branch
-        let _current_branch = runner
-            .execute_in_dir(&["branch", "--show-current"], &self.path)
-            .unwrap_or_default();
-
-        // Get all local branches
-        let branches_output = match runner.execute_in_dir(&["branch", "--list"], &self.path) {
-            Ok(output) => output,
-            Err(_) => {
-                self.branches = Vec::new();
-                return Ok(());
-            }
-        };
-
-        let mut branches = Vec::new();
-
-        for line in branches_output.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            let (is_current, name) = if let Some(stripped) = line.strip_prefix('*') {
-                (true, stripped.trim())
-            } else {
-                (false, line)
-            };
-
-            let upstream = get_upstream_tracking(&self.path, name).ok();
-
-            branches.push(Branch {
-                name: name.to_string(),
-                is_current,
-                upstream,
-            });
-        }
-
-        self.branches = branches;
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    #[allow(dead_code)]
-    pub fn status(&self) -> &RepositoryStatus {
-        &self.status
-    }
-
-    #[allow(dead_code)]
-    pub fn remotes(&self) -> &[Remote] {
-        &self.remotes
-    }
-
-    #[allow(dead_code)]
-    pub fn branches(&self) -> &[Branch] {
-        &self.branches
-    }
-
-    #[allow(dead_code)]
-    pub fn repo_type(&self) -> &RepoType {
-        &self.repo_type
-    }
-
-    #[allow(dead_code)]
-    pub fn is_clean(&self) -> bool {
-        self.status == RepositoryStatus::Clean
-    }
-
-    #[allow(dead_code)]
-    pub fn is_dirty(&self) -> bool {
-        self.status == RepositoryStatus::Dirty
-    }
-
-    #[allow(dead_code)]
-    pub fn current_branch(&self) -> Option<&str> {
-        self.branches
-            .iter()
-            .find(|b| b.is_current)
-            .map(|b| b.name.as_str())
-    }
-
-    #[allow(dead_code)]
-    pub fn remote(&self, name: &str) -> Option<&Remote> {
-        self.remotes.iter().find(|r| r.name == name)
-    }
-
-    #[allow(dead_code)]
-    pub fn branch(&self, name: &str) -> Option<&Branch> {
-        self.branches.iter().find(|b| b.name == name)
-    }
-}
-
 /// Check if a path is a Git repository by verifying the `.git` directory exists.
-#[allow(dead_code)]
 pub fn is_git_repo(path: &Path) -> bool {
     path.is_dir() && path.join(".git").is_dir()
 }
 
 /// Search for a Git repository by traversing up the directory tree.
-/// Returns the first Git repository found, or None if not found.
 pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
     let mut current = start_dir;
 
@@ -285,105 +81,6 @@ pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<Re
     Ok(repos)
 }
 
-fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
-    use super::command::GitCommandRunner;
-
-    let runner = GitCommandRunner::new();
-
-    match runner.execute_in_dir(
-        &[
-            "rev-parse",
-            "--abbrev-ref",
-            &format!("{}@{{upstream}}", branch_name),
-        ],
-        path,
-    ) {
-        Ok(upstream) => Ok(upstream),
-        Err(_) => Ok(String::new()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_remote_parsing() {
-        use crate::domain::git::GitProtocol;
-        use crate::domain::git::remote::Remote;
-
-        assert_eq!(
-            Remote::parse_url("ssh://git@example.com/repo.git").unwrap(),
-            GitProtocol::Ssh
-        );
-        assert_eq!(
-            Remote::parse_url("git@github.com:user/repo.git").unwrap(),
-            GitProtocol::Ssh
-        );
-        assert_eq!(
-            Remote::parse_url("http://example.com/repo.git").unwrap(),
-            GitProtocol::Http
-        );
-        assert_eq!(
-            Remote::parse_url("https://example.com/repo.git").unwrap(),
-            GitProtocol::Https
-        );
-        assert_eq!(
-            Remote::parse_url("git://example.com/repo.git").unwrap(),
-            GitProtocol::Git
-        );
-    }
-
-    #[test]
-    fn test_repository_new_invalid_path() {
-        let result = Repository::new("/nonexistent/path");
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            GitError::RepositoryNotFound(_) => (),
-            _ => panic!("Expected RepositoryNotFound error"),
-        }
-    }
-
-    #[test]
-    fn test_repository_new_not_git_repo() {
-        let temp_dir = tempdir().unwrap();
-        let result = Repository::new(temp_dir.path());
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            GitError::RepositoryNotFound(_) => (),
-            _ => panic!("Expected RepositoryNotFound error"),
-        }
-    }
-
-    #[test]
-    fn test_find_git_repositories_empty_dir() {
-        let temp_dir = tempdir().unwrap();
-        let repos = find_git_repositories(temp_dir.path(), 3).unwrap();
-        assert!(repos.is_empty());
-    }
-
-    #[test]
-    fn test_find_git_repositories_nested() {
-        // This test would require creating a mock Git repository structure
-        // For now, just test that the function doesn't panic
-        let temp_dir = tempdir().unwrap();
-        let _ = find_git_repositories(temp_dir.path(), 1);
-        // No panic means test passes
-    }
-
-    #[test]
-    fn test_repository_methods() {
-        // Test that all public methods exist and have correct signatures
-        // This is a compile-time test
-        let _: Option<&str> = None::<&Repository>.and_then(|repo| repo.current_branch());
-        let _: Option<&Remote> = None::<&Repository>.and_then(|repo| repo.remote("origin"));
-        let _: Option<&Branch> = None::<&Repository>.and_then(|repo| repo.branch("main"));
-        let _: &Path = Path::new(".");
-        let _: &RepositoryStatus = &RepositoryStatus::Clean;
-    }
-}
-
 pub struct RepoWalker {
     repos: Vec<RepoInfo>,
 }
@@ -426,16 +123,48 @@ impl RepoWalker {
     }
 }
 
-#[allow(dead_code)]
-pub fn for_each_repo<F>(root_path: &Path, max_depth: usize, mut callback: F) -> Result<()>
-where
-    F: FnMut(&Path) -> Result<()>,
-{
-    let walker = RepoWalker::new(root_path, max_depth)?;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
 
-    if walker.is_empty() {
-        return Ok(());
+    #[test]
+    fn test_remote_parsing() {
+        use crate::domain::git::GitProtocol;
+        use crate::domain::git::remote::Remote;
+
+        assert_eq!(
+            Remote::parse_url("ssh://git@example.com/repo.git").unwrap(),
+            GitProtocol::Ssh
+        );
+        assert_eq!(
+            Remote::parse_url("git@github.com:user/repo.git").unwrap(),
+            GitProtocol::Ssh
+        );
+        assert_eq!(
+            Remote::parse_url("http://example.com/repo.git").unwrap(),
+            GitProtocol::Http
+        );
+        assert_eq!(
+            Remote::parse_url("https://example.com/repo.git").unwrap(),
+            GitProtocol::Https
+        );
+        assert_eq!(
+            Remote::parse_url("git://example.com/repo.git").unwrap(),
+            GitProtocol::Git
+        );
     }
 
-    walker.walk(|path, _index, _total| callback(path))
+    #[test]
+    fn test_find_git_repositories_empty_dir() {
+        let temp_dir = tempdir().unwrap();
+        let repos = find_git_repositories(temp_dir.path(), 3).unwrap();
+        assert!(repos.is_empty());
+    }
+
+    #[test]
+    fn test_find_git_repositories_nested() {
+        let temp_dir = tempdir().unwrap();
+        let _ = find_git_repositories(temp_dir.path(), 1);
+    }
 }

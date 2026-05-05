@@ -3,7 +3,6 @@ use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
 
-/// 支持 `--dry-run` 的命令执行上下文
 pub struct DryRunContext {
     dry_run: bool,
 }
@@ -17,7 +16,6 @@ impl DryRunContext {
         self.dry_run
     }
 
-    /// 执行命令。dry-run 模式下只打印，否则打印并执行
     pub fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
         if self.dry_run {
             self.print_dry_run_command(program, args);
@@ -59,27 +57,6 @@ impl DryRunContext {
     pub fn print_message(&self, msg: &str) {
         if self.dry_run {
             Output::message(&format!("[DRY-RUN] {}", msg));
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn print_file_diff(&self, file_path: &str, old_content: &str, new_content: &str) {
-        if !self.dry_run {
-            return;
-        }
-
-        Output::blank();
-        Output::message(&format!("File: {}", file_path));
-
-        let old_lines: Vec<&str> = old_content.lines().collect();
-        let new_lines: Vec<&str> = new_content.lines().collect();
-
-        for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter()))
-        {
-            if old_line != new_line {
-                Output::detail(&format!("L{} -", line_num), old_line);
-                Output::detail(&format!("L{} +", line_num), new_line);
-            }
         }
     }
 

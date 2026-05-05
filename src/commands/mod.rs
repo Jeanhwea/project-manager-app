@@ -18,10 +18,6 @@ pub type CommandResult = Result<(), CommandError>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
-    #[error("参数无效: {0}")]
-    #[allow(dead_code)]
-    InvalidArguments(String),
-
     #[error("执行失败: {0}")]
     ExecutionFailed(String),
 

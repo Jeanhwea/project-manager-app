@@ -11,43 +11,87 @@ use std::io::{self, Write};
 use std::path::Path;
 
 /// GitLab command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Subcommand)]
 pub enum GitLabArgs {
     /// Login to a GitLab server and save credentials
     Login(LoginArgs),
     /// Clone all repositories from a GitLab group
+    #[command(visible_alias = "cl")]
     Clone(CloneArgs),
 }
 
 /// Login command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct LoginArgs {
-    /// GitLab server URL
+    /// GitLab server URL (will prompt if not provided)
+    #[arg(
+        long,
+        short,
+        help = "GitLab server URL (e.g. https://gitlab.com, http://192.168.0.110/gitlab/)"
+    )]
     pub server: Option<String>,
-    /// GitLab Personal Access Token
+    /// GitLab Personal Access Token (required, will prompt if not provided)
+    #[arg(long, short = 't', help = "GitLab Personal Access Token (required)")]
     pub token: Option<String>,
     /// Default clone protocol
+    #[arg(
+        long,
+        short = 'p',
+        value_enum,
+        default_value = "ssh",
+        help = "Default clone protocol: ssh or https"
+    )]
     pub protocol: CloneProtocol,
 }
 
 /// Clone command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct CloneArgs {
     /// GitLab group path (e.g. "my-org/team" or numeric ID)
+    #[arg(help = "GitLab group path (e.g. \"my-org/team\" or numeric ID)")]
     pub group: String,
     /// GitLab server URL (uses saved config if not specified)
+    #[arg(
+        long,
+        short,
+        help = "GitLab server URL (uses saved config if not specified)"
+    )]
     pub server: Option<String>,
     /// GitLab private token (overrides saved config)
+    #[arg(
+        long,
+        short = 't',
+        help = "GitLab private token (overrides saved config)"
+    )]
     pub token: Option<String>,
     /// Clone protocol (overrides saved config)
+    #[arg(
+        long,
+        short = 'p',
+        value_enum,
+        help = "Clone protocol: ssh or https (uses saved config if not specified)"
+    )]
     pub protocol: Option<CloneProtocol>,
     /// Output directory for cloned repositories
+    #[arg(
+        long,
+        short = 'o',
+        default_value = ".",
+        help = "Output directory for cloned repositories"
+    )]
     pub output: String,
     /// Include archived projects
+    #[arg(long, default_value = "false", help = "Include archived projects")]
     pub include_archived: bool,
     /// Clone submodules recursively
+    #[arg(long, default_value = "false", help = "Clone submodules recursively")]
     pub recursive: bool,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
@@ -180,9 +224,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     let group_info = groups
         .into_iter()
         .find(|g| g.full_path == *final_group)
-        .ok_or_else(|| {
-            CommandError::ExecutionFailed(format!("Group not found: {}", final_group))
-        })?;
+        .ok_or_else(|| CommandError::ExecutionFailed(format!("未找到组: {}", final_group)))?;
 
     Output::item_colored(
         "组名",

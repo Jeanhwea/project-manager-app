@@ -5,16 +5,38 @@ use crate::utils::output::{ItemColor, Output, SummaryBuilder};
 use std::path::{Path, PathBuf};
 
 /// Status command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct StatusArgs {
     /// Maximum depth to search for repositories
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     /// Show short status (branch + clean/dirty only)
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Show short status (branch + clean/dirty only)"
+    )]
     pub short: bool,
     /// Filter repositories by status
+    #[arg(
+        long,
+        short,
+        value_enum,
+        help = "Filter repositories by status: dirty, clean, ahead, behind"
+    )]
     pub filter: Option<StatusFilter>,
-    /// Path to the directory to search for repositories
-    pub path: Option<String>,
+    /// Path to the directory to search for repositories, defaults to current directory
+    #[arg(
+        default_value = ".",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
+    pub path: String,
 }
 
 /// Status filter enumeration
@@ -80,14 +102,12 @@ impl Command for StatusCommand {
 
     fn execute(args: Self::Args) -> CommandResult {
         // Get search path: use provided path or current directory
-        let search_path = match args.path {
-            Some(ref p) => PathBuf::from(p),
-            None => std::env::current_dir().map_err(|e| {
-                super::CommandError::ExecutionFailed(format!(
-                    "获取当前目录失败: {}",
-                    e
-                ))
-            })?,
+        let search_path = if args.path.is_empty() || args.path == "." {
+            std::env::current_dir().map_err(|e| {
+                super::CommandError::ExecutionFailed(format!("获取当前目录失败: {}", e))
+            })?
+        } else {
+            PathBuf::from(&args.path)
         };
 
         // Search upwards for git repository root
@@ -97,10 +117,7 @@ impl Command for StatusCommand {
         // Create repository walker
         let walker =
             RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-                super::CommandError::ExecutionFailed(format!(
-                    "创建仓库遍历器失败: {}",
-                    e
-                ))
+                super::CommandError::ExecutionFailed(format!("创建仓库遍历器失败: {}", e))
             })?;
 
         if walker.is_empty() {

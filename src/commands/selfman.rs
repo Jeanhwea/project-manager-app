@@ -36,18 +36,26 @@ struct Asset {
 }
 
 /// Self management command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Subcommand)]
 pub enum SelfManArgs {
     /// Update to the latest version from GitHub releases
+    #[command(visible_alias = "up")]
     Update(UpdateArgs),
     /// Display the current version
+    #[command(visible_alias = "ver")]
     Version,
 }
 
 /// Update command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct UpdateArgs {
     /// Force update even if already on the latest version
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Force update even if already on the latest version"
+    )]
     pub force: bool,
 }
 
@@ -87,9 +95,8 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
 
     Output::info("检查最新版本...");
 
-    let release = fetch_latest_release().map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("获取发布信息失败: {}", e))
-    })?;
+    let release = fetch_latest_release()
+        .map_err(|e| super::CommandError::ExecutionFailed(format!("获取发布信息失败: {}", e)))?;
     let latest = release.tag_name.trim_start_matches('v');
     let current = PKG_VERSION;
 
@@ -112,9 +119,8 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
         Output::warning("强制更新模式，继续更新...");
     }
 
-    let asset_name = get_asset_name(&release.tag_name).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("获取资源名称失败: {}", e))
-    })?;
+    let asset_name = get_asset_name(&release.tag_name)
+        .map_err(|e| super::CommandError::ExecutionFailed(format!("获取资源名称失败: {}", e)))?;
     let asset = release
         .assets
         .iter()
@@ -127,10 +133,8 @@ fn execute_update(args: UpdateArgs) -> CommandResult {
         })?;
 
     Output::info(&format!("下载 {}...", asset.name));
-    let data =
-        download_asset(&asset.url, &asset.browser_download_url, &asset.name).map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("下载资源失败: {}", e))
-        })?;
+    let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
+        .map_err(|e| super::CommandError::ExecutionFailed(format!("下载资源失败: {}", e)))?;
     Output::success("下载完成");
 
     let current_exe = env::current_exe().map_err(|e| {

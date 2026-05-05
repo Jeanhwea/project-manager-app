@@ -1,14 +1,18 @@
-use super::{CommandArgs, CommandDispatcher, CommandName, ParsedCommand};
+use super::{CliResult, CommandArgs, CommandName, ParsedCommand};
 use crate::commands::{
     Command, CommandError, branch::BranchCommand, config::ConfigCommand, doctor::DoctorCommand,
     fork::ForkCommand, gitlab::GitLabCommand, release::ReleaseCommand, selfman::SelfManCommand,
     snap::SnapCommand, status::StatusCommand, sync::SyncCommand,
 };
 
+pub trait CommandDispatcher {
+    fn dispatch(command: ParsedCommand) -> CliResult;
+}
+
 pub struct CommandDispatcherImpl;
 
 impl CommandDispatcher for CommandDispatcherImpl {
-    fn dispatch(command: ParsedCommand) -> super::CliResult {
+    fn dispatch(command: ParsedCommand) -> CliResult {
         match (command.name, command.args) {
             (CommandName::Release, CommandArgs::Release(args)) => {
                 ReleaseCommand::execute(args).map_err(|e| convert_command_error(e, "release"))
@@ -47,9 +51,6 @@ impl CommandDispatcher for CommandDispatcherImpl {
 
 fn convert_command_error(error: CommandError, command_name: &str) -> anyhow::Error {
     match error {
-        CommandError::InvalidArguments(msg) => {
-            anyhow::anyhow!("Invalid arguments for {} command: {}", command_name, msg)
-        }
         CommandError::ExecutionFailed(msg) => {
             anyhow::anyhow!("{} command execution failed: {}", command_name, msg)
         }

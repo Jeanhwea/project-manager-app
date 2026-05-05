@@ -1,4 +1,3 @@
-pub mod auth;
 pub mod client;
 pub mod models;
 
@@ -23,31 +22,10 @@ pub enum GitLabError {
     Io(#[from] std::io::Error),
 }
 
-/// GitLab API 客户端使用的内部配置（非持久化配置）
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GitLabConfig {
     pub server: Option<String>,
     pub token: Option<String>,
-    #[allow(dead_code)]
-    pub default_protocol: CloneProtocol,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
-pub enum CloneProtocol {
-    Ssh,
-    Http,
-    Https,
-}
-
-impl Default for GitLabConfig {
-    fn default() -> Self {
-        Self {
-            server: None,
-            token: None,
-            default_protocol: CloneProtocol::Https,
-        }
-    }
 }
 
 pub type Result<T> = std::result::Result<T, GitLabError>;

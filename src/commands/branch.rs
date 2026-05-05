@@ -5,67 +5,143 @@ use crate::utils::output::{ItemColor, Output};
 use std::path::{Path, PathBuf};
 
 /// Branch command arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Subcommand)]
 pub enum BranchArgs {
     /// List branches across all repositories
+    #[command(visible_alias = "ls")]
     List(ListArgs),
+
     /// Clean merged branches across all repositories
     Clean(CleanArgs),
+
     /// Switch to a branch across all repositories
+    #[command(visible_alias = "sw")]
     Switch(SwitchArgs),
+
     /// Rename a branch across all repositories
+    #[command(visible_alias = "mv")]
     Rename(RenameArgs),
 }
 
 /// List branches arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct ListArgs {
     /// Maximum depth to search for repositories
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
-    /// Path to the directory to search for repositories
-    pub path: Option<String>,
+    /// Path to the directory to search for repositories, defaults to current directory
+    #[arg(
+        default_value = "",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
+    pub path: String,
 }
 
 /// Clean branches arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct CleanArgs {
     /// Maximum depth to search for repositories
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     /// Also delete remote merged branches
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Also delete remote merged branches"
+    )]
     pub remote: bool,
-    /// Path to the directory to search for repositories
-    pub path: Option<String>,
+    /// Path to the directory to search for repositories, defaults to current directory
+    #[arg(
+        default_value = "",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
+    pub path: String,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
 /// Switch branch arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct SwitchArgs {
     /// Branch name to switch to
+    #[arg(help = "Branch name to switch to")]
     pub branch: String,
     /// Create the branch if it does not exist
+    #[arg(
+        long,
+        short = 'c',
+        default_value = "false",
+        help = "Create the branch if it does not exist"
+    )]
     pub create: bool,
     /// Maximum depth to search for repositories
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
-    /// Path to the directory to search for repositories
-    pub path: Option<String>,
+    /// Path to the directory to search for repositories, defaults to current directory
+    #[arg(
+        default_value = "",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
+    pub path: String,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
 /// Rename branch arguments
-#[derive(Debug)]
+#[derive(Debug, clap::Args)]
 pub struct RenameArgs {
     /// Old branch name
+    #[arg(help = "Old branch name")]
     pub old_name: String,
     /// New branch name
+    #[arg(help = "New branch name")]
     pub new_name: String,
     /// Maximum depth to search for repositories
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
-    /// Path to the directory to search for repositories
-    pub path: Option<String>,
+    /// Path to the directory to search for repositories, defaults to current directory
+    #[arg(
+        default_value = ".",
+        help = "Path to the directory to search for repositories, defaults to current directory"
+    )]
+    pub path: String,
     /// Dry run: show what would be changed without making any modifications
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making any modifications"
+    )]
     pub dry_run: bool,
 }
 
@@ -86,10 +162,11 @@ impl Command for BranchCommand {
 }
 
 /// Get effective path by searching upwards for git repository
-fn get_effective_path(path: &Option<String>) -> PathBuf {
-    let search_path = match path {
-        Some(p) => PathBuf::from(p),
-        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+fn get_effective_path(path: &str) -> PathBuf {
+    let search_path = if path.is_empty() || path == "." {
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    } else {
+        PathBuf::from(path)
     };
     find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone())
 }

@@ -1,10 +1,7 @@
-//! Configuration manager module
-
 use super::schema::{AppConfig, GitLabConfig};
 use super::{ConfigError, Result};
 use std::path::PathBuf;
 
-/// Central configuration directory manager
 pub struct ConfigDir;
 
 impl ConfigDir {
@@ -53,16 +50,6 @@ impl ConfigDir {
                 AppConfig::default()
             }
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn save_config(config: &AppConfig) -> Result<()> {
-        Self::ensure_dir()?;
-        let path = Self::config_path();
-        let content = toml::to_string_pretty(config)
-            .map_err(|e| ConfigError::ParseError(format!("{}", e)))?;
-        std::fs::write(&path, content)?;
-        Ok(())
     }
 
     pub fn load_gitlab() -> GitLabConfig {
