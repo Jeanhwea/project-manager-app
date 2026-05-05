@@ -4,11 +4,13 @@ use super::config::ConfigCache;
 use super::config::schema::AppConfig;
 use super::git::command::GitCommandRunner;
 
+#[allow(dead_code)]
 pub struct AppContext {
     git_runner: OnceLock<GitCommandRunner>,
     config_cache: OnceLock<ConfigCache>,
 }
 
+#[allow(dead_code)]
 impl AppContext {
     pub fn global() -> &'static Self {
         static INSTANCE: OnceLock<AppContext> = OnceLock::new();

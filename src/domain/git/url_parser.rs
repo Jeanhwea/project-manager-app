@@ -124,35 +124,40 @@ mod tests {
 
     #[test]
     fn test_extract_host_and_path_ssh() {
-        let (host, path) = RemoteUrlParser::extract_host_and_path("git@github.com:user/repo.git").unwrap();
+        let (host, path) =
+            RemoteUrlParser::extract_host_and_path("git@github.com:user/repo.git").unwrap();
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
     }
 
     #[test]
     fn test_extract_host_and_path_ssh_url_format() {
-        let (host, path) = RemoteUrlParser::extract_host_and_path("ssh://git@github.com/user/repo.git").unwrap();
+        let (host, path) =
+            RemoteUrlParser::extract_host_and_path("ssh://git@github.com/user/repo.git").unwrap();
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
     }
 
     #[test]
     fn test_extract_host_and_path_https() {
-        let (host, path) = RemoteUrlParser::extract_host_and_path("https://github.com/user/repo.git").unwrap();
+        let (host, path) =
+            RemoteUrlParser::extract_host_and_path("https://github.com/user/repo.git").unwrap();
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
     }
 
     #[test]
     fn test_extract_host_and_path_http() {
-        let (host, path) = RemoteUrlParser::extract_host_and_path("http://github.com/user/repo.git").unwrap();
+        let (host, path) =
+            RemoteUrlParser::extract_host_and_path("http://github.com/user/repo.git").unwrap();
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
     }
 
     #[test]
     fn test_extract_host_and_path_git() {
-        let (host, path) = RemoteUrlParser::extract_host_and_path("git://github.com/user/repo.git").unwrap();
+        let (host, path) =
+            RemoteUrlParser::extract_host_and_path("git://github.com/user/repo.git").unwrap();
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
     }

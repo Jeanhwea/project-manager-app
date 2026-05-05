@@ -1,4 +1,5 @@
 use super::{Command, CommandResult};
+use crate::domain::context::AppContext;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::utils::output::{ItemColor, Output};
@@ -195,12 +196,12 @@ fn execute_clean(args: CleanArgs) -> CommandResult {
         return Ok(());
     }
 
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let remote = args.remote;
     let dry_run = args.dry_run;
 
     walker.walk(|path, _index, _total| {
-        clean_merged_branches(&runner, path, remote, dry_run)?;
+        clean_merged_branches(runner, path, remote, dry_run)?;
         Ok(())
     })?;
 
@@ -215,13 +216,13 @@ fn execute_switch(args: SwitchArgs) -> CommandResult {
         return Ok(());
     }
 
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let branch = args.branch.clone();
     let create = args.create;
     let dry_run = args.dry_run;
 
     walker.walk(|path, _index, _total| {
-        switch_branch(&runner, path, &branch, create, dry_run)?;
+        switch_branch(runner, path, &branch, create, dry_run)?;
         Ok(())
     })?;
 
@@ -236,13 +237,13 @@ fn execute_rename(args: RenameArgs) -> CommandResult {
         return Ok(());
     }
 
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let old_name = args.old_name.clone();
     let new_name = args.new_name.clone();
     let dry_run = args.dry_run;
 
     walker.walk(|path, _index, _total| {
-        rename_branch(&runner, path, &old_name, &new_name, dry_run)?;
+        rename_branch(runner, path, &old_name, &new_name, dry_run)?;
         Ok(())
     })?;
 
@@ -250,9 +251,8 @@ fn execute_rename(args: RenameArgs) -> CommandResult {
 }
 
 fn list_branches(repo_path: &Path) {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
 
-    // Get current branch
     let current = runner
         .execute_in_dir(&["branch", "--show-current"], repo_path)
         .unwrap_or_default();

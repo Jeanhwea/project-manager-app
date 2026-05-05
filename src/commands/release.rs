@@ -1,4 +1,5 @@
 use super::{Command, CommandError, CommandResult};
+use crate::domain::context::AppContext;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version, write_with_backup};
 use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::{ItemColor, Output};
@@ -142,7 +143,7 @@ fn resolve_file_paths(files: &[String]) -> Vec<String> {
 
 /// Switch to git root directory
 fn switch_to_git_root() -> CommandResult {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let output = runner.execute(&["rev-parse", "--show-toplevel"])?;
     let root = output.trim();
 
@@ -157,7 +158,7 @@ fn switch_to_git_root() -> CommandResult {
 
 /// Validate git state and prepare release
 fn validate_git_state(args: &ReleaseArgs) -> Result<GitState, CommandError> {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
 
     let current_branch = runner.execute(&["branch", "--show-current"])?;
     let current_branch = current_branch.trim().to_string();
@@ -168,7 +169,7 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState, CommandError> {
         ));
     }
 
-    let current_tag = get_current_version(&runner).unwrap_or_else(|| "v0.0.0".to_string());
+    let current_tag = get_current_version(runner).unwrap_or_else(|| "v0.0.0".to_string());
 
     let rev_current_tag = runner.execute(&["rev-parse", &current_tag])?;
     let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
@@ -348,9 +349,8 @@ fn execute_release_operations(
     config_files: &[ConfigFileEntry],
     state: &GitState,
 ) -> CommandResult {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
 
-    // Update files and lockfiles
     for (file_path, editor) in config_files {
         edit_version_in_file(registry, editor.as_ref(), &state.new_tag, file_path)?;
         update_lockfile_after_edit(file_path)?;
@@ -553,7 +553,7 @@ fn update_cargo_lock(cargo_toml_path: &str) -> CommandResult {
     }
 
     let pkg_name = read_cargo_package_name(cargo_toml_path)?;
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
 
     let status = std::process::Command::new("cargo")
         .args(["update", "--package", &pkg_name])
@@ -611,13 +611,12 @@ fn update_npm_lock(package_json_path: &str) -> CommandResult {
 
     if lock_path.exists() {
         let lock_str = lock_path.to_string_lossy().to_string();
-        let runner = GitCommandRunner::new();
+        let runner = AppContext::global().git_runner();
         runner.execute_with_success(&["add", &lock_str])?;
     }
     Ok(())
 }
 
-/// Update pnpm lockfile
 fn update_pnpm_lock(package_json_path: &str) -> CommandResult {
     let parent = Path::new(package_json_path)
         .parent()
@@ -655,13 +654,12 @@ fn update_pnpm_lock(package_json_path: &str) -> CommandResult {
 
     if lock_path.exists() {
         let lock_str = lock_path.to_string_lossy().to_string();
-        let runner = GitCommandRunner::new();
+        let runner = AppContext::global().git_runner();
         runner.execute_with_success(&["add", &lock_str])?;
     }
     Ok(())
 }
 
-/// Update yarn lockfile
 fn update_yarn_lock(package_json_path: &str) -> CommandResult {
     let parent = Path::new(package_json_path)
         .parent()
@@ -699,13 +697,12 @@ fn update_yarn_lock(package_json_path: &str) -> CommandResult {
 
     if lock_path.exists() {
         let lock_str = lock_path.to_string_lossy().to_string();
-        let runner = GitCommandRunner::new();
+        let runner = AppContext::global().git_runner();
         runner.execute_with_success(&["add", &lock_str])?;
     }
     Ok(())
 }
 
-/// Check if file is gitignored
 fn is_gitignored(file_path: &Path) -> bool {
     let Some(file_name) = file_path.file_name().and_then(|n| n.to_str()) else {
         return false;
@@ -714,7 +711,7 @@ fn is_gitignored(file_path: &Path) -> bool {
         return false;
     };
 
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let output = runner.execute_quiet_in_dir(&["check-ignore", file_name], parent);
 
     match output {
@@ -753,7 +750,7 @@ fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
         return;
     }
 
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let remotes = match runner.execute(&["remote"]) {
         Ok(output) => output
             .lines()
@@ -774,7 +771,7 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Comm
         return Ok(());
     }
 
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let remotes = match runner.execute(&["remote"]) {
         Ok(output) => output
             .lines()

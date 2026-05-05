@@ -5,6 +5,7 @@ pub use crate::domain::editor::EditorError;
 pub use crate::domain::git::GitError;
 
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum PmaError {
     #[error("Git error: {0}")]
     Git(#[from] GitError),

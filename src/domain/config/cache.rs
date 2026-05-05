@@ -3,11 +3,13 @@ use std::sync::RwLock;
 use super::manager::ConfigDir;
 use super::schema::{AppConfig, GitLabConfig};
 
+#[allow(dead_code)]
 pub struct ConfigCache {
     config: RwLock<Option<AppConfig>>,
     gitlab_config: RwLock<Option<GitLabConfig>>,
 }
 
+#[allow(dead_code)]
 impl ConfigCache {
     pub fn new() -> Self {
         Self {

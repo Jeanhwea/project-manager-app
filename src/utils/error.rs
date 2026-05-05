@@ -1,5 +1,7 @@
+#[allow(dead_code)]
 pub struct ErrorHandler;
 
+#[allow(dead_code)]
 impl ErrorHandler {
     pub fn print_error(context: &str, error: &dyn std::error::Error) {
         eprintln!("错误: {} - {}", context, error);
@@ -58,7 +60,8 @@ mod tests {
 
     #[test]
     fn test_with_context_err() {
-        let result: Result<i32, io::Error> = Err(io::Error::new(io::ErrorKind::NotFound, "not found"));
+        let result: Result<i32, io::Error> =
+            Err(io::Error::new(io::ErrorKind::NotFound, "not found"));
         let wrapped = ErrorHandler::with_context(result, "failed to load");
         assert!(wrapped.is_err());
         let err = wrapped.unwrap_err();
