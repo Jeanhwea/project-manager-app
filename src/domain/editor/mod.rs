@@ -1,6 +1,5 @@
 mod cargo_toml;
 mod cmake;
-mod file_types;
 mod homebrew;
 mod package_json;
 mod pom_xml;
@@ -24,12 +23,6 @@ use std::path::Path;
 #[derive(Debug, thiserror::Error)]
 
 pub enum EditorError {
-    #[error("File not found: {0}")]
-    FileNotFound(String),
-
-    #[error("Unsupported file type: {0}")]
-    UnsupportedFileType(String),
-
     #[error("Parse error: {0}")]
     ParseError(String),
 
