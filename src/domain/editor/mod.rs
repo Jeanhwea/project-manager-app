@@ -150,7 +150,6 @@ impl EditorRegistry {
         editor.validate(content, &edited)?;
         Ok(edited)
     }
-
 }
 
 impl Default for EditorRegistry {
