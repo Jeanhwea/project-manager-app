@@ -12,8 +12,7 @@ impl PackageJsonEditor {
         if let Some(m) = version_pattern.find(content) {
             let start = m.start();
             let end = m.end();
-            let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
-            return Some(VersionPosition { start, end, line });
+            return Some(VersionPosition { start, end });
         }
 
         None
@@ -57,9 +56,7 @@ impl FileEditor for PackageJsonEditor {
 
         Ok(VersionLocation {
             project_version,
-            parent_version: None,
             is_workspace_root: false,
-            dependency_refs: Vec::new(),
         })
     }
 

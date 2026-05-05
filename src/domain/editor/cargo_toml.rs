@@ -29,8 +29,7 @@ impl CargoTomlEditor {
         if let Some(m) = version_pattern.find(package_section) {
             let start = package_start + m.start();
             let end = package_start + m.end();
-            let line = content[..start].chars().filter(|&c| c == '\n').count() + 1;
-            return Some(VersionPosition { start, end, line });
+            return Some(VersionPosition { start, end });
         }
 
         None
@@ -64,9 +63,7 @@ impl FileEditor for CargoTomlEditor {
         if !has_package && has_workspace {
             return Ok(VersionLocation {
                 project_version: None,
-                parent_version: None,
                 is_workspace_root: true,
-                dependency_refs: Vec::new(),
             });
         }
 
@@ -86,9 +83,7 @@ impl FileEditor for CargoTomlEditor {
 
         Ok(VersionLocation {
             project_version,
-            parent_version: None,
             is_workspace_root: false,
-            dependency_refs: Vec::new(),
         })
     }
 

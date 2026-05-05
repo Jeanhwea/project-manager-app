@@ -9,13 +9,3 @@ pub enum BumpType {
     #[value(alias = "pa")]
     Patch,
 }
-
-impl BumpType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            BumpType::Major => "major",
-            BumpType::Minor => "minor",
-            BumpType::Patch => "patch",
-        }
-    }
-}

@@ -16,7 +16,7 @@ pub use package_json::PackageJsonEditor;
 pub use pom_xml::PomXmlEditor;
 pub use project_py::PythonVersionEditor;
 pub use pyproject::PyprojectEditor;
-pub use version_bump::{BumpType, EditorConfig, Version, apply_bump};
+pub use version_bump::{BumpType, Version};
 pub use version_text::VersionTextEditor;
 
 use std::path::Path;
@@ -63,27 +63,15 @@ pub trait FileEditor: Send + Sync {
 }
 
 #[derive(Debug, Clone, Default)]
-
 pub struct VersionLocation {
     pub project_version: Option<VersionPosition>,
-    pub parent_version: Option<VersionPosition>,
     pub is_workspace_root: bool,
-    pub dependency_refs: Vec<DependencyRef>,
 }
 
 #[derive(Debug, Clone)]
-
 pub struct VersionPosition {
     pub start: usize,
     pub end: usize,
-    pub line: usize,
-}
-
-#[derive(Debug, Clone)]
-
-pub struct DependencyRef {
-    pub name_pattern: String,
-    pub position: VersionPosition,
 }
 
 pub struct EditorRegistry {
@@ -129,10 +117,6 @@ impl EditorRegistry {
         self
     }
 
-    pub fn get(&self, name: &str) -> Option<std::sync::Arc<dyn FileEditor>> {
-        self.editors.get(name).cloned()
-    }
-
     pub fn detect_editor(&self, path: &Path) -> Option<std::sync::Arc<dyn FileEditor>> {
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
@@ -174,23 +158,6 @@ impl EditorRegistry {
         Ok(edited)
     }
 
-    pub fn edit_file(&self, path: &Path, new_version: &str) -> Result<()> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-
-        let editor = self
-            .detect_editor(path)
-            .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-
-        let edited = self.edit_version(&*editor, &content, new_version)?;
-
-        write_with_backup(&path.to_string_lossy(), &edited)?;
-        Ok(())
-    }
-
-    pub fn list(&self) -> Vec<&'static str> {
-        self.editors.keys().copied().collect()
-    }
 }
 
 impl Default for EditorRegistry {
@@ -226,87 +193,6 @@ pub fn preserve_line_endings(original: &str, edited: String) -> String {
         edited.replace("\r\n", "\n")
     } else {
         edited
-    }
-}
-
-pub fn bump_version_in_file(
-    path: &Path,
-    bump_type: BumpType,
-    config: &EditorConfig,
-) -> Result<String> {
-    let registry = EditorRegistry::default_with_editors();
-
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-
-    let editor = registry
-        .detect_editor(path)
-        .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-
-    let location = editor.parse(&content)?;
-
-    let current_version = if let Some(pos) = &location.project_version {
-        content[pos.start..pos.end].to_string()
-    } else {
-        return Err(EditorError::VersionNotFound(format!(
-            "No version found in {}",
-            path.display()
-        )));
-    };
-
-    let cleaned_version = current_version
-        .trim_matches('"')
-        .trim_matches('\'')
-        .trim()
-        .to_string();
-
-    let new_version = apply_bump(&cleaned_version, &bump_type)?;
-
-    if config.dry_run {
-        return Ok(format!(
-            "Would update {} from {} to {}",
-            path.display(),
-            cleaned_version,
-            new_version
-        ));
-    }
-
-    let edited = registry.edit_version(&*editor, &content, &new_version)?;
-
-    write_with_backup(&path.to_string_lossy(), &edited)?;
-
-    Ok(format!(
-        "Updated {} from {} to {}",
-        path.display(),
-        cleaned_version,
-        new_version
-    ))
-}
-
-pub fn get_version_from_file(path: &Path) -> Result<String> {
-    let registry = EditorRegistry::default_with_editors();
-
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| EditorError::FileNotFound(format!("{}: {}", path.display(), e)))?;
-
-    let editor = registry
-        .detect_editor(path)
-        .ok_or_else(|| EditorError::UnsupportedFileType(format!("{}", path.display())))?;
-
-    let location = editor.parse(&content)?;
-
-    if let Some(pos) = &location.project_version {
-        let version = content[pos.start..pos.end].to_string();
-        Ok(version
-            .trim_matches('"')
-            .trim_matches('\'')
-            .trim()
-            .to_string())
-    } else {
-        Err(EditorError::VersionNotFound(format!(
-            "No version found in {}",
-            path.display()
-        )))
     }
 }
 

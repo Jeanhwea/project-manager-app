@@ -6,9 +6,6 @@ pub use schema::GitLabServer;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
-    #[error("Configuration file not found: {0}")]
-    FileNotFound(String),
-
     #[error("Parse error: {0}")]
     ParseError(String),
 

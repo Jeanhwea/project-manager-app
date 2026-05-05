@@ -10,8 +10,6 @@ pub enum BumpType {
     Major,
     Minor,
     Patch,
-    PreRelease(String),
-    Build(String),
 }
 
 /// Semantic version representation
@@ -75,7 +73,6 @@ impl Version {
                 minor: self.minor,
                 patch: self.patch + 1,
             },
-            BumpType::PreRelease(_) | BumpType::Build(_) => self.clone(),
         }
     }
 
@@ -89,28 +86,6 @@ impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
     }
-}
-
-/// Apply version bump to a version string
-pub fn apply_bump(version: &str, bump_type: &BumpType) -> Result<String> {
-    let v = Version::parse(version)?;
-
-    match bump_type {
-        BumpType::PreRelease(label) => {
-            Ok(format!("{}.{}.{}-{}", v.major, v.minor, v.patch, label))
-        }
-        BumpType::Build(label) => Ok(format!("{}.{}.{}+{}", v.major, v.minor, v.patch, label)),
-        _ => Ok(v.bump(bump_type).to_string()),
-    }
-}
-
-/// Version editing configuration
-#[derive(Debug, Clone, Default)]
-pub struct EditorConfig {
-    pub dry_run: bool,
-    pub skip_push: bool,
-    pub force: bool,
-    pub message: Option<String>,
 }
 
 #[cfg(test)]

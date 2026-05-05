@@ -52,15 +52,6 @@ impl ConfigDir {
         }
     }
 
-    pub fn save_config(config: &AppConfig) -> Result<()> {
-        Self::ensure_dir()?;
-        let path = Self::config_path();
-        let content = toml::to_string_pretty(config)
-            .map_err(|e| ConfigError::ParseError(format!("{}", e)))?;
-        std::fs::write(&path, content)?;
-        Ok(())
-    }
-
     pub fn load_gitlab() -> GitLabConfig {
         let path = Self::gitlab_path();
         if !path.exists() {
