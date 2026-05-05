@@ -1,23 +1,14 @@
-//! Command definitions for CLI parsing
+//! CLI command definitions
 //!
-//! This module re-exports command types from the commands module for CLI parsing.
-//! The Args structures derive clap::Args/Subcommand/ValueEnum for CLI parsing.
-
-// Re-export types from commands module
-pub use crate::commands::{
-    branch::BranchArgs,
-    config::ConfigArgs,
-    doctor::DoctorArgs,
-    fork::ForkArgs,
-    gitlab::GitLabArgs,
-    release::ReleaseArgs,
-    selfman::SelfManArgs,
-    snap::SnapArgs,
-    status::StatusArgs,
-    sync::SyncArgs,
-};
+//! Defines CLI structure and command routing types.
 
 use clap::Parser;
+
+// Import Args types from commands module for use in Commands enum
+use crate::commands::{
+    branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs, gitlab::GitLabArgs,
+    release::ReleaseArgs, selfman::SelfManArgs, snap::SnapArgs, status::StatusArgs, sync::SyncArgs,
+};
 
 /// Main CLI structure
 #[derive(Parser)]
@@ -28,43 +19,6 @@ use clap::Parser;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
-}
-
-/// Command name enumeration for dispatching
-#[derive(Debug, Clone, PartialEq)]
-pub enum CommandName {
-    Release,
-    Sync,
-    Doctor,
-    Fork,
-    GitLab,
-    Snap,
-    Status,
-    Branch,
-    SelfMan,
-    Config,
-}
-
-/// Parsed command with name and arguments
-#[derive(Debug)]
-pub struct ParsedCommand {
-    pub name: CommandName,
-    pub args: CommandArgs,
-}
-
-/// Command arguments enumeration
-#[derive(Debug)]
-pub enum CommandArgs {
-    Release(ReleaseArgs),
-    Sync(SyncArgs),
-    Doctor(DoctorArgs),
-    Fork(ForkArgs),
-    GitLab(GitLabArgs),
-    Snap(SnapArgs),
-    Status(StatusArgs),
-    Branch(BranchArgs),
-    SelfMan(SelfManArgs),
-    Config(ConfigArgs),
 }
 
 /// All available commands
@@ -120,4 +74,41 @@ pub enum Commands {
         #[command(subcommand)]
         command: ConfigArgs,
     },
+}
+
+/// Command name enumeration for dispatching
+#[derive(Debug, Clone, PartialEq)]
+pub enum CommandName {
+    Release,
+    Sync,
+    Doctor,
+    Fork,
+    GitLab,
+    Snap,
+    Status,
+    Branch,
+    SelfMan,
+    Config,
+}
+
+/// Parsed command with name and arguments
+#[derive(Debug)]
+pub struct ParsedCommand {
+    pub name: CommandName,
+    pub args: CommandArgs,
+}
+
+/// Command arguments enumeration
+#[derive(Debug)]
+pub enum CommandArgs {
+    Release(ReleaseArgs),
+    Sync(SyncArgs),
+    Doctor(DoctorArgs),
+    Fork(ForkArgs),
+    GitLab(GitLabArgs),
+    Snap(SnapArgs),
+    Status(StatusArgs),
+    Branch(BranchArgs),
+    SelfMan(SelfManArgs),
+    Config(ConfigArgs),
 }
