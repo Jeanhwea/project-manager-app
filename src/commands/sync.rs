@@ -1,6 +1,5 @@
 use super::{Command, CommandResult};
-use crate::domain::config::ConfigDir;
-use crate::domain::git::command::GitCommandRunner;
+use crate::domain::context::AppContext;
 use crate::domain::git::remote::RemoteManager;
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::domain::runner::DryRunContext;
@@ -99,7 +98,7 @@ fn execute_sync(args: SyncArgs) -> CommandResult {
         do_info_repository(repo_path)?;
 
         if !ctx.is_dry_run() && !is_workdir_clean(repo_path)? {
-            let runner = GitCommandRunner::new();
+            let runner = AppContext::global().git_runner();
             runner.execute_with_success_in_dir(&["status"], repo_path)?;
             Output::warning(&format!(
                 "无法同步不干净工作目录: {}",
@@ -123,9 +122,8 @@ fn execute_sync(args: SyncArgs) -> CommandResult {
     Ok(())
 }
 
-/// Display repository information
 fn do_info_repository(repo_path: &Path) -> Result<(), crate::domain::git::GitError> {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
 
     if let Err(e) = runner.execute_with_success_in_dir(&["branch", "--list"], repo_path) {
         Output::error(&format!("无法获取分支信息: {}", e));
@@ -138,12 +136,11 @@ fn do_info_repository(repo_path: &Path) -> Result<(), crate::domain::git::GitErr
     Ok(())
 }
 
-/// Get tracking remote information
 fn get_tracking_remote_info(
     repo_path: &Path,
     remotes: &[(String, String)],
 ) -> Option<(String, String)> {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let output = runner
         .execute_quiet_in_dir(&["rev-parse", "--abbrev-ref", "HEAD@{upstream}"], repo_path)
         .ok()?;
@@ -236,13 +233,12 @@ fn do_sync_repository(
     }
 }
 
-/// Check if push should be skipped for a remote
 fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     if skip_remotes.iter().any(|s| s.as_str() == remote) {
         return true;
     }
 
-    let config = ConfigDir::load_config();
+    let config = AppContext::global().config();
 
     if let Some((protocol, host, path)) = parse_git_remote_url(url) {
         use crate::domain::git::GitProtocol;
@@ -272,9 +268,8 @@ fn parse_git_remote_url(url: &str) -> Option<(crate::domain::git::GitProtocol, S
     Some((protocol, host, path))
 }
 
-/// List local branches in a repository
 fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let output = runner
         .execute_quiet_in_dir(&["branch", "--list"], repo_path)
         .ok()?;
@@ -313,9 +308,8 @@ fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
     do_pull_repository_branch(&current_branch, repo_path, rebase);
 }
 
-/// Pull a specific branch
 fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     if let Err(e) = runner.execute_with_success_in_dir(&["checkout", branch], repo_path) {
         Output::error(&format!("切换分支失败: {} - {}", format_path(repo_path), e));
         return;
@@ -323,22 +317,20 @@ fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
     do_pull_repository(repo_path, rebase);
 }
 
-/// Pull current branch
 fn do_pull_repository(repo_path: &Path, rebase: bool) {
     let args = if rebase {
         vec!["pull", "--rebase"]
     } else {
         vec!["pull"]
     };
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     if let Err(e) = runner.execute_with_success_in_dir(&args, repo_path) {
         Output::error(&format!("同步仓库失败: {} - {}", format_path(repo_path), e));
     }
 }
 
-/// Check if working directory is clean
 fn is_workdir_clean(repo_path: &Path) -> Result<bool, crate::domain::git::GitError> {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let output = runner.execute_in_dir(&["status", "--porcelain"], repo_path)?;
     Ok(output.trim().is_empty())
 }
