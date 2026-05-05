@@ -4,7 +4,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-
 pub struct Repository {
     pub path: PathBuf,
     pub status: RepositoryStatus,
@@ -17,7 +16,6 @@ pub struct Repository {
 pub use super::remote::Remote;
 
 #[derive(Debug, Clone)]
-
 pub struct Branch {
     pub name: String,
     pub is_current: bool,
@@ -287,6 +285,61 @@ fn get_upstream_tracking(path: &Path, branch_name: &str) -> Result<String> {
     }
 }
 
+pub struct RepoWalker {
+    repos: Vec<RepoInfo>,
+}
+
+impl RepoWalker {
+    pub fn new(path: &Path, max_depth: usize) -> Result<Self> {
+        let repos = find_git_repositories(path, max_depth)?;
+        Ok(Self { repos })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.repos.is_empty()
+    }
+
+    pub fn total(&self) -> usize {
+        self.repos.len()
+    }
+
+    pub fn walk<F>(&self, mut callback: F) -> Result<()>
+    where
+        F: FnMut(&Path, usize, usize) -> Result<()>,
+    {
+        let total = self.repos.len();
+        for (index, repo) in self.repos.iter().enumerate() {
+            let abs_path =
+                std::fs::canonicalize(&repo.path).unwrap_or_else(|_| repo.path.clone());
+            println!(
+                "({}/{})>> {}",
+                index + 1,
+                total,
+                crate::utils::path::format_path(&abs_path)
+            );
+            callback(&repo.path, index, total)?;
+        }
+        Ok(())
+    }
+
+    pub fn repositories(&self) -> &[RepoInfo] {
+        &self.repos
+    }
+}
+
+pub fn for_each_repo<F>(root_path: &Path, max_depth: usize, mut callback: F) -> Result<()>
+where
+    F: FnMut(&Path) -> Result<()>,
+{
+    let walker = RepoWalker::new(root_path, max_depth)?;
+
+    if walker.is_empty() {
+        return Ok(());
+    }
+
+    walker.walk(|path, _index, _total| callback(path))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,59 +419,4 @@ mod tests {
         let _: &Path = Path::new(".");
         let _: &RepositoryStatus = &RepositoryStatus::Clean;
     }
-}
-
-pub struct RepoWalker {
-    repos: Vec<RepoInfo>,
-}
-
-impl RepoWalker {
-    pub fn new(path: &Path, max_depth: usize) -> Result<Self> {
-        let repos = find_git_repositories(path, max_depth)?;
-        Ok(Self { repos })
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.repos.is_empty()
-    }
-
-    pub fn total(&self) -> usize {
-        self.repos.len()
-    }
-
-    pub fn walk<F>(&self, mut callback: F) -> Result<()>
-    where
-        F: FnMut(&Path, usize, usize) -> Result<()>,
-    {
-        let total = self.repos.len();
-        for (index, repo) in self.repos.iter().enumerate() {
-            let abs_path =
-                std::fs::canonicalize(&repo.path).unwrap_or_else(|_| repo.path.clone());
-            println!(
-                "({}/{})>> {}",
-                index + 1,
-                total,
-                crate::utils::path::format_path(&abs_path)
-            );
-            callback(&repo.path, index, total)?;
-        }
-        Ok(())
-    }
-
-    pub fn repositories(&self) -> &[RepoInfo] {
-        &self.repos
-    }
-}
-
-pub fn for_each_repo<F>(root_path: &Path, max_depth: usize, mut callback: F) -> Result<()>
-where
-    F: FnMut(&Path) -> Result<()>,
-{
-    let walker = RepoWalker::new(root_path, max_depth)?;
-
-    if walker.is_empty() {
-        return Ok(());
-    }
-
-    walker.walk(|path, _index, _total| callback(path))
 }

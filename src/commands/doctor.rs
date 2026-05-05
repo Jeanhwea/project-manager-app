@@ -487,7 +487,6 @@ mod tests {
     #[test]
     fn test_check_command_exists() {
         let _git_exists = check_command_exists("git");
-        assert!(true);
     }
 
     #[test]
