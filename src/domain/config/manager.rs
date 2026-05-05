@@ -1,10 +1,7 @@
-//! Configuration manager module
-
 use super::schema::{AppConfig, GitLabConfig};
 use super::{ConfigError, Result};
 use std::path::PathBuf;
 
-/// Central configuration directory manager
 pub struct ConfigDir;
 
 impl ConfigDir {

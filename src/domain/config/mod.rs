@@ -1,5 +1,3 @@
-//! 配置管理
-
 pub mod manager;
 pub mod schema;
 

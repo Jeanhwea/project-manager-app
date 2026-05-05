@@ -1,5 +1,3 @@
-//! Editor domain module
-
 mod cargo_toml;
 mod cmake;
 mod file_types;
@@ -19,12 +17,11 @@ pub use pom_xml::PomXmlEditor;
 pub use project_py::PythonVersionEditor;
 pub use pyproject::PyprojectEditor;
 #[allow(unused_imports)]
-pub use version_bump::{BumpType, EditorConfig, Version, apply_bump};
+pub use version_bump::{apply_bump, BumpType, EditorConfig, Version};
 pub use version_text::VersionTextEditor;
 
 use std::path::Path;
 
-/// Editor-specific error type
 #[derive(Debug, thiserror::Error)]
 #[allow(dead_code)]
 pub enum EditorError {
@@ -50,10 +47,8 @@ pub enum EditorError {
     FormatPreservationError(String),
 }
 
-/// Common result type for editor operations
 pub type Result<T> = std::result::Result<T, EditorError>;
 
-/// Trait for file editors that can modify version information
 pub trait FileEditor: Send + Sync {
     fn name(&self) -> &'static str;
     fn file_patterns(&self) -> &[&str];
@@ -68,7 +63,6 @@ pub trait FileEditor: Send + Sync {
     fn validate(&self, original: &str, edited: &str) -> Result<()>;
 }
 
-/// Location of version information within a file
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
 pub struct VersionLocation {
@@ -78,7 +72,6 @@ pub struct VersionLocation {
     pub dependency_refs: Vec<DependencyRef>,
 }
 
-/// Position of version information within a file
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct VersionPosition {
@@ -87,7 +80,6 @@ pub struct VersionPosition {
     pub line: usize,
 }
 
-/// Reference to a dependency version that might need updating
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct DependencyRef {
@@ -95,14 +87,12 @@ pub struct DependencyRef {
     pub position: VersionPosition,
 }
 
-/// Registry for managing multiple file editors
 pub struct EditorRegistry {
     editors: std::collections::HashMap<&'static str, std::sync::Arc<dyn FileEditor>>,
     file_pattern_map: std::collections::HashMap<String, &'static str>,
 }
 
 impl EditorRegistry {
-    /// Create a new empty editor registry
     pub fn new() -> Self {
         Self {
             editors: std::collections::HashMap::new(),
@@ -110,7 +100,6 @@ impl EditorRegistry {
         }
     }
 
-    /// Create a default registry with all built-in editors registered
     pub fn default_with_editors() -> Self {
         Self::new()
             .register(CargoTomlEditor)
@@ -123,7 +112,6 @@ impl EditorRegistry {
             .register(PyprojectEditor)
     }
 
-    /// Register an editor with the registry
     pub fn register(mut self, editor: impl FileEditor + 'static) -> Self {
         let name = editor.name();
         let patterns: Vec<String> = editor
@@ -142,13 +130,11 @@ impl EditorRegistry {
         self
     }
 
-    /// Get an editor by name
     #[allow(dead_code)]
     pub fn get(&self, name: &str) -> Option<std::sync::Arc<dyn FileEditor>> {
         self.editors.get(name).cloned()
     }
 
-    /// Detect which editor can handle the given file
     pub fn detect_editor(&self, path: &Path) -> Option<std::sync::Arc<dyn FileEditor>> {
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
@@ -178,7 +164,6 @@ impl EditorRegistry {
         None
     }
 
-    /// Edit version using the specified editor
     pub fn edit_version(
         &self,
         editor: &dyn FileEditor,
@@ -191,7 +176,6 @@ impl EditorRegistry {
         Ok(edited)
     }
 
-    /// Edit a file by path
     #[allow(dead_code)]
     pub fn edit_file(&self, path: &Path, new_version: &str) -> Result<()> {
         let content = std::fs::read_to_string(path)
@@ -207,7 +191,6 @@ impl EditorRegistry {
         Ok(())
     }
 
-    /// List all registered editor names
     #[allow(dead_code)]
     pub fn list(&self) -> Vec<&'static str> {
         self.editors.keys().copied().collect()
@@ -220,7 +203,6 @@ impl Default for EditorRegistry {
     }
 }
 
-/// Utility function to write file with backup
 pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
     let backup_path = format!("{}.bak", path);
 
@@ -238,7 +220,6 @@ pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
     }
 }
 
-/// Utility function to preserve line endings
 pub fn preserve_line_endings(original: &str, edited: String) -> String {
     let original_has_crlf = original.contains("\r\n");
     let edited_has_crlf = edited.contains("\r\n");
@@ -252,7 +233,6 @@ pub fn preserve_line_endings(original: &str, edited: String) -> String {
     }
 }
 
-/// Bump version in a file
 #[allow(dead_code)]
 pub fn bump_version_in_file(
     path: &Path,
@@ -308,7 +288,6 @@ pub fn bump_version_in_file(
     ))
 }
 
-/// Get version from a file
 #[allow(dead_code)]
 pub fn get_version_from_file(path: &Path) -> Result<String> {
     let registry = EditorRegistry::default_with_editors();

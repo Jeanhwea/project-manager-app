@@ -23,7 +23,6 @@ pub enum GitLabError {
     Io(#[from] std::io::Error),
 }
 
-/// GitLab API 客户端使用的内部配置（非持久化配置）
 #[derive(Debug, Clone)]
 pub struct GitLabConfig {
     pub server: Option<String>,
