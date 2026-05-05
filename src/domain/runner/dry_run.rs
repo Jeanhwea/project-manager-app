@@ -3,7 +3,6 @@ use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
 
-/// 支持 `--dry-run` 的命令执行上下文
 pub struct DryRunContext {
     dry_run: bool,
 }
@@ -17,7 +16,6 @@ impl DryRunContext {
         self.dry_run
     }
 
-    /// 执行命令。dry-run 模式下只打印，否则打印并执行
     pub fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
         if self.dry_run {
             self.print_dry_run_command(program, args);

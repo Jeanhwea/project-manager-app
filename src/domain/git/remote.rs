@@ -1,9 +1,6 @@
-//! Git remote management module
-
 use crate::domain::git::{GitError, GitProtocol, Result};
 use std::path::Path;
 
-/// Git remote representation
 #[derive(Debug, Clone)]
 pub struct Remote {
     pub name: String,

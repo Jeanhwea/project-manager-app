@@ -1,11 +1,8 @@
-//! Git repository abstraction module
-
 use super::{GitError, RepositoryStatus, Result};
 use crate::utils::path::canonicalize_path;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Git repository abstraction
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Repository {

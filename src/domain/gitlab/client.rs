@@ -1,11 +1,8 @@
-//! GitLab API client module
-
 use super::{GitLabConfig, GitLabError, Result};
 use crate::domain::gitlab::models::{Group, Project, User};
 use serde::de::DeserializeOwned;
 use std::time::Duration;
 
-/// GitLab API client
 pub struct GitLabClient {
     config: GitLabConfig,
     client: ureq::Agent,
