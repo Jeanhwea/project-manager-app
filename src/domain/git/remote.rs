@@ -5,23 +5,10 @@ use std::path::Path;
 pub struct Remote {
     pub name: String,
     pub url: String,
-
-    pub protocol: GitProtocol,
 }
 
 impl Remote {
-    pub fn new(name: impl Into<String>, url: impl Into<String>) -> Result<Self> {
-        let name = name.into();
-        let url = url.into();
-
-        let protocol = Self::parse_url(&url)?;
-
-        Ok(Self {
-            name,
-            url,
-            protocol,
-        })
-    }
+    pub fn parse_url(url: &str) -> Result<GitProtocol> {
 
     pub fn parse_url(url: &str) -> Result<GitProtocol> {
         let url = url.trim();
@@ -244,18 +231,16 @@ impl RemoteManager {
 
             if let Ok(url) = url_result {
                 match Remote::parse_url(&url) {
-                    Ok(protocol) => {
+                    Ok(_protocol) => {
                         remotes.push(Remote {
                             name: name.to_string(),
                             url,
-                            protocol,
                         });
                     }
                     Err(_) => {
                         remotes.push(Remote {
                             name: name.to_string(),
                             url,
-                            protocol: GitProtocol::Ssh, // Default to SSH
                         });
                     }
                 }

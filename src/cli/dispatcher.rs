@@ -51,9 +51,6 @@ impl CommandDispatcher for CommandDispatcherImpl {
 
 fn convert_command_error(error: CommandError, command_name: &str) -> anyhow::Error {
     match error {
-        CommandError::InvalidArguments(msg) => {
-            anyhow::anyhow!("Invalid arguments for {} command: {}", command_name, msg)
-        }
         CommandError::ExecutionFailed(msg) => {
             anyhow::anyhow!("{} command execution failed: {}", command_name, msg)
         }

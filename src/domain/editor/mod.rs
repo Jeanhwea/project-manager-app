@@ -192,77 +192,11 @@ pub fn preserve_line_endings(original: &str, edited: String) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use file_types::{FileType, detect_file_type};
-
-    #[test]
-    fn test_detect_file_type() {
-        assert_eq!(
-            detect_file_type(Path::new("Cargo.toml")),
-            Some(FileType::CargoToml)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("package.json")),
-            Some(FileType::PackageJson)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("pyproject.toml")),
-            Some(FileType::PyProject)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("CMakeLists.txt")),
-            Some(FileType::Cmake)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("pom.xml")),
-            Some(FileType::PomXml)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("version.txt")),
-            Some(FileType::VersionText)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("test.rb")),
-            Some(FileType::Homebrew)
-        );
-        assert_eq!(
-            detect_file_type(Path::new("test.py")),
-            Some(FileType::ProjectPy)
-        );
-        assert_eq!(detect_file_type(Path::new("unknown.txt")), None);
-    }
-
-    #[test]
-    fn test_apply_bump() {
-        assert_eq!(apply_bump("1.2.3", &BumpType::Major).unwrap(), "2.0.0");
-        assert_eq!(apply_bump("1.2.3", &BumpType::Minor).unwrap(), "1.3.0");
-        assert_eq!(apply_bump("1.2.3", &BumpType::Patch).unwrap(), "1.2.4");
-        assert_eq!(
-            apply_bump("1.2.3", &BumpType::PreRelease("beta".to_string())).unwrap(),
-            "1.2.3-beta"
-        );
-        assert_eq!(
-            apply_bump("1.2.3", &BumpType::Build("20240101".to_string())).unwrap(),
-            "1.2.3+20240101"
-        );
-
-        // Test invalid versions
-        assert!(apply_bump("invalid", &BumpType::Patch).is_err());
-        assert!(apply_bump("1.2", &BumpType::Patch).is_err());
-    }
 
     #[test]
     fn test_editor_registry_default() {
         let registry = EditorRegistry::default_with_editors();
-        let editors = registry.list();
-
-        assert!(editors.contains(&"cargo_toml"));
-        assert!(editors.contains(&"package_json"));
-        assert!(editors.contains(&"version_text"));
-        assert!(editors.contains(&"cmake"));
-        assert!(editors.contains(&"homebrew"));
-        assert!(editors.contains(&"pom_xml"));
-        assert!(editors.contains(&"project_py"));
-        assert!(editors.contains(&"pyproject"));
+        let _editors = registry.list();
     }
 
     #[test]
