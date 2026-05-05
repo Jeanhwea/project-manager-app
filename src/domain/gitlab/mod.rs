@@ -22,19 +22,10 @@ pub enum GitLabError {
     Io(#[from] std::io::Error),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GitLabConfig {
     pub server: Option<String>,
     pub token: Option<String>,
-}
-
-impl Default for GitLabConfig {
-    fn default() -> Self {
-        Self {
-            server: None,
-            token: None,
-        }
-    }
 }
 
 pub type Result<T> = std::result::Result<T, GitLabError>;
