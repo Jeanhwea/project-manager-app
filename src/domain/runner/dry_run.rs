@@ -1,15 +1,21 @@
-use crate::domain::context::AppContext;
 use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
+use std::sync::Arc;
+
+use super::{CommandRunner, DefaultCommandRunner, ExecutionContext, OutputMode};
 
 pub struct DryRunContext {
     dry_run: bool,
+    runner: Arc<dyn CommandRunner>,
 }
 
 impl DryRunContext {
     pub fn new(dry_run: bool) -> Self {
-        Self { dry_run }
+        Self {
+            dry_run,
+            runner: Arc::new(DefaultCommandRunner),
+        }
     }
 
     pub fn is_dry_run(&self) -> bool {
@@ -17,31 +23,31 @@ impl DryRunContext {
     }
 
     pub fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        if self.dry_run {
-            self.print_dry_run_command(program, args);
-            return Ok(());
-        }
-
-        Output::cmd(&format!("{} {}", program, args.join(" ")));
-
-        let runner = AppContext::global().git_runner();
-        let output = if let Some(dir) = dir {
-            runner.execute_raw_in_dir(args, dir)
+        // 根据 dry_run 标志选择输出模式
+        let mode = if self.dry_run {
+            OutputMode::DryRun
         } else {
-            runner.execute_raw(args)
-        }
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
+            OutputMode::Streaming // 实际执行时使用流式输出
+        };
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if !stdout.is_empty() {
-            print!("{}", stdout);
-        }
-        if !stderr.is_empty() {
-            eprint!("{}", stderr);
+        // 使用 ExecutionContext 构建命令上下文
+        let mut ctx = ExecutionContext::new(program)
+            .args(args.iter().copied())
+            .output_mode(mode);
+
+        // 如果提供了工作目录，设置工作目录
+        if let Some(dir) = dir {
+            ctx = ctx.working_dir(dir);
         }
 
-        if !output.status.success() {
+        // 执行命令
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        // 检查执行结果
+        if !result.success {
             anyhow::bail!("命令执行失败: {} {}", program, args.join(" "));
         }
 
@@ -58,9 +64,5 @@ impl DryRunContext {
         if self.dry_run {
             Output::message(&format!("[DRY-RUN] {}", msg));
         }
-    }
-
-    fn print_dry_run_command(&self, program: &str, args: &[&str]) {
-        Output::cmd(&format!("{} {}", program, args.join(" ")));
     }
 }

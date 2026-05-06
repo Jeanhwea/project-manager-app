@@ -1,35 +1,134 @@
 use super::{GitError, Result};
+use crate::domain::runner::{CommandRunner, DefaultCommandRunner, ExecutionContext, OutputMode};
+use crate::utils::output::Output;
+use std::fmt;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::{ExitStatus, Output as ProcessOutput};
+use std::sync::Arc;
 
-#[derive(Debug, Clone)]
-pub struct GitCommandRunner;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+#[cfg(windows)]
+use std::os::windows::process::ExitStatusExt;
+
+pub struct GitCommandRunner {
+    runner: Arc<dyn CommandRunner>,
+}
+
+impl fmt::Debug for GitCommandRunner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GitCommandRunner")
+            .field("runner", &"Arc<dyn CommandRunner>")
+            .finish()
+    }
+}
+
+impl Clone for GitCommandRunner {
+    fn clone(&self) -> Self {
+        Self {
+            runner: Arc::clone(&self.runner),
+        }
+    }
+}
 
 impl GitCommandRunner {
     pub fn new() -> Self {
-        Self
+        Self {
+            runner: Arc::new(DefaultCommandRunner),
+        }
     }
 
     pub fn execute(&self, args: &[&str]) -> Result<String> {
-        let output = self.execute_raw(args)?;
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|e| GitError::CommandFailed(format!("Invalid UTF-8 in output: {}", e)))?;
-        Ok(stdout.trim().to_string())
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .output_mode(OutputMode::Capture);
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            let stderr = result.stderr.unwrap_or_default();
+            return Err(GitError::CommandFailed(stderr));
+        }
+
+        Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
     pub fn execute_in_dir(&self, args: &[&str], dir: &Path) -> Result<String> {
-        let output = self.execute_raw_in_dir(args, dir)?;
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|e| GitError::CommandFailed(format!("Invalid UTF-8 in output: {}", e)))?;
-        Ok(stdout.trim().to_string())
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .working_dir(dir)
+            .output_mode(OutputMode::Capture);
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            let stderr = result.stderr.unwrap_or_default();
+            return Err(GitError::CommandFailed(stderr));
+        }
+
+        Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
-    pub fn execute_raw(&self, args: &[&str]) -> Result<Output> {
-        self.run(args, None)
+    #[allow(dead_code)]
+    pub fn execute_raw(&self, args: &[&str]) -> Result<ProcessOutput> {
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .output_mode(OutputMode::Capture);
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        // Convert CommandResult to ProcessOutput
+        // Note: On Windows, exit code is u32; on Unix it's i32. We handle this by casting.
+        #[cfg(unix)]
+        let status = ExitStatus::from_raw(result.exit_code);
+        #[cfg(windows)]
+        let status = ExitStatus::from_raw(result.exit_code as u32);
+
+        let stdout = result.stdout.unwrap_or_default().into_bytes();
+        let stderr = result.stderr.unwrap_or_default().into_bytes();
+
+        Ok(ProcessOutput {
+            status,
+            stdout,
+            stderr,
+        })
     }
 
-    pub fn execute_raw_in_dir(&self, args: &[&str], dir: &Path) -> Result<Output> {
-        self.run(args, Some(dir))
+    pub fn execute_raw_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .working_dir(dir)
+            .output_mode(OutputMode::Capture);
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        // Convert CommandResult to ProcessOutput
+        // Note: On Windows, exit code is u32; on Unix it's i32. We handle this by casting.
+        #[cfg(unix)]
+        let status = ExitStatus::from_raw(result.exit_code);
+        #[cfg(windows)]
+        let status = ExitStatus::from_raw(result.exit_code as u32);
+
+        let stdout = result.stdout.unwrap_or_default().into_bytes();
+        let stderr = result.stderr.unwrap_or_default().into_bytes();
+
+        Ok(ProcessOutput {
+            status,
+            stdout,
+            stderr,
+        })
     }
 
     pub fn execute_with_success(&self, args: &[&str]) -> Result<()> {
@@ -40,24 +139,81 @@ impl GitCommandRunner {
         self.check_success(args, Some(dir))
     }
 
-    pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<Output> {
-        self.run(args, Some(dir))
+    pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
+        // execute_quiet_in_dir is identical to execute_raw_in_dir
+        // Both execute a git command and return the raw ProcessOutput
+        self.execute_raw_in_dir(args, dir)
     }
 
-    fn run(&self, args: &[&str], dir: Option<&Path>) -> Result<Output> {
-        let mut cmd = Command::new("git");
-        cmd.args(args);
-        if let Some(dir) = dir {
-            cmd.current_dir(dir);
+    /// Execute a git command with streaming output.
+    /// Suitable for long-running commands like git pull/push/fetch.
+    /// Output is displayed in real-time to stdout/stderr.
+    #[allow(dead_code)]
+    pub fn execute_streaming(&self, args: &[&str]) -> Result<()> {
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .output_mode(OutputMode::Streaming);
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            return Err(GitError::CommandFailed(format!(
+                "Git command exited with code {}",
+                result.exit_code
+            )));
         }
-        cmd.output()
-            .map_err(|e| GitError::CommandFailed(format!("Failed to execute git: {}", e)))
+
+        Ok(())
+    }
+
+    /// Execute a git command with streaming output in a specific directory.
+    /// Suitable for long-running commands like git pull/push/fetch.
+    /// Output is displayed in real-time to stdout/stderr.
+    pub fn execute_streaming_in_dir(&self, args: &[&str], dir: &Path) -> Result<()> {
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .working_dir(dir)
+            .output_mode(OutputMode::Streaming);
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            return Err(GitError::CommandFailed(format!(
+                "Git command exited with code {}",
+                result.exit_code
+            )));
+        }
+
+        Ok(())
     }
 
     fn check_success(&self, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        let output = self.run(args, dir)?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        // Print command for visibility
+        let cmd_str = format!("git {}", args.join(" "));
+        Output::cmd(&cmd_str);
+
+        // Build execution context
+        let mut ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .output_mode(OutputMode::Capture);
+
+        if let Some(dir) = dir {
+            ctx = ctx.working_dir(dir);
+        }
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            let stderr = result.stderr.unwrap_or_default();
             return Err(GitError::CommandFailed(format!(
                 "Git command failed: {}",
                 stderr.trim()

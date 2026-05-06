@@ -555,6 +555,7 @@ fn update_cargo_lock(cargo_toml_path: &str) -> CommandResult {
     let pkg_name = read_cargo_package_name(cargo_toml_path)?;
     let runner = AppContext::global().git_runner();
 
+    Output::cmd(&format!("cargo update --package {}", pkg_name));
     let status = std::process::Command::new("cargo")
         .args(["update", "--package", &pkg_name])
         .current_dir(dir)
@@ -591,6 +592,7 @@ fn update_npm_lock(package_json_path: &str) -> CommandResult {
         return Ok(());
     }
 
+    Output::cmd("npm install --package-lock-only");
     #[cfg(target_os = "windows")]
     let status = std::process::Command::new("cmd")
         .args(["/c", "npm", "install", "--package-lock-only"])
@@ -634,6 +636,7 @@ fn update_pnpm_lock(package_json_path: &str) -> CommandResult {
         return Ok(());
     }
 
+    Output::cmd("pnpm install --lockfile-only");
     #[cfg(target_os = "windows")]
     let status = std::process::Command::new("cmd")
         .args(["/c", "pnpm", "install", "--lockfile-only"])
@@ -677,6 +680,7 @@ fn update_yarn_lock(package_json_path: &str) -> CommandResult {
         return Ok(());
     }
 
+    Output::cmd("yarn install --mode update-lockfile");
     #[cfg(target_os = "windows")]
     let status = std::process::Command::new("cmd")
         .args(["/c", "yarn", "install", "--mode", "update-lockfile"])

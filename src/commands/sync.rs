@@ -153,7 +153,6 @@ fn get_tracking_remote_info(
     Some((remote.to_string(), url.clone()))
 }
 
-/// Perform sync operations on a repository
 fn do_sync_repository(
     ctx: &DryRunContext,
     repo_path: &Path,
@@ -314,7 +313,7 @@ fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
 
 fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
     let runner = AppContext::global().git_runner();
-    if let Err(e) = runner.execute_with_success_in_dir(&["checkout", branch], repo_path) {
+    if let Err(e) = runner.execute_streaming_in_dir(&["checkout", branch], repo_path) {
         let context = format!("切换分支失败: {}", format_path(repo_path));
         ErrorHandler::print_error(&context, &e);
         return;
@@ -329,7 +328,7 @@ fn do_pull_repository(repo_path: &Path, rebase: bool) {
         vec!["pull"]
     };
     let runner = AppContext::global().git_runner();
-    if let Err(e) = runner.execute_with_success_in_dir(&args, repo_path) {
+    if let Err(e) = runner.execute_streaming_in_dir(&args, repo_path) {
         let context = format!("同步仓库失败: {}", format_path(repo_path));
         ErrorHandler::print_error(&context, &e);
     }

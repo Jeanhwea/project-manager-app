@@ -184,6 +184,7 @@ fn execute_restore(args: RestoreArgs) -> Result<()> {
         return Ok(());
     }
 
+    Output::cmd(&format!("git checkout {}", commit_ref));
     let output = runner
         .execute_raw_in_dir(&["checkout", &commit_ref], project_path)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
