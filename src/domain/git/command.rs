@@ -150,6 +150,9 @@ impl GitCommandRunner {
     /// Output is displayed in real-time to stdout/stderr.
     #[allow(dead_code)]
     pub fn execute_streaming(&self, args: &[&str]) -> Result<()> {
+        let cmd_str = format!("git {}", args.join(" "));
+        Output::cmd(&cmd_str);
+
         let ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
             .output_mode(OutputMode::Streaming);
@@ -173,6 +176,9 @@ impl GitCommandRunner {
     /// Suitable for long-running commands like git pull/push/fetch.
     /// Output is displayed in real-time to stdout/stderr.
     pub fn execute_streaming_in_dir(&self, args: &[&str], dir: &Path) -> Result<()> {
+        let cmd_str = format!("git {}", args.join(" "));
+        Output::cmd(&cmd_str);
+
         let ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
             .working_dir(dir)
