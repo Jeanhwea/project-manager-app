@@ -1,4 +1,5 @@
 /// 命令执行错误
+#[allow(dead_code)]
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     /// 命令无法启动

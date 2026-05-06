@@ -69,6 +69,7 @@ impl ExecutionContext {
     /// # Returns
     ///
     /// 返回更新后的 ExecutionContext 实例（支持链式调用）
+    #[allow(dead_code)]
     pub fn arg(mut self, arg: impl Into<String>) -> Self {
         self.args.push(arg.into());
         self
@@ -116,6 +117,7 @@ impl ExecutionContext {
     /// # Returns
     ///
     /// 返回更新后的 ExecutionContext 实例（支持链式调用）
+    #[allow(dead_code)]
     pub fn env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.env_vars.insert(key.into(), value.into());
         self

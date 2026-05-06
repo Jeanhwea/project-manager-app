@@ -32,7 +32,7 @@ impl DryRunContext {
 
         // 使用 ExecutionContext 构建命令上下文
         let mut ctx = ExecutionContext::new(program)
-            .args(args.iter().map(|s| *s))
+            .args(args.iter().copied())
             .output_mode(mode);
 
         // 如果提供了工作目录，设置工作目录

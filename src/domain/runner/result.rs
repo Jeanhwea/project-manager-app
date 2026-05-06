@@ -85,6 +85,7 @@ impl CommandResult {
     /// - `success`: false
     /// - `stdout`: None
     /// - `stderr`: None
+    #[allow(dead_code)]
     pub fn failure(exit_code: i32) -> Self {
         Self {
             exit_code,

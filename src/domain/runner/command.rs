@@ -29,6 +29,7 @@ use crate::utils::output::Output;
 ///     eprintln!("Git pull failed with exit code {}", result.exit_code);
 /// }
 /// ```
+#[allow(dead_code)]
 pub trait CommandRunner: Send + Sync {
     /// 执行命令，根据上下文中的 output_mode 决定执行方式
     ///
@@ -232,7 +233,7 @@ impl DefaultCommandRunner {
         // 创建线程读取 stdout
         let stdout_thread = thread::spawn(move || {
             let reader = BufReader::new(stdout);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 println!("{}", line); // 实时输出到终端
             }
         });
@@ -240,7 +241,7 @@ impl DefaultCommandRunner {
         // 创建线程读取 stderr
         let stderr_thread = thread::spawn(move || {
             let reader = BufReader::new(stderr);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 eprintln!("{}", line); // 实时输出到终端
             }
         });

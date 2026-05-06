@@ -75,6 +75,7 @@ impl GitCommandRunner {
         Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
+    #[allow(dead_code)]
     pub fn execute_raw(&self, args: &[&str]) -> Result<ProcessOutput> {
         let ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
@@ -147,6 +148,7 @@ impl GitCommandRunner {
     /// Execute a git command with streaming output.
     /// Suitable for long-running commands like git pull/push/fetch.
     /// Output is displayed in real-time to stdout/stderr.
+    #[allow(dead_code)]
     pub fn execute_streaming(&self, args: &[&str]) -> Result<()> {
         let ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
