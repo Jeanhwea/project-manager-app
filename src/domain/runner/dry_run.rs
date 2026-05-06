@@ -23,11 +23,12 @@ impl DryRunContext {
     }
 
     pub fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        // 根据 dry_run 标志选择输出模式
         let mode = if self.dry_run {
             OutputMode::DryRun
         } else {
-            OutputMode::Streaming // 实际执行时使用流式输出
+            let cmd_str = format!("{} {}", program, args.join(" "));
+            Output::cmd(&cmd_str);
+            OutputMode::Streaming
         };
 
         // 使用 ExecutionContext 构建命令上下文
