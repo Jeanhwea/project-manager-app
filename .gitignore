@@ -2,3 +2,4 @@
 npm/pma-*/bin/
 .kiro/*
 temp/*
+.idea/*

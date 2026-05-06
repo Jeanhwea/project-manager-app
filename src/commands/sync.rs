@@ -314,11 +314,18 @@ fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
 
 fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
     let runner = AppContext::global().git_runner();
+    Output::cmd(&format!("git checkout {}", branch));
     if let Err(e) = runner.execute_with_success_in_dir(&["checkout", branch], repo_path) {
         let context = format!("切换分支失败: {}", format_path(repo_path));
         ErrorHandler::print_error(&context, &e);
         return;
     }
+    let pull_cmd = if rebase {
+        "git pull --rebase"
+    } else {
+        "git pull"
+    };
+    Output::cmd(pull_cmd);
     do_pull_repository(repo_path, rebase);
 }
 
