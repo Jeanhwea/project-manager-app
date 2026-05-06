@@ -117,17 +117,26 @@ mod tests {
         // First call should trigger load
         let _config1 = cache.get();
         let loads_after_first = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
-        assert_eq!(loads_after_first, 1, "Config should be loaded once on first access");
+        assert_eq!(
+            loads_after_first, 1,
+            "Config should be loaded once on first access"
+        );
 
         // Second call should use cache, not load again
         let _config2 = cache.get();
         let loads_after_second = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
-        assert_eq!(loads_after_second, 1, "Config should not be loaded again on second access");
+        assert_eq!(
+            loads_after_second, 1,
+            "Config should not be loaded again on second access"
+        );
 
         // Third call should still use cache
         let _config3 = cache.get();
         let loads_after_third = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
-        assert_eq!(loads_after_third, 1, "Config should still use cache on subsequent accesses");
+        assert_eq!(
+            loads_after_third, 1,
+            "Config should still use cache on subsequent accesses"
+        );
     }
 
     #[test]
@@ -148,6 +157,9 @@ mod tests {
         // Next access should reload
         let _config2 = cache.get();
         let loads_after_refresh = CONFIG_LOAD_COUNT.load(Ordering::SeqCst);
-        assert_eq!(loads_after_refresh, 2, "Config should be reloaded after refresh");
+        assert_eq!(
+            loads_after_refresh, 2,
+            "Config should be reloaded after refresh"
+        );
     }
 }
