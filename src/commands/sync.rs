@@ -179,18 +179,21 @@ fn do_sync_repository(
         return;
     }
 
-    let Some((track_remote, track_remote_url)) = get_tracking_remote_info(repo_path, &remotes)
-    else {
-        ctx.print_message("无跟踪分支信息");
+    if fetch_only {
+        // fetch_only 模式：只需要 fetch 所有远程
+        for (remote, url) in &remotes {
+            if skip_remotes.iter().any(|s| s.as_str() == *remote) {
+                Output::skip(&format!("git fetch {} ({})", remote, url));
+            } else {
+                ctx.run_in_dir("git", &["fetch", remote], Some(repo_path))
+                    .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("拉取仓库失败", &e));
+            }
+        }
         return;
-    };
+    }
 
-    if skip_remotes.contains(&track_remote) {
-        Output::skip(&format!("git pull {} ({})", track_remote, track_remote_url));
-    } else if fetch_only {
-        ctx.run_in_dir("git", &["fetch", &track_remote], Some(repo_path))
-            .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("拉取仓库失败", &e));
-    } else if all_branch {
+    if all_branch {
+        // all_branch 模式：切换到每个本地分支并 pull
         if ctx.is_dry_run() {
             if rebase {
                 ctx.print_message("git pull --rebase (all branches)");
@@ -201,25 +204,25 @@ fn do_sync_repository(
             do_pull_all_local_branch(repo_path, rebase);
         }
     } else {
-        let args = if rebase {
-            vec!["pull", "--rebase"]
-        } else {
-            vec!["pull"]
+        // 普通模式：只 pull 当前分支
+        let Some((track_remote, track_remote_url)) =
+            get_tracking_remote_info(repo_path, &remotes)
+        else {
+            ctx.print_message("无跟踪分支信息，跳过 pull");
+            return;
         };
-        ctx.run_in_dir("git", &args, Some(repo_path))
-            .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("同步仓库失败", &e));
-    }
 
-    if fetch_only {
-        for (remote, url) in &remotes {
-            if skip_remotes.iter().any(|s| s.as_str() == *remote) {
-                Output::skip(&format!("git fetch {} ({})", remote, url));
-            } else if *remote != track_remote {
-                ctx.run_in_dir("git", &["fetch", remote], Some(repo_path))
-                    .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("拉取仓库失败", &e));
-            }
+        if skip_remotes.contains(&track_remote) {
+            Output::skip(&format!("git pull {} ({})", track_remote, track_remote_url));
+        } else {
+            let args = if rebase {
+                vec!["pull", "--rebase"]
+            } else {
+                vec!["pull"]
+            };
+            ctx.run_in_dir("git", &args, Some(repo_path))
+                .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("同步仓库失败", &e));
         }
-        return;
     }
 
     for (remote, url) in remotes {
