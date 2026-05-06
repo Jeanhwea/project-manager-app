@@ -1,6 +1,7 @@
 use super::{GitError, Result};
+use crate::utils::output::Output;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::{Command, Output as ProcessOutput};
 
 #[derive(Debug, Clone)]
 pub struct GitCommandRunner;
@@ -24,12 +25,12 @@ impl GitCommandRunner {
         Ok(stdout.trim().to_string())
     }
 
-    pub fn execute_raw(&self, args: &[&str]) -> Result<Output> {
-        self.run(args, None)
+    pub fn execute_raw(&self, args: &[&str]) -> Result<ProcessOutput> {
+        self.run(args, None, true)
     }
 
-    pub fn execute_raw_in_dir(&self, args: &[&str], dir: &Path) -> Result<Output> {
-        self.run(args, Some(dir))
+    pub fn execute_raw_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
+        self.run(args, Some(dir), true)
     }
 
     pub fn execute_with_success(&self, args: &[&str]) -> Result<()> {
@@ -40,11 +41,15 @@ impl GitCommandRunner {
         self.check_success(args, Some(dir))
     }
 
-    pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<Output> {
-        self.run(args, Some(dir))
+    pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
+        self.run(args, Some(dir), false)
     }
 
-    fn run(&self, args: &[&str], dir: Option<&Path>) -> Result<Output> {
+    fn run(&self, args: &[&str], dir: Option<&Path>, print_cmd: bool) -> Result<ProcessOutput> {
+        if print_cmd {
+            let cmd_str = format!("git {}", args.join(" "));
+            Output::cmd(&cmd_str);
+        }
         let mut cmd = Command::new("git");
         cmd.args(args);
         if let Some(dir) = dir {
@@ -55,7 +60,7 @@ impl GitCommandRunner {
     }
 
     fn check_success(&self, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        let output = self.run(args, dir)?;
+        let output = self.run(args, dir, true)?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(GitError::CommandFailed(format!(

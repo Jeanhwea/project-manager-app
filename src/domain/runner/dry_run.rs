@@ -22,8 +22,6 @@ impl DryRunContext {
             return Ok(());
         }
 
-        Output::cmd(&format!("{} {}", program, args.join(" ")));
-
         let runner = AppContext::global().git_runner();
         let output = if let Some(dir) = dir {
             runner.execute_raw_in_dir(args, dir)

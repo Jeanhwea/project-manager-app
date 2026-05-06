@@ -153,7 +153,6 @@ fn get_tracking_remote_info(
     Some((remote.to_string(), url.clone()))
 }
 
-/// Perform sync operations on a repository
 fn do_sync_repository(
     ctx: &DryRunContext,
     repo_path: &Path,
@@ -185,7 +184,6 @@ fn do_sync_repository(
             if skip_remotes.iter().any(|s| s.as_str() == *remote) {
                 Output::skip(&format!("git fetch {} ({})", remote, url));
             } else {
-                Output::cmd(&format!("git fetch {}", remote));
                 ctx.run_in_dir("git", &["fetch", remote], Some(repo_path))
                     .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("拉取仓库失败", &e));
             }
@@ -216,12 +214,6 @@ fn do_sync_repository(
         if skip_remotes.contains(&track_remote) {
             Output::skip(&format!("git pull {} ({})", track_remote, track_remote_url));
         } else {
-            let pull_cmd = if rebase {
-                "git pull --rebase"
-            } else {
-                "git pull"
-            };
-            Output::cmd(pull_cmd);
             let args = if rebase {
                 vec!["pull", "--rebase"]
             } else {
@@ -237,10 +229,8 @@ fn do_sync_repository(
             Output::skip(&format!("git push {} ({})", remote, url));
             continue;
         }
-        Output::cmd(&format!("git push {} --all", remote));
         ctx.run_in_dir("git", &["push", &remote, "--all"], Some(repo_path))
             .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("推送分支失败", &e));
-        Output::cmd(&format!("git push {} --tags", remote));
         ctx.run_in_dir("git", &["push", &remote, "--tags"], Some(repo_path))
             .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("推送标签失败", &e));
     }
@@ -323,18 +313,11 @@ fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
 
 fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
     let runner = AppContext::global().git_runner();
-    Output::cmd(&format!("git checkout {}", branch));
     if let Err(e) = runner.execute_with_success_in_dir(&["checkout", branch], repo_path) {
         let context = format!("切换分支失败: {}", format_path(repo_path));
         ErrorHandler::print_error(&context, &e);
         return;
     }
-    let pull_cmd = if rebase {
-        "git pull --rebase"
-    } else {
-        "git pull"
-    };
-    Output::cmd(pull_cmd);
     do_pull_repository(repo_path, rebase);
 }
 
