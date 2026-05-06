@@ -1,4 +1,5 @@
 use super::{Command, CommandError, CommandResult};
+use crate::domain::context::AppContext;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::runner::DryRunContext;
 use crate::utils::output::Output;
@@ -95,7 +96,7 @@ fn execute_snap(args: SnapArgs) -> Result<()> {
 fn execute_create(args: CreateArgs) -> Result<()> {
     let project_path = Path::new(&args.path);
     let ctx = DryRunContext::new(args.dry_run);
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
 
     if !project_path.exists() {
         anyhow::bail!("项目路径不存在: {}", args.path);
@@ -114,10 +115,9 @@ fn execute_create(args: CreateArgs) -> Result<()> {
     Ok(())
 }
 
-/// Execute list snapshots command
 fn execute_list(args: ListArgs) -> Result<()> {
     let project_path = Path::new(&args.path);
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
 
     if !project_path.exists() {
         anyhow::bail!("项目路径不存在: {}", args.path);
@@ -129,7 +129,7 @@ fn execute_list(args: ListArgs) -> Result<()> {
     }
 
     let output = runner
-        .execute_quiet_in_dir(&["log", "--oneline"], project_path)
+        .execute_raw_in_dir(&["log", "--oneline"], project_path)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -166,7 +166,7 @@ fn execute_list(args: ListArgs) -> Result<()> {
 fn execute_restore(args: RestoreArgs) -> Result<()> {
     let project_path = Path::new(&args.path);
     let ctx = DryRunContext::new(args.dry_run);
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
 
     if !project_path.exists() {
         anyhow::bail!("项目路径不存在: {}", args.path);
@@ -208,7 +208,7 @@ fn resolve_snapshot_ref(
 ) -> Result<String> {
     if snapshot.starts_with("snap-") {
         let output = runner
-            .execute_quiet_in_dir(&["log", "--oneline", "--grep", snapshot], project_path)
+            .execute_raw_in_dir(&["log", "--oneline", "--grep", snapshot], project_path)
             .map_err(|e| anyhow::anyhow!("{}", e))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -222,7 +222,7 @@ fn resolve_snapshot_ref(
         && let Ok(index) = index_str.parse::<usize>()
     {
         let output = runner
-            .execute_quiet_in_dir(&["log", "--oneline"], project_path)
+            .execute_raw_in_dir(&["log", "--oneline"], project_path)
             .map_err(|e| anyhow::anyhow!("{}", e))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -247,7 +247,7 @@ fn resolve_snapshot_ref(
     }
 
     let output = runner
-        .execute_quiet_in_dir(&["rev-parse", "--verify", snapshot], project_path)
+        .execute_raw_in_dir(&["rev-parse", "--verify", snapshot], project_path)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -303,7 +303,7 @@ fn do_incremental_snapshot(
 
 /// Check if there are pending changes in the repository
 fn check_pending_changes(runner: &GitCommandRunner, work_dir: &Path) -> bool {
-    let output = match runner.execute_quiet_in_dir(&["status", "--porcelain"], work_dir) {
+    let output = match runner.execute_raw_in_dir(&["status", "--porcelain"], work_dir) {
         Ok(o) => o,
         Err(_) => return true,
     };

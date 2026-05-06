@@ -173,6 +173,28 @@ fn get_effective_path(path: &str) -> PathBuf {
     find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone())
 }
 
+fn parse_branch_list(output: &str) -> Vec<String> {
+    output
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            if let Some(stripped) = line.strip_prefix('*') {
+                stripped.trim().to_string()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect()
+}
+
+fn get_local_branches(runner: &GitCommandRunner, repo_path: &Path) -> Vec<String> {
+    match runner.execute_in_dir(&["branch", "--list"], repo_path) {
+        Ok(output) => parse_branch_list(&output),
+        Err(_) => Vec::new(),
+    }
+}
+
 fn execute_list(args: ListArgs) -> CommandResult {
     let effective_path = get_effective_path(&args.path);
     let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
@@ -258,22 +280,7 @@ fn list_branches(repo_path: &Path) {
         .execute_in_dir(&["branch", "--show-current"], repo_path)
         .unwrap_or_default();
 
-    // Get local branches
-    let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-        Ok(output) => output
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .map(|line| {
-                if let Some(stripped) = line.strip_prefix('*') {
-                    stripped.trim().to_string()
-                } else {
-                    line.to_string()
-                }
-            })
-            .collect::<Vec<String>>(),
-        Err(_) => Vec::new(),
-    };
+    let local_branches = get_local_branches(runner, repo_path);
 
     if !local_branches.is_empty() {
         Output::section("本地分支:");
@@ -286,7 +293,6 @@ fn list_branches(repo_path: &Path) {
         }
     }
 
-    // Get remote branches
     let remote_branches = match runner.execute_in_dir(&["branch", "-r", "--list"], repo_path) {
         Ok(output) => output
             .lines()
@@ -312,7 +318,6 @@ fn switch_branch(
     create: bool,
     dry_run: bool,
 ) -> Result<(), crate::domain::git::GitError> {
-    // Get current branch
     let current = runner
         .execute_in_dir(&["branch", "--show-current"], repo_path)
         .unwrap_or_default();
@@ -322,26 +327,10 @@ fn switch_branch(
         return Ok(());
     }
 
+    let local_branches = get_local_branches(runner, repo_path);
+    let branch_exists = local_branches.iter().any(|b| b == branch_name);
+
     if create {
-        // Check if branch exists
-        let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-            Ok(output) => output
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| {
-                    if let Some(stripped) = line.strip_prefix('*') {
-                        stripped.trim().to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .collect::<Vec<String>>(),
-            Err(_) => Vec::new(),
-        };
-
-        let branch_exists = local_branches.iter().any(|b| b == branch_name);
-
         if branch_exists {
             Output::warning(&format!("分支 {} 已存在，直接切换", branch_name));
             if !dry_run {
@@ -357,25 +346,6 @@ fn switch_branch(
             }
         }
     } else {
-        // Check if branch exists
-        let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-            Ok(output) => output
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| {
-                    if let Some(stripped) = line.strip_prefix('*') {
-                        stripped.trim().to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .collect::<Vec<String>>(),
-            Err(_) => Vec::new(),
-        };
-
-        let branch_exists = local_branches.iter().any(|b| b == branch_name);
-
         if !branch_exists {
             Output::error(&format!(
                 "分支 {} 不存在 (使用 --create 创建新分支)",
@@ -402,22 +372,7 @@ fn rename_branch(
     new_name: &str,
     dry_run: bool,
 ) -> Result<(), crate::domain::git::GitError> {
-    // Get local branches
-    let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-        Ok(output) => output
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .map(|line| {
-                if let Some(stripped) = line.strip_prefix('*') {
-                    stripped.trim().to_string()
-                } else {
-                    line.to_string()
-                }
-            })
-            .collect::<Vec<String>>(),
-        Err(_) => Vec::new(),
-    };
+    let local_branches = get_local_branches(runner, repo_path);
 
     if !local_branches.iter().any(|b| b == old_name) {
         Output::skip(&format!("分支 {} 不存在", old_name));
@@ -429,7 +384,6 @@ fn rename_branch(
         return Ok(());
     }
 
-    // Get current branch
     let current = runner
         .execute_in_dir(&["branch", "--show-current"], repo_path)
         .unwrap_or_default();
@@ -470,19 +424,10 @@ fn clean_merged_branches(
 
     let merged_branches =
         match runner.execute_in_dir(&["branch", "--merged", &current], repo_path) {
-            Ok(output) => output
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| {
-                    if let Some(stripped) = line.strip_prefix('*') {
-                        stripped.trim().to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
+            Ok(output) => parse_branch_list(&output)
+                .into_iter()
                 .filter(|branch| branch != &current && !branch.starts_with("remotes/"))
-                .collect::<Vec<String>>(),
+                .collect(),
             Err(_) => Vec::new(),
         };
 

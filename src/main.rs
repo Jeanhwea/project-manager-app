@@ -8,7 +8,7 @@ use anyhow::Result;
 use cli::{ClapParser, CliParser, CommandDispatcher, CommandDispatcherImpl};
 
 fn main() -> Result<()> {
-    let parsed_command = ClapParser::parse()?;
-    CommandDispatcherImpl::dispatch(parsed_command)?;
+    let args = ClapParser::parse()?;
+    CommandDispatcherImpl::dispatch(args)?;
     Ok(())
 }

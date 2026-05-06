@@ -1,6 +1,6 @@
 use super::{Command, CommandError, CommandResult};
 use crate::domain::config::{ConfigDir, GitLabServer};
-use crate::domain::git::command::GitCommandRunner;
+use crate::domain::context::AppContext;
 use crate::domain::git::repository::is_git_repo;
 use crate::domain::gitlab::client::GitLabClient;
 use crate::domain::gitlab::models::User;
@@ -342,7 +342,7 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
             git_args.push("--recursive");
         }
 
-        let runner = GitCommandRunner::new();
+        let runner = AppContext::global().git_runner();
         match runner.execute_in_dir(&git_args, output_path) {
             Ok(_) => {
                 Output::success(&format!("已克隆 {}", relative_path));
@@ -552,7 +552,7 @@ fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
         return urls;
     }
 
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     if let Ok(entries) = std::fs::read_dir(output_path) {
         for entry in entries.flatten() {
             let path = entry.path();

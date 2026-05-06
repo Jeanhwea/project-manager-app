@@ -60,26 +60,6 @@ pub enum Commands {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum CommandName {
-    Release,
-    Sync,
-    Doctor,
-    Fork,
-    GitLab,
-    Snap,
-    Status,
-    Branch,
-    SelfMan,
-    Config,
-}
-
-#[derive(Debug)]
-pub struct ParsedCommand {
-    pub name: CommandName,
-    pub args: CommandArgs,
-}
-
 #[derive(Debug)]
 pub enum CommandArgs {
     Release(ReleaseArgs),
@@ -92,4 +72,21 @@ pub enum CommandArgs {
     Branch(BranchArgs),
     SelfMan(SelfManArgs),
     Config(ConfigArgs),
+}
+
+impl CommandArgs {
+    pub fn command_name(&self) -> &'static str {
+        match self {
+            CommandArgs::Release(_) => "release",
+            CommandArgs::Sync(_) => "sync",
+            CommandArgs::Doctor(_) => "doctor",
+            CommandArgs::Fork(_) => "fork",
+            CommandArgs::GitLab(_) => "gitlab",
+            CommandArgs::Snap(_) => "snap",
+            CommandArgs::Status(_) => "status",
+            CommandArgs::Branch(_) => "branch",
+            CommandArgs::SelfMan(_) => "self",
+            CommandArgs::Config(_) => "config",
+        }
+    }
 }

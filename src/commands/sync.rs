@@ -143,7 +143,7 @@ fn get_tracking_remote_info(
 ) -> Option<(String, String)> {
     let runner = AppContext::global().git_runner();
     let output = runner
-        .execute_quiet_in_dir(&["rev-parse", "--abbrev-ref", "HEAD@{upstream}"], repo_path)
+        .execute_raw_in_dir(&["rev-parse", "--abbrev-ref", "HEAD@{upstream}"], repo_path)
         .ok()?;
 
     let upstream = String::from_utf8(output.stdout).ok()?;
@@ -261,20 +261,16 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     false
 }
 
-/// Parse Git remote URL into protocol, host, and path
 fn parse_git_remote_url(url: &str) -> Option<(crate::domain::git::GitProtocol, String, String)> {
-    use crate::domain::git::remote::Remote;
-
-    let protocol = Remote::parse_url(url).ok()?;
-    let (host, path) = Remote::extract_host_and_path(url)?;
-
+    let protocol = crate::domain::git::remote::Remote::parse_url(url).ok()?;
+    let (host, path) = crate::domain::git::remote::Remote::extract_host_and_path(url)?;
     Some((protocol, host, path))
 }
 
 fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
     let runner = AppContext::global().git_runner();
     let output = runner
-        .execute_quiet_in_dir(&["branch", "--list"], repo_path)
+        .execute_raw_in_dir(&["branch", "--list"], repo_path)
         .ok()?;
     let stdout = String::from_utf8(output.stdout).ok()?;
     let lines: Vec<_> = stdout.lines().collect();

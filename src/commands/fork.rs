@@ -1,6 +1,7 @@
 use super::{Command, CommandResult};
 use crate::domain::context::AppContext;
 use crate::domain::git::GitProtocol;
+use crate::domain::git::remote::{Remote, RemoteManager};
 use crate::domain::runner::DryRunContext;
 use anyhow::{Context, Result};
 use heck::{ToKebabCase, ToPascalCase};
@@ -137,7 +138,7 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
 
     let runner = AppContext::global().git_runner();
     let output = runner
-        .execute_quiet_in_dir(
+        .execute_raw_in_dir(
             &["config", "--file", ".gitmodules", "--get-regexp", "path"],
             project_dir,
         )
@@ -160,7 +161,7 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
         }
 
         let url_output = runner
-            .execute_quiet_in_dir(
+            .execute_raw_in_dir(
                 &[
                     "config",
                     "--file",
@@ -187,39 +188,9 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
 }
 
 fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::Error> {
-    let runner = AppContext::global().git_runner();
-    let remote_names_output = runner.execute_quiet_in_dir(&["remote"], project_dir);
-
-    let remote_names: Vec<String> = match remote_names_output {
-        Ok(output) => {
-            let stdout =
-                String::from_utf8(output.stdout).with_context(|| "解析远程仓库名称输出失败")?;
-            stdout
-                .lines()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
-        }
-        Err(_) => {
-            // No remotes is not an error, just return empty list
-            return Ok(Vec::new());
-        }
-    };
-
-    let mut remotes = Vec::new();
-    for name in remote_names {
-        let url_output = runner.execute_quiet_in_dir(&["remote", "get-url", &name], project_dir);
-        if let Ok(output) = url_output {
-            let url = String::from_utf8(output.stdout)
-                .with_context(|| format!("解析远程仓库 {} 的 URL 失败", name))?;
-            let url = url.trim().to_string();
-            if !url.is_empty() {
-                remotes.push((name, url));
-            }
-        }
-    }
-
-    Ok(remotes)
+    let manager = RemoteManager::new();
+    let remotes = manager.list_remotes(project_dir)?;
+    Ok(remotes.into_iter().map(|r| (r.name, r.url)).collect())
 }
 
 fn do_init_project(
@@ -384,49 +355,8 @@ fn generate_new_remote_url(original_url: &str, project_name: &str) -> Option<Str
 }
 
 fn parse_git_remote_url(url: &str) -> Option<(GitProtocol, String, String)> {
-    let url = url.trim();
-    if url.is_empty() {
-        return None;
-    }
-
-    let protocol = if url.starts_with("git@") || url.starts_with("ssh://") {
-        GitProtocol::Ssh
-    } else if url.starts_with("https://") {
-        GitProtocol::Https
-    } else if url.starts_with("http://") {
-        GitProtocol::Http
-    } else if url.starts_with("git://") {
-        GitProtocol::Git
-    } else {
-        return None;
-    };
-
-    let (url, separator) = if url.starts_with("git@") {
-        (url.replace("git@", ""), ':')
-    } else if url.starts_with("ssh://") {
-        let stripped = url.replace("ssh://", "");
-        let stripped = if stripped.starts_with("git@") {
-            stripped.replacen("git@", "", 1)
-        } else {
-            stripped
-        };
-        (stripped, '/')
-    } else if url.starts_with("https://") {
-        (url.replace("https://", ""), '/')
-    } else if url.starts_with("http://") {
-        (url.replace("http://", ""), '/')
-    } else if url.starts_with("git://") {
-        (url.replace("git://", ""), '/')
-    } else {
-        (url.to_string(), ':')
-    };
-
-    let parts: Vec<&str> = url.splitn(2, separator).collect();
-    if parts.len() != 2 {
-        return None;
-    }
-
-    let (host, path) = (parts[0].to_string(), parts[1].to_string());
+    let protocol = Remote::parse_url(url).ok()?;
+    let (host, path) = Remote::extract_host_and_path(url)?;
     Some((protocol, host, path))
 }
 

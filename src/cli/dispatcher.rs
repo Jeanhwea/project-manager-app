@@ -1,4 +1,4 @@
-use super::{CliResult, CommandArgs, CommandName, ParsedCommand};
+use super::{CliResult, CommandArgs};
 use crate::commands::{
     Command, CommandError, branch::BranchCommand, config::ConfigCommand, doctor::DoctorCommand,
     fork::ForkCommand, gitlab::GitLabCommand, release::ReleaseCommand, selfman::SelfManCommand,
@@ -6,45 +6,45 @@ use crate::commands::{
 };
 
 pub trait CommandDispatcher {
-    fn dispatch(command: ParsedCommand) -> CliResult;
+    fn dispatch(args: CommandArgs) -> CliResult;
 }
 
 pub struct CommandDispatcherImpl;
 
 impl CommandDispatcher for CommandDispatcherImpl {
-    fn dispatch(command: ParsedCommand) -> CliResult {
-        match (command.name, command.args) {
-            (CommandName::Release, CommandArgs::Release(args)) => {
-                ReleaseCommand::execute(args).map_err(|e| convert_command_error(e, "release"))
+    fn dispatch(args: CommandArgs) -> CliResult {
+        let command_name = args.command_name();
+        match args {
+            CommandArgs::Release(args) => {
+                ReleaseCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::Sync, CommandArgs::Sync(args)) => {
-                SyncCommand::execute(args).map_err(|e| convert_command_error(e, "sync"))
+            CommandArgs::Sync(args) => {
+                SyncCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::Doctor, CommandArgs::Doctor(args)) => {
-                DoctorCommand::execute(args).map_err(|e| convert_command_error(e, "doctor"))
+            CommandArgs::Doctor(args) => {
+                DoctorCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::Fork, CommandArgs::Fork(args)) => {
-                ForkCommand::execute(args).map_err(|e| convert_command_error(e, "fork"))
+            CommandArgs::Fork(args) => {
+                ForkCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::GitLab, CommandArgs::GitLab(args)) => {
-                GitLabCommand::execute(args).map_err(|e| convert_command_error(e, "gitlab"))
+            CommandArgs::GitLab(args) => {
+                GitLabCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::Snap, CommandArgs::Snap(args)) => {
-                SnapCommand::execute(args).map_err(|e| convert_command_error(e, "snap"))
+            CommandArgs::Snap(args) => {
+                SnapCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::Status, CommandArgs::Status(args)) => {
-                StatusCommand::execute(args).map_err(|e| convert_command_error(e, "status"))
+            CommandArgs::Status(args) => {
+                StatusCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::Branch, CommandArgs::Branch(args)) => {
-                BranchCommand::execute(args).map_err(|e| convert_command_error(e, "branch"))
+            CommandArgs::Branch(args) => {
+                BranchCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::SelfMan, CommandArgs::SelfMan(args)) => {
-                SelfManCommand::execute(args).map_err(|e| convert_command_error(e, "self"))
+            CommandArgs::SelfMan(args) => {
+                SelfManCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            (CommandName::Config, CommandArgs::Config(args)) => {
-                ConfigCommand::execute(args).map_err(|e| convert_command_error(e, "config"))
+            CommandArgs::Config(args) => {
+                ConfigCommand::execute(args).map_err(|e| convert_command_error(e, command_name))
             }
-            _ => Err(anyhow::anyhow!("Command name and argument type mismatch")),
         }
     }
 }
@@ -75,7 +75,6 @@ fn convert_command_error(error: CommandError, command_name: &str) -> anyhow::Err
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::{CommandArgs, CommandName, ParsedCommand};
 
     #[test]
     fn test_dispatch_release_without_git_repo() {
@@ -90,13 +89,7 @@ mod tests {
             pre_release: None,
         };
 
-        let command = ParsedCommand {
-            name: CommandName::Release,
-            args: CommandArgs::Release(args),
-        };
-
-        // Should error — no git repo in test environment
-        assert!(CommandDispatcherImpl::dispatch(command).is_err());
+        assert!(CommandDispatcherImpl::dispatch(CommandArgs::Release(args)).is_err());
     }
 
     #[test]

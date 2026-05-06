@@ -139,15 +139,6 @@ impl GitCommandRunner {
         self.check_success(args, Some(dir))
     }
 
-    pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
-        // execute_quiet_in_dir is identical to execute_raw_in_dir
-        // Both execute a git command and return the raw ProcessOutput
-        self.execute_raw_in_dir(args, dir)
-    }
-
-    /// Execute a git command with streaming output.
-    /// Suitable for long-running commands like git pull/push/fetch.
-    /// Output is displayed in real-time to stdout/stderr.
     #[allow(dead_code)]
     pub fn execute_streaming(&self, args: &[&str]) -> Result<()> {
         let cmd_str = format!("git {}", args.join(" "));
