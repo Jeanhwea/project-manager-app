@@ -29,7 +29,7 @@ use crate::utils::output::Output;
 ///     eprintln!("Git pull failed with exit code {}", result.exit_code);
 /// }
 /// ```
-pub trait CommandRunner {
+pub trait CommandRunner: Send + Sync {
     /// 执行命令，根据上下文中的 output_mode 决定执行方式
     ///
     /// # Arguments
@@ -322,23 +322,24 @@ impl DefaultCommandRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::RwLock;
 
     /// Mock implementation for testing the trait's default methods
     struct MockCommandRunner {
-        last_mode: std::cell::RefCell<Option<OutputMode>>,
+        last_mode: RwLock<Option<OutputMode>>,
     }
 
     impl MockCommandRunner {
         fn new() -> Self {
             Self {
-                last_mode: std::cell::RefCell::new(None),
+                last_mode: RwLock::new(None),
             }
         }
     }
 
     impl CommandRunner for MockCommandRunner {
         fn execute(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError> {
-            *self.last_mode.borrow_mut() = Some(context.output_mode);
+            *self.last_mode.write().unwrap() = Some(context.output_mode);
             Ok(CommandResult::success())
         }
     }
@@ -352,7 +353,7 @@ mod tests {
 
         let _ = runner.execute_streaming(&ctx);
 
-        assert_eq!(*runner.last_mode.borrow(), Some(OutputMode::Streaming));
+        assert_eq!(*runner.last_mode.read().unwrap(), Some(OutputMode::Streaming));
     }
 
     #[test]
@@ -364,7 +365,7 @@ mod tests {
 
         let _ = runner.execute_capture(&ctx);
 
-        assert_eq!(*runner.last_mode.borrow(), Some(OutputMode::Capture));
+        assert_eq!(*runner.last_mode.read().unwrap(), Some(OutputMode::Capture));
     }
 
     #[test]
@@ -376,7 +377,7 @@ mod tests {
 
         let _ = runner.execute_dry_run(&ctx);
 
-        assert_eq!(*runner.last_mode.borrow(), Some(OutputMode::DryRun));
+        assert_eq!(*runner.last_mode.read().unwrap(), Some(OutputMode::DryRun));
     }
 
     #[test]
@@ -388,7 +389,7 @@ mod tests {
 
         let _ = runner.execute(&ctx);
 
-        assert_eq!(*runner.last_mode.borrow(), Some(OutputMode::Capture));
+        assert_eq!(*runner.last_mode.read().unwrap(), Some(OutputMode::Capture));
     }
 
     #[test]

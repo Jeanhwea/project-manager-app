@@ -1,28 +1,73 @@
 use super::{GitError, Result};
+use crate::domain::runner::{CommandRunner, DefaultCommandRunner, ExecutionContext, OutputMode};
 use crate::utils::output::Output;
+use std::fmt;
 use std::path::Path;
 use std::process::{Command, Output as ProcessOutput};
+use std::sync::Arc;
 
-#[derive(Debug, Clone)]
-pub struct GitCommandRunner;
+pub struct GitCommandRunner {
+    runner: Arc<dyn CommandRunner>,
+}
+
+impl fmt::Debug for GitCommandRunner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GitCommandRunner")
+            .field("runner", &"Arc<dyn CommandRunner>")
+            .finish()
+    }
+}
+
+impl Clone for GitCommandRunner {
+    fn clone(&self) -> Self {
+        Self {
+            runner: Arc::clone(&self.runner),
+        }
+    }
+}
 
 impl GitCommandRunner {
     pub fn new() -> Self {
-        Self
+        Self {
+            runner: Arc::new(DefaultCommandRunner),
+        }
     }
 
     pub fn execute(&self, args: &[&str]) -> Result<String> {
-        let output = self.execute_raw(args)?;
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|e| GitError::CommandFailed(format!("Invalid UTF-8 in output: {}", e)))?;
-        Ok(stdout.trim().to_string())
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().map(|s| *s))
+            .output_mode(OutputMode::Capture);
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            let stderr = result.stderr.unwrap_or_default();
+            return Err(GitError::CommandFailed(stderr));
+        }
+
+        Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
     pub fn execute_in_dir(&self, args: &[&str], dir: &Path) -> Result<String> {
-        let output = self.execute_raw_in_dir(args, dir)?;
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|e| GitError::CommandFailed(format!("Invalid UTF-8 in output: {}", e)))?;
-        Ok(stdout.trim().to_string())
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().map(|s| *s))
+            .working_dir(dir)
+            .output_mode(OutputMode::Capture);
+
+        let result = self
+            .runner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            let stderr = result.stderr.unwrap_or_default();
+            return Err(GitError::CommandFailed(stderr));
+        }
+
+        Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
     pub fn execute_raw(&self, args: &[&str]) -> Result<ProcessOutput> {
