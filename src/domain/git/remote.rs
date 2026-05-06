@@ -1,4 +1,4 @@
-use crate::domain::git::{GitError, GitProtocol, Result};
+use crate::domain::git::{GitError, GitProtocol, RemoteUrlParser, Result};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -9,78 +9,11 @@ pub struct Remote {
 
 impl Remote {
     pub fn parse_url(url: &str) -> Result<GitProtocol> {
-        let url = url.trim();
-        if url.is_empty() {
-            return Err(GitError::InvalidRemoteUrl("Empty URL".to_string()));
-        }
-
-        let protocol = if url.starts_with("git@") || url.starts_with("ssh://") {
-            GitProtocol::Ssh
-        } else if url.starts_with("https://") {
-            GitProtocol::Https
-        } else if url.starts_with("http://") {
-            GitProtocol::Http
-        } else if url.starts_with("git://") {
-            GitProtocol::Git
-        } else {
-            if url.contains('@') && url.contains(':') {
-                GitProtocol::Ssh
-            } else {
-                return Err(GitError::InvalidRemoteUrl(format!(
-                    "Invalid URL format: {}",
-                    url
-                )));
-            }
-        };
-
-        Ok(protocol)
+        RemoteUrlParser::detect_protocol(url)
     }
 
     pub fn extract_host_and_path(url: &str) -> Option<(String, String)> {
-        let url = url.trim();
-        if url.is_empty() {
-            return None;
-        }
-
-        let _protocol = if url.starts_with("git@") || url.starts_with("ssh://") {
-            GitProtocol::Ssh
-        } else if url.starts_with("https://") {
-            GitProtocol::Https
-        } else if url.starts_with("http://") {
-            GitProtocol::Http
-        } else if url.starts_with("git://") {
-            GitProtocol::Git
-        } else {
-            return None;
-        };
-
-        let (url, separator) = if url.starts_with("git@") {
-            (url.replace("git@", ""), ':')
-        } else if url.starts_with("ssh://") {
-            let stripped = url.replace("ssh://", "");
-            let stripped = if stripped.starts_with("git@") {
-                stripped.replacen("git@", "", 1)
-            } else {
-                stripped
-            };
-            (stripped, '/')
-        } else if url.starts_with("https://") {
-            (url.replace("https://", ""), '/')
-        } else if url.starts_with("http://") {
-            (url.replace("http://", ""), '/')
-        } else if url.starts_with("git://") {
-            (url.replace("git://", ""), '/')
-        } else {
-            (url.to_string(), ':')
-        };
-
-        let parts: Vec<&str> = url.splitn(2, separator).collect();
-        if parts.len() != 2 {
-            return None;
-        }
-
-        let (host, path) = (parts[0].to_string(), parts[1].to_string());
-        Some((host, path))
+        RemoteUrlParser::extract_host_and_path(url)
     }
 }
 

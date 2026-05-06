@@ -1,5 +1,6 @@
 use super::{Command, CommandResult};
-use crate::domain::git::{GitProtocol, command::GitCommandRunner};
+use crate::domain::context::AppContext;
+use crate::domain::git::GitProtocol;
 use crate::domain::runner::DryRunContext;
 use anyhow::{Context, Result};
 use heck::{ToKebabCase, ToPascalCase};
@@ -134,7 +135,7 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
         return Ok(Vec::new());
     }
 
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let output = runner
         .execute_quiet_in_dir(
             &["config", "--file", ".gitmodules", "--get-regexp", "path"],
@@ -186,7 +187,7 @@ fn get_submodules(project_dir: &Path) -> Result<Vec<Submodule>, anyhow::Error> {
 }
 
 fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::Error> {
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     let remote_names_output = runner.execute_quiet_in_dir(&["remote"], project_dir);
 
     let remote_names: Vec<String> = match remote_names_output {
@@ -231,8 +232,7 @@ fn do_init_project(
         .unwrap_or_default()
         .to_string_lossy();
 
-    // Clone the repository
-    let runner = GitCommandRunner::new();
+    let runner = AppContext::global().git_runner();
     runner
         .execute_with_success(&["clone", repo_url, project_dir.to_str().unwrap_or("")])
         .with_context(|| format!("克隆仓库 {} 到 {} 失败", repo_url, project_dir.display()))?;

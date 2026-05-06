@@ -1,6 +1,7 @@
 pub mod command;
 pub mod remote;
 pub mod repository;
+pub mod url_parser;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
@@ -29,3 +30,5 @@ pub enum GitProtocol {
 }
 
 pub type Result<T> = std::result::Result<T, GitError>;
+
+pub use url_parser::RemoteUrlParser;
