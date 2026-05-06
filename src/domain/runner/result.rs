@@ -172,11 +172,8 @@ mod tests {
 
     #[test]
     fn test_with_output_non_zero_exit_code() {
-        let result = CommandResult::with_output(
-            1,
-            "some output".to_string(),
-            "error message".to_string(),
-        );
+        let result =
+            CommandResult::with_output(1, "some output".to_string(), "error message".to_string());
 
         assert_eq!(result.exit_code, 1);
         assert!(!result.success);

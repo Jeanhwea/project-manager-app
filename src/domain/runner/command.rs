@@ -68,7 +68,10 @@ pub trait CommandRunner: Send + Sync {
     /// # Note
     ///
     /// 流式模式下，输出会实时显示到终端，不会存储在 CommandResult 中。
-    fn execute_streaming(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError> {
+    fn execute_streaming(
+        &self,
+        context: &ExecutionContext,
+    ) -> Result<CommandResult, CommandError> {
         let ctx = context.clone().output_mode(OutputMode::Streaming);
         self.execute(&ctx)
     }
@@ -171,7 +174,10 @@ impl DefaultCommandRunner {
     /// # Returns
     ///
     /// 返回包含完整输出的 `CommandResult`。
-    fn execute_capture_impl(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError> {
+    fn execute_capture_impl(
+        &self,
+        context: &ExecutionContext,
+    ) -> Result<CommandResult, CommandError> {
         let mut cmd = self.build_command(context)?;
 
         let output = cmd.output().map_err(|e| CommandError::FailedToStart {
@@ -201,7 +207,10 @@ impl DefaultCommandRunner {
     /// # Returns
     ///
     /// 返回不包含输出内容的 `CommandResult`（输出已实时显示到终端）。
-    fn execute_streaming_impl(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError> {
+    fn execute_streaming_impl(
+        &self,
+        context: &ExecutionContext,
+    ) -> Result<CommandResult, CommandError> {
         let mut cmd = self.build_command(context)?;
 
         // 设置 stdout 和 stderr 为管道
@@ -266,7 +275,10 @@ impl DefaultCommandRunner {
     /// # Returns
     ///
     /// 始终返回成功的 `CommandResult`。
-    fn execute_dry_run_impl(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError> {
+    fn execute_dry_run_impl(
+        &self,
+        context: &ExecutionContext,
+    ) -> Result<CommandResult, CommandError> {
         let cmd_str = self.format_command(context);
         Output::cmd(&format!("[DRY-RUN] {}", cmd_str));
 
@@ -353,7 +365,10 @@ mod tests {
 
         let _ = runner.execute_streaming(&ctx);
 
-        assert_eq!(*runner.last_mode.read().unwrap(), Some(OutputMode::Streaming));
+        assert_eq!(
+            *runner.last_mode.read().unwrap(),
+            Some(OutputMode::Streaming)
+        );
     }
 
     #[test]
@@ -494,8 +509,8 @@ mod tests {
     #[test]
     fn test_capture_mode_with_nonexistent_command() {
         let runner = DefaultCommandRunner;
-        let ctx = ExecutionContext::new("nonexistent_command_xyz123")
-            .output_mode(OutputMode::Capture);
+        let ctx =
+            ExecutionContext::new("nonexistent_command_xyz123").output_mode(OutputMode::Capture);
 
         let result = runner.execute(&ctx);
 

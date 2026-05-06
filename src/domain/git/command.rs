@@ -91,7 +91,7 @@ impl GitCommandRunner {
         let status = ExitStatus::from_raw(result.exit_code);
         #[cfg(windows)]
         let status = ExitStatus::from_raw(result.exit_code as u32);
-        
+
         let stdout = result.stdout.unwrap_or_default().into_bytes();
         let stderr = result.stderr.unwrap_or_default().into_bytes();
 
@@ -119,7 +119,7 @@ impl GitCommandRunner {
         let status = ExitStatus::from_raw(result.exit_code);
         #[cfg(windows)]
         let status = ExitStatus::from_raw(result.exit_code as u32);
-        
+
         let stdout = result.stdout.unwrap_or_default().into_bytes();
         let stderr = result.stderr.unwrap_or_default().into_bytes();
 
