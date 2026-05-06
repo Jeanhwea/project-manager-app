@@ -237,8 +237,10 @@ fn do_sync_repository(
             Output::skip(&format!("git push {} ({})", remote, url));
             continue;
         }
+        Output::cmd(&format!("git push {} --all", remote));
         ctx.run_in_dir("git", &["push", &remote, "--all"], Some(repo_path))
             .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("推送分支失败", &e));
+        Output::cmd(&format!("git push {} --tags", remote));
         ctx.run_in_dir("git", &["push", &remote, "--tags"], Some(repo_path))
             .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("推送标签失败", &e));
     }
