@@ -26,11 +26,11 @@ impl GitCommandRunner {
     }
 
     pub fn execute_raw(&self, args: &[&str]) -> Result<ProcessOutput> {
-        self.run(args, None, true)
+        self.run(args, None, false)
     }
 
     pub fn execute_raw_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
-        self.run(args, Some(dir), true)
+        self.run(args, Some(dir), false)
     }
 
     pub fn execute_with_success(&self, args: &[&str]) -> Result<()> {
