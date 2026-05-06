@@ -185,6 +185,7 @@ fn do_sync_repository(
             if skip_remotes.iter().any(|s| s.as_str() == *remote) {
                 Output::skip(&format!("git fetch {} ({})", remote, url));
             } else {
+                Output::cmd(&format!("git fetch {}", remote));
                 ctx.run_in_dir("git", &["fetch", remote], Some(repo_path))
                     .unwrap_or_else(|e| ErrorHandler::print_error_anyhow("拉取仓库失败", &e));
             }
@@ -215,6 +216,12 @@ fn do_sync_repository(
         if skip_remotes.contains(&track_remote) {
             Output::skip(&format!("git pull {} ({})", track_remote, track_remote_url));
         } else {
+            let pull_cmd = if rebase {
+                "git pull --rebase"
+            } else {
+                "git pull"
+            };
+            Output::cmd(pull_cmd);
             let args = if rebase {
                 vec!["pull", "--rebase"]
             } else {
