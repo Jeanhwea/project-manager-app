@@ -486,6 +486,8 @@ fn parse_gitlab_url(input: &str) -> (Option<String>, Option<String>) {
 
     let path_segments: Vec<&str> = path.split('/').collect();
 
+    let common_subpaths = ["gitlab", "gitlab-ce", "gitlab-ee"];
+
     let (base_path, group_path) =
         if path_segments.len() >= 2 && common_subpaths.contains(&path_segments[0]) {
             let base = path_segments[0];

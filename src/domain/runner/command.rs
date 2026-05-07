@@ -5,7 +5,6 @@ use std::thread;
 use super::{CommandError, CommandResult, ExecutionContext, OutputMode};
 use crate::utils::output::Output;
 
-/// 统一的命令执行器 Trait
 #[allow(dead_code)]
 pub trait CommandRunner: Send + Sync {
     fn execute(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError>;
@@ -29,7 +28,6 @@ pub trait CommandRunner: Send + Sync {
     }
 }
 
-/// 默认命令执行器实现
 pub struct DefaultCommandRunner;
 
 impl CommandRunner for DefaultCommandRunner {
