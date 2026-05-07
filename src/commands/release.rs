@@ -456,7 +456,6 @@ enum PackageManager {
 }
 
 fn is_pnpm_available() -> bool {
-    // Windows 上需要使用 cmd /c 来执行 pnpm
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
@@ -478,24 +477,18 @@ fn is_pnpm_available() -> bool {
 }
 
 fn detect_package_manager(pkg_dir: &Path) -> PackageManager {
-    // 只在 package.json 所在目录检测 lockfile
-    // 优先检查 pnpm-lock.yaml
     if pkg_dir.join("pnpm-lock.yaml").exists() {
         return PackageManager::Pnpm;
     }
-    // 然后检查 yarn.lock
     if pkg_dir.join("yarn.lock").exists() {
         return PackageManager::Yarn;
     }
-    // 检查 package-lock.json，但优先使用 pnpm 命令
     if pkg_dir.join("package-lock.json").exists() {
-        // 检查 pnpm 是否可用，优先使用 pnpm
         if is_pnpm_available() {
             return PackageManager::Pnpm;
         }
         return PackageManager::Npm;
     }
-    // 没有 lockfile 时，检查 pnpm 是否可用
     if is_pnpm_available() {
         return PackageManager::Pnpm;
     }
@@ -769,19 +762,16 @@ mod tests {
 
     #[test]
     fn test_version_parsing() {
-        // Test valid version parsing
         let version = parse_version_from_tag("v1.2.3").unwrap();
         assert_eq!(version.major, 1);
         assert_eq!(version.minor, 2);
         assert_eq!(version.patch, 3);
 
-        // Test version without v prefix
         let version = parse_version_from_tag("2.3.4").unwrap();
         assert_eq!(version.major, 2);
         assert_eq!(version.minor, 3);
         assert_eq!(version.patch, 4);
 
-        // Test invalid version parsing
         assert!(parse_version_from_tag("invalid").is_none());
         assert!(parse_version_from_tag("1.2").is_none());
         assert!(parse_version_from_tag("v1.2").is_none());
@@ -795,19 +785,16 @@ mod tests {
             patch: 3,
         };
 
-        // Test major bump
         let bumped = version.bump(&BumpType::Major);
         assert_eq!(bumped.major, 2);
         assert_eq!(bumped.minor, 0);
         assert_eq!(bumped.patch, 0);
 
-        // Test minor bump
         let bumped = version.bump(&BumpType::Minor);
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 3);
         assert_eq!(bumped.patch, 0);
 
-        // Test patch bump
         let bumped = version.bump(&BumpType::Patch);
         assert_eq!(bumped.major, 1);
         assert_eq!(bumped.minor, 2);
@@ -826,40 +813,32 @@ mod tests {
 
     #[test]
     fn test_resolve_file_paths() {
-        // Test with absolute path
         let files = vec!["/absolute/path".to_string()];
         let resolved = resolve_file_paths(&files);
         assert_eq!(resolved, vec!["/absolute/path".to_string()]);
 
-        // Test with relative path (will be canonicalized in real scenario)
         let files = vec!["relative/path".to_string()];
         let resolved = resolve_file_paths(&files);
-        // In test, canonicalize_path might fail, so it returns the original
         assert_eq!(resolved.len(), 1);
     }
 
     #[test]
     fn test_expand_glob_pattern() {
-        // Create a temporary directory with subdirectories
         let temp_dir = tempdir().unwrap();
         let dir1 = temp_dir.path().join("dir1");
         let dir2 = temp_dir.path().join("dir2");
         std::fs::create_dir(&dir1).unwrap();
         std::fs::create_dir(&dir2).unwrap();
 
-        // Change to temp directory
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
 
-        // Test pattern expansion
         let pattern = "{}/package.json";
         let expanded = expand_glob_pattern(pattern);
 
-        // Should find dir1 and dir2
         assert!(expanded.contains(&"dir1/package.json".to_string()));
         assert!(expanded.contains(&"dir2/package.json".to_string()));
 
-        // Restore original directory
         std::env::set_current_dir(original_dir).unwrap();
     }
 
@@ -868,7 +847,6 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let cargo_toml_path = temp_dir.path().join("Cargo.toml");
 
-        // Create a test Cargo.toml file
         let content = r#"[package]
 name = "test-package"
 version = "0.1.0"
@@ -887,7 +865,6 @@ serde = "1.0""#;
         let temp_dir = tempdir().unwrap();
         let cargo_toml_path = temp_dir.path().join("Cargo.toml");
 
-        // Create a Cargo.toml file without package name
         let content = r#"[dependencies]
 serde = "1.0""#;
 
