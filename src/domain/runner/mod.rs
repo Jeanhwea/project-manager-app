@@ -15,8 +15,6 @@ pub use result::CommandResult;
 pub enum OutputMode {
     #[default]
     Capture,
-
     Streaming,
-
     DryRun,
 }

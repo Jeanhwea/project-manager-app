@@ -199,7 +199,6 @@ fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::
                 .collect()
         }
         Err(_) => {
-            // No remotes is not an error, just return empty list
             return Ok(Vec::new());
         }
     };
