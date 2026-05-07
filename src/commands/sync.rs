@@ -8,7 +8,6 @@ use crate::utils::output::Output;
 use crate::utils::path::format_path;
 use std::path::{Path, PathBuf};
 
-/// Sync command arguments
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
     /// Maximum depth to search for repositories
@@ -60,7 +59,6 @@ pub struct SyncArgs {
     pub rebase: bool,
 }
 
-/// Sync command
 pub struct SyncCommand;
 
 impl Command for SyncCommand {
@@ -258,7 +256,6 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
     false
 }
 
-/// Parse Git remote URL into protocol, host, and path
 fn parse_git_remote_url(url: &str) -> Option<(crate::domain::git::GitProtocol, String, String)> {
     use crate::domain::git::remote::Remote;
 
@@ -291,7 +288,6 @@ fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
     Some((current_branch, local_branches))
 }
 
-/// Pull all local branches
 fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
     let Some((current_branch, local_branches)) = list_local_branches(repo_path) else {
         return;
