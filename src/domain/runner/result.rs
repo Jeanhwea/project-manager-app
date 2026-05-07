@@ -17,16 +17,6 @@ impl CommandResult {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn failure(exit_code: i32) -> Self {
-        Self {
-            exit_code,
-            success: false,
-            stdout: None,
-            stderr: None,
-        }
-    }
-
     pub fn with_output(exit_code: i32, stdout: String, stderr: String) -> Self {
         Self {
             exit_code,
@@ -49,27 +39,6 @@ mod tests {
         assert!(result.success);
         assert!(result.stdout.is_none());
         assert!(result.stderr.is_none());
-    }
-
-    #[test]
-    fn test_failure_creates_failed_result() {
-        let result = CommandResult::failure(1);
-
-        assert_eq!(result.exit_code, 1);
-        assert!(!result.success);
-        assert!(result.stdout.is_none());
-        assert!(result.stderr.is_none());
-    }
-
-    #[test]
-    fn test_failure_with_different_exit_codes() {
-        let result = CommandResult::failure(127);
-        assert_eq!(result.exit_code, 127);
-        assert!(!result.success);
-
-        let result = CommandResult::failure(-1);
-        assert_eq!(result.exit_code, -1);
-        assert!(!result.success);
     }
 
     #[test]

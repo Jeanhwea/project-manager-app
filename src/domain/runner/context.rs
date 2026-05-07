@@ -23,12 +23,6 @@ impl ExecutionContext {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn arg(mut self, arg: impl Into<String>) -> Self {
-        self.args.push(arg.into());
-        self
-    }
-
     pub fn args<I, S>(mut self, args: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -40,12 +34,6 @@ impl ExecutionContext {
 
     pub fn working_dir(mut self, dir: impl Into<PathBuf>) -> Self {
         self.working_dir = Some(dir.into());
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.env_vars.insert(key.into(), value.into());
         self
     }
 
