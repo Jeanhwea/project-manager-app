@@ -1,11 +1,10 @@
 use std::sync::RwLock;
 
 use super::manager::ConfigDir;
-use super::schema::{AppConfig, GitLabConfig};
+use super::schema::AppConfig;
 
 pub struct ConfigCache {
     config: RwLock<Option<AppConfig>>,
-    gitlab_config: RwLock<Option<GitLabConfig>>,
     #[cfg(test)]
     load_count: std::sync::atomic::AtomicUsize,
 }
@@ -14,7 +13,6 @@ impl ConfigCache {
     pub fn new() -> Self {
         Self {
             config: RwLock::new(None),
-            gitlab_config: RwLock::new(None),
             #[cfg(test)]
             load_count: std::sync::atomic::AtomicUsize::new(0),
         }
@@ -34,31 +32,6 @@ impl ConfigCache {
 
         let config = ConfigDir::load_config();
         let mut guard = self.config.write().unwrap();
-        *guard = Some(config.clone());
-        config
-    }
-
-    pub fn refresh(&self) {
-        {
-            let mut guard = self.config.write().unwrap();
-            *guard = None;
-        }
-        {
-            let mut guard = self.gitlab_config.write().unwrap();
-            *guard = None;
-        }
-    }
-
-    pub fn get_gitlab(&self) -> GitLabConfig {
-        {
-            let guard = self.gitlab_config.read().unwrap();
-            if let Some(ref config) = *guard {
-                return config.clone();
-            }
-        }
-
-        let config = ConfigDir::load_gitlab();
-        let mut guard = self.gitlab_config.write().unwrap();
         *guard = Some(config.clone());
         config
     }
@@ -93,15 +66,6 @@ mod tests {
     }
 
     #[test]
-    fn test_gitlab_cache_returns_same_values() {
-        let cache = ConfigCache::new();
-        let config1 = cache.get_gitlab();
-        let config2 = cache.get_gitlab();
-
-        assert_eq!(config1.servers.len(), config2.servers.len());
-    }
-
-    #[test]
     fn test_default_creates_new_instance() {
         let cache = ConfigCache::default();
         let config = cache.get();
@@ -133,23 +97,6 @@ mod tests {
             cache.load_count(),
             1,
             "Config should still use cache on subsequent accesses"
-        );
-    }
-
-    #[test]
-    fn test_refresh_clears_cache_and_reloads() {
-        let cache = ConfigCache::new();
-
-        let _config1 = cache.get();
-        assert_eq!(cache.load_count(), 1);
-
-        cache.refresh();
-
-        let _config2 = cache.get();
-        assert_eq!(
-            cache.load_count(),
-            2,
-            "Config should be reloaded after refresh"
         );
     }
 }

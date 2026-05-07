@@ -7,24 +7,6 @@ use crate::utils::output::Output;
 
 pub trait CommandRunner: Send + Sync {
     fn execute(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError>;
-
-    fn execute_streaming(
-        &self,
-        context: &ExecutionContext,
-    ) -> Result<CommandResult, CommandError> {
-        let ctx = context.clone().output_mode(OutputMode::Streaming);
-        self.execute(&ctx)
-    }
-
-    fn execute_capture(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError> {
-        let ctx = context.clone().output_mode(OutputMode::Capture);
-        self.execute(&ctx)
-    }
-
-    fn execute_dry_run(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError> {
-        let ctx = context.clone().output_mode(OutputMode::DryRun);
-        self.execute(&ctx)
-    }
 }
 
 pub struct DefaultCommandRunner;
@@ -168,45 +150,6 @@ mod tests {
     }
 
     #[test]
-    fn test_execute_streaming_forces_streaming_mode() {
-        let runner = MockCommandRunner::new();
-        let ctx = ExecutionContext::new("git")
-            .args(["pull"])
-            .output_mode(OutputMode::Capture);
-
-        let _ = runner.execute_streaming(&ctx);
-
-        assert_eq!(
-            *runner.last_mode.read().unwrap(),
-            Some(OutputMode::Streaming)
-        );
-    }
-
-    #[test]
-    fn test_execute_capture_forces_capture_mode() {
-        let runner = MockCommandRunner::new();
-        let ctx = ExecutionContext::new("git")
-            .args(["status"])
-            .output_mode(OutputMode::Streaming);
-
-        let _ = runner.execute_capture(&ctx);
-
-        assert_eq!(*runner.last_mode.read().unwrap(), Some(OutputMode::Capture));
-    }
-
-    #[test]
-    fn test_execute_dry_run_forces_dry_run_mode() {
-        let runner = MockCommandRunner::new();
-        let ctx = ExecutionContext::new("git")
-            .args(["push"])
-            .output_mode(OutputMode::Capture);
-
-        let _ = runner.execute_dry_run(&ctx);
-
-        assert_eq!(*runner.last_mode.read().unwrap(), Some(OutputMode::DryRun));
-    }
-
-    #[test]
     fn test_execute_uses_context_mode() {
         let runner = MockCommandRunner::new();
         let ctx = ExecutionContext::new("git")
@@ -216,19 +159,6 @@ mod tests {
         let _ = runner.execute(&ctx);
 
         assert_eq!(*runner.last_mode.read().unwrap(), Some(OutputMode::Capture));
-    }
-
-    #[test]
-    fn test_execute_streaming_preserves_other_context_fields() {
-        let runner = MockCommandRunner::new();
-        let ctx = ExecutionContext::new("git")
-            .args(["pull", "--rebase"])
-            .working_dir("/path/to/repo")
-            .output_mode(OutputMode::Capture);
-
-        let _ = runner.execute_streaming(&ctx);
-
-        assert!(true);
     }
 
     #[test]
