@@ -75,32 +75,6 @@ impl GitCommandRunner {
         Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
-    #[allow(dead_code)]
-    pub fn execute_raw(&self, args: &[&str]) -> Result<ProcessOutput> {
-        let ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .output_mode(OutputMode::Capture);
-
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
-
-        #[cfg(unix)]
-        let status = ExitStatus::from_raw(result.exit_code);
-        #[cfg(windows)]
-        let status = ExitStatus::from_raw(result.exit_code as u32);
-
-        let stdout = result.stdout.unwrap_or_default().into_bytes();
-        let stderr = result.stderr.unwrap_or_default().into_bytes();
-
-        Ok(ProcessOutput {
-            status,
-            stdout,
-            stderr,
-        })
-    }
-
     pub fn execute_raw_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
         let ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
@@ -139,36 +113,6 @@ impl GitCommandRunner {
         self.execute_raw_in_dir(args, dir)
     }
 
-    /// Execute a git command with streaming output.
-    /// Suitable for long-running commands like git pull/push/fetch.
-    /// Output is displayed in real-time to stdout/stderr.
-    #[allow(dead_code)]
-    pub fn execute_streaming(&self, args: &[&str]) -> Result<()> {
-        let cmd_str = format!("git {}", args.join(" "));
-        Output::cmd(&cmd_str);
-
-        let ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .output_mode(OutputMode::Streaming);
-
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
-
-        if !result.success {
-            return Err(GitError::CommandFailed(format!(
-                "Git command exited with code {}",
-                result.exit_code
-            )));
-        }
-
-        Ok(())
-    }
-
-    /// Execute a git command with streaming output in a specific directory.
-    /// Suitable for long-running commands like git pull/push/fetch.
-    /// Output is displayed in real-time to stdout/stderr.
     pub fn execute_streaming_in_dir(&self, args: &[&str], dir: &Path) -> Result<()> {
         let cmd_str = format!("git {}", args.join(" "));
         Output::cmd(&cmd_str);

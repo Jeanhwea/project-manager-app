@@ -35,7 +35,6 @@ struct Asset {
     url: String,
 }
 
-/// Self management command arguments
 #[derive(Debug, clap::Subcommand)]
 pub enum SelfManArgs {
     /// Update to the latest version from GitHub releases
@@ -46,7 +45,6 @@ pub enum SelfManArgs {
     Version,
 }
 
-/// Update command arguments
 #[derive(Debug, clap::Args)]
 pub struct UpdateArgs {
     /// Force update even if already on the latest version
@@ -59,7 +57,6 @@ pub struct UpdateArgs {
     pub force: bool,
 }
 
-/// Self management command
 pub struct SelfManCommand;
 
 impl Command for SelfManCommand {
