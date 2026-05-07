@@ -1,10 +1,7 @@
-//! Version bumping utilities
-
 use super::EditorError;
 use super::Result;
 use std::fmt;
 
-/// Version bump type
 #[derive(Debug, Clone, PartialEq)]
 pub enum BumpType {
     Major,
@@ -12,7 +9,6 @@ pub enum BumpType {
     Patch,
 }
 
-/// Semantic version representation
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Version {
     pub major: u32,
@@ -21,7 +17,6 @@ pub struct Version {
 }
 
 impl Version {
-    /// Parse version from string like "1.2.3"
     pub fn parse(s: &str) -> Result<Self> {
         let parts: Vec<&str> = s.trim().split('.').collect();
         if parts.len() != 3 {
@@ -48,14 +43,12 @@ impl Version {
         })
     }
 
-    /// Parse version from tag like "v1.2.3"
     pub fn from_tag(tag: &str) -> Option<Self> {
         let tag = tag.trim();
         let version_str = tag.strip_prefix('v').unwrap_or(tag);
         Self::parse(version_str).ok()
     }
 
-    /// Bump version according to bump type
     pub fn bump(&self, bump_type: &BumpType) -> Self {
         match bump_type {
             BumpType::Major => Version {
@@ -76,7 +69,6 @@ impl Version {
         }
     }
 
-    /// Convert version to tag string like "v1.2.3"
     pub fn to_tag(&self) -> String {
         format!("v{}.{}.{}", self.major, self.minor, self.patch)
     }

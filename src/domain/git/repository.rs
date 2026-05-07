@@ -2,26 +2,22 @@ use super::{GitError, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Repository type
 #[derive(Debug, Clone, PartialEq)]
 pub enum RepoType {
     Regular,
     Submodule,
 }
 
-/// Repository discovery information
 #[derive(Debug)]
 pub struct RepoInfo {
     pub path: PathBuf,
     pub repo_type: RepoType,
 }
 
-/// Check if a path is a Git repository by verifying the `.git` directory exists.
 pub fn is_git_repo(path: &Path) -> bool {
     path.is_dir() && path.join(".git").is_dir()
 }
 
-/// Search for a Git repository by traversing up the directory tree.
 pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
     let mut current = start_dir;
 

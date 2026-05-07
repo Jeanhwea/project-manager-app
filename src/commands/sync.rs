@@ -179,7 +179,6 @@ fn do_sync_repository(
     }
 
     if fetch_only {
-        // fetch_only 模式：只需要 fetch 所有远程
         for (remote, url) in &remotes {
             if skip_remotes.iter().any(|s| s.as_str() == *remote) {
                 Output::skip(&format!("git fetch {} ({})", remote, url));
@@ -192,7 +191,6 @@ fn do_sync_repository(
     }
 
     if all_branch {
-        // all_branch 模式：切换到每个本地分支并 pull
         if ctx.is_dry_run() {
             if rebase {
                 ctx.print_message("git pull --rebase (all branches)");
@@ -203,7 +201,6 @@ fn do_sync_repository(
             do_pull_all_local_branch(repo_path, rebase);
         }
     } else {
-        // 普通模式：只 pull 当前分支
         let Some((track_remote, track_remote_url)) =
             get_tracking_remote_info(repo_path, &remotes)
         else {

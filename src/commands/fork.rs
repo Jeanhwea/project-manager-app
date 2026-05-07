@@ -7,7 +7,6 @@ use heck::{ToKebabCase, ToPascalCase};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-/// Fork command arguments
 #[derive(Debug, clap::Args)]
 pub struct ForkArgs {
     /// Path to fork the project from
@@ -25,7 +24,6 @@ pub struct ForkArgs {
     pub dry_run: bool,
 }
 
-/// Fork command
 pub struct ForkCommand;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -201,7 +199,6 @@ fn get_remote_info(project_dir: &Path) -> Result<Vec<(String, String)>, anyhow::
                 .collect()
         }
         Err(_) => {
-            // No remotes is not an error, just return empty list
             return Ok(Vec::new());
         }
     };

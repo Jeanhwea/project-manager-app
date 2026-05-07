@@ -5,7 +5,6 @@ use crate::domain::runner::DryRunContext;
 use crate::utils::output::Output;
 use std::path::{Path, PathBuf};
 
-/// Doctor command arguments
 #[derive(Debug, clap::Args)]
 pub struct DoctorArgs {
     /// Maximum depth to search for repositories
@@ -54,7 +53,6 @@ pub struct DoctorArgs {
     pub dry_run: bool,
 }
 
-/// Doctor command
 pub struct DoctorCommand;
 
 impl Command for DoctorCommand {
@@ -65,18 +63,15 @@ impl Command for DoctorCommand {
     }
 }
 
-/// Main doctor execution function
 fn execute_doctor(args: DoctorArgs) -> CommandResult {
     check_dependencies()?;
 
-    // Get search path: use provided path or current directory
     let search_path = if args.path.is_empty() || args.path == "." {
         std::env::current_dir()?
     } else {
         PathBuf::from(&args.path)
     };
 
-    // Search upwards for git repository root
     let effective_path =
         find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone());
 
@@ -141,7 +136,6 @@ fn execute_doctor(args: DoctorArgs) -> CommandResult {
     Ok(())
 }
 
-/// Check for required command-line tools
 fn check_dependencies() -> CommandResult {
     const REQUIRED_TOOLS: &[(&str, &str)] = &[("git", "版本控制工具，所有仓库操作的核心依赖")];
 
@@ -169,7 +163,6 @@ fn check_dependencies() -> CommandResult {
     Ok(())
 }
 
-/// Check if a command exists in PATH
 fn check_command_exists(cmd: &str) -> bool {
     if cfg!(windows) {
         std::process::Command::new("where")
@@ -186,7 +179,6 @@ fn check_command_exists(cmd: &str) -> bool {
     }
 }
 
-/// Get remote information for a repository
 fn get_remote_info(repo_path: &Path) -> Vec<(String, String)> {
     let runner = GitCommandRunner::new();
     match runner.execute_in_dir(&["remote", "-v"], repo_path) {
@@ -204,7 +196,6 @@ fn get_remote_info(repo_path: &Path) -> Vec<(String, String)> {
     }
 }
 
-/// Get canonical remote name from URL
 fn get_remote_name_by_url(url: &str) -> Option<String> {
     if url.contains("github.com") {
         Some("github".to_string())
@@ -215,7 +206,6 @@ fn get_remote_name_by_url(url: &str) -> Option<String> {
     } else if url.contains("bitbucket.org") {
         Some("bitbucket".to_string())
     } else {
-        // Extract hostname from URL
         let url = url
             .trim_start_matches("ssh://")
             .trim_start_matches("https://")
@@ -232,7 +222,6 @@ fn get_remote_name_by_url(url: &str) -> Option<String> {
     }
 }
 
-/// Check for detached HEAD state
 fn check_detached_head(repo_path: &Path, issues: &mut Vec<String>) {
     let runner = GitCommandRunner::new();
     match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
@@ -247,7 +236,6 @@ fn check_detached_head(repo_path: &Path, issues: &mut Vec<String>) {
     }
 }
 
-/// Check for stale remote references
 fn check_stale_remote_refs(repo_path: &Path, issues: &mut Vec<String>) {
     let runner = GitCommandRunner::new();
 
@@ -301,7 +289,6 @@ fn check_stale_remote_refs(repo_path: &Path, issues: &mut Vec<String>) {
     }
 }
 
-/// Check for large repository size
 fn check_large_repo(repo_path: &Path, issues: &mut Vec<String>) {
     let runner = GitCommandRunner::new();
     let output = match runner.execute_quiet_in_dir(&["count-objects", "-vH"], repo_path) {
@@ -332,7 +319,6 @@ fn check_large_repo(repo_path: &Path, issues: &mut Vec<String>) {
     }
 }
 
-/// Check for missing upstream tracking branch
 fn check_missing_upstream(repo_path: &Path, issues: &mut Vec<String>) {
     let runner = GitCommandRunner::new();
     let branch = match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
@@ -368,7 +354,6 @@ fn check_missing_upstream(repo_path: &Path, issues: &mut Vec<String>) {
     }
 }
 
-/// Check for excessive stash entries
 fn check_stash(repo_path: &Path, issues: &mut Vec<String>) {
     let runner = GitCommandRunner::new();
     let output = match runner.execute_quiet_in_dir(&["stash", "list"], repo_path) {
@@ -386,7 +371,6 @@ fn check_stash(repo_path: &Path, issues: &mut Vec<String>) {
     }
 }
 
-/// Fix detected issues
 fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> CommandResult {
     Output::section("修复问题:");
 
@@ -435,7 +419,6 @@ fn fix_issues(ctx: &DryRunContext, repo_path: &Path, issues: &[String]) -> Comma
     Ok(())
 }
 
-/// Rename a Git remote
 fn do_rename_git_remote(
     ctx: &DryRunContext,
     repo_path: &Path,
@@ -484,7 +467,6 @@ fn do_rename_git_remote(
     Ok(())
 }
 
-/// Perform Git garbage collection
 fn do_git_garbage_collect(ctx: &DryRunContext, repo_path: &Path) -> CommandResult {
     ctx.run_in_dir("git", &["gc"], Some(repo_path))
         .map_err(|e| CommandError::ExecutionFailed(format!("无法执行 git gc: {}", e)))?;

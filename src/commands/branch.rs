@@ -6,7 +6,6 @@ use crate::utils::error::ErrorHandler;
 use crate::utils::output::{ItemColor, Output};
 use std::path::{Path, PathBuf};
 
-/// Branch command arguments
 #[derive(Debug, clap::Subcommand)]
 pub enum BranchArgs {
     /// List branches across all repositories
@@ -25,7 +24,6 @@ pub enum BranchArgs {
     Rename(RenameArgs),
 }
 
-/// List branches arguments
 #[derive(Debug, clap::Args)]
 pub struct ListArgs {
     /// Maximum depth to search for repositories
@@ -44,7 +42,6 @@ pub struct ListArgs {
     pub path: String,
 }
 
-/// Clean branches arguments
 #[derive(Debug, clap::Args)]
 pub struct CleanArgs {
     /// Maximum depth to search for repositories
@@ -78,7 +75,6 @@ pub struct CleanArgs {
     pub dry_run: bool,
 }
 
-/// Switch branch arguments
 #[derive(Debug, clap::Args)]
 pub struct SwitchArgs {
     /// Branch name to switch to
@@ -115,7 +111,6 @@ pub struct SwitchArgs {
     pub dry_run: bool,
 }
 
-/// Rename branch arguments
 #[derive(Debug, clap::Args)]
 pub struct RenameArgs {
     /// Old branch name
@@ -147,7 +142,6 @@ pub struct RenameArgs {
     pub dry_run: bool,
 }
 
-/// Branch command
 pub struct BranchCommand;
 
 impl Command for BranchCommand {
@@ -163,7 +157,6 @@ impl Command for BranchCommand {
     }
 }
 
-/// Get effective path by searching upwards for git repository
 fn get_effective_path(path: &str) -> PathBuf {
     let search_path = if path.is_empty() || path == "." {
         std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
@@ -258,7 +251,6 @@ fn list_branches(repo_path: &Path) {
         .execute_in_dir(&["branch", "--show-current"], repo_path)
         .unwrap_or_default();
 
-    // Get local branches
     let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
         Ok(output) => output
             .lines()
@@ -286,7 +278,6 @@ fn list_branches(repo_path: &Path) {
         }
     }
 
-    // Get remote branches
     let remote_branches = match runner.execute_in_dir(&["branch", "-r", "--list"], repo_path) {
         Ok(output) => output
             .lines()
@@ -312,7 +303,6 @@ fn switch_branch(
     create: bool,
     dry_run: bool,
 ) -> Result<(), crate::domain::git::GitError> {
-    // Get current branch
     let current = runner
         .execute_in_dir(&["branch", "--show-current"], repo_path)
         .unwrap_or_default();
@@ -323,7 +313,6 @@ fn switch_branch(
     }
 
     if create {
-        // Check if branch exists
         let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
             Ok(output) => output
                 .lines()
@@ -357,7 +346,6 @@ fn switch_branch(
             }
         }
     } else {
-        // Check if branch exists
         let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
             Ok(output) => output
                 .lines()
@@ -402,7 +390,6 @@ fn rename_branch(
     new_name: &str,
     dry_run: bool,
 ) -> Result<(), crate::domain::git::GitError> {
-    // Get local branches
     let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
         Ok(output) => output
             .lines()
@@ -429,7 +416,6 @@ fn rename_branch(
         return Ok(());
     }
 
-    // Get current branch
     let current = runner
         .execute_in_dir(&["branch", "--show-current"], repo_path)
         .unwrap_or_default();

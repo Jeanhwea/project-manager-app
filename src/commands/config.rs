@@ -3,7 +3,6 @@ use crate::domain::config::ConfigDir;
 use crate::domain::config::schema;
 use crate::utils::output::Output;
 
-/// Configuration command arguments
 #[derive(Debug, clap::Subcommand)]
 pub enum ConfigArgs {
     /// Initialize a default configuration file
@@ -14,7 +13,6 @@ pub enum ConfigArgs {
     Path,
 }
 
-/// Config command
 pub struct ConfigCommand;
 
 impl Command for ConfigCommand {

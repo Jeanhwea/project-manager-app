@@ -31,23 +31,19 @@ impl DryRunContext {
             OutputMode::Streaming
         };
 
-        // 使用 ExecutionContext 构建命令上下文
         let mut ctx = ExecutionContext::new(program)
             .args(args.iter().copied())
             .output_mode(mode);
 
-        // 如果提供了工作目录，设置工作目录
         if let Some(dir) = dir {
             ctx = ctx.working_dir(dir);
         }
 
-        // 执行命令
         let result = self
             .runner
             .execute(&ctx)
             .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-        // 检查执行结果
         if !result.success {
             anyhow::bail!("命令执行失败: {} {}", program, args.join(" "));
         }

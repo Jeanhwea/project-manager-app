@@ -77,14 +77,10 @@ mod tests {
 
     #[test]
     fn test_multiple_calls_return_same_git_runner() {
-        // This test verifies that multiple calls to git_runner() return the same instance
-        // confirming the singleton pattern is working correctly
         let ctx = AppContext::global();
 
-        // Collect multiple references
         let runners: Vec<&GitCommandRunner> = (0..10).map(|_| ctx.git_runner()).collect();
 
-        // All should point to the same instance
         let first = runners[0];
         for runner in &runners[1..] {
             assert!(
@@ -96,14 +92,12 @@ mod tests {
 
     #[test]
     fn test_singleton_persists_across_multiple_global_calls() {
-        // Verify that the singleton persists across multiple global() calls
         let ctx1 = AppContext::global();
         let runner1 = ctx1.git_runner();
 
         let ctx2 = AppContext::global();
         let runner2 = ctx2.git_runner();
 
-        // Both should be the same instance
         assert!(std::ptr::eq(ctx1, ctx2));
         assert!(std::ptr::eq(runner1, runner2));
     }
@@ -112,7 +106,6 @@ mod tests {
     fn test_command_runner_returns_valid_instance() {
         let ctx = AppContext::global();
         let runner = ctx.command_runner();
-        // Verify we can use the runner
         assert!(Arc::strong_count(&runner) >= 1);
     }
 
@@ -121,7 +114,6 @@ mod tests {
         let ctx = AppContext::global();
         let runner1 = ctx.command_runner();
         let runner2 = ctx.command_runner();
-        // Both Arcs should point to the same underlying runner
         assert!(Arc::ptr_eq(&runner1, &runner2));
     }
 
@@ -129,11 +121,9 @@ mod tests {
     fn test_multiple_calls_return_same_command_runner() {
         let ctx = AppContext::global();
 
-        // Collect multiple Arc references
         let runners: Vec<Arc<dyn CommandRunner>> =
             (0..10).map(|_| ctx.command_runner()).collect();
 
-        // All should point to the same instance
         let first = &runners[0];
         for runner in &runners[1..] {
             assert!(

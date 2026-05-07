@@ -335,7 +335,6 @@ fn install_from_zip(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<()>
 }
 
 fn replace_binary(new_binary: &[u8], target: &PathBuf) -> Result<()> {
-    // 先将旧文件重命名为 .bak，再写入新文件
     let backup = target.with_extension("bak");
     if backup.exists() {
         let _ = fs::remove_file(&backup);
@@ -343,7 +342,6 @@ fn replace_binary(new_binary: &[u8], target: &PathBuf) -> Result<()> {
     fs::rename(target, &backup).context("备份旧版本失败")?;
     fs::write(target, new_binary).context("写入新版本失败")?;
 
-    // Unix 下设置可执行权限
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

@@ -5,20 +5,15 @@ use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
 
-/// Snap command arguments
 #[derive(Debug, clap::Subcommand)]
 pub enum SnapArgs {
-    /// Create a snapshot of the current project state
     Create(CreateArgs),
-    /// List snapshot history
     #[command(visible_alias = "ls")]
     List(ListArgs),
-    /// Restore project to a specific snapshot
     #[command(visible_alias = "rs")]
     Restore(RestoreArgs),
 }
 
-/// Create snapshot arguments
 #[derive(Debug, clap::Args)]
 pub struct CreateArgs {
     /// Path to the project to snapshot, defaults to current directory
@@ -36,7 +31,6 @@ pub struct CreateArgs {
     pub dry_run: bool,
 }
 
-/// List snapshots arguments
 #[derive(Debug, clap::Args)]
 pub struct ListArgs {
     /// Path to the project, defaults to current directory
@@ -47,7 +41,6 @@ pub struct ListArgs {
     pub path: String,
 }
 
-/// Restore snapshot arguments
 #[derive(Debug, clap::Args)]
 pub struct RestoreArgs {
     /// Snapshot reference (e.g. snap-000001, #0, or commit hash)
@@ -68,7 +61,6 @@ pub struct RestoreArgs {
     pub dry_run: bool,
 }
 
-/// Snap command
 pub struct SnapCommand;
 
 impl Command for SnapCommand {
@@ -82,7 +74,6 @@ impl Command for SnapCommand {
     }
 }
 
-/// Main snap execution function
 fn execute_snap(args: SnapArgs) -> Result<()> {
     match args {
         SnapArgs::Create(args) => execute_create(args),
@@ -91,7 +82,6 @@ fn execute_snap(args: SnapArgs) -> Result<()> {
     }
 }
 
-/// Execute create snapshot command
 fn execute_create(args: CreateArgs) -> Result<()> {
     let project_path = Path::new(&args.path);
     let ctx = DryRunContext::new(args.dry_run);
@@ -114,7 +104,6 @@ fn execute_create(args: CreateArgs) -> Result<()> {
     Ok(())
 }
 
-/// Execute list snapshots command
 fn execute_list(args: ListArgs) -> Result<()> {
     let project_path = Path::new(&args.path);
     let runner = GitCommandRunner::new();
@@ -162,7 +151,6 @@ fn execute_list(args: ListArgs) -> Result<()> {
     Ok(())
 }
 
-/// Execute restore snapshot command
 fn execute_restore(args: RestoreArgs) -> Result<()> {
     let project_path = Path::new(&args.path);
     let ctx = DryRunContext::new(args.dry_run);
@@ -200,7 +188,6 @@ fn execute_restore(args: RestoreArgs) -> Result<()> {
     Ok(())
 }
 
-/// Resolve snapshot reference to commit hash
 fn resolve_snapshot_ref(
     runner: &GitCommandRunner,
     project_path: &Path,
@@ -258,7 +245,6 @@ fn resolve_snapshot_ref(
     Ok(hash)
 }
 
-/// Initialize a new snapshot repository
 fn do_initialize_snapshot(
     ctx: &DryRunContext,
     _runner: &GitCommandRunner,
@@ -271,7 +257,6 @@ fn do_initialize_snapshot(
     Ok(())
 }
 
-/// Create incremental snapshot
 fn do_incremental_snapshot(
     ctx: &DryRunContext,
     runner: &GitCommandRunner,
@@ -301,7 +286,6 @@ fn do_incremental_snapshot(
     Ok(())
 }
 
-/// Check if there are pending changes in the repository
 fn check_pending_changes(runner: &GitCommandRunner, work_dir: &Path) -> bool {
     let output = match runner.execute_quiet_in_dir(&["status", "--porcelain"], work_dir) {
         Ok(o) => o,

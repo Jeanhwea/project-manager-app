@@ -117,13 +117,11 @@ mod tests {
         let pma_err: PmaError = git_err.into();
         let anyhow_err: anyhow::Error = pma_err.into();
 
-        // Verify we can use anyhow context methods
         let result: Result<String, anyhow::Error> = Err(anyhow_err);
         let with_context = result.context("additional context");
 
         assert!(with_context.is_err());
         let err = with_context.unwrap_err();
-        // anyhow wraps the error, so the message includes the chain
         let err_str = err.to_string();
         assert!(
             err_str.contains("Git error")
