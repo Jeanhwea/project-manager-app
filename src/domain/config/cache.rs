@@ -31,7 +31,8 @@ impl ConfigCache {
         }
 
         #[cfg(test)]
-        self.load_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.load_count
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         let config = ConfigDir::load_config();
         let mut guard = self.config.write().unwrap();
@@ -117,19 +118,22 @@ mod tests {
 
         let _config1 = cache.get();
         assert_eq!(
-            cache.load_count(), 1,
+            cache.load_count(),
+            1,
             "Config should be loaded once on first access"
         );
 
         let _config2 = cache.get();
         assert_eq!(
-            cache.load_count(), 1,
+            cache.load_count(),
+            1,
             "Config should not be loaded again on second access"
         );
 
         let _config3 = cache.get();
         assert_eq!(
-            cache.load_count(), 1,
+            cache.load_count(),
+            1,
             "Config should still use cache on subsequent accesses"
         );
     }
@@ -145,7 +149,8 @@ mod tests {
 
         let _config2 = cache.get();
         assert_eq!(
-            cache.load_count(), 2,
+            cache.load_count(),
+            2,
             "Config should be reloaded after refresh"
         );
     }

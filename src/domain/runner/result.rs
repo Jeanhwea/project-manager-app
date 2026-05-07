@@ -1,4 +1,3 @@
-/// 命令执行结果
 #[derive(Debug)]
 pub struct CommandResult {
     pub exit_code: i32,
