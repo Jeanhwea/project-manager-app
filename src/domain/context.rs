@@ -11,7 +11,6 @@ pub struct AppContext {
     config_cache: OnceLock<ConfigCache>,
 }
 
-#[allow(dead_code)]
 impl AppContext {
     pub fn global() -> &'static Self {
         static INSTANCE: OnceLock<AppContext> = OnceLock::new();

@@ -171,7 +171,7 @@ mod tests {
     fn test_execute_streaming_forces_streaming_mode() {
         let runner = MockCommandRunner::new();
         let ctx = ExecutionContext::new("git")
-            .arg("pull")
+            .args(["pull"])
             .output_mode(OutputMode::Capture);
 
         let _ = runner.execute_streaming(&ctx);
@@ -186,7 +186,7 @@ mod tests {
     fn test_execute_capture_forces_capture_mode() {
         let runner = MockCommandRunner::new();
         let ctx = ExecutionContext::new("git")
-            .arg("status")
+            .args(["status"])
             .output_mode(OutputMode::Streaming);
 
         let _ = runner.execute_capture(&ctx);
@@ -198,7 +198,7 @@ mod tests {
     fn test_execute_dry_run_forces_dry_run_mode() {
         let runner = MockCommandRunner::new();
         let ctx = ExecutionContext::new("git")
-            .arg("push")
+            .args(["push"])
             .output_mode(OutputMode::Capture);
 
         let _ = runner.execute_dry_run(&ctx);
@@ -210,7 +210,7 @@ mod tests {
     fn test_execute_uses_context_mode() {
         let runner = MockCommandRunner::new();
         let ctx = ExecutionContext::new("git")
-            .arg("status")
+            .args(["status"])
             .output_mode(OutputMode::Capture);
 
         let _ = runner.execute(&ctx);
@@ -224,7 +224,6 @@ mod tests {
         let ctx = ExecutionContext::new("git")
             .args(["pull", "--rebase"])
             .working_dir("/path/to/repo")
-            .env("GIT_AUTHOR_NAME", "Test User")
             .output_mode(OutputMode::Capture);
 
         let _ = runner.execute_streaming(&ctx);
@@ -236,7 +235,7 @@ mod tests {
     fn test_capture_mode_captures_output() {
         let runner = DefaultCommandRunner;
         let ctx = ExecutionContext::new("echo")
-            .arg("hello")
+            .args(["hello"])
             .output_mode(OutputMode::Capture);
 
         let result = runner.execute(&ctx).unwrap();
@@ -268,7 +267,7 @@ mod tests {
     fn test_streaming_mode_executes_and_returns_no_output() {
         let runner = DefaultCommandRunner;
         let ctx = ExecutionContext::new("echo")
-            .arg("streaming test")
+            .args(["streaming test"])
             .output_mode(OutputMode::Streaming);
 
         let result = runner.execute(&ctx).unwrap();
@@ -282,8 +281,7 @@ mod tests {
     fn test_dry_run_returns_success_for_any_command() {
         let runner = DefaultCommandRunner;
         let ctx = ExecutionContext::new("rm")
-            .arg("-rf")
-            .arg("/nonexistent/path/that/should/not/be/deleted")
+            .args(["-rf", "/nonexistent/path/that/should/not/be/deleted"])
             .output_mode(OutputMode::DryRun);
 
         let result = runner.execute(&ctx).unwrap();

@@ -1,7 +1,5 @@
-#[allow(dead_code)]
 pub struct ErrorHandler;
 
-#[allow(dead_code)]
 impl ErrorHandler {
     pub fn print_error(context: &str, error: &dyn std::error::Error) {
         eprintln!("错误: {} - {}", context, error);
