@@ -1,11 +1,9 @@
+/// 命令执行结果
 #[derive(Debug)]
 pub struct CommandResult {
     pub exit_code: i32,
-
     pub success: bool,
-
     pub stdout: Option<String>,
-
     pub stderr: Option<String>,
 }
 

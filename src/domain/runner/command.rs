@@ -114,7 +114,6 @@ impl DefaultCommandRunner {
         })
     }
 
-
     fn execute_dry_run_impl(
         &self,
         context: &ExecutionContext,
@@ -124,7 +123,6 @@ impl DefaultCommandRunner {
 
         Ok(CommandResult::success())
     }
-
 
     fn build_command(&self, context: &ExecutionContext) -> Result<StdCommand, CommandError> {
         let mut cmd = StdCommand::new(&context.program);
@@ -234,9 +232,8 @@ mod tests {
 
         let _ = runner.execute_streaming(&ctx);
 
-         assert!(true);
+        assert!(true);
     }
-
 
     #[test]
     fn test_capture_mode_captures_output() {
