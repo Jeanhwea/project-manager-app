@@ -5,7 +5,6 @@ use super::config::schema::AppConfig;
 use super::git::command::GitCommandRunner;
 use super::runner::{CommandRunner, DefaultCommandRunner};
 
-#[allow(dead_code)]
 pub struct AppContext {
     git_runner: OnceLock<GitCommandRunner>,
     command_runner: OnceLock<Arc<dyn CommandRunner>>,

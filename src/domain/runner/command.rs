@@ -5,7 +5,6 @@ use std::thread;
 use super::{CommandError, CommandResult, ExecutionContext, OutputMode};
 use crate::utils::output::Output;
 
-#[allow(dead_code)]
 pub trait CommandRunner: Send + Sync {
     fn execute(&self, context: &ExecutionContext) -> Result<CommandResult, CommandError>;
 

@@ -512,7 +512,6 @@ mod tests {
 
     #[test]
     fn test_get_remote_name_by_url() {
-        // Test GitHub URL
         assert_eq!(
             get_remote_name_by_url("git@github.com:user/repo.git"),
             Some("github".to_string())
@@ -522,7 +521,6 @@ mod tests {
             Some("github".to_string())
         );
 
-        // Test GitLab URL
         assert_eq!(
             get_remote_name_by_url("git@gitlab.com:user/repo.git"),
             Some("gitlab".to_string())
@@ -532,7 +530,6 @@ mod tests {
             Some("gitlab".to_string())
         );
 
-        // Test Gitee URL
         assert_eq!(
             get_remote_name_by_url("git@gitee.com:user/repo.git"),
             Some("gitee".to_string())
@@ -542,7 +539,6 @@ mod tests {
             Some("gitee".to_string())
         );
 
-        // Test Bitbucket URL
         assert_eq!(
             get_remote_name_by_url("git@bitbucket.org:user/repo.git"),
             Some("bitbucket".to_string())
@@ -552,28 +548,21 @@ mod tests {
             Some("bitbucket".to_string())
         );
 
-        // Test custom SSH URL
         assert_eq!(
             get_remote_name_by_url("git@example.com:user/repo.git"),
             Some("example.com".to_string())
         );
 
-        // Test custom HTTPS URL
         assert_eq!(
             get_remote_name_by_url("https://example.com/user/repo.git"),
             Some("example.com".to_string())
         );
 
-        // Test invalid URL
         assert_eq!(get_remote_name_by_url("invalid-url"), None);
     }
 
     #[test]
     fn test_doctor_command_implementation() {
-        // Test that DoctorCommand implements Command trait
-        // We can't use dynamic dispatch because Command trait is not object-safe
-        // Instead, we verify the trait is implemented by using it statically
         let _command = DoctorCommand;
-        // Test passes if compilation succeeds
     }
 }

@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
     #[error("Failed to start command '{program}': {reason}")]
