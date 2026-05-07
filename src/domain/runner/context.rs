@@ -6,13 +6,9 @@ use super::OutputMode;
 #[derive(Debug, Clone)]
 pub struct ExecutionContext {
     pub program: String,
-
     pub args: Vec<String>,
-
     pub working_dir: Option<PathBuf>,
-
     pub env_vars: HashMap<String, String>,
-
     pub output_mode: OutputMode,
 }
 

@@ -28,7 +28,8 @@ pub trait CommandRunner: Send + Sync {
         self.execute(&ctx)
     }
 }
-`
+
+/// 默认命令执行器实现
 pub struct DefaultCommandRunner;
 
 impl CommandRunner for DefaultCommandRunner {
@@ -63,7 +64,7 @@ impl DefaultCommandRunner {
         ))
     }
 
-   fn execute_streaming_impl(
+    fn execute_streaming_impl(
         &self,
         context: &ExecutionContext,
     ) -> Result<CommandResult, CommandError> {
@@ -279,22 +280,6 @@ mod tests {
         let result = runner.execute(&ctx).unwrap();
 
         assert!(result.success);
-        // Streaming mode should NOT capture output
-        assert!(result.stdout.is_none());
-        assert!(result.stderr.is_none());
-    }
-
-    #[test]
-    fn test_dry_run_mode_does_not_execute() {
-        let runner = DefaultCommandRunner;
-        let ctx = ExecutionContext::new("nonexistent_command_that_should_not_run")
-            .arg("test")
-            .output_mode(OutputMode::DryRun);
-
-        let result = runner.execute(&ctx).unwrap();
-
-        assert!(result.success);
-        assert_eq!(result.exit_code, 0);
         assert!(result.stdout.is_none());
         assert!(result.stderr.is_none());
     }
@@ -307,7 +292,6 @@ mod tests {
             .arg("/nonexistent/path/that/should/not/be/deleted")
             .output_mode(OutputMode::DryRun);
 
-        // DryRun should always return success without executing
         let result = runner.execute(&ctx).unwrap();
 
         assert!(result.success);
@@ -322,14 +306,12 @@ mod tests {
 
         let result = runner.execute(&ctx);
 
-        // Should return an error for nonexistent command
         assert!(result.is_err());
     }
 
     #[test]
     fn test_exit_code_preservation() {
         let runner = DefaultCommandRunner;
-        // On Windows, use cmd.exe to exit with code 42
         #[cfg(target_os = "windows")]
         let ctx = ExecutionContext::new("cmd")
             .args(["/C", "exit 42"])
