@@ -18,42 +18,52 @@ pub struct Cli {
 
 #[derive(clap::Subcommand)]
 pub enum Commands {
+    /// Release a new version
     #[command(visible_alias = "re")]
     Release(ReleaseArgs),
 
+    /// Synchronize all code repositories
     #[command(visible_alias = "s")]
     Sync(SyncArgs),
 
+    /// Diagnostic project health
     Doctor(DoctorArgs),
 
+    /// Fork a new project from a template
     Fork(ForkArgs),
 
+    /// GitLab integration commands
     #[command(visible_alias = "gl")]
     Gitlab {
         #[command(subcommand)]
         command: GitLabArgs,
     },
 
+    /// Snapshot a project
     Snap {
         #[command(subcommand)]
         command: SnapArgs,
     },
 
+    /// Show status of all code repositories
     #[command(visible_alias = "st")]
     Status(StatusArgs),
 
+    /// Manage branches across repositories
     #[command(visible_alias = "br")]
     Branch {
         #[command(subcommand)]
         command: BranchArgs,
     },
 
+    /// Self management commands
     #[command(name = "self")]
     Self_ {
         #[command(subcommand)]
         command: SelfManArgs,
     },
 
+    /// Manage configuration
     Config {
         #[command(subcommand)]
         command: ConfigArgs,
