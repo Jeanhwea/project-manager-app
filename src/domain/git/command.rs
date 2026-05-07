@@ -86,8 +86,6 @@ impl GitCommandRunner {
             .execute(&ctx)
             .map_err(|e| GitError::CommandFailed(e.to_string()))?;
 
-        // Convert CommandResult to ProcessOutput
-        // Note: On Windows, exit code is u32; on Unix it's i32. We handle this by casting.
         #[cfg(unix)]
         let status = ExitStatus::from_raw(result.exit_code);
         #[cfg(windows)]
@@ -114,8 +112,6 @@ impl GitCommandRunner {
             .execute(&ctx)
             .map_err(|e| GitError::CommandFailed(e.to_string()))?;
 
-        // Convert CommandResult to ProcessOutput
-        // Note: On Windows, exit code is u32; on Unix it's i32. We handle this by casting.
         #[cfg(unix)]
         let status = ExitStatus::from_raw(result.exit_code);
         #[cfg(windows)]
@@ -140,8 +136,6 @@ impl GitCommandRunner {
     }
 
     pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
-        // execute_quiet_in_dir is identical to execute_raw_in_dir
-        // Both execute a git command and return the raw ProcessOutput
         self.execute_raw_in_dir(args, dir)
     }
 
@@ -200,11 +194,9 @@ impl GitCommandRunner {
     }
 
     fn check_success(&self, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        // Print command for visibility
         let cmd_str = format!("git {}", args.join(" "));
         Output::cmd(&cmd_str);
 
-        // Build execution context
         let mut ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
             .output_mode(OutputMode::Capture);

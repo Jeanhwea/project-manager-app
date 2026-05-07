@@ -95,7 +95,6 @@ mod tests {
             args: CommandArgs::Release(args),
         };
 
-        // Should error — no git repo in test environment
         assert!(CommandDispatcherImpl::dispatch(command).is_err());
     }
 

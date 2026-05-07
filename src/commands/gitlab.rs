@@ -95,14 +95,12 @@ pub struct CloneArgs {
     pub dry_run: bool,
 }
 
-/// Clone protocol enumeration
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub enum CloneProtocol {
     Ssh,
     Https,
 }
 
-/// GitLab command
 pub struct GitLabCommand;
 
 impl Command for GitLabCommand {
@@ -116,7 +114,6 @@ impl Command for GitLabCommand {
     }
 }
 
-/// Execute login command
 fn execute_login(args: LoginArgs) -> CommandResult {
     let resolved_url = if let Some(ref s) = args.server {
         resolve_base_url(s)
@@ -193,9 +190,7 @@ fn execute_login(args: LoginArgs) -> CommandResult {
     Ok(())
 }
 
-/// Execute clone command
 fn execute_clone(args: CloneArgs) -> CommandResult {
-    // Try to extract server and group from URL
     let (extracted_server, extracted_group) = parse_gitlab_url(&args.group);
 
     let final_server = extracted_server.as_deref().or(args.server.as_deref());
@@ -216,7 +211,6 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
 
     let client = GitLabClient::with_url_and_token(&resolved_base_url, &resolved_token);
 
-    // Get group information
     let groups = client
         .get_groups()
         .map_err(|e| CommandError::ExecutionFailed(format!("获取组列表失败: {}", e)))?;
@@ -270,22 +264,16 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     let mut skip_count = 0usize;
     let mut fail_count = 0usize;
 
-    // Strip the group prefix from path_with_namespace to get the project path
-    // relative to the target group.
-    // e.g. group="my-org", path_with_namespace="my-org/api" → "api"
-    //      group="my-org", path_with_namespace="my-org/sub/api" → "sub/api" (子组，跳过)
     let group_prefix = format!("{}/", group_info.full_path);
 
     for (index, project) in projects.iter().enumerate() {
         let progress = format!("({}/{})", index + 1, projects.len());
 
-        // Determine relative path within the group
         let relative_path = project
             .path_with_namespace
             .strip_prefix(&group_prefix)
             .unwrap_or(&project.path);
 
-        // Skip projects in subgroups — only clone direct children
         if relative_path.contains('/') {
             Output::skip(&format!(
                 "{} {} (子组项目)",
@@ -368,7 +356,6 @@ fn execute_clone(args: CloneArgs) -> CommandResult {
     Ok(())
 }
 
-/// Prompt for user input
 fn prompt_input(prompt: &str) -> Result<String, CommandError> {
     print!("{}: ", prompt);
     io::stdout().flush().map_err(CommandError::Io)?;
@@ -380,9 +367,6 @@ fn prompt_input(prompt: &str) -> Result<String, CommandError> {
     Ok(input.trim().to_string())
 }
 
-/// Resolve GitLab configuration from various sources
-///
-/// Priority: CLI args > gitlab.toml > defaults
 fn resolve_gitlab_config(
     server: Option<&str>,
     token: Option<&str>,
@@ -390,11 +374,9 @@ fn resolve_gitlab_config(
 ) -> Result<(String, String, CloneProtocol), CommandError> {
     let gitlab_cfg = ConfigDir::load_gitlab();
 
-    // If server is explicitly provided, find matching entry or use defaults
     if let Some(s) = server {
         let resolved_url = resolve_base_url(s);
 
-        // Look for a matching server entry in gitlab.toml
         let matching = gitlab_cfg
             .servers
             .iter()
@@ -412,7 +394,6 @@ fn resolve_gitlab_config(
         return Ok((resolved_url, resolved_token, resolved_protocol));
     }
 
-    // No server specified — use the first (or only) entry in gitlab.toml
     if let Some(first) = gitlab_cfg.servers.first() {
         let resolved_url = resolve_base_url(&first.url);
 
@@ -428,14 +409,12 @@ fn resolve_gitlab_config(
         return Ok((resolved_url, resolved_token, resolved_protocol));
     }
 
-    // No config at all — fall back to gitlab.com
     let default_url = "https://gitlab.com".to_string();
     let resolved_token = token.map(|t| t.to_string()).unwrap_or_default();
     let resolved_protocol = protocol.unwrap_or(CloneProtocol::Ssh);
     Ok((default_url, resolved_token, resolved_protocol))
 }
 
-/// Parse protocol string to CloneProtocol
 fn parse_protocol_str(s: &str) -> Option<CloneProtocol> {
     match s {
         "https" => Some(CloneProtocol::Https),
@@ -444,7 +423,6 @@ fn parse_protocol_str(s: &str) -> Option<CloneProtocol> {
     }
 }
 
-/// Resolve token from various sources
 fn resolve_token(token: Option<&str>) -> Result<String, CommandError> {
     if let Some(t) = token
         && !t.is_empty()
@@ -471,7 +449,6 @@ fn resolve_token(token: Option<&str>) -> Result<String, CommandError> {
     ))
 }
 
-/// Resolve base URL
 fn resolve_base_url(base_url: &str) -> String {
     let url = base_url.trim_end_matches('/');
     if url.starts_with("http://") || url.starts_with("https://") {
@@ -481,16 +458,13 @@ fn resolve_base_url(base_url: &str) -> String {
     }
 }
 
-/// Parse GitLab URL to extract server and group/project path
 fn parse_gitlab_url(input: &str) -> (Option<String>, Option<String>) {
     let input = input.trim_end_matches('/');
 
-    // Check if it's a URL
     if !input.starts_with("http://") && !input.starts_with("https://") {
         return (None, None);
     }
 
-    // Parse URL
     let parsed = match url::Url::parse(input) {
         Ok(u) => u,
         Err(_) => return (None, None),
@@ -504,39 +478,26 @@ fn parse_gitlab_url(input: &str) -> (Option<String>, Option<String>) {
     let port = parsed.port().map(|p| format!(":{}", p)).unwrap_or_default();
     let scheme = parsed.scheme();
 
-    // Get path part
     let path = parsed.path().trim_start_matches('/');
 
-    // If path is empty, not a valid group/project URL
     if path.is_empty() {
         return (None, None);
     }
 
-    // Separate base path and group/project path
-    // GitLab may be deployed under subpath, e.g., /gitlab/
-    // Group/project path usually doesn't contain .git suffix and contains at least one /
-
     let path_segments: Vec<&str> = path.split('/').collect();
-
-    // Try to find the starting position of group/project path
-    // If the first segment is a common subpath identifier, then base URL includes it
-    let common_subpaths = ["gitlab", "gitlab-ce", "gitlab-ee"];
 
     let (base_path, group_path) =
         if path_segments.len() >= 2 && common_subpaths.contains(&path_segments[0]) {
-            // First segment is subpath, remaining is group/project path
             let base = path_segments[0];
             let group = path_segments[1..].join("/");
             (format!("/{}", base), group)
         } else {
-            // No subpath, entire path is group/project path
             (String::new(), path.to_string())
         };
 
     let server_url = format!("{}://{}{}{}", scheme, host, port, base_path);
     let group_path = group_path.trim_end_matches(".git").to_string();
 
-    // Ensure group path is not empty
     if group_path.is_empty() {
         return (None, None);
     }
@@ -544,7 +505,6 @@ fn parse_gitlab_url(input: &str) -> (Option<String>, Option<String>) {
     (Some(server_url), Some(group_path))
 }
 
-/// Collect existing remote URLs from repositories in output path
 fn collect_existing_remote_urls(output_path: &Path) -> HashSet<String> {
     let mut urls = HashSet::new();
 

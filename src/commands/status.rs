@@ -101,7 +101,6 @@ impl Command for StatusCommand {
     type Args = StatusArgs;
 
     fn execute(args: Self::Args) -> CommandResult {
-        // Get search path: use provided path or current directory
         let search_path = if args.path.is_empty() || args.path == "." {
             std::env::current_dir().map_err(|e| {
                 super::CommandError::ExecutionFailed(format!("获取当前目录失败: {}", e))
@@ -110,11 +109,9 @@ impl Command for StatusCommand {
             PathBuf::from(&args.path)
         };
 
-        // Search upwards for git repository root
         let effective_path =
             find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone());
 
-        // Create repository walker
         let walker =
             RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
                 super::CommandError::ExecutionFailed(format!("创建仓库遍历器失败: {}", e))

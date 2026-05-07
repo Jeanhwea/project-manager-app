@@ -7,7 +7,6 @@ use crate::utils::path::canonicalize_path;
 use regex::Regex;
 use std::path::Path;
 
-/// Release command arguments
 #[derive(Debug, clap::Args)]
 pub struct ReleaseArgs {
     /// Bump type: major, minor, patch
@@ -65,17 +64,14 @@ pub struct ReleaseArgs {
     pub pre_release: Option<String>,
 }
 
-/// Git state for release operations
 struct GitState {
     current_branch: String,
     new_tag: String,
     commit_message: String,
 }
 
-/// Configuration file entry
 type ConfigFileEntry = (String, std::sync::Arc<dyn FileEditor>);
 
-/// Configuration file candidates for auto-detection
 const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Cargo.toml", false),
     ("src-tauri/Cargo.toml", false),
@@ -93,7 +89,6 @@ const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Formula/pma.rb", false),
 ];
 
-/// Release command
 pub struct ReleaseCommand;
 
 impl Command for ReleaseCommand {
@@ -104,7 +99,6 @@ impl Command for ReleaseCommand {
     }
 }
 
-/// Main release execution function
 fn execute_release(args: ReleaseArgs) -> CommandResult {
     let resolved_files = resolve_file_paths(&args.files);
 
@@ -125,7 +119,6 @@ fn execute_release(args: ReleaseArgs) -> CommandResult {
     }
 }
 
-/// Resolve file paths to absolute paths
 fn resolve_file_paths(files: &[String]) -> Vec<String> {
     files
         .iter()
@@ -141,7 +134,6 @@ fn resolve_file_paths(files: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Switch to git root directory
 fn switch_to_git_root() -> CommandResult {
     let runner = AppContext::global().git_runner();
     let output = runner.execute(&["rev-parse", "--show-toplevel"])?;
@@ -156,7 +148,6 @@ fn switch_to_git_root() -> CommandResult {
     Ok(())
 }
 
-/// Validate git state and prepare release
 fn validate_git_state(args: &ReleaseArgs) -> Result<GitState, CommandError> {
     let runner = AppContext::global().git_runner();
 
@@ -210,21 +201,17 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState, CommandError> {
     })
 }
 
-/// Get current version from git tags
 fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
     let output = runner
         .execute(&["describe", "--tags", "--match", "v*"])
         .ok()?;
-    // git describe may return "v1.0.0-3-g1234567" format, we only need the version part
     output.split('-').next().map(|s| s.to_string())
 }
 
-/// Parse version from tag string
 fn parse_version_from_tag(tag: &str) -> Option<Version> {
     Version::from_tag(tag)
 }
 
-/// Convert release BumpType to domain BumpType
 fn to_domain_bump_type(bump_type: crate::cli::BumpType) -> BumpType {
     match bump_type {
         crate::cli::BumpType::Major => BumpType::Major,
@@ -233,7 +220,6 @@ fn to_domain_bump_type(bump_type: crate::cli::BumpType) -> BumpType {
     }
 }
 
-/// Resolve configuration files
 fn resolve_config_files(
     registry: &EditorRegistry,
     files: &[String],
@@ -254,7 +240,6 @@ fn resolve_config_files(
         .collect()
 }
 
-/// Detect configuration files automatically
 fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>, CommandError> {
     let mut result = Vec::new();
 
@@ -283,7 +268,6 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>
     Ok(result)
 }
 
-/// Expand glob pattern with dynamic parts
 fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     let mut results = Vec::new();
     let (prefix, suffix) = match pattern.split_once("{}") {
@@ -316,7 +300,6 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     results
 }
 
-/// Execute dry run (show what would be changed)
 fn execute_dry_run(
     args: &ReleaseArgs,
     registry: &EditorRegistry,
@@ -342,7 +325,6 @@ fn execute_dry_run(
     Ok(())
 }
 
-/// Execute actual release operations
 fn execute_release_operations(
     args: &ReleaseArgs,
     registry: &EditorRegistry,
@@ -357,10 +339,8 @@ fn execute_release_operations(
         runner.execute_with_success(&["add", file_path])?;
     }
 
-    // Show staged changes
     runner.execute_with_success(&["diff", "--cached"])?;
 
-    // Commit changes
     runner.execute_with_success(&["commit", "-m", &state.commit_message])?;
 
     runner.execute_with_success(&["tag", &state.new_tag])?;
@@ -370,7 +350,6 @@ fn execute_release_operations(
     Ok(())
 }
 
-/// Print file diff for dry run
 fn print_file_diff(
     registry: &EditorRegistry,
     editor: &dyn FileEditor,
@@ -394,7 +373,6 @@ fn print_file_diff(
     Ok(())
 }
 
-/// Compute edited content for a file
 fn compute_edited_content(
     registry: &EditorRegistry,
     editor: &dyn FileEditor,
@@ -410,7 +388,6 @@ fn compute_edited_content(
     Ok((content, edited))
 }
 
-/// Edit version in a file
 fn edit_version_in_file(
     registry: &EditorRegistry,
     editor: &dyn FileEditor,
@@ -422,7 +399,6 @@ fn edit_version_in_file(
     Ok(())
 }
 
-/// Print lockfile update plan for dry run
 fn print_lockfile_update_plan(config_file: &str) {
     let parent = Path::new(config_file).parent().unwrap_or(Path::new("."));
     let dir = if parent.as_os_str().is_empty() {
@@ -443,7 +419,6 @@ fn print_lockfile_update_plan(config_file: &str) {
     }
 }
 
-/// Update lockfile after editing a configuration file
 fn update_lockfile_after_edit(config_file: &str) -> CommandResult {
     if config_file.ends_with("Cargo.toml") {
         update_cargo_lock(config_file)?;
@@ -453,7 +428,6 @@ fn update_lockfile_after_edit(config_file: &str) -> CommandResult {
     Ok(())
 }
 
-/// Detect and update JS lockfile based on actual package manager
 fn update_js_lockfile(package_json_path: &str) -> CommandResult {
     let parent = Path::new(package_json_path)
         .parent()
@@ -464,7 +438,6 @@ fn update_js_lockfile(package_json_path: &str) -> CommandResult {
         parent
     };
 
-    // 检测实际使用的包管理器
     let pkg_manager = detect_package_manager(pkg_dir);
 
     match pkg_manager {
@@ -475,7 +448,6 @@ fn update_js_lockfile(package_json_path: &str) -> CommandResult {
     }
 }
 
-/// Detected package manager type
 enum PackageManager {
     Pnpm,
     Npm,
@@ -483,7 +455,6 @@ enum PackageManager {
     None,
 }
 
-/// Detect which package manager is used by checking lockfiles
 fn is_pnpm_available() -> bool {
     // Windows 上需要使用 cmd /c 来执行 pnpm
     #[cfg(target_os = "windows")]
@@ -531,7 +502,6 @@ fn detect_package_manager(pkg_dir: &Path) -> PackageManager {
     PackageManager::None
 }
 
-/// Update Cargo.lock file
 fn update_cargo_lock(cargo_toml_path: &str) -> CommandResult {
     let parent = Path::new(cargo_toml_path)
         .parent()
@@ -574,7 +544,6 @@ fn update_cargo_lock(cargo_toml_path: &str) -> CommandResult {
     Ok(())
 }
 
-/// Update npm lockfile
 fn update_npm_lock(package_json_path: &str) -> CommandResult {
     let parent = Path::new(package_json_path)
         .parent()
@@ -724,7 +693,6 @@ fn is_gitignored(file_path: &Path) -> bool {
     }
 }
 
-/// Read package name from Cargo.toml
 fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String, CommandError> {
     let content = std::fs::read_to_string(cargo_toml_path).map_err(|e| {
         CommandError::ExecutionFailed(format!("无法读取 {}: {}", cargo_toml_path, e))
@@ -748,7 +716,6 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String, CommandError
     )))
 }
 
-/// Print push plan for dry run
 fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
     if skip_push {
         return;
@@ -769,7 +736,6 @@ fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
     }
 }
 
-/// Push to remotes
 fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> CommandResult {
     if skip_push {
         return Ok(());

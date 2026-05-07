@@ -9,7 +9,6 @@ pub struct ConfigCache {
     gitlab_config: RwLock<Option<GitLabConfig>>,
 }
 
-// Test-only counter to verify lazy loading behavior
 #[cfg(test)]
 static CONFIG_LOAD_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
