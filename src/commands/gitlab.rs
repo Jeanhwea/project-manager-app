@@ -10,7 +10,6 @@ use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::Path;
 
-/// GitLab command arguments
 #[derive(Debug, clap::Subcommand)]
 pub enum GitLabArgs {
     /// Login to a GitLab server and save credentials
@@ -20,7 +19,6 @@ pub enum GitLabArgs {
     Clone(CloneArgs),
 }
 
-/// Login command arguments
 #[derive(Debug, clap::Args)]
 pub struct LoginArgs {
     /// GitLab server URL (will prompt if not provided)
@@ -44,7 +42,6 @@ pub struct LoginArgs {
     pub protocol: CloneProtocol,
 }
 
-/// Clone command arguments
 #[derive(Debug, clap::Args)]
 pub struct CloneArgs {
     /// GitLab group path (e.g. "my-org/team" or numeric ID)

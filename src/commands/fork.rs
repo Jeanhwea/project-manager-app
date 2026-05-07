@@ -532,7 +532,6 @@ mod tests {
 
     #[test]
     fn test_parse_git_remote_url_valid() {
-        // Test SSH URLs
         let result = parse_git_remote_url("git@github.com:user/repo.git");
         assert!(result.is_some());
         let (protocol, host, path) = result.unwrap();
@@ -540,7 +539,6 @@ mod tests {
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
 
-        // Test HTTPS URLs
         let result = parse_git_remote_url("https://github.com/user/repo.git");
         assert!(result.is_some());
         let (protocol, host, path) = result.unwrap();
@@ -548,7 +546,6 @@ mod tests {
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
 
-        // Test HTTP URLs
         let result = parse_git_remote_url("http://github.com/user/repo.git");
         assert!(result.is_some());
         let (protocol, host, path) = result.unwrap();
@@ -566,7 +563,6 @@ mod tests {
 
     #[test]
     fn test_generate_new_remote_url() {
-        // Test SSH URL generation
         let original = "git@github.com:user/original.git";
         let new_url = generate_new_remote_url(original, "new-project");
         assert_eq!(
@@ -574,7 +570,6 @@ mod tests {
             Some("git@github.com:user/new-project.git".to_string())
         );
 
-        // Test HTTPS URL generation
         let original = "https://github.com/user/original.git";
         let new_url = generate_new_remote_url(original, "new-project");
         assert_eq!(
@@ -582,7 +577,6 @@ mod tests {
             Some("https://github.com/user/new-project.git".to_string())
         );
 
-        // Test URL without slash in path
         let original = "git@github.com:original.git";
         let new_url = generate_new_remote_url(original, "new-project");
         assert!(new_url.is_none());

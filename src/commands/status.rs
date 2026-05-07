@@ -4,7 +4,6 @@ use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::utils::output::{ItemColor, Output, SummaryBuilder};
 use std::path::{Path, PathBuf};
 
-/// Status command arguments
 #[derive(Debug, clap::Args)]
 pub struct StatusArgs {
     /// Maximum depth to search for repositories
@@ -39,7 +38,6 @@ pub struct StatusArgs {
     pub path: String,
 }
 
-/// Status filter enumeration
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub enum StatusFilter {
     Dirty,
@@ -48,7 +46,6 @@ pub enum StatusFilter {
     Behind,
 }
 
-/// Repository status information
 struct RepoStatus {
     branch: Option<String>,
     dirty: bool,
@@ -59,7 +56,6 @@ struct RepoStatus {
     untracked: usize,
 }
 
-/// Status statistics
 #[derive(Default)]
 struct StatusStats {
     total_shown: usize,
@@ -94,7 +90,6 @@ impl StatusStats {
     }
 }
 
-/// Status command
 pub struct StatusCommand;
 
 impl Command for StatusCommand {
@@ -157,7 +152,6 @@ impl Command for StatusCommand {
     }
 }
 
-/// Check if repository status matches filter
 fn matches_filter(status: &RepoStatus, filter: &Option<StatusFilter>) -> bool {
     match filter {
         None => true,
@@ -168,7 +162,6 @@ fn matches_filter(status: &RepoStatus, filter: &Option<StatusFilter>) -> bool {
     }
 }
 
-/// Collect repository status information
 fn collect_repo_status(repo_path: &Path) -> RepoStatus {
     let runner = AppContext::global().git_runner();
     let branch = runner.get_current_branch(repo_path).ok();
@@ -187,7 +180,6 @@ fn collect_repo_status(repo_path: &Path) -> RepoStatus {
     }
 }
 
-/// Get ahead/behind counts
 fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
     let runner = AppContext::global().git_runner();
     let branch = match runner.get_current_branch(repo_path) {
@@ -220,7 +212,6 @@ fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
     (ahead, behind)
 }
 
-/// Get dirty file counts
 fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
     let runner = AppContext::global().git_runner();
     let output = match runner.execute_in_dir(&["status", "--porcelain"], repo_path) {
@@ -253,7 +244,6 @@ fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
     (staged, unstaged, untracked)
 }
 
-/// Print summary statistics
 fn print_summary(stats: &StatusStats, total: usize) {
     Output::header("汇总");
 
@@ -288,7 +278,6 @@ fn print_summary(stats: &StatusStats, total: usize) {
     }
 }
 
-/// Print short status format
 fn print_short_status(status: &RepoStatus) {
     let branch_display = status.branch.as_deref().unwrap_or("HEAD");
 
@@ -311,7 +300,6 @@ fn print_short_status(status: &RepoStatus) {
     }
 }
 
-/// Print full status format
 fn print_full_status(repo_path: &Path, status: &RepoStatus) {
     let runner = AppContext::global().git_runner();
     let branch_display = status.branch.as_deref().unwrap_or("HEAD (detached)");
@@ -341,7 +329,6 @@ fn print_full_status(repo_path: &Path, status: &RepoStatus) {
     }
 }
 
-/// Print dirty details from counts
 fn print_dirty_details_from_counts(status: &RepoStatus) {
     let mut parts = Vec::new();
     if status.staged > 0 {
@@ -359,7 +346,6 @@ fn print_dirty_details_from_counts(status: &RepoStatus) {
     }
 }
 
-/// Print ahead/behind information
 fn print_ahead_behind_from_status(status: &RepoStatus) {
     if status.ahead == 0 && status.behind == 0 {
         Output::item_colored("同步", "与远程一致", ItemColor::Green);
@@ -378,7 +364,6 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
     }
 }
 
-/// Print latest tag
 fn print_latest_tag(repo_path: &Path) {
     let runner = AppContext::global().git_runner();
     let output =

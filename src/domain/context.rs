@@ -1,18 +1,14 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
 use super::config::ConfigCache;
 use super::config::schema::AppConfig;
 use super::git::command::GitCommandRunner;
-use super::runner::{CommandRunner, DefaultCommandRunner};
 
-#[allow(dead_code)]
 pub struct AppContext {
     git_runner: OnceLock<GitCommandRunner>,
-    command_runner: OnceLock<Arc<dyn CommandRunner>>,
     config_cache: OnceLock<ConfigCache>,
 }
 
-#[allow(dead_code)]
 impl AppContext {
     pub fn global() -> &'static Self {
         static INSTANCE: OnceLock<AppContext> = OnceLock::new();
@@ -23,26 +19,13 @@ impl AppContext {
         self.git_runner.get_or_init(GitCommandRunner::new)
     }
 
-    pub fn command_runner(&self) -> Arc<dyn CommandRunner> {
-        self.command_runner
-            .get_or_init(|| Arc::new(DefaultCommandRunner))
-            .clone()
-    }
-
     pub fn config(&self) -> AppConfig {
         self.config_cache.get_or_init(ConfigCache::new).get()
-    }
-
-    pub fn refresh_config(&self) {
-        if let Some(cache) = self.config_cache.get() {
-            cache.refresh();
-        }
     }
 
     fn new() -> Self {
         Self {
             git_runner: OnceLock::new(),
-            command_runner: OnceLock::new(),
             config_cache: OnceLock::new(),
         }
     }
@@ -100,36 +83,5 @@ mod tests {
 
         assert!(std::ptr::eq(ctx1, ctx2));
         assert!(std::ptr::eq(runner1, runner2));
-    }
-
-    #[test]
-    fn test_command_runner_returns_valid_instance() {
-        let ctx = AppContext::global();
-        let runner = ctx.command_runner();
-        assert!(Arc::strong_count(&runner) >= 1);
-    }
-
-    #[test]
-    fn test_command_runner_returns_same_instance() {
-        let ctx = AppContext::global();
-        let runner1 = ctx.command_runner();
-        let runner2 = ctx.command_runner();
-        assert!(Arc::ptr_eq(&runner1, &runner2));
-    }
-
-    #[test]
-    fn test_multiple_calls_return_same_command_runner() {
-        let ctx = AppContext::global();
-
-        let runners: Vec<Arc<dyn CommandRunner>> =
-            (0..10).map(|_| ctx.command_runner()).collect();
-
-        let first = &runners[0];
-        for runner in &runners[1..] {
-            assert!(
-                Arc::ptr_eq(first, runner),
-                "CommandRunner instances should be identical"
-            );
-        }
     }
 }

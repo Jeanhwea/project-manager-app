@@ -23,12 +23,6 @@ impl ExecutionContext {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn arg(mut self, arg: impl Into<String>) -> Self {
-        self.args.push(arg.into());
-        self
-    }
-
     pub fn args<I, S>(mut self, args: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -40,12 +34,6 @@ impl ExecutionContext {
 
     pub fn working_dir(mut self, dir: impl Into<PathBuf>) -> Self {
         self.working_dir = Some(dir.into());
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.env_vars.insert(key.into(), value.into());
         self
     }
 
@@ -71,13 +59,6 @@ mod tests {
     }
 
     #[test]
-    fn test_arg_adds_single_argument() {
-        let ctx = ExecutionContext::new("git").arg("pull");
-
-        assert_eq!(ctx.args, vec!["pull"]);
-    }
-
-    #[test]
     fn test_args_adds_multiple_arguments() {
         let ctx = ExecutionContext::new("git").args(vec!["pull", "--rebase"]);
 
@@ -92,16 +73,6 @@ mod tests {
     }
 
     #[test]
-    fn test_env_adds_environment_variable() {
-        let ctx = ExecutionContext::new("git").env("GIT_AUTHOR_NAME", "Test User");
-
-        assert_eq!(
-            ctx.env_vars.get("GIT_AUTHOR_NAME"),
-            Some(&"Test User".to_string())
-        );
-    }
-
-    #[test]
     fn test_output_mode_sets_mode() {
         let ctx = ExecutionContext::new("git").output_mode(OutputMode::Streaming);
 
@@ -111,19 +82,13 @@ mod tests {
     #[test]
     fn test_builder_chain() {
         let ctx = ExecutionContext::new("git")
-            .arg("pull")
-            .arg("--rebase")
+            .args(vec!["pull", "--rebase"])
             .working_dir("/path/to/repo")
-            .env("GIT_AUTHOR_NAME", "Test User")
             .output_mode(OutputMode::Streaming);
 
         assert_eq!(ctx.program, "git");
         assert_eq!(ctx.args, vec!["pull", "--rebase"]);
         assert_eq!(ctx.working_dir, Some(PathBuf::from("/path/to/repo")));
-        assert_eq!(
-            ctx.env_vars.get("GIT_AUTHOR_NAME"),
-            Some(&"Test User".to_string())
-        );
         assert_eq!(ctx.output_mode, OutputMode::Streaming);
     }
 }
