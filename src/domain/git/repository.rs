@@ -34,7 +34,7 @@ pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
     }
 }
 
-pub fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoInfo>> {
+fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoInfo>> {
     let mut repos = Vec::new();
 
     if max_depth == 0 {

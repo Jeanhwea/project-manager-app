@@ -42,7 +42,6 @@ enum Action {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct PmaConfig {
-    project_name: String,
     actions: Vec<Action>,
 }
 

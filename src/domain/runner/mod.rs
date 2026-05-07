@@ -8,8 +8,8 @@ pub use command::CommandRunner;
 pub use command::DefaultCommandRunner;
 pub use context::ExecutionContext;
 pub use dry_run::DryRunContext;
-pub use error::CommandError;
-pub use result::CommandResult;
+use error::CommandError;
+use result::CommandResult;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputMode {
