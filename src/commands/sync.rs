@@ -74,8 +74,9 @@ fn execute_sync(args: SyncArgs) -> CommandResult {
         let cwd = std::env::current_dir()?;
         find_git_repository_upwards(&cwd).unwrap_or_else(|| cwd)
     } else {
-        crate::utils::path::canonicalize_path(&args.path)
-            .map_err(|e| super::CommandError::ExecutionFailed(format!("无法解析路径: {} - {}", args.path, e)))?
+        crate::utils::path::canonicalize_path(&args.path).map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("无法解析路径: {} - {}", args.path, e))
+        })?
     };
 
     let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
