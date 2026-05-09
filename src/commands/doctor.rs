@@ -213,10 +213,12 @@ fn get_remote_name_by_url(url: &str) -> Option<String> {
         if let Some(at_pos) = url.find('@') {
             let after_at = &url[at_pos + 1..];
             if let Some(colon_pos) = after_at.find(':') {
-                return Some(after_at[..colon_pos].to_string());
+                let host = &after_at[..colon_pos];
+                return host.split('.').next().map(|s| s.to_string());
             }
         } else if let Some(slash_pos) = url.find('/') {
-            return Some(url[..slash_pos].to_string());
+            let host = &url[..slash_pos];
+            return host.split('.').next().map(|s| s.to_string());
         }
         None
     }
@@ -550,12 +552,32 @@ mod tests {
 
         assert_eq!(
             get_remote_name_by_url("git@example.com:user/repo.git"),
-            Some("example.com".to_string())
+            Some("example".to_string())
         );
 
         assert_eq!(
             get_remote_name_by_url("https://example.com/user/repo.git"),
-            Some("example.com".to_string())
+            Some("example".to_string())
+        );
+
+        assert_eq!(
+            get_remote_name_by_url("git@a.b.c:user/repo.git"),
+            Some("a".to_string())
+        );
+
+        assert_eq!(
+            get_remote_name_by_url("https://a.b.c/user/repo.git"),
+            Some("a".to_string())
+        );
+
+        assert_eq!(
+            get_remote_name_by_url("git@private:user/repo.git"),
+            Some("private".to_string())
+        );
+
+        assert_eq!(
+            get_remote_name_by_url("https://private/user/repo.git"),
+            Some("private".to_string())
         );
 
         assert_eq!(get_remote_name_by_url("invalid-url"), None);
