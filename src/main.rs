@@ -4,10 +4,9 @@ mod domain;
 mod utils;
 
 use anyhow::Result;
-use cli::{ClapParser, CliParser, CommandDispatcher, CommandDispatcherImpl};
+use clap::Parser;
 
 fn main() -> Result<()> {
-    let parsed_command = ClapParser::parse()?;
-    CommandDispatcherImpl::dispatch(parsed_command)?;
-    Ok(())
+    let cli = cli::Cli::parse();
+    cli::dispatch(cli)
 }

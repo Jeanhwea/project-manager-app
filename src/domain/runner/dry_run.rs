@@ -1,21 +1,16 @@
 use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
-use std::sync::Arc;
 
-use super::{CommandRunner, DefaultCommandRunner, ExecutionContext, OutputMode};
+use super::{CommandRunner, ExecutionContext, OutputMode};
 
 pub struct DryRunContext {
     dry_run: bool,
-    runner: Arc<dyn CommandRunner>,
 }
 
 impl DryRunContext {
     pub fn new(dry_run: bool) -> Self {
-        Self {
-            dry_run,
-            runner: Arc::new(DefaultCommandRunner),
-        }
+        Self { dry_run }
     }
 
     pub fn is_dry_run(&self) -> bool {
@@ -39,10 +34,7 @@ impl DryRunContext {
             ctx = ctx.working_dir(dir);
         }
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        let result = CommandRunner.execute(&ctx)?;
 
         if !result.success {
             anyhow::bail!("命令执行失败: {} {}", program, args.join(" "));

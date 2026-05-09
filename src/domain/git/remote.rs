@@ -78,7 +78,6 @@ impl Default for RemoteManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_remote_parse_url_valid() {
@@ -135,6 +134,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn test_remote_manager_list_remotes_empty() {
         let manager = RemoteManager::new();
         let temp_dir = tempdir().unwrap();

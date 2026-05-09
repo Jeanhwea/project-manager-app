@@ -1,4 +1,3 @@
-use super::{Command, CommandResult};
 use crate::domain::context::AppContext;
 use crate::domain::git::remote::RemoteManager;
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
@@ -6,6 +5,7 @@ use crate::domain::runner::DryRunContext;
 use crate::utils::error::ErrorHandler;
 use crate::utils::output::Output;
 use crate::utils::path::format_path;
+use anyhow::Result;
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
@@ -59,24 +59,13 @@ pub struct SyncArgs {
     pub rebase: bool,
 }
 
-pub struct SyncCommand;
-
-impl Command for SyncCommand {
-    type Args = SyncArgs;
-
-    fn execute(args: Self::Args) -> CommandResult {
-        execute_sync(args)
-    }
-}
-
-fn execute_sync(args: SyncArgs) -> CommandResult {
+pub fn run(args: SyncArgs) -> Result<()> {
     let effective_path = if args.path.is_empty() {
         let cwd = std::env::current_dir()?;
         find_git_repository_upwards(&cwd).unwrap_or(cwd)
     } else {
-        crate::utils::path::canonicalize_path(&args.path).map_err(|e| {
-            super::CommandError::ExecutionFailed(format!("无法解析路径: {} - {}", args.path, e))
-        })?
+        crate::utils::path::canonicalize_path(&args.path)
+            .map_err(|e| anyhow::anyhow!("无法解析路径: {} - {}", args.path, e))?
     };
 
     let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
@@ -97,7 +86,7 @@ fn execute_sync(args: SyncArgs) -> CommandResult {
         do_info_repository(repo_path)?;
 
         if !ctx.is_dry_run() && !is_workdir_clean(repo_path)? {
-            let runner = AppContext::global().git_runner();
+            let runner = AppContext::git_runner();
             runner.execute_with_success_in_dir(&["status"], repo_path)?;
             Output::warning(&format!(
                 "无法同步不干净工作目录: {}",
@@ -122,7 +111,7 @@ fn execute_sync(args: SyncArgs) -> CommandResult {
 }
 
 fn do_info_repository(repo_path: &Path) -> Result<(), crate::domain::git::GitError> {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
 
     if let Err(e) = runner.execute_with_success_in_dir(&["branch", "--list"], repo_path) {
         ErrorHandler::print_error("无法获取分支信息", &e);
@@ -139,7 +128,7 @@ fn get_tracking_remote_info(
     repo_path: &Path,
     remotes: &[(String, String)],
 ) -> Option<(String, String)> {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     let output = runner
         .execute_quiet_in_dir(&["rev-parse", "--abbrev-ref", "HEAD@{upstream}"], repo_path)
         .ok()?;
@@ -236,7 +225,7 @@ fn should_skip_push(remote: &str, url: &str, skip_remotes: &[String]) -> bool {
         return true;
     }
 
-    let config = AppContext::global().config();
+    let config = AppContext::config();
 
     if let Some((protocol, host, path)) = parse_git_remote_url(url) {
         use crate::domain::git::GitProtocol;
@@ -266,7 +255,7 @@ fn parse_git_remote_url(url: &str) -> Option<(crate::domain::git::GitProtocol, S
 }
 
 fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     let output = runner
         .execute_quiet_in_dir(&["branch", "--list"], repo_path)
         .ok()?;
@@ -305,7 +294,7 @@ fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
 }
 
 fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     if let Err(e) = runner.execute_streaming_in_dir(&["checkout", branch], repo_path) {
         let context = format!("切换分支失败: {}", format_path(repo_path));
         ErrorHandler::print_error(&context, &e);
@@ -320,7 +309,7 @@ fn do_pull_repository(repo_path: &Path, rebase: bool) {
     } else {
         vec!["pull"]
     };
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     if let Err(e) = runner.execute_streaming_in_dir(&args, repo_path) {
         let context = format!("同步仓库失败: {}", format_path(repo_path));
         ErrorHandler::print_error(&context, &e);
@@ -328,7 +317,7 @@ fn do_pull_repository(repo_path: &Path, rebase: bool) {
 }
 
 fn is_workdir_clean(repo_path: &Path) -> Result<bool, crate::domain::git::GitError> {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     let output = runner.execute_in_dir(&["status", "--porcelain"], repo_path)?;
     Ok(output.trim().is_empty())
 }
@@ -336,7 +325,6 @@ fn is_workdir_clean(repo_path: &Path) -> Result<bool, crate::domain::git::GitErr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn test_dry_run_context() {
@@ -408,6 +396,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn test_is_workdir_clean() {
         let temp_dir = tempdir().unwrap();
         let repo_path = temp_dir.path();

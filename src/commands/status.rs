@@ -1,7 +1,7 @@
-use super::{Command, CommandResult};
 use crate::domain::context::AppContext;
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::utils::output::{ItemColor, Output, SummaryBuilder};
+use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Args)]
@@ -90,66 +90,55 @@ impl StatusStats {
     }
 }
 
-pub struct StatusCommand;
+pub fn run(args: StatusArgs) -> Result<()> {
+    let search_path = if args.path.is_empty() || args.path == "." {
+        std::env::current_dir()?
+    } else {
+        PathBuf::from(&args.path)
+    };
 
-impl Command for StatusCommand {
-    type Args = StatusArgs;
+    let effective_path =
+        find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone());
 
-    fn execute(args: Self::Args) -> CommandResult {
-        let search_path = if args.path.is_empty() || args.path == "." {
-            std::env::current_dir().map_err(|e| {
-                super::CommandError::ExecutionFailed(format!("获取当前目录失败: {}", e))
-            })?
-        } else {
-            PathBuf::from(&args.path)
-        };
+    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 
-        let effective_path =
-            find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone());
-
-        let walker =
-            RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3)).map_err(|e| {
-                super::CommandError::ExecutionFailed(format!("创建仓库遍历器失败: {}", e))
-            })?;
-
-        if walker.is_empty() {
-            Output::not_found("未找到git仓库");
-            return Ok(());
-        }
-
-        let total = walker.total();
-        let mut stats = StatusStats::default();
-
-        for (index, repo_info) in walker.repositories().iter().enumerate() {
-            let repo_path = &repo_info.path;
-
-            if repo_info.repo_type == crate::domain::git::repository::RepoType::Submodule {
-                stats.submodules += 1;
-                continue;
-            }
-
-            let status = collect_repo_status(repo_path);
-
-            if !matches_filter(&status, &args.filter) {
-                stats.skipped += 1;
-                continue;
-            }
-
-            Output::repo_header(index + 1, total, repo_path);
-
-            if args.short {
-                print_short_status(&status);
-            } else {
-                print_full_status(repo_path, &status);
-            }
-
-            stats.update(&status);
-        }
-
-        print_summary(&stats, total);
-
-        Ok(())
+    if walker.is_empty() {
+        Output::not_found("未找到git仓库");
+        return Ok(());
     }
+
+    let total = walker.total();
+    let mut stats = StatusStats::default();
+
+    for (index, repo_info) in walker.repositories().iter().enumerate() {
+        let repo_path = &repo_info.path;
+
+        if repo_info.repo_type == crate::domain::git::repository::RepoType::Submodule {
+            stats.submodules += 1;
+            continue;
+        }
+
+        let status = collect_repo_status(repo_path);
+
+        if !matches_filter(&status, &args.filter) {
+            stats.skipped += 1;
+            continue;
+        }
+
+        Output::repo_header(index + 1, total, repo_path);
+
+        if args.short {
+            print_short_status(&status);
+        } else {
+            print_full_status(repo_path, &status);
+        }
+
+        stats.update(&status);
+    }
+
+    print_summary(&stats, total);
+
+    Ok(())
 }
 
 fn matches_filter(status: &RepoStatus, filter: &Option<StatusFilter>) -> bool {
@@ -163,7 +152,7 @@ fn matches_filter(status: &RepoStatus, filter: &Option<StatusFilter>) -> bool {
 }
 
 fn collect_repo_status(repo_path: &Path) -> RepoStatus {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     let branch = runner.get_current_branch(repo_path).ok();
     let dirty = runner.has_uncommitted_changes(repo_path).unwrap_or(false);
     let (ahead, behind) = get_ahead_behind(repo_path);
@@ -181,7 +170,7 @@ fn collect_repo_status(repo_path: &Path) -> RepoStatus {
 }
 
 fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     let branch = match runner.get_current_branch(repo_path) {
         Ok(b) => b,
         Err(_) => return (0, 0),
@@ -213,7 +202,7 @@ fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
 }
 
 fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     let output = match runner.execute_in_dir(&["status", "--porcelain"], repo_path) {
         Ok(o) => o,
         Err(_) => return (0, 0, 0),
@@ -301,7 +290,7 @@ fn print_short_status(status: &RepoStatus) {
 }
 
 fn print_full_status(repo_path: &Path, status: &RepoStatus) {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     let branch_display = status.branch.as_deref().unwrap_or("HEAD (detached)");
 
     Output::item("分支", branch_display);
@@ -365,7 +354,7 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
 }
 
 fn print_latest_tag(repo_path: &Path) {
-    let runner = AppContext::global().git_runner();
+    let runner = AppContext::git_runner();
     let output =
         match runner.execute_in_dir(&["tag", "-l", "v*", "--sort=-version:refname"], repo_path) {
             Ok(o) => o,

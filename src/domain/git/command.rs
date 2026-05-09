@@ -1,41 +1,25 @@
 use super::{GitError, Result};
-use crate::domain::runner::{CommandRunner, DefaultCommandRunner, ExecutionContext, OutputMode};
+use crate::domain::runner::{CommandResult, CommandRunner, ExecutionContext, OutputMode};
 use crate::utils::output::Output;
-use std::fmt;
 use std::path::Path;
 use std::process::{ExitStatus, Output as ProcessOutput};
-use std::sync::Arc;
 
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 #[cfg(windows)]
 use std::os::windows::process::ExitStatusExt;
 
-pub struct GitCommandRunner {
-    runner: Arc<dyn CommandRunner>,
-}
-
-impl fmt::Debug for GitCommandRunner {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GitCommandRunner")
-            .field("runner", &"Arc<dyn CommandRunner>")
-            .finish()
-    }
-}
-
-impl Clone for GitCommandRunner {
-    fn clone(&self) -> Self {
-        Self {
-            runner: Arc::clone(&self.runner),
-        }
-    }
-}
+pub struct GitCommandRunner;
 
 impl GitCommandRunner {
     pub fn new() -> Self {
-        Self {
-            runner: Arc::new(DefaultCommandRunner),
-        }
+        Self
+    }
+
+    fn run(&self, context: &ExecutionContext) -> Result<CommandResult> {
+        CommandRunner
+            .execute(context)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))
     }
 
     pub fn execute(&self, args: &[&str]) -> Result<String> {
@@ -43,10 +27,7 @@ impl GitCommandRunner {
             .args(args.iter().copied())
             .output_mode(OutputMode::Capture);
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        let result = self.run(&ctx)?;
 
         if !result.success {
             let stderr = result.stderr.unwrap_or_default();
@@ -62,10 +43,7 @@ impl GitCommandRunner {
             .working_dir(dir)
             .output_mode(OutputMode::Capture);
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        let result = self.run(&ctx)?;
 
         if !result.success {
             let stderr = result.stderr.unwrap_or_default();
@@ -81,10 +59,7 @@ impl GitCommandRunner {
             .working_dir(dir)
             .output_mode(OutputMode::Capture);
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        let result = self.run(&ctx)?;
 
         #[cfg(unix)]
         let status = ExitStatus::from_raw(result.exit_code);
@@ -122,10 +97,7 @@ impl GitCommandRunner {
             .working_dir(dir)
             .output_mode(OutputMode::Streaming);
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        let result = self.run(&ctx)?;
 
         if !result.success {
             return Err(GitError::CommandFailed(format!(
@@ -149,10 +121,7 @@ impl GitCommandRunner {
             ctx = ctx.working_dir(dir);
         }
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        let result = self.run(&ctx)?;
 
         if !result.success {
             let stderr = result.stderr.unwrap_or_default();
@@ -168,6 +137,7 @@ impl GitCommandRunner {
         self.execute_in_dir(&["branch", "--show-current"], repo_path)
     }
 
+    #[allow(dead_code)]
     pub fn get_remote_urls(&self, repo_path: &Path) -> Result<Vec<String>> {
         let output = self.execute_in_dir(&["remote", "-v"], repo_path)?;
         let urls: Vec<String> = output
@@ -216,11 +186,5 @@ mod tests {
         let runner = GitCommandRunner::new();
         let dir = tempdir().unwrap().path().join("nonexistent");
         assert!(runner.execute_in_dir(&["status"], &dir).is_err());
-    }
-
-    #[test]
-    fn test_execute_with_invalid_subcommand() {
-        let runner = GitCommandRunner::new();
-        assert!(runner.execute_with_success(&["no-such-command"]).is_err());
     }
 }

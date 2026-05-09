@@ -1,15 +1,12 @@
 pub mod command;
 pub mod context;
 pub mod dry_run;
-pub mod error;
 pub mod result;
 
 pub use command::CommandRunner;
-pub use command::DefaultCommandRunner;
 pub use context::ExecutionContext;
 pub use dry_run::DryRunContext;
-use error::CommandError;
-use result::CommandResult;
+pub use result::CommandResult;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputMode {

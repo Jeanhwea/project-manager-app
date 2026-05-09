@@ -14,6 +14,7 @@ pub struct RepoInfo {
     pub repo_type: RepoType,
 }
 
+#[allow(dead_code)]
 pub fn is_git_repo(path: &Path) -> bool {
     path.is_dir() && path.join(".git").is_dir()
 }

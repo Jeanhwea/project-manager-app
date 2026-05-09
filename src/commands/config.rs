@@ -1,7 +1,7 @@
-use super::{Command, CommandResult};
 use crate::domain::config::ConfigDir;
 use crate::domain::config::schema;
 use crate::utils::output::Output;
+use anyhow::Result;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum ConfigArgs {
@@ -13,46 +13,34 @@ pub enum ConfigArgs {
     Path,
 }
 
-pub struct ConfigCommand;
-
-impl Command for ConfigCommand {
-    type Args = ConfigArgs;
-
-    fn execute(args: Self::Args) -> CommandResult {
-        match args {
-            ConfigArgs::Init => execute_init(),
-            ConfigArgs::Show => execute_show(),
-            ConfigArgs::Path => execute_path(),
-        }
+pub fn run(args: ConfigArgs) -> Result<()> {
+    match args {
+        ConfigArgs::Init => execute_init(),
+        ConfigArgs::Show => execute_show(),
+        ConfigArgs::Path => execute_path(),
     }
 }
 
-fn execute_init() -> CommandResult {
+fn execute_init() -> Result<()> {
     let dir = ConfigDir::dir();
     if dir.exists() {
-        return Err(super::CommandError::ExecutionFailed(format!(
-            "配置目录已存在: {}",
-            dir.display()
-        )));
+        anyhow::bail!("配置目录已存在: {}", dir.display());
     }
 
-    std::fs::create_dir_all(&dir).map_err(super::CommandError::Io)?;
-
-    let config_path = ConfigDir::config_path();
-    std::fs::write(&config_path, schema::default_config_content())
-        .map_err(super::CommandError::Io)?;
-
-    let gitlab_path = ConfigDir::gitlab_path();
-    std::fs::write(&gitlab_path, schema::default_gitlab_config_content())
-        .map_err(super::CommandError::Io)?;
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(ConfigDir::config_path(), schema::default_config_content())?;
+    std::fs::write(
+        ConfigDir::gitlab_path(),
+        schema::default_gitlab_config_content(),
+    )?;
 
     Output::item("已创建配置目录", &dir.display().to_string());
-    Output::detail("主配置", &config_path.display().to_string());
-    Output::detail("GitLab", &gitlab_path.display().to_string());
+    Output::detail("主配置", &ConfigDir::config_path().display().to_string());
+    Output::detail("GitLab", &ConfigDir::gitlab_path().display().to_string());
     Ok(())
 }
 
-fn execute_show() -> CommandResult {
+fn execute_show() -> Result<()> {
     let dir = ConfigDir::dir();
     let cfg = ConfigDir::load_config();
     let gitlab_cfg = ConfigDir::load_gitlab();
@@ -97,7 +85,7 @@ fn execute_show() -> CommandResult {
     Ok(())
 }
 
-fn execute_path() -> CommandResult {
+fn execute_path() -> Result<()> {
     Output::message(&ConfigDir::dir().display().to_string());
     Ok(())
 }

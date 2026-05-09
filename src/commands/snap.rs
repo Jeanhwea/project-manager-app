@@ -1,4 +1,3 @@
-use super::{Command, CommandError, CommandResult};
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::runner::DryRunContext;
 use crate::utils::output::Output;
@@ -61,20 +60,7 @@ pub struct RestoreArgs {
     pub dry_run: bool,
 }
 
-pub struct SnapCommand;
-
-impl Command for SnapCommand {
-    type Args = SnapArgs;
-
-    fn execute(args: Self::Args) -> CommandResult {
-        match execute_snap(args) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(CommandError::ExecutionFailed(format!("{}", e))),
-        }
-    }
-}
-
-fn execute_snap(args: SnapArgs) -> Result<()> {
+pub fn run(args: SnapArgs) -> Result<()> {
     match args {
         SnapArgs::Create(args) => execute_create(args),
         SnapArgs::List(args) => execute_list(args),
@@ -117,9 +103,7 @@ fn execute_list(args: ListArgs) -> Result<()> {
         return Ok(());
     }
 
-    let output = runner
-        .execute_quiet_in_dir(&["log", "--oneline"], project_path)
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
+    let output = runner.execute_quiet_in_dir(&["log", "--oneline"], project_path)?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     let snap_commits: Vec<&str> = stdout
@@ -173,9 +157,7 @@ fn execute_restore(args: RestoreArgs) -> Result<()> {
     }
 
     Output::cmd(&format!("git checkout {}", commit_ref));
-    let output = runner
-        .execute_raw_in_dir(&["checkout", &commit_ref], project_path)
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
+    let output = runner.execute_raw_in_dir(&["checkout", &commit_ref], project_path)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     if !stdout.is_empty() {
@@ -195,8 +177,7 @@ fn resolve_snapshot_ref(
 ) -> Result<String> {
     if snapshot.starts_with("snap-") {
         let output = runner
-            .execute_quiet_in_dir(&["log", "--oneline", "--grep", snapshot], project_path)
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
+            .execute_quiet_in_dir(&["log", "--oneline", "--grep", snapshot], project_path)?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         if let Some(first_line) = stdout.lines().next() {
@@ -208,9 +189,7 @@ fn resolve_snapshot_ref(
     if let Some(index_str) = snapshot.strip_prefix('#')
         && let Ok(index) = index_str.parse::<usize>()
     {
-        let output = runner
-            .execute_quiet_in_dir(&["log", "--oneline"], project_path)
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        let output = runner.execute_quiet_in_dir(&["log", "--oneline"], project_path)?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         let snap_commits: Vec<&str> = stdout
@@ -233,9 +212,8 @@ fn resolve_snapshot_ref(
         }
     }
 
-    let output = runner
-        .execute_quiet_in_dir(&["rev-parse", "--verify", snapshot], project_path)
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
+    let output =
+        runner.execute_quiet_in_dir(&["rev-parse", "--verify", snapshot], project_path)?;
 
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if hash.is_empty() {
@@ -269,9 +247,7 @@ fn do_incremental_snapshot(
         return Ok(());
     }
 
-    let output = runner
-        .execute_raw_in_dir(&["rev-list", "--count", "HEAD"], work_dir)
-        .map_err(|e| anyhow::anyhow!("{}", e))?;
+    let output = runner.execute_raw_in_dir(&["rev-list", "--count", "HEAD"], work_dir)?;
     let num_commit = String::from_utf8_lossy(&output.stdout)
         .trim()
         .parse::<usize>()?;
