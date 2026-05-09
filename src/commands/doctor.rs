@@ -123,9 +123,10 @@ fn execute_doctor(args: DoctorArgs) -> CommandResult {
                     && new_name != remote_name
                 {
                     Output::item(&format!("{} => {}", remote_name, new_name), &remote_url);
-                    do_rename_git_remote(&ctx, repo_path, &remote_name, &new_name).map_err(
-                        |e| crate::domain::git::GitError::Anyhow(anyhow::anyhow!("{}", e)),
-                    )?;
+                    do_rename_git_remote(&ctx, repo_path, &remote_name, &new_name, &remote_url)
+                        .map_err(|e| {
+                        crate::domain::git::GitError::Anyhow(anyhow::anyhow!("{}", e))
+                    })?;
                 }
             }
         }
@@ -184,9 +185,11 @@ fn get_remote_info(repo_path: &Path) -> Vec<(String, String)> {
     match runner.execute_in_dir(&["remote", "-v"], repo_path) {
         Ok(output) => {
             let mut remotes = Vec::new();
+            let mut seen = std::collections::HashSet::new();
             for line in output.lines() {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
+                if parts.len() >= 2 && !seen.contains(parts[0]) {
+                    seen.insert(parts[0].to_string());
                     remotes.push((parts[0].to_string(), parts[1].to_string()));
                 }
             }
@@ -426,11 +429,24 @@ fn do_rename_git_remote(
     repo_path: &Path,
     old_name: &str,
     new_name: &str,
+    remote_url: &str,
 ) -> CommandResult {
     let existing_remotes = get_remote_info(repo_path);
     let conflict = existing_remotes.iter().find(|(name, _)| name == new_name);
 
     if let Some((_, conflict_url)) = conflict {
+        if conflict_url == remote_url {
+            Output::item(
+                &format!("{} 已指向相同 URL，删除旧名称 {}", new_name, old_name),
+                "",
+            );
+            ctx.run_in_dir("git", &["remote", "remove", old_name], Some(repo_path))
+                .map_err(|e| {
+                    CommandError::ExecutionFailed(format!("无法删除远程仓库 {}: {}", old_name, e))
+                })?;
+            return Ok(());
+        }
+
         let alt_name =
             get_remote_name_by_url(conflict_url).unwrap_or_else(|| format!("{}-old", new_name));
 
