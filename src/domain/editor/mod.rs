@@ -8,15 +8,15 @@ mod pyproject;
 mod version_bump;
 mod version_text;
 
-pub use cargo_toml::CargoTomlEditor;
-pub use cmake::CMakeListsEditor;
-pub use homebrew::HomebrewFormulaEditor;
-pub use package_json::PackageJsonEditor;
-pub use pom_xml::PomXmlEditor;
-pub use project_py::PythonVersionEditor;
-pub use pyproject::PyprojectEditor;
+use cargo_toml::CargoTomlEditor;
+use cmake::CMakeListsEditor;
+use homebrew::HomebrewFormulaEditor;
+use package_json::PackageJsonEditor;
+use pom_xml::PomXmlEditor;
+use project_py::PythonVersionEditor;
+use pyproject::PyprojectEditor;
 pub use version_bump::{BumpType, Version};
-pub use version_text::VersionTextEditor;
+use version_text::VersionTextEditor;
 
 use std::path::Path;
 

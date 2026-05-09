@@ -160,15 +160,18 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState, CommandError> {
         ));
     }
 
-    let current_tag = get_current_version(runner).unwrap_or_else(|| "v0.0.0".to_string());
+    let previous_tag = get_current_version(runner);
+    let current_tag = previous_tag.clone().unwrap_or_else(|| "v0.0.0".to_string());
 
-    let rev_current_tag = runner.execute(&["rev-parse", &current_tag])?;
-    let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
-    if rev_current_tag.trim() == rev_head.trim() {
-        return Err(CommandError::Validation(format!(
-            "当前 HEAD 已被标记为 {}",
-            current_tag
-        )));
+    if let Some(ref tag) = previous_tag {
+        let rev_current_tag = runner.execute(&["rev-parse", tag])?;
+        let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
+        if rev_current_tag.trim() == rev_head.trim() {
+            return Err(CommandError::Validation(format!(
+                "当前 HEAD 已被标记为 {}",
+                tag
+            )));
+        }
     }
 
     let version = parse_version_from_tag(&current_tag).unwrap_or_default();

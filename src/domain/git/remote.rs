@@ -1,4 +1,5 @@
-use crate::domain::git::{GitError, GitProtocol, RemoteUrlParser, Result};
+use super::url_parser::RemoteUrlParser;
+use crate::domain::git::{GitError, GitProtocol, Result};
 use std::path::Path;
 
 #[derive(Debug, Clone)]

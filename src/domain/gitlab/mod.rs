@@ -17,15 +17,11 @@ pub enum GitLabError {
 
     #[error("Rate limited")]
     RateLimited,
-
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct GitLabConfig {
-    pub server: Option<String>,
-    pub token: Option<String>,
+struct GitLabConfig {
+    server: Option<String>,
+    token: Option<String>,
 }
 
-pub type Result<T> = std::result::Result<T, GitLabError>;
+type Result<T> = std::result::Result<T, GitLabError>;

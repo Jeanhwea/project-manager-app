@@ -10,7 +10,7 @@ pub struct GitLabClient {
 }
 
 impl GitLabClient {
-    pub fn new(config: GitLabConfig) -> Self {
+    fn new(config: GitLabConfig) -> Self {
         let base_url = config
             .server
             .as_ref()

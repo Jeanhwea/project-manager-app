@@ -6,7 +6,7 @@ use crate::domain::runner::DryRunContext;
 use crate::utils::error::ErrorHandler;
 use crate::utils::output::Output;
 use crate::utils::path::format_path;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
@@ -70,14 +70,14 @@ impl Command for SyncCommand {
 }
 
 fn execute_sync(args: SyncArgs) -> CommandResult {
-    let search_path = if args.path.is_empty() || args.path == "." {
-        std::env::current_dir()?
+    let effective_path = if args.path.is_empty() {
+        let cwd = std::env::current_dir()?;
+        find_git_repository_upwards(&cwd).unwrap_or_else(|| cwd)
     } else {
-        PathBuf::from(&args.path)
+        crate::utils::path::canonicalize_path(&args.path).map_err(|e| {
+            super::CommandError::ExecutionFailed(format!("无法解析路径: {} - {}", args.path, e))
+        })?
     };
-
-    let effective_path =
-        find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone());
 
     let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 

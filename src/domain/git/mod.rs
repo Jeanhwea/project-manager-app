@@ -30,5 +30,3 @@ pub enum GitProtocol {
 }
 
 pub type Result<T> = std::result::Result<T, GitError>;
-
-pub use url_parser::RemoteUrlParser;
