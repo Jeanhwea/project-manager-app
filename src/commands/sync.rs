@@ -72,7 +72,7 @@ impl Command for SyncCommand {
 fn execute_sync(args: SyncArgs) -> CommandResult {
     let effective_path = if args.path.is_empty() {
         let cwd = std::env::current_dir()?;
-        find_git_repository_upwards(&cwd).unwrap_or_else(|| cwd)
+        find_git_repository_upwards(&cwd).unwrap_or(cwd)
     } else {
         crate::utils::path::canonicalize_path(&args.path).map_err(|e| {
             super::CommandError::ExecutionFailed(format!("无法解析路径: {} - {}", args.path, e))
