@@ -19,7 +19,7 @@ pub enum GitLabError {
     RateLimited,
 }
 
-struct GitLabConfig {
+struct GitLabConnection {
     server: Option<String>,
     token: Option<String>,
 }

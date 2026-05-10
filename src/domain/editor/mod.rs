@@ -21,7 +21,6 @@ use version_text::VersionTextEditor;
 use std::path::Path;
 
 #[derive(Debug, thiserror::Error)]
-
 pub enum EditorError {
     #[error("Parse error: {0}")]
     ParseError(String),
@@ -68,15 +67,13 @@ pub struct VersionPosition {
 }
 
 pub struct EditorRegistry {
-    editors: std::collections::HashMap<&'static str, std::sync::Arc<dyn FileEditor>>,
-    file_pattern_map: std::collections::HashMap<String, &'static str>,
+    editors: Vec<Box<dyn FileEditor>>,
 }
 
 impl EditorRegistry {
     pub fn new() -> Self {
         Self {
-            editors: std::collections::HashMap::new(),
-            file_pattern_map: std::collections::HashMap::new(),
+            editors: Vec::new(),
         }
     }
 
@@ -93,62 +90,38 @@ impl EditorRegistry {
     }
 
     pub fn register(mut self, editor: impl FileEditor + 'static) -> Self {
-        let name = editor.name();
-        let patterns: Vec<String> = editor
-            .file_patterns()
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-
-        let editor_arc: std::sync::Arc<dyn FileEditor> = std::sync::Arc::new(editor);
-
-        for pattern in &patterns {
-            self.file_pattern_map.insert(pattern.clone(), name);
-        }
-
-        self.editors.insert(name, editor_arc);
+        self.editors.push(Box::new(editor));
         self
     }
 
-    pub fn detect_editor(&self, path: &Path) -> Option<std::sync::Arc<dyn FileEditor>> {
+    pub fn detect_editor(&self, path: &Path) -> Option<&dyn FileEditor> {
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-        let parent_dir = path
-            .parent()
-            .and_then(|p| p.file_name())
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
-
-        for (pattern, editor_name) in &self.file_pattern_map {
-            if pattern.contains("{parent}") {
-                let replaced = pattern.replace("{parent}", parent_dir);
-                if file_name == replaced || path.ends_with(&replaced) {
-                    return self.editors.get(editor_name).cloned();
+        for editor in &self.editors {
+            for pattern in editor.file_patterns() {
+                if pattern.contains("{parent}") {
+                    let parent_dir = path
+                        .parent()
+                        .and_then(|p| p.file_name())
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("");
+                    let replaced = pattern.replace("{parent}", parent_dir);
+                    if file_name == replaced || path.ends_with(&replaced) {
+                        return Some(editor.as_ref());
+                    }
+                } else if file_name == *pattern || path.ends_with(pattern) {
+                    return Some(editor.as_ref());
                 }
-            } else if file_name == *pattern || path.ends_with(pattern) {
-                return self.editors.get(editor_name).cloned();
             }
         }
 
-        for editor in self.editors.values() {
+        for editor in &self.editors {
             if editor.matches_file(path) {
-                return Some(editor.clone());
+                return Some(editor.as_ref());
             }
         }
 
         None
-    }
-
-    pub fn edit_version(
-        &self,
-        editor: &dyn FileEditor,
-        content: &str,
-        version: &str,
-    ) -> Result<String> {
-        let location = editor.parse(content)?;
-        let edited = editor.edit(content, &location, version)?;
-        editor.validate(content, &edited)?;
-        Ok(edited)
     }
 }
 

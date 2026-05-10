@@ -84,7 +84,7 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
 
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;
-        let branch_output = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
+        let branch_output = match runner.execute(&["branch", "--list"], Some(repo_path)) {
             Ok(o) => o,
             Err(_) => continue,
         };
@@ -132,7 +132,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
             Err(_) => continue,
         };
 
-        let branch_output = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
+        let branch_output = match runner.execute(&["branch", "--list"], Some(repo_path)) {
             Ok(o) => o,
             Err(_) => continue,
         };
@@ -160,7 +160,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
             if args.dry_run {
                 Output::skip(&format!("git branch -d {}", branch));
             } else {
-                match runner.execute_with_success_in_dir(&["branch", "-d", branch], repo_path) {
+                match runner.execute_with_success(&["branch", "-d", branch], Some(repo_path)) {
                     Ok(()) => Output::success(&format!("已删除分支: {}", branch)),
                     Err(e) => Output::error(&format!("删除分支 {} 失败: {}", branch, e)),
                 }
@@ -170,12 +170,14 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
                 if args.dry_run {
                     Output::skip(&format!("git push origin --delete {}", branch));
                 } else {
-                    match runner.execute_with_success_in_dir(
+                    match runner.execute_with_success(
                         &["push", "origin", "--delete", branch],
-                        repo_path,
+                        Some(repo_path),
                     ) {
                         Ok(()) => Output::success(&format!("已删除远程分支: {}", branch)),
-                        Err(e) => Output::error(&format!("删除远程分支 {} 失败: {}", branch, e)),
+                        Err(e) => {
+                            Output::error(&format!("删除远程分支 {} 失败: {}", branch, e))
+                        }
                     }
                 }
             }
@@ -203,7 +205,7 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
         let repo_path = &repo_info.path;
 
         let has_branch = runner
-            .execute_in_dir(&["rev-parse", "--verify", &args.branch], repo_path)
+            .execute(&["rev-parse", "--verify", &args.branch], Some(repo_path))
             .is_ok();
 
         if !has_branch {
@@ -215,7 +217,7 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
             continue;
         }
 
-        match runner.execute_streaming_in_dir(&["checkout", &args.branch], repo_path) {
+        match runner.execute_streaming(&["checkout", &args.branch], repo_path) {
             Ok(()) => Output::success(&format!(
                 "{}: 已切换到 {}",
                 repo_path.display(),
@@ -251,7 +253,7 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
         let repo_path = &repo_info.path;
 
         let has_branch = runner
-            .execute_in_dir(&["rev-parse", "--verify", &args.old_name], repo_path)
+            .execute(&["rev-parse", "--verify", &args.old_name], Some(repo_path))
             .is_ok();
 
         if !has_branch {
@@ -263,7 +265,7 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
             continue;
         }
 
-        match runner.execute_streaming_in_dir(
+        match runner.execute_streaming(
             &["branch", "-m", &args.old_name, &args.new_name],
             repo_path,
         ) {
@@ -273,7 +275,11 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
                 args.old_name,
                 args.new_name
             )),
-            Err(e) => Output::error(&format!("{}: 重命名失败: {}", repo_path.display(), e)),
+            Err(e) => Output::error(&format!(
+                "{}: 重命名失败: {}",
+                repo_path.display(),
+                e
+            )),
         }
     }
 
@@ -293,7 +299,7 @@ fn match_pattern(name: &str, pattern: &str) -> bool {
 
 fn is_merged_branch(name: &str, repo_path: &Path, runner: &GitCommandRunner) -> bool {
     runner
-        .execute_in_dir(&["branch", "--merged", "master"], repo_path)
+        .execute(&["branch", "--merged", "master"], Some(repo_path))
         .map(|output| {
             output
                 .lines()

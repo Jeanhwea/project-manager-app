@@ -165,9 +165,9 @@ fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
     };
 
     let upstream = format!("{}@{{upstream}}...HEAD", branch);
-    let output = match runner.execute_in_dir(
+    let output = match runner.execute(
         &["rev-list", "--count", "--left-right", &upstream],
-        repo_path,
+        Some(repo_path),
     ) {
         Ok(o) => o,
         Err(_) => return (0, 0),
@@ -191,7 +191,7 @@ fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
 
 fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
     let runner = GitCommandRunner::new();
-    let output = match runner.execute_in_dir(&["status", "--porcelain"], repo_path) {
+    let output = match runner.execute(&["status", "--porcelain"], Some(repo_path)) {
         Ok(o) => o,
         Err(_) => return (0, 0, 0),
     };
@@ -299,7 +299,7 @@ fn print_full_status(repo_path: &Path, status: &RepoStatus) {
         Output::message("远程:");
         for remote in &remotes {
             let url = runner
-                .execute_in_dir(&["remote", "get-url", remote], repo_path)
+                .execute(&["remote", "get-url", remote], Some(repo_path))
                 .unwrap_or_default();
             Output::detail(remote, &url);
         }
@@ -344,7 +344,7 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
 fn print_latest_tag(repo_path: &Path) {
     let runner = GitCommandRunner::new();
     let output =
-        match runner.execute_in_dir(&["tag", "-l", "v*", "--sort=-version:refname"], repo_path) {
+        match runner.execute(&["tag", "-l", "v*", "--sort=-version:refname"], Some(repo_path)) {
             Ok(o) => o,
             Err(_) => return,
         };

@@ -1,6 +1,5 @@
 use crate::domain::config::ConfigDir;
 use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::remote::RemoteManager;
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::domain::git::{detect_protocol, extract_host_and_path};
 use crate::domain::runner::DryRunContext;
@@ -11,41 +10,19 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
+    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
     pub max_depth: Option<usize>,
     #[arg(long, short, help = "Remotes to skip")]
     pub skip_remotes: Vec<String>,
-    #[arg(
-        long,
-        short,
-        default_value = "false",
-        help = "Whether to pull all local branches"
-    )]
+    #[arg(long, short, default_value = "false", help = "Whether to pull all local branches")]
     pub all_branch: bool,
-    #[arg(
-        default_value = "",
-        help = "Path to search, defaults to current directory"
-    )]
+    #[arg(default_value = "", help = "Path to search, defaults to current directory")]
     pub path: String,
     #[arg(long, default_value = "false", help = "Dry run")]
     pub dry_run: bool,
-    #[arg(
-        long,
-        short = 'f',
-        default_value = "false",
-        help = "Only fetch, do not pull or push"
-    )]
+    #[arg(long, short = 'f', default_value = "false", help = "Only fetch, do not pull or push")]
     pub fetch_only: bool,
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Use rebase instead of merge when pulling"
-    )]
+    #[arg(long, default_value = "false", help = "Use rebase instead of merge when pulling")]
     pub rebase: bool,
 }
 
@@ -79,7 +56,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
 
         if !ctx.is_dry_run() && !is_workdir_clean(repo_path)? {
             let runner = GitCommandRunner::new();
-            runner.execute_with_success_in_dir(&["status"], repo_path)?;
+            runner.execute_with_success(&["status"], Some(repo_path))?;
             Output::warning(&format!(
                 "无法同步不干净工作目录: {}",
                 format_path(repo_path)
@@ -103,11 +80,11 @@ pub fn run(args: SyncArgs) -> Result<()> {
 fn do_info_repository(repo_path: &Path) {
     let runner = GitCommandRunner::new();
 
-    if let Err(e) = runner.execute_with_success_in_dir(&["branch", "--list"], repo_path) {
+    if let Err(e) = runner.execute_with_success(&["branch", "--list"], Some(repo_path)) {
         Output::error(&format!("无法获取分支信息: {}", e));
     }
 
-    if let Err(e) = runner.execute_with_success_in_dir(&["remote", "-v"], repo_path) {
+    if let Err(e) = runner.execute_with_success(&["remote", "-v"], Some(repo_path)) {
         Output::error(&format!("无法获取远程信息: {}", e));
     }
 }
@@ -118,7 +95,7 @@ fn get_tracking_remote_info(
 ) -> Option<(String, String)> {
     let runner = GitCommandRunner::new();
     let output = runner
-        .execute_in_dir(&["rev-parse", "--abbrev-ref", "HEAD@{upstream}"], repo_path)
+        .execute(&["rev-parse", "--abbrev-ref", "HEAD@{upstream}"], Some(repo_path))
         .ok()?;
 
     let (remote, _) = output.trim().split_once('/')?;
@@ -135,8 +112,8 @@ fn do_sync_repository(
     fetch_only: bool,
     rebase: bool,
 ) {
-    let remote_manager = RemoteManager::new();
-    let remotes = match remote_manager.list_remotes(repo_path) {
+    let runner = GitCommandRunner::new();
+    let remotes = match runner.list_remotes(repo_path) {
         Ok(remotes) => remotes
             .into_iter()
             .map(|r| (r.name, r.url))
@@ -241,7 +218,7 @@ fn parse_git_remote_url(url: &str) -> Option<(crate::domain::git::GitProtocol, S
 fn list_local_branches(repo_path: &Path) -> Option<(String, Vec<String>)> {
     let runner = GitCommandRunner::new();
     let output = runner
-        .execute_in_dir(&["branch", "--list"], repo_path)
+        .execute(&["branch", "--list"], Some(repo_path))
         .ok()?;
     let lines: Vec<_> = output.lines().collect();
 
@@ -278,7 +255,7 @@ fn do_pull_all_local_branch(repo_path: &Path, rebase: bool) {
 
 fn do_pull_repository_branch(branch: &str, repo_path: &Path, rebase: bool) {
     let runner = GitCommandRunner::new();
-    if let Err(e) = runner.execute_streaming_in_dir(&["checkout", branch], repo_path) {
+    if let Err(e) = runner.execute_streaming(&["checkout", branch], repo_path) {
         Output::error(&format!("切换分支失败: {} - {}", format_path(repo_path), e));
         return;
     }
@@ -292,14 +269,14 @@ fn do_pull_repository(repo_path: &Path, rebase: bool) {
         vec!["pull"]
     };
     let runner = GitCommandRunner::new();
-    if let Err(e) = runner.execute_streaming_in_dir(&args, repo_path) {
+    if let Err(e) = runner.execute_streaming(&args, repo_path) {
         Output::error(&format!("同步仓库失败: {} - {}", format_path(repo_path), e));
     }
 }
 
 fn is_workdir_clean(repo_path: &Path) -> Result<bool, crate::domain::git::GitError> {
     let runner = GitCommandRunner::new();
-    let output = runner.execute_in_dir(&["status", "--porcelain"], repo_path)?;
+    let output = runner.execute(&["status", "--porcelain"], Some(repo_path))?;
     Ok(output.trim().is_empty())
 }
 
@@ -327,9 +304,7 @@ mod tests {
             assert_eq!(path, "user/repo.git");
         }
 
-        let result = parse_git_remote_url("https://github.com/user/repo.git");
-        assert!(result.is_some());
-
+        assert!(parse_git_remote_url("https://github.com/user/repo.git").is_some());
         assert!(parse_git_remote_url("invalid-url").is_none());
     }
 

@@ -103,7 +103,7 @@ fn execute_list(args: ListArgs) -> Result<()> {
         return Ok(());
     }
 
-    let output = runner.execute_quiet_in_dir(&["log", "--oneline"], project_path)?;
+    let output = runner.execute_raw(&["log", "--oneline"], project_path)?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     let snap_commits: Vec<&str> = stdout
@@ -157,7 +157,7 @@ fn execute_restore(args: RestoreArgs) -> Result<()> {
     }
 
     Output::cmd(&format!("git checkout {}", commit_ref));
-    let output = runner.execute_raw_in_dir(&["checkout", &commit_ref], project_path)?;
+    let output = runner.execute_raw(&["checkout", &commit_ref], project_path)?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     if !stdout.is_empty() {
@@ -177,7 +177,7 @@ fn resolve_snapshot_ref(
 ) -> Result<String> {
     if snapshot.starts_with("snap-") {
         let output = runner
-            .execute_quiet_in_dir(&["log", "--oneline", "--grep", snapshot], project_path)?;
+            .execute_raw(&["log", "--oneline", "--grep", snapshot], project_path)?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         if let Some(first_line) = stdout.lines().next() {
@@ -189,7 +189,7 @@ fn resolve_snapshot_ref(
     if let Some(index_str) = snapshot.strip_prefix('#')
         && let Ok(index) = index_str.parse::<usize>()
     {
-        let output = runner.execute_quiet_in_dir(&["log", "--oneline"], project_path)?;
+        let output = runner.execute_raw(&["log", "--oneline"], project_path)?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         let snap_commits: Vec<&str> = stdout
@@ -213,7 +213,7 @@ fn resolve_snapshot_ref(
     }
 
     let output =
-        runner.execute_quiet_in_dir(&["rev-parse", "--verify", snapshot], project_path)?;
+        runner.execute_raw(&["rev-parse", "--verify", snapshot], project_path)?;
 
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if hash.is_empty() {
@@ -247,7 +247,7 @@ fn do_incremental_snapshot(
         return Ok(());
     }
 
-    let output = runner.execute_raw_in_dir(&["rev-list", "--count", "HEAD"], work_dir)?;
+    let output = runner.execute_raw(&["rev-list", "--count", "HEAD"], work_dir)?;
     let num_commit = String::from_utf8_lossy(&output.stdout)
         .trim()
         .parse::<usize>()?;
@@ -263,7 +263,7 @@ fn do_incremental_snapshot(
 }
 
 fn check_pending_changes(runner: &GitCommandRunner, work_dir: &Path) -> bool {
-    let output = match runner.execute_quiet_in_dir(&["status", "--porcelain"], work_dir) {
+    let output = match runner.execute_raw(&["status", "--porcelain"], work_dir) {
         Ok(o) => o,
         Err(_) => return true,
     };

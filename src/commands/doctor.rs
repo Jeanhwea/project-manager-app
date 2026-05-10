@@ -89,53 +89,53 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
     let mut issues = Vec::new();
     let runner = GitCommandRunner::new();
 
-    if let Ok(output) = runner.execute_in_dir(&["symbolic-ref", "HEAD"], repo_path)
+    if let Ok(output) = runner.execute(&["symbolic-ref", "HEAD"], Some(repo_path))
         && output.trim().is_empty()
     {
         issues.push("HEAD 处于 detached 状态".to_string());
     }
 
-    if let Ok(output) = runner.execute_in_dir(&["remote"], repo_path)
+    if let Ok(output) = runner.execute(&["remote"], Some(repo_path))
         && output.trim().is_empty()
     {
         issues.push("没有配置远程仓库".to_string());
     }
 
-    if let Ok(output) = runner.execute_in_dir(&["branch", "-r"], repo_path) {
+    if let Ok(output) = runner.execute(&["branch", "-r"], Some(repo_path)) {
         let remote_branches: Vec<&str> = output.lines().collect();
         if remote_branches.is_empty() {
             issues.push("没有远程跟踪分支".to_string());
         }
     }
 
-    if let Ok(output) = runner.execute_in_dir(&["branch", "--list"], repo_path) {
+    if let Ok(output) = runner.execute(&["branch", "--list"], Some(repo_path)) {
         let local_branches: Vec<&str> = output.lines().collect();
         if local_branches.len() == 1 {
             issues.push("只有一个本地分支".to_string());
         }
     }
 
-    if let Ok(output) = runner.execute_in_dir(
+    if let Ok(output) = runner.execute(
         &[
             "for-each-ref",
             "--sort=-creatordate",
             "--format=%(creatordate:iso)",
             "refs/stash",
         ],
-        repo_path,
+        Some(repo_path),
     ) && !output.trim().is_empty()
     {
         issues.push("存在 stash 条目".to_string());
     }
 
-    if let Ok(output) = runner.execute_in_dir(&["remote", "show"], repo_path) {
+    if let Ok(output) = runner.execute(&["remote", "show"], Some(repo_path)) {
         for remote in output.lines() {
             let remote = remote.trim();
             if remote.is_empty() {
                 continue;
             }
             if let Ok(remote_output) =
-                runner.execute_in_dir(&["remote", "show", remote], repo_path)
+                runner.execute(&["remote", "show", remote], Some(repo_path))
                 && remote_output.contains("(stale)")
             {
                 issues.push(format!("远程仓库 {} 的引用已陈旧", remote));
@@ -143,7 +143,7 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
         }
     }
 
-    if let Ok(output) = runner.execute_in_dir(&["count-objects", "-vH"], repo_path) {
+    if let Ok(output) = runner.execute(&["count-objects", "-vH"], Some(repo_path)) {
         for line in output.lines() {
             if let Some(size_str) = line.strip_prefix("size-pack:")
                 && let Some(size_num) = size_str.split_whitespace().next()
@@ -170,7 +170,7 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> Result<usiz
         }
 
         if issue.contains("陈旧") {
-            match runner.execute_with_success_in_dir(&["remote", "prune", "origin"], repo_path) {
+            match runner.execute_with_success(&["remote", "prune", "origin"], Some(repo_path)) {
                 Ok(()) => {
                     Output::success("已清理陈旧的远程跟踪分支");
                     fixed += 1;
@@ -180,9 +180,9 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> Result<usiz
         } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支")
         {
             if let Ok(branch) = runner.get_current_branch(repo_path) {
-                match runner.execute_with_success_in_dir(
+                match runner.execute_with_success(
                     &["branch", "--set-upstream-to", &format!("origin/{}", branch)],
-                    repo_path,
+                    Some(repo_path),
                 ) {
                     Ok(()) => {
                         Output::success(&format!("已设置 {} 的上游跟踪分支", branch));
@@ -194,7 +194,7 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> Result<usiz
                 }
             }
         } else if issue.contains("仓库大小较大") {
-            match runner.execute_with_success_in_dir(&["gc", "--aggressive"], repo_path) {
+            match runner.execute_with_success(&["gc", "--aggressive"], Some(repo_path)) {
                 Ok(()) => {
                     Output::success("已执行 git gc --aggressive");
                     fixed += 1;

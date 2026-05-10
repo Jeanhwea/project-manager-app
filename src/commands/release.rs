@@ -46,7 +46,7 @@ struct GitState {
     commit_message: String,
 }
 
-type ConfigFileEntry = (String, std::sync::Arc<dyn FileEditor>);
+type ConfigFileEntry = String;
 
 const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Cargo.toml", false),
@@ -100,7 +100,7 @@ fn resolve_file_paths(files: &[String]) -> Vec<String> {
 
 fn switch_to_git_root() -> Result<()> {
     let runner = GitCommandRunner::new();
-    let output = runner.execute(&["rev-parse", "--show-toplevel"])?;
+    let output = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
     let root = output.trim();
 
     if !root.is_empty() {
@@ -114,7 +114,7 @@ fn switch_to_git_root() -> Result<()> {
 fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
     let runner = GitCommandRunner::new();
 
-    let current_branch = runner.execute(&["branch", "--show-current"])?;
+    let current_branch = runner.execute(&["branch", "--show-current"], None)?;
     let current_branch = current_branch.trim().to_string();
 
     if !args.force && current_branch != "master" {
@@ -125,8 +125,8 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
     let current_tag = previous_tag.clone().unwrap_or_else(|| "v0.0.0".to_string());
 
     if let Some(ref tag) = previous_tag {
-        let rev_current_tag = runner.execute(&["rev-parse", tag])?;
-        let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
+        let rev_current_tag = runner.execute(&["rev-parse", tag], None)?;
+        let rev_head = runner.execute(&["rev-parse", "HEAD"], None)?;
         if rev_current_tag.trim() == rev_head.trim() {
             anyhow::bail!("当前 HEAD 已被标记为 {}", tag);
         }
@@ -164,7 +164,7 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
 
 fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
     let output = runner
-        .execute(&["describe", "--tags", "--match", "v*"])
+        .execute(&["describe", "--tags", "--match", "v*"], None)
         .ok()?;
     output.split('-').next().map(|s| s.to_string())
 }
@@ -179,13 +179,9 @@ fn resolve_config_files(
 
     files
         .iter()
-        .map(|f| {
-            let path = Path::new(f);
-            let editor = registry
-                .detect_editor(path)
-                .ok_or_else(|| anyhow::anyhow!("无法识别文件类型: {}", f))?;
-            Ok((f.clone(), editor))
-        })
+        .filter(|f| registry.detect_editor(Path::new(f)).is_some())
+        .cloned()
+        .map(|f| Ok(f))
         .collect()
 }
 
@@ -196,15 +192,15 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>
         if *is_dynamic && pattern.contains("{}") {
             for path in expand_glob_pattern(pattern) {
                 if Path::new(&path).exists()
-                    && let Some(editor) = registry.detect_editor(Path::new(&path))
+                    && registry.detect_editor(Path::new(&path)).is_some()
                 {
-                    result.push((path, editor));
+                    result.push(path);
                 }
             }
         } else if Path::new(pattern).exists()
-            && let Some(editor) = registry.detect_editor(Path::new(pattern))
+            && registry.detect_editor(Path::new(pattern)).is_some()
         {
-            result.push((pattern.to_string(), editor));
+            result.push(pattern.to_string());
         }
     }
 
@@ -253,12 +249,13 @@ fn execute_dry_run(
     state: &GitState,
 ) -> Result<()> {
     Output::dry_run_header("将要修改的文件:");
-    for (file_path, editor) in config_files {
-        print_file_diff(registry, editor.as_ref(), &state.new_tag, file_path)?;
+    for file_path in config_files {
+        let editor = registry.detect_editor(Path::new(file_path)).unwrap();
+        print_file_diff(editor, &state.new_tag, file_path)?;
     }
 
     Output::dry_run_header("将要执行的操作:");
-    for (file_path, _) in config_files {
+    for file_path in config_files {
         print_lockfile_update_plan(file_path);
     }
 
@@ -279,27 +276,27 @@ fn execute_release_operations(
 ) -> Result<()> {
     let runner = GitCommandRunner::new();
 
-    for (file_path, editor) in config_files {
-        edit_version_in_file(registry, editor.as_ref(), &state.new_tag, file_path)?;
+    for file_path in config_files {
+        let editor = registry.detect_editor(Path::new(file_path)).unwrap();
+        edit_version_in_file(editor, &state.new_tag, file_path)?;
         update_lockfile_after_edit(file_path)?;
-        runner.execute_with_success(&["add", file_path])?;
+        runner.execute_with_success(&["add", file_path], None)?;
     }
 
-    runner.execute_with_success(&["diff", "--cached"])?;
-    runner.execute_with_success(&["commit", "-m", &state.commit_message])?;
-    runner.execute_with_success(&["tag", &state.new_tag])?;
+    runner.execute_with_success(&["diff", "--cached"], None)?;
+    runner.execute_with_success(&["commit", "-m", &state.commit_message], None)?;
+    runner.execute_with_success(&["tag", &state.new_tag], None)?;
     push_to_remotes(args.skip_push, &state.current_branch, &state.new_tag)?;
 
     Ok(())
 }
 
 fn print_file_diff(
-    registry: &EditorRegistry,
     editor: &dyn FileEditor,
     tag: &str,
     config_file: &str,
 ) -> Result<()> {
-    let (original, edited) = compute_edited_content(registry, editor, tag, config_file)?;
+    let (original, edited) = compute_edited_content(editor, tag, config_file)?;
 
     Output::message(config_file);
 
@@ -317,7 +314,6 @@ fn print_file_diff(
 }
 
 fn compute_edited_content(
-    registry: &EditorRegistry,
     editor: &dyn FileEditor,
     tag: &str,
     config_file: &str,
@@ -326,18 +322,19 @@ fn compute_edited_content(
     let content = std::fs::read_to_string(config_file)
         .map_err(|e| anyhow::anyhow!("无法读取 {}: {}", config_file, e))?;
 
-    let edited = registry.edit_version(editor, &content, version)?;
+    let location = editor.parse(&content)?;
+    let edited = editor.edit(&content, &location, version)?;
+    editor.validate(&content, &edited)?;
 
     Ok((content, edited))
 }
 
 fn edit_version_in_file(
-    registry: &EditorRegistry,
     editor: &dyn FileEditor,
     tag: &str,
     config_file: &str,
 ) -> Result<()> {
-    let (_, edited) = compute_edited_content(registry, editor, tag, config_file)?;
+    let (_, edited) = compute_edited_content(editor, tag, config_file)?;
     write_with_backup(config_file, &edited)?;
     Ok(())
 }
@@ -441,7 +438,7 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
         anyhow::bail!("cargo update --package {} 执行失败", pkg_name);
     }
 
-    runner.execute_with_success(&["add", &lock_path.to_string_lossy()])?;
+    runner.execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
     Ok(())
 }
 
@@ -473,7 +470,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
     }
 
     if lock_path.exists() {
-        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()])?;
+        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
     }
     Ok(())
 }
@@ -506,7 +503,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     }
 
     if lock_path.exists() {
-        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()])?;
+        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
     }
     Ok(())
 }
@@ -539,7 +536,7 @@ fn update_yarn_lock(package_json_path: &str) -> Result<()> {
     }
 
     if lock_path.exists() {
-        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()])?;
+        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
     }
     Ok(())
 }
@@ -553,7 +550,7 @@ fn is_gitignored(file_path: &Path) -> bool {
     };
 
     let runner = GitCommandRunner::new();
-    let output = runner.execute_quiet_in_dir(&["check-ignore", file_name], parent);
+    let output = runner.execute_raw(&["check-ignore", file_name], parent);
 
     match output {
         Ok(output) => output.status.success(),
@@ -585,7 +582,7 @@ fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
     }
 
     let runner = GitCommandRunner::new();
-    let Ok(output) = runner.execute(&["remote"]) else {
+    let Ok(output) = runner.execute(&["remote"], None) else {
         return;
     };
 
@@ -601,15 +598,15 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
     }
 
     let runner = GitCommandRunner::new();
-    let Ok(output) = runner.execute(&["remote"]) else {
+    let Ok(output) = runner.execute(&["remote"], None) else {
         return Ok(());
     };
 
     for remote in output.lines().map(|s| s.trim().to_string()) {
-        if let Err(e) = runner.execute_with_success(&["push", &remote, new_tag]) {
+        if let Err(e) = runner.execute_with_success(&["push", &remote, new_tag], None) {
             Output::warning(&format!("推送标签失败: {}", e));
         }
-        if let Err(e) = runner.execute_with_success(&["push", &remote, current_branch]) {
+        if let Err(e) = runner.execute_with_success(&["push", &remote, current_branch], None) {
             Output::warning(&format!("推送分支失败: {}", e));
         }
     }

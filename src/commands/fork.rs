@@ -133,11 +133,11 @@ fn clean_git_history(project_dir: &Path, runner: &GitCommandRunner) -> Result<()
         fs::remove_dir_all(&git_dir)?;
     }
 
-    runner.execute_with_success_in_dir(&["init"], project_dir)?;
-    runner.execute_with_success_in_dir(&["add", "."], project_dir)?;
-    runner.execute_with_success_in_dir(
+    runner.execute_with_success(&["init"], Some(project_dir))?;
+    runner.execute_with_success(&["add", "."], Some(project_dir))?;
+    runner.execute_with_success(
         &["commit", "-m", "Initial commit from fork"],
-        project_dir,
+        Some(project_dir),
     )?;
 
     Ok(())
