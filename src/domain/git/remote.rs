@@ -3,18 +3,10 @@ use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::Output;
 use std::path::Path;
 
-pub fn extract_host_from_url(remote_url: &str) -> Option<String> {
-    if remote_url.starts_with("git@") {
-        remote_url
-            .split(':')
-            .next()
-            .and_then(|s| s.strip_prefix("git@"))
-            .map(String::from)
-    } else if let Ok(url) = url::Url::parse(remote_url) {
-        url.host_str().map(String::from)
-    } else {
-        None
-    }
+pub struct RemoteIssue {
+    pub current_name: String,
+    pub expected_name: String,
+    pub host: String,
 }
 
 pub fn resolve_remote_name(host: &str) -> Option<String> {
@@ -27,36 +19,25 @@ pub fn resolve_remote_name(host: &str) -> Option<String> {
     None
 }
 
-pub struct RemoteIssue {
-    pub current_name: String,
-    pub expected_name: String,
-    pub host: String,
-}
-
 pub fn diagnose_remote_names(repo_path: &Path) -> Vec<RemoteIssue> {
     let runner = GitCommandRunner::new();
     let mut issues = Vec::new();
 
-    let Ok(remotes) = runner.get_remote_list(repo_path) else {
+    let Ok(remotes) = runner.get_all_remotes(repo_path) else {
         return issues;
     };
 
-    for remote_name in &remotes {
-        if remotes.len() == 1 && remote_name == "origin" {
-            continue;
-        }
-        let Ok(url) = runner.execute(&["remote", "get-url", remote_name], Some(repo_path)) else {
-            continue;
-        };
-        let Some(host) = extract_host_from_url(&url) else {
-            continue;
-        };
-        let Some(expected_name) = resolve_remote_name(&host) else {
-            continue;
-        };
-        if expected_name != *remote_name {
+    if remotes.len() == 1 && remotes[0].name == "origin" {
+        return issues;
+    }
+
+    for remote in &remotes {
+        if let Some(host) = remote.extract_host()
+            && let Some(expected_name) = resolve_remote_name(&host)
+            && expected_name != remote.name
+        {
             issues.push(RemoteIssue {
-                current_name: remote_name.clone(),
+                current_name: remote.name.clone(),
                 expected_name,
                 host,
             });
@@ -92,12 +73,7 @@ pub fn fix_remote_names(repo_path: &Path, issues: &[RemoteIssue], dry_run: bool)
         }
 
         match runner.execute_with_success(
-            &[
-                "remote",
-                "rename",
-                &issue.current_name,
-                &issue.expected_name,
-            ],
+            &["remote", "rename", &issue.current_name, &issue.expected_name],
             Some(repo_path),
         ) {
             Ok(()) => {
