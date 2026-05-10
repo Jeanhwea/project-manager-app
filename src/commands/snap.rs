@@ -1,6 +1,6 @@
 use crate::domain::AppError;
 use crate::domain::git::command::GitCommandRunner;
-use crate::domain::runner::DryRunContext;
+use crate::domain::git::executor::{ExecutionPlan, GitOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -64,24 +64,45 @@ pub fn run(args: SnapArgs) -> anyhow::Result<()> {
 
 fn execute_create(args: CreateArgs) -> anyhow::Result<()> {
     let project_path = Path::new(&args.path);
-    let ctx = DryRunContext::new(args.dry_run);
     let runner = GitCommandRunner::new();
 
     if !project_path.exists() {
         return Err(AppError::not_found(format!("项目路径不存在: {}", args.path)).into());
     }
 
-    if ctx.is_dry_run() {
-        ctx.print_header("[DRY-RUN] 将要执行的操作:");
-    }
+    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
 
     if !project_path.join(".git").exists() {
-        do_initialize_snapshot(&ctx, &runner, project_path)?;
+        plan.add(GitOperation::Init {
+            dir: project_path.to_path_buf(),
+        });
+        plan.add(GitOperation::Add {
+            path: ".".to_string(),
+        });
+        plan.add(GitOperation::Commit {
+            message: "snap-000000".to_string(),
+        });
     } else {
-        do_incremental_snapshot(&ctx, &runner, project_path)?;
+        let has_changes = runner.has_uncommitted_changes(project_path).unwrap_or(true);
+        if !has_changes {
+            Output::skip("无变更，跳过快照");
+            return Ok(());
+        }
+
+        let output = runner.execute_raw(&["rev-list", "--count", "HEAD"], project_path)?;
+        let num_commit = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse::<usize>()?;
+
+        plan.add(GitOperation::Add {
+            path: ".".to_string(),
+        });
+        plan.add(GitOperation::Commit {
+            message: format!("snap-{:06}", num_commit),
+        });
     }
 
-    Ok(())
+    plan.execute()
 }
 
 fn execute_list(args: ListArgs) -> anyhow::Result<()> {
@@ -114,24 +135,20 @@ fn execute_list(args: ListArgs) -> anyhow::Result<()> {
     for (index, commit) in snap_commits.iter().enumerate() {
         let parts: Vec<&str> = commit.splitn(2, ' ').collect();
         if parts.len() == 2 {
-            let hash = parts[0];
-            let message = parts[1];
-            Output::message(&format!("#{} {} {}", index, hash, message));
+            Output::message(&format!("#{} {} {}", index, parts[0], parts[1]));
         } else {
             Output::message(&format!("#{} {}", index, commit));
         }
     }
 
-    let total = snap_commits.len();
     Output::blank();
-    Output::item("汇总", &format!("共 {} 个快照", total));
+    Output::item("汇总", &format!("共 {} 个快照", snap_commits.len()));
 
     Ok(())
 }
 
 fn execute_restore(args: RestoreArgs) -> anyhow::Result<()> {
     let project_path = Path::new(&args.path);
-    let ctx = DryRunContext::new(args.dry_run);
     let runner = GitCommandRunner::new();
 
     if !project_path.exists() {
@@ -144,19 +161,11 @@ fn execute_restore(args: RestoreArgs) -> anyhow::Result<()> {
 
     let commit_ref = resolve_snapshot_ref(&runner, project_path, &args.snapshot)?;
 
-    if ctx.is_dry_run() {
-        ctx.print_header("[DRY-RUN] 将要执行的操作:");
-        ctx.print_message(&format!("git checkout {}", commit_ref));
-        return Ok(());
-    }
-
-    Output::cmd(&format!("git checkout {}", commit_ref));
-    let output = runner.execute_raw(&["checkout", &commit_ref], project_path)?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    if !stdout.is_empty() {
-        print!("{}", stdout);
-    }
+    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
+    plan.add(GitOperation::Checkout {
+        ref_name: commit_ref.clone(),
+    });
+    plan.execute()?;
 
     Output::success(&format!("已恢复到快照 {}", commit_ref));
     Output::warning("若要回到最新状态，请执行: git checkout -");
@@ -215,57 +224,4 @@ fn resolve_snapshot_ref(
     }
 
     Ok(hash)
-}
-
-fn do_initialize_snapshot(
-    ctx: &DryRunContext,
-    _runner: &GitCommandRunner,
-    work_dir: &Path,
-) -> anyhow::Result<()> {
-    ctx.run_in_dir("git", &["init"], Some(work_dir))?;
-    ctx.run_in_dir("git", &["add", "."], Some(work_dir))?;
-    ctx.run_in_dir("git", &["commit", "-m", "snap-000000"], Some(work_dir))?;
-
-    Ok(())
-}
-
-fn do_incremental_snapshot(
-    ctx: &DryRunContext,
-    runner: &GitCommandRunner,
-    work_dir: &Path,
-) -> anyhow::Result<()> {
-    let has_changes = check_pending_changes(runner, work_dir);
-
-    if !has_changes {
-        Output::skip("无变更，跳过快照");
-        return Ok(());
-    }
-
-    let output = runner.execute_raw(&["rev-list", "--count", "HEAD"], work_dir)?;
-    let num_commit = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .parse::<usize>()?;
-
-    ctx.run_in_dir("git", &["add", "."], Some(work_dir))?;
-    ctx.run_in_dir(
-        "git",
-        &["commit", "-m", &format!("snap-{:06}", num_commit)],
-        Some(work_dir),
-    )?;
-
-    Ok(())
-}
-
-fn check_pending_changes(runner: &GitCommandRunner, work_dir: &Path) -> bool {
-    let output = match runner.execute_raw(&["status", "--porcelain"], work_dir) {
-        Ok(o) => o,
-        Err(_) => return true,
-    };
-
-    let stdout = match String::from_utf8(output.stdout) {
-        Ok(s) => s,
-        Err(_) => return true,
-    };
-
-    !stdout.trim().is_empty()
 }

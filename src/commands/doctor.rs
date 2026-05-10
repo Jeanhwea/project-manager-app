@@ -1,7 +1,8 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::domain::AppError;
 use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::remote::{diagnose_remote_names, fix_remote_names};
+use crate::domain::git::executor::{ExecutionPlan, GitContext, GitOperation};
+use crate::domain::git::remote::diagnose_remote_names;
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -164,55 +165,49 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
 }
 
 fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Result<usize> {
-    let runner = GitCommandRunner::new();
+    let ctx = GitContext::collect(repo_path)?;
+    let mut plan = ExecutionPlan::new().dry_run(dry_run);
     let mut fixed = 0;
 
     for issue in issues {
-        if dry_run {
-            Output::skip(&format!("修复: {}", issue));
-            fixed += 1;
-            continue;
-        }
-
         if issue.contains("陈旧") {
-            match runner.execute_with_success(&["remote", "prune", "origin"], Some(repo_path)) {
-                Ok(()) => {
-                    Output::success("已清理陈旧的远程跟踪分支");
-                    fixed += 1;
-                }
-                Err(e) => Output::error(&format!("无法清理陈旧的远程跟踪分支: {}", e)),
-            }
-        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支")
-        {
-            if let Ok(branch) = runner.get_current_branch(repo_path) {
-                match runner.execute_with_success(
-                    &["branch", "--set-upstream-to", &format!("origin/{}", branch)],
-                    Some(repo_path),
-                ) {
-                    Ok(()) => {
-                        Output::success(&format!("已设置 {} 的上游跟踪分支", branch));
-                        fixed += 1;
-                    }
-                    Err(e) => {
-                        Output::error(&format!("无法设置 {} 的上游跟踪分支: {}", branch, e))
-                    }
-                }
-            }
+            plan.add(GitOperation::RemotePrune {
+                remote: "origin".to_string(),
+            });
+            fixed += 1;
+        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支") {
+            plan.add(GitOperation::SetUpstream {
+                remote: "origin".to_string(),
+                branch: ctx.current_branch.clone(),
+            });
+            fixed += 1;
         } else if issue.contains("仓库大小较大") {
-            match runner.execute_with_success(&["gc", "--aggressive"], Some(repo_path)) {
-                Ok(()) => {
-                    Output::success("已执行 git gc --aggressive");
-                    fixed += 1;
-                }
-                Err(e) => Output::error(&format!("无法执行 git gc --aggressive: {}", e)),
-            }
+            plan.add(GitOperation::Gc);
+            fixed += 1;
         } else if issue.contains("stash") {
             Output::warning("stash 条目需要手动处理");
+        } else if let Some(rest) = issue.strip_prefix("remote 名称不匹配: ") {
+            if let Some((current, expected_with_host)) = rest.split_once(" -> ") {
+                let expected = expected_with_host
+                    .split(' ')
+                    .next()
+                    .unwrap_or(expected_with_host);
+                if !ctx.has_remote(expected) {
+                    plan.add(GitOperation::RemoteRename {
+                        old: current.to_string(),
+                        new: expected.to_string(),
+                    });
+                    fixed += 1;
+                } else {
+                    Output::warning(&format!("目标 remote 名称 {} 已存在，跳过", expected));
+                }
+            }
         }
     }
 
-    let remote_issues = diagnose_remote_names(repo_path);
-    fixed += fix_remote_names(repo_path, &remote_issues, dry_run);
+    if !plan.is_empty() {
+        plan.execute()?;
+    }
 
     Ok(fixed)
 }

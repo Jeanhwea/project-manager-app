@@ -1,4 +1,5 @@
 pub mod command;
+pub mod executor;
 pub mod models;
 pub mod remote;
 pub mod repository;

@@ -1,218 +1,59 @@
 use crate::domain::AppError;
-use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::repository::find_git_repository_upwards;
+use crate::domain::git::executor::{ExecutionPlan, GitOperation};
 use crate::utils::output::Output;
-use serde::Deserialize;
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct ForkArgs {
-    #[arg(help = "Template project path")]
-    pub path: String,
-    #[arg(help = "New project name")]
-    pub name: String,
-    #[arg(long, short, help = "Target directory for the new project")]
-    pub target: Option<String>,
+    #[arg(help = "Source path")]
+    pub source: String,
+    #[arg(help = "Target path")]
+    pub target: String,
     #[arg(
         long,
         default_value = "false",
-        help = "Dry run: show what would be changed without making modifications"
+        help = "Dry run: show what would be changed without making any modifications"
     )]
     pub dry_run: bool,
 }
 
-#[derive(Deserialize)]
-struct PmaConfig {
-    #[serde(default)]
-    actions: Vec<ForkAction>,
-}
-
-#[derive(Deserialize)]
-struct ForkAction {
-    action: String,
-    #[serde(default)]
-    target: String,
-    #[serde(default)]
-    content: String,
-    #[serde(default)]
-    find: String,
-    #[serde(default)]
-    replace: String,
-}
-
 pub fn run(args: ForkArgs) -> anyhow::Result<()> {
-    let template_path = crate::utils::path::canonicalize_path(&args.path)
-        .map_err(|_| AppError::not_found(format!("模板路径无效: {}", args.path)))?;
+    let source = Path::new(&args.source);
+    let target = Path::new(&args.target);
 
-    if !template_path.exists() {
-        return Err(AppError::not_found(format!("目录不存在: {}", args.path)).into());
+    if !source.exists() {
+        return Err(AppError::not_found(format!("源路径不存在: {}", args.source)).into());
     }
 
-    let repo_dir = find_git_repository_upwards(&template_path).unwrap_or(template_path.clone());
-
-    if !repo_dir.join(".git").exists() {
-        return Err(
-            AppError::not_found(format!("Git 仓库目录不存在: {}", repo_dir.display())).into(),
-        );
+    if target.exists() {
+        return Err(AppError::already_exists(format!("目标路径已存在: {}", args.target)).into());
     }
 
-    let target_dir = match &args.target {
-        Some(t) => PathBuf::from(t),
-        None => repo_dir
-            .parent()
-            .ok_or_else(|| AppError::not_found("无法确定目标目录"))?
-            .to_path_buf(),
-    };
+    Output::header("项目分叉");
+    Output::item("源", &args.source);
+    Output::item("目标", &args.target);
 
-    let project_dir = target_dir.join(&args.name);
+    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
 
-    if project_dir.exists() {
-        return Err(AppError::already_exists(format!(
-            "项目目录已存在: {}",
-            project_dir.display()
-        ))
-        .into());
-    }
+    plan.add(GitOperation::Custom {
+        args: vec![
+            "cp".to_string(),
+            "-r".to_string(),
+            source.to_string_lossy().to_string(),
+            target.to_string_lossy().to_string(),
+        ],
+        description: format!("cp -r {} {}", args.source, args.target),
+    });
 
-    if args.dry_run {
-        Output::info("[DRY-RUN] 将要执行的操作:");
-        Output::message(&format!(
-            "复制 {} -> {}",
-            repo_dir.display(),
-            project_dir.display()
-        ));
-        return Ok(());
-    }
+    plan.add(GitOperation::Init {
+        dir: target.to_path_buf(),
+    });
+    plan.add(GitOperation::Add {
+        path: ".".to_string(),
+    });
+    plan.add(GitOperation::Commit {
+        message: "fork: initial commit".to_string(),
+    });
 
-    Output::info(&format!(
-        "Fork 项目: {} -> {}",
-        repo_dir.display(),
-        project_dir.display()
-    ));
-
-    copy_dir_recursive(&repo_dir, &project_dir)?;
-
-    let runner = GitCommandRunner::new();
-
-    clean_git_history(&project_dir, &runner)?;
-
-    let pma_config_path = project_dir.join(".pma.json");
-    if pma_config_path.exists() {
-        execute_fork_actions(&project_dir, &pma_config_path, &args.name)?;
-        fs::remove_file(&pma_config_path)?;
-    }
-
-    Output::success(&format!("项目已创建: {}", project_dir.display()));
-    Ok(())
-}
-
-fn copy_dir_recursive(src: &Path, dst: &Path) -> anyhow::Result<()> {
-    fs::create_dir_all(dst)?;
-
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-
-        let file_name = entry.file_name();
-        let name = file_name.to_string_lossy();
-
-        if name == ".git" || name == "target" || name == "node_modules" {
-            continue;
-        }
-
-        if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)?;
-        }
-    }
-
-    Ok(())
-}
-
-fn clean_git_history(project_dir: &Path, runner: &GitCommandRunner) -> anyhow::Result<()> {
-    let git_dir = project_dir.join(".git");
-    if git_dir.exists() {
-        fs::remove_dir_all(&git_dir)?;
-    }
-
-    runner.execute_with_success(&["init"], Some(project_dir))?;
-    runner.execute_with_success(&["add", "."], Some(project_dir))?;
-    runner.execute_with_success(
-        &["commit", "-m", "Initial commit from fork"],
-        Some(project_dir),
-    )?;
-
-    Ok(())
-}
-
-fn execute_fork_actions(
-    project_dir: &Path,
-    config_path: &Path,
-    project_name: &str,
-) -> anyhow::Result<()> {
-    let content = fs::read_to_string(config_path).map_err(|e| {
-        AppError::fork(format!("读取配置文件失败 {}: {}", config_path.display(), e))
-    })?;
-
-    let config: PmaConfig = serde_json::from_str(&content).map_err(|e| {
-        AppError::fork(format!("解析配置文件失败 {}: {}", config_path.display(), e))
-    })?;
-
-    let mut vars = HashMap::new();
-    vars.insert("project_name".to_string(), project_name.to_string());
-
-    for action in &config.actions {
-        match action.action.as_str() {
-            "create_file" => {
-                let target = replace_vars(&action.target, &vars);
-                let file_path = project_dir.join(&target);
-                let content = replace_vars(&action.content, &vars);
-
-                if let Some(parent) = file_path.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                fs::write(&file_path, &content)?;
-                Output::detail("创建文件", &target);
-            }
-            "replace_in_file" => {
-                let target = replace_vars(&action.target, &vars);
-                let file_path = project_dir.join(&target);
-                let find = replace_vars(&action.find, &vars);
-                let replace = replace_vars(&action.replace, &vars);
-
-                if file_path.exists() {
-                    let content = fs::read_to_string(&file_path)?;
-                    let new_content = content.replace(&find, &replace);
-                    fs::write(&file_path, new_content)?;
-                    Output::detail("替换内容", &target);
-                }
-            }
-            "delete_file" => {
-                let target = replace_vars(&action.target, &vars);
-                let file_path = project_dir.join(&target);
-
-                if file_path.exists() {
-                    fs::remove_file(&file_path)?;
-                    Output::detail("删除文件", &target);
-                }
-            }
-            _ => {
-                Output::warning(&format!("未知操作: {}", action.action));
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn replace_vars(input: &str, vars: &HashMap<String, String>) -> String {
-    let mut result = input.to_string();
-    for (key, value) in vars {
-        result = result.replace(&format!("{{{{{}}}}}", key), value);
-    }
-    result
+    plan.execute()
 }

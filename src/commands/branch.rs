@@ -1,4 +1,5 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
+use crate::domain::git::executor::{ExecutionPlan, GitContext, GitOperation};
 use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::Output;
 use anyhow::Result;
@@ -74,30 +75,25 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
         return Ok(());
     };
 
-    let runner = GitCommandRunner::new();
     let total = walker.total();
 
     for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
-        let branch_output = match runner.execute(&["branch", "--list"], Some(repo_path)) {
-            Ok(o) => o,
-            Err(_) => continue,
+        let Ok(ctx) = GitContext::collect(repo_path) else {
+            continue;
         };
 
-        if branch_output.trim().is_empty() {
+        if ctx.branches.is_empty() {
             continue;
         }
 
         Output::repo_header(index + 1, total, repo_path);
 
-        for line in branch_output.lines() {
-            let is_current = line.starts_with("* ");
-            let branch_name = line.trim_start_matches("* ").trim();
-
-            if is_current {
-                Output::item("当前", branch_name);
+        for branch in ctx.local_branches() {
+            if branch.is_current {
+                Output::item("当前", &branch.name);
             } else {
-                Output::message(&format!("  {}", branch_name));
+                Output::message(&format!("  {}", branch.name));
             }
         }
     }
@@ -110,31 +106,24 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
         return Ok(());
     };
 
-    let runner = GitCommandRunner::new();
     let total = walker.total();
 
     for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
-
-        let current_branch = match runner.get_current_branch(repo_path) {
-            Ok(b) => b,
-            Err(_) => continue,
+        let Ok(ctx) = GitContext::collect(repo_path) else {
+            continue;
         };
 
-        let branch_output = match runner.execute(&["branch", "--list"], Some(repo_path)) {
-            Ok(o) => o,
-            Err(_) => continue,
-        };
-
-        let branches: Vec<&str> = branch_output
-            .lines()
-            .map(|line| line.trim_start_matches("* ").trim())
-            .filter(|name| *name != current_branch)
+        let branches: Vec<&str> = ctx
+            .local_branches()
+            .iter()
+            .map(|b| b.name.as_str())
+            .filter(|name| *name != ctx.current_branch)
             .filter(|name| {
                 if let Some(ref pattern) = args.pattern {
                     match_pattern(name, pattern)
                 } else {
-                    is_merged_branch(name, repo_path, &runner)
+                    is_merged_branch(name, repo_path)
                 }
             })
             .collect();
@@ -145,30 +134,19 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
 
         Output::repo_header(index + 1, total, repo_path);
 
+        let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
         for branch in &branches {
-            if args.dry_run {
-                Output::skip(&format!("git branch -d {}", branch));
-            } else {
-                match runner.execute_with_success(&["branch", "-d", branch], Some(repo_path)) {
-                    Ok(()) => Output::success(&format!("已删除分支: {}", branch)),
-                    Err(e) => Output::error(&format!("删除分支 {} 失败: {}", branch, e)),
-                }
-            }
-
+            plan.add(GitOperation::BranchDelete {
+                branch: branch.to_string(),
+            });
             if args.remote {
-                if args.dry_run {
-                    Output::skip(&format!("git push origin --delete {}", branch));
-                } else {
-                    match runner.execute_with_success(
-                        &["push", "origin", "--delete", branch],
-                        Some(repo_path),
-                    ) {
-                        Ok(()) => Output::success(&format!("已删除远程分支: {}", branch)),
-                        Err(e) => Output::error(&format!("删除远程分支 {} 失败: {}", branch, e)),
-                    }
-                }
+                plan.add(GitOperation::RemoteDelete {
+                    remote: "origin".to_string(),
+                    branch: branch.to_string(),
+                });
             }
         }
+        plan.execute()?;
     }
 
     Ok(())
@@ -179,16 +157,14 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
         return Ok(());
     };
 
-    let runner = GitCommandRunner::new();
-
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;
 
-        let has_branch = runner
-            .execute(&["rev-parse", "--verify", &args.branch], Some(repo_path))
-            .is_ok();
+        let Ok(ctx) = GitContext::collect(repo_path) else {
+            continue;
+        };
 
-        if !has_branch {
+        if !ctx.local_branches().iter().any(|b| b.name == args.branch) {
             Output::skip(&format!(
                 "{}: 分支 {} 不存在",
                 repo_path.display(),
@@ -197,19 +173,17 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
             continue;
         }
 
-        match runner.execute_streaming(&["checkout", &args.branch], repo_path) {
-            Ok(()) => Output::success(&format!(
-                "{}: 已切换到 {}",
-                repo_path.display(),
-                args.branch
-            )),
-            Err(e) => Output::error(&format!(
-                "{}: 切换到 {} 失败: {}",
-                repo_path.display(),
-                args.branch,
-                e
-            )),
-        }
+        let mut plan = ExecutionPlan::new();
+        plan.add(GitOperation::Checkout {
+            ref_name: args.branch.clone(),
+        });
+        plan.execute()?;
+
+        Output::success(&format!(
+            "{}: 已切换到 {}",
+            repo_path.display(),
+            args.branch
+        ));
     }
 
     Ok(())
@@ -220,16 +194,14 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
         return Ok(());
     };
 
-    let runner = GitCommandRunner::new();
-
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;
 
-        let has_branch = runner
-            .execute(&["rev-parse", "--verify", &args.old_name], Some(repo_path))
-            .is_ok();
+        let Ok(ctx) = GitContext::collect(repo_path) else {
+            continue;
+        };
 
-        if !has_branch {
+        if !ctx.local_branches().iter().any(|b| b.name == args.old_name) {
             Output::skip(&format!(
                 "{}: 分支 {} 不存在",
                 repo_path.display(),
@@ -238,17 +210,19 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
             continue;
         }
 
-        match runner
-            .execute_streaming(&["branch", "-m", &args.old_name, &args.new_name], repo_path)
-        {
-            Ok(()) => Output::success(&format!(
-                "{}: {} -> {}",
-                repo_path.display(),
-                args.old_name,
-                args.new_name
-            )),
-            Err(e) => Output::error(&format!("{}: 重命名失败: {}", repo_path.display(), e)),
-        }
+        let mut plan = ExecutionPlan::new();
+        plan.add(GitOperation::BranchRename {
+            old: args.old_name.clone(),
+            new: args.new_name.clone(),
+        });
+        plan.execute()?;
+
+        Output::success(&format!(
+            "{}: {} -> {}",
+            repo_path.display(),
+            args.old_name,
+            args.new_name
+        ));
     }
 
     Ok(())
@@ -265,7 +239,8 @@ fn match_pattern(name: &str, pattern: &str) -> bool {
     }
 }
 
-fn is_merged_branch(name: &str, repo_path: &Path, runner: &GitCommandRunner) -> bool {
+fn is_merged_branch(name: &str, repo_path: &Path) -> bool {
+    let runner = GitCommandRunner::new();
     runner
         .execute(&["branch", "--merged", "master"], Some(repo_path))
         .map(|output| {

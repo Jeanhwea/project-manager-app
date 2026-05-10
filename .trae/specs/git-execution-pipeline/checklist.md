@@ -1,11 +1,17 @@
-- [ ] GitContext::collect 能一次性收集 root/current_branch/remotes/branches/tags/has_uncommitted_changes
-- [ ] GitOperation 枚举覆盖所有 git 写操作，description() 返回人类可读描述
-- [ ] ExecutionPlan dry_run=true 时 execute() 仅展示操作不执行任何 git 命令
-- [ ] ExecutionPlan dry_run=false 时 execute() 按序执行所有 GitOperation
-- [ ] GitCommandRunner 只保留底层执行和只读查询方法，无高级写方法
-- [ ] remote.rs 只保留诊断逻辑（resolve_remote_name/diagnose_remote_names），无修复逻辑
-- [ ] release.rs 遵循三阶段流程：GitContext::collect → 构建 ExecutionPlan → plan.execute/display
-- [ ] sync.rs 遵循三阶段流程：GitContext::collect → 构建 ExecutionPlan → plan.execute/display
-- [ ] doctor.rs 遵循三阶段流程：GitContext::collect → 诊断 → 构建 ExecutionPlan → plan.execute/display
-- [ ] cargo check 无错误
-- [ ] cargo test 通过
+- [x] GitContext::collect 能一次性收集 root/current_branch/remotes/branches/tags/has_uncommitted_changes
+- [x] GitOperation 枚举覆盖所有 git 写操作，description() 返回人类可读描述
+- [x] ExecutionPlan dry_run=true 时 execute() 仅展示操作不执行任何 git 命令
+- [x] ExecutionPlan dry_run=false 时 execute() 按序执行所有 GitOperation
+- [x] GitCommandRunner 只保留底层执行和只读查询方法，无高级写方法
+- [x] remote.rs 只保留诊断逻辑（resolve_remote_name/diagnose_remote_names），无修复逻辑
+- [x] DryRunContext 已移除，被 ExecutionPlan 替代
+- [x] release.rs 遵循三阶段流程：GitContext::collect → 构建 ExecutionPlan → plan.execute/display
+- [x] sync.rs 遵循三阶段流程：GitContext::collect → 构建 ExecutionPlan → plan.execute/display
+- [x] doctor.rs 遵循三阶段流程：GitContext::collect → 诊断 → 构建 ExecutionPlan → plan.execute/display
+- [x] branch.rs 遵循三阶段流程：GitContext::collect → 构建 ExecutionPlan → plan.execute/display
+- [x] snap.rs 遵循三阶段流程：GitContext::collect → 构建 ExecutionPlan → plan.execute/display
+- [x] fork.rs 遵循三阶段流程：GitContext::collect → 构建 ExecutionPlan → plan.execute/display
+- [x] gitlab.rs clone 遵循三阶段流程：构建 ExecutionPlan → plan.execute/display
+- [x] status.rs 使用 GitContext 替代分散查询
+- [x] cargo check 无错误
+- [x] cargo test 通过

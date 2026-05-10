@@ -1,6 +1,7 @@
 use crate::domain::AppError;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version, write_with_backup};
 use crate::domain::git::command::GitCommandRunner;
+use crate::domain::git::executor::{ExecutionPlan, GitContext, GitOperation};
 use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
 use anyhow::Result;
@@ -64,24 +65,23 @@ const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Formula/pma.rb", false),
 ];
 
-pub fn run(args: ReleaseArgs) -> Result<()> {
+pub fn run(args: ReleaseArgs) -> anyhow::Result<()> {
     let resolved_files = resolve_file_paths(&args.files);
 
     if !args.no_root {
         switch_to_git_root()?;
     }
 
-    let state = validate_git_state(&args)?;
+    let ctx = GitContext::collect(Path::new("."))?;
+    let state = validate_git_state(&args, &ctx)?;
     let registry = EditorRegistry::default_with_editors();
     let config_files = resolve_config_files(&registry, &resolved_files)?;
 
     show_release_plan(&registry, &config_files, &state)?;
 
-    if args.dry_run {
-        show_operations_plan(&args, &config_files, &state)
-    } else {
-        execute_release_operations(&args, &registry, &config_files, &state)
-    }
+    let mut plan = build_execution_plan(&args, &config_files, &state, &ctx);
+    plan.dry_run = args.dry_run;
+    plan.execute()
 }
 
 fn resolve_file_paths(files: &[String]) -> Vec<String> {
@@ -101,28 +101,24 @@ fn resolve_file_paths(files: &[String]) -> Vec<String> {
 
 fn switch_to_git_root() -> Result<()> {
     let runner = GitCommandRunner::new();
-    let output = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
-    let root = output.trim();
-
+    let root = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
     if !root.is_empty() {
-        std::env::set_current_dir(root)
+        std::env::set_current_dir(&root)
             .map_err(|e| anyhow::anyhow!("无法切换到 git 根目录: {} - {}", root, e))?;
     }
-
     Ok(())
 }
 
-fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
-    let runner = GitCommandRunner::new();
-
-    let current_branch = runner.execute(&["branch", "--show-current"], None)?;
-    let current_branch = current_branch.trim().to_string();
-
-    if !args.force && current_branch != "master" {
+fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<GitState> {
+    if !args.force && ctx.current_branch != "master" {
         return Err(AppError::release("只能在 master 分支上执行 release").into());
     }
 
-    let previous_tag = get_current_version(&runner);
+    let runner = GitCommandRunner::new();
+    let previous_tag = runner
+        .execute(&["describe", "--tags", "--match", "v*"], None)
+        .ok()
+        .and_then(|o| o.split('-').next().map(|s| s.to_string()));
     let current_tag = previous_tag.clone().unwrap_or_else(|| "v0.0.0".to_string());
 
     if let Some(ref tag) = previous_tag {
@@ -157,17 +153,10 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
     }
 
     Ok(GitState {
-        current_branch,
+        current_branch: ctx.current_branch.clone(),
         new_tag,
         commit_message,
     })
-}
-
-fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
-    let output = runner
-        .execute(&["describe", "--tags", "--match", "v*"], None)
-        .ok()?;
-    output.split('-').next().map(|s| s.to_string())
 }
 
 fn resolve_config_files(registry: &EditorRegistry, files: &[String]) -> Result<Vec<String>> {
@@ -254,49 +243,46 @@ fn show_release_plan(
     Ok(())
 }
 
-fn show_operations_plan(
+fn build_execution_plan(
     args: &ReleaseArgs,
     config_files: &[String],
     state: &GitState,
-) -> Result<()> {
-    Output::dry_run_header("将要执行的操作:");
-    for file_path in config_files {
-        print_lockfile_update_plan(file_path);
-    }
-
-    Output::message("git add <files>");
-    Output::message(&format!("git commit -m \"{}\"", state.commit_message));
-    Output::message(&format!("git tag {}", state.new_tag));
-
-    print_push_plan(args.skip_push, &state.current_branch, &state.new_tag);
-
-    Ok(())
-}
-
-fn execute_release_operations(
-    args: &ReleaseArgs,
-    registry: &EditorRegistry,
-    config_files: &[String],
-    state: &GitState,
-) -> Result<()> {
-    let runner = GitCommandRunner::new();
+    ctx: &GitContext,
+) -> ExecutionPlan {
+    let mut plan = ExecutionPlan::new();
 
     for file_path in config_files {
+        let registry = EditorRegistry::default_with_editors();
         let editor = registry.detect_editor(Path::new(file_path)).unwrap();
-        edit_version_in_file(editor, &state.new_tag, file_path)?;
-        update_lockfile_after_edit(file_path)?;
-        runner.execute_with_success(&["add", file_path], None)?;
+        if edit_version_in_file(editor, &state.new_tag, file_path).is_ok() {
+            update_lockfile_after_edit(file_path).ok();
+            plan.add(GitOperation::Add {
+                path: file_path.clone(),
+            });
+        }
     }
 
-    let root = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
-    let root_path = Path::new(root.trim());
+    plan.add(GitOperation::Commit {
+        message: state.commit_message.clone(),
+    });
+    plan.add(GitOperation::CreateTag {
+        tag: state.new_tag.clone(),
+    });
 
-    runner.execute_streaming(&["diff", "--cached"], root_path)?;
-    runner.execute_with_success(&["commit", "-m", &state.commit_message], None)?;
-    runner.execute_with_success(&["tag", &state.new_tag], None)?;
-    push_to_remotes(args.skip_push, &state.current_branch, &state.new_tag)?;
+    if !args.skip_push {
+        for remote in ctx.remote_names() {
+            plan.add(GitOperation::PushTag {
+                remote: remote.to_string(),
+                tag: state.new_tag.clone(),
+            });
+            plan.add(GitOperation::PushBranch {
+                remote: remote.to_string(),
+                branch: state.current_branch.clone(),
+            });
+        }
+    }
 
-    Ok(())
+    plan
 }
 
 fn print_file_diff(editor: &dyn FileEditor, tag: &str, config_file: &str) -> Result<()> {
@@ -345,21 +331,6 @@ fn parent_dir(path: &Path) -> &Path {
         Path::new(".")
     } else {
         parent
-    }
-}
-
-fn print_lockfile_update_plan(config_file: &str) {
-    let dir = parent_dir(Path::new(config_file));
-
-    if config_file.ends_with("Cargo.toml") && dir.join("Cargo.lock").exists() {
-        Output::message("cargo update --package <name>");
-    } else if config_file.ends_with("package.json") {
-        if dir.join("package-lock.json").exists() {
-            Output::message("npm install --package-lock-only");
-        }
-        if dir.join("pnpm-lock.yaml").exists() {
-            Output::message("pnpm install --lockfile-only");
-        }
     }
 }
 
@@ -466,7 +437,6 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     }
 
     let pkg_name = read_cargo_package_name(cargo_toml_path)?;
-    let runner = GitCommandRunner::new();
 
     Output::cmd(&format!("cargo update --package {}", pkg_name));
     let status = std::process::Command::new("cargo")
@@ -482,7 +452,7 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     }
 
     let path_str = lock_path.to_string_lossy().replace('\\', "/");
-    runner.execute_with_success(&["add", &path_str], None)?;
+    GitCommandRunner::new().execute_with_success(&["add", &path_str], None)?;
     Ok(())
 }
 
@@ -519,47 +489,6 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
         }
     }
     Err(AppError::release(format!("未在 {} 中找到 [package] name", cargo_toml_path)).into())
-}
-
-fn get_remotes(runner: &GitCommandRunner) -> Vec<String> {
-    let Ok(output) = runner.execute(&["remote"], None) else {
-        return Vec::new();
-    };
-    output
-        .lines()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect()
-}
-
-fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
-    if skip_push {
-        return;
-    }
-
-    let runner = GitCommandRunner::new();
-    for remote in get_remotes(&runner) {
-        Output::message(&format!("git push {} {}", remote, new_tag));
-        Output::message(&format!("git push {} {}", remote, current_branch));
-    }
-}
-
-fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Result<()> {
-    if skip_push {
-        return Ok(());
-    }
-
-    let runner = GitCommandRunner::new();
-    for remote in get_remotes(&runner) {
-        if let Err(e) = runner.execute_with_success(&["push", &remote, new_tag], None) {
-            Output::warning(&format!("推送标签失败: {}", e));
-        }
-        if let Err(e) = runner.execute_with_success(&["push", &remote, current_branch], None) {
-            Output::warning(&format!("推送分支失败: {}", e));
-        }
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

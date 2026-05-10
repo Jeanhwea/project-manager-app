@@ -3,7 +3,6 @@ use std::process::{Command as StdCommand, Stdio};
 use std::thread;
 
 use super::{CommandResult, ExecutionContext, OutputMode};
-use crate::utils::output::Output;
 
 pub struct CommandRunner;
 
@@ -12,7 +11,6 @@ impl CommandRunner {
         match context.output_mode {
             OutputMode::Capture => self.execute_capture(context),
             OutputMode::Streaming => self.execute_streaming(context),
-            OutputMode::DryRun => self.execute_dry_run(context),
         }
     }
 
@@ -80,13 +78,6 @@ impl CommandRunner {
         })
     }
 
-    fn execute_dry_run(&self, context: &ExecutionContext) -> anyhow::Result<CommandResult> {
-        let cmd_str = self.format_command(context);
-        Output::cmd(&format!("[DRY-RUN] {}", cmd_str));
-
-        Ok(CommandResult::success())
-    }
-
     fn build_command(&self, context: &ExecutionContext) -> anyhow::Result<StdCommand> {
         let mut cmd = StdCommand::new(&context.program);
         cmd.args(&context.args);
@@ -96,12 +87,6 @@ impl CommandRunner {
         }
 
         Ok(cmd)
-    }
-
-    fn format_command(&self, context: &ExecutionContext) -> String {
-        let mut parts = vec![context.program.clone()];
-        parts.extend(context.args.clone());
-        parts.join(" ")
     }
 }
 
@@ -150,19 +135,6 @@ mod tests {
         assert!(result.success);
         assert!(result.stdout.is_none());
         assert!(result.stderr.is_none());
-    }
-
-    #[test]
-    fn test_dry_run_returns_success_for_any_command() {
-        let runner = CommandRunner;
-        let ctx = ExecutionContext::new("rm")
-            .args(["-rf", "/nonexistent/path/that/should/not/be/deleted"])
-            .output_mode(OutputMode::DryRun);
-
-        let result = runner.execute(&ctx).unwrap();
-
-        assert!(result.success);
-        assert_eq!(result.exit_code, 0);
     }
 
     #[test]

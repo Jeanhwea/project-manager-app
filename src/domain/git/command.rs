@@ -41,29 +41,6 @@ impl GitCommandRunner {
         Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
-    pub fn execute_raw(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
-        let ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .working_dir(dir)
-            .output_mode(OutputMode::Capture);
-
-        let result = self.run(&ctx)?;
-
-        #[cfg(unix)]
-        let status = ExitStatus::from_raw(result.exit_code);
-        #[cfg(windows)]
-        let status = ExitStatus::from_raw(result.exit_code as u32);
-
-        let stdout = result.stdout.unwrap_or_default().into_bytes();
-        let stderr = result.stderr.unwrap_or_default().into_bytes();
-
-        Ok(ProcessOutput {
-            status,
-            stdout,
-            stderr,
-        })
-    }
-
     pub fn execute_with_success(&self, args: &[&str], dir: Option<&Path>) -> Result<()> {
         let mut ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
@@ -101,6 +78,29 @@ impl GitCommandRunner {
         }
 
         Ok(())
+    }
+
+    pub fn execute_raw(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .working_dir(dir)
+            .output_mode(OutputMode::Capture);
+
+        let result = self.run(&ctx)?;
+
+        #[cfg(unix)]
+        let status = ExitStatus::from_raw(result.exit_code);
+        #[cfg(windows)]
+        let status = ExitStatus::from_raw(result.exit_code as u32);
+
+        let stdout = result.stdout.unwrap_or_default().into_bytes();
+        let stderr = result.stderr.unwrap_or_default().into_bytes();
+
+        Ok(ProcessOutput {
+            status,
+            stdout,
+            stderr,
+        })
     }
 
     pub fn get_current_branch(&self, repo_path: &Path) -> Result<String> {
@@ -159,15 +159,14 @@ impl GitCommandRunner {
             let name = name.trim_start_matches("remotes/").to_string();
 
             let is_remote = line.contains("remotes/");
-            let tracking_branch = Self::extract_tracking_branch(parts.get(1).unwrap_or(&""));
-            let ahead_behind = Self::extract_ahead_behind(parts.get(1).unwrap_or(&""));
+            let info = parts.get(1).unwrap_or(&"");
 
             branches.push(Branch {
                 name,
                 is_current: is_current && !is_remote,
                 is_remote,
-                tracking_branch,
-                ahead_behind,
+                tracking_branch: Self::extract_tracking_branch(info),
+                ahead_behind: Self::extract_ahead_behind(info),
             });
         }
 
@@ -215,7 +214,7 @@ impl GitCommandRunner {
             && let Some(end) = info.find(']')
         {
             let inner = &info[start + 1..end];
-            if inner.contains(":") {
+            if inner.contains(':') {
                 Some(inner.to_string())
             } else {
                 None

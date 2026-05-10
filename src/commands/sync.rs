@@ -1,5 +1,5 @@
 use crate::domain::AppError;
-use crate::domain::git::command::GitCommandRunner;
+use crate::domain::git::executor::{ExecutionPlan, GitContext, GitOperation};
 use crate::domain::git::repository::RepoWalker;
 use crate::utils::output::Output;
 use std::path::Path;
@@ -43,14 +43,13 @@ pub fn run(args: SyncArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let runner = GitCommandRunner::new();
     let total = walker.total();
 
     for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
         Output::repo_header(index + 1, total, repo_path);
 
-        if let Err(e) = sync_repo(repo_path, &runner, &args) {
+        if let Err(e) = sync_repo(repo_path, &args) {
             Output::error(&format!("同步失败: {}", e));
         }
     }
@@ -58,37 +57,35 @@ pub fn run(args: SyncArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> anyhow::Result<()> {
-    let remotes = runner.get_remote_list(repo_path)?;
-    if remotes.is_empty() {
+fn sync_repo(repo_path: &Path, args: &SyncArgs) -> anyhow::Result<()> {
+    let ctx = GitContext::collect(repo_path)?;
+    if ctx.remotes.is_empty() {
         return Ok(());
     }
 
     let target_remote = match args.remote.as_deref() {
         Some(name) => {
-            if !remotes.iter().any(|r| r == name) {
+            if !ctx.has_remote(name) {
                 return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)).into());
             }
-            name
+            name.to_string()
         }
-        None => remotes
-            .first()
-            .expect("remotes should not be empty after check"),
+        None => ctx.remotes.first().expect("remotes should not be empty").name.clone(),
     };
 
-    let current_branch = runner.get_current_branch(repo_path)?;
+    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
+    plan.add(GitOperation::Pull {
+        remote: target_remote.clone(),
+        branch: ctx.current_branch.clone(),
+    });
+    plan.add(GitOperation::PushAll {
+        remote: target_remote.clone(),
+    });
+    plan.add(GitOperation::PushTags {
+        remote: target_remote,
+    });
 
-    if args.dry_run {
-        Output::skip(&format!("git pull {} {}", target_remote, current_branch));
-        Output::skip("git push --all");
-        Output::skip("git push --tags");
-    } else {
-        runner.execute_streaming(&["pull", target_remote, &current_branch], repo_path)?;
-        runner.execute_streaming(&["push", "--all", target_remote], repo_path)?;
-        runner.execute_streaming(&["push", "--tags", target_remote], repo_path)?;
-    }
-
-    Ok(())
+    plan.execute()
 }
 
 fn find_git_repository_upwards(start_dir: &Path) -> Option<std::path::PathBuf> {
