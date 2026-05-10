@@ -167,10 +167,7 @@ fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
     output.split('-').next().map(|s| s.to_string())
 }
 
-fn resolve_config_files(
-    registry: &EditorRegistry,
-    files: &[String],
-) -> Result<Vec<String>> {
+fn resolve_config_files(registry: &EditorRegistry, files: &[String]) -> Result<Vec<String>> {
     if files.is_empty() {
         return detect_config_files(registry);
     }
@@ -189,8 +186,7 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     for (pattern, is_dynamic) in CONFIG_FILE_CANDIDATES {
         if *is_dynamic && pattern.contains("{}") {
             for path in expand_glob_pattern(pattern) {
-                if Path::new(&path).exists()
-                    && registry.detect_editor(Path::new(&path)).is_some()
+                if Path::new(&path).exists() && registry.detect_editor(Path::new(&path)).is_some()
                 {
                     result.push(path);
                 }
@@ -292,11 +288,7 @@ fn execute_release_operations(
     Ok(())
 }
 
-fn print_file_diff(
-    editor: &dyn FileEditor,
-    tag: &str,
-    config_file: &str,
-) -> Result<()> {
+fn print_file_diff(editor: &dyn FileEditor, tag: &str, config_file: &str) -> Result<()> {
     let (original, edited) = compute_edited_content(editor, tag, config_file)?;
 
     Output::message(config_file);
@@ -330,11 +322,7 @@ fn compute_edited_content(
     Ok((content, edited))
 }
 
-fn edit_version_in_file(
-    editor: &dyn FileEditor,
-    tag: &str,
-    config_file: &str,
-) -> Result<()> {
+fn edit_version_in_file(editor: &dyn FileEditor, tag: &str, config_file: &str) -> Result<()> {
     let (_, edited) = compute_edited_content(editor, tag, config_file)?;
     write_with_backup(config_file, &edited)?;
     Ok(())
@@ -378,8 +366,16 @@ fn update_js_lockfile(package_json_path: &str) -> Result<()> {
 
     let lockfiles: &[(&str, &str, &[&str])] = &[
         ("pnpm-lock.yaml", "pnpm", &["install", "--lockfile-only"]),
-        ("yarn.lock", "yarn", &["install", "--mode", "update-lockfile"]),
-        ("package-lock.json", "npm", &["install", "--package-lock-only"]),
+        (
+            "yarn.lock",
+            "yarn",
+            &["install", "--mode", "update-lockfile"],
+        ),
+        (
+            "package-lock.json",
+            "npm",
+            &["install", "--package-lock-only"],
+        ),
     ];
 
     for (lock_name, cmd, args) in lockfiles {
@@ -460,7 +456,8 @@ fn run_js_lockfile_update(
     }
 
     if lock_path.exists() {
-        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
+        GitCommandRunner::new()
+            .execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
     }
     Ok(())
 }

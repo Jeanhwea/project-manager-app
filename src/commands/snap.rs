@@ -176,8 +176,8 @@ fn resolve_snapshot_ref(
     snapshot: &str,
 ) -> Result<String> {
     if snapshot.starts_with("snap-") {
-        let output = runner
-            .execute_raw(&["log", "--oneline", "--grep", snapshot], project_path)?;
+        let output =
+            runner.execute_raw(&["log", "--oneline", "--grep", snapshot], project_path)?;
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         if let Some(first_line) = stdout.lines().next() {
@@ -212,8 +212,7 @@ fn resolve_snapshot_ref(
         }
     }
 
-    let output =
-        runner.execute_raw(&["rev-parse", "--verify", snapshot], project_path)?;
+    let output = runner.execute_raw(&["rev-parse", "--verify", snapshot], project_path)?;
 
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if hash.is_empty() {

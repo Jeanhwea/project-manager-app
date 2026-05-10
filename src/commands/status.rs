@@ -343,11 +343,13 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
 
 fn print_latest_tag(repo_path: &Path) {
     let runner = GitCommandRunner::new();
-    let output =
-        match runner.execute(&["tag", "-l", "v*", "--sort=-version:refname"], Some(repo_path)) {
-            Ok(o) => o,
-            Err(_) => return,
-        };
+    let output = match runner.execute(
+        &["tag", "-l", "v*", "--sort=-version:refname"],
+        Some(repo_path),
+    ) {
+        Ok(o) => o,
+        Err(_) => return,
+    };
 
     if let Some(tag) = output.lines().next() {
         let tag = tag.trim();

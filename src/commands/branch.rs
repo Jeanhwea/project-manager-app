@@ -71,10 +71,7 @@ pub fn run(args: BranchArgs) -> Result<()> {
 
 fn execute_list(args: BranchListArgs) -> Result<()> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(
-        &search_path,
-        args.max_depth.unwrap_or(3),
-    )?;
+    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
         Output::not_found("未找到 Git 仓库");
@@ -114,10 +111,7 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
 
 fn execute_clean(args: BranchCleanArgs) -> Result<()> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(
-        &search_path,
-        args.max_depth.unwrap_or(3),
-    )?;
+    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
         Output::not_found("未找到 Git 仓库");
@@ -178,9 +172,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
                         Some(repo_path),
                     ) {
                         Ok(()) => Output::success(&format!("已删除远程分支: {}", branch)),
-                        Err(e) => {
-                            Output::error(&format!("删除远程分支 {} 失败: {}", branch, e))
-                        }
+                        Err(e) => Output::error(&format!("删除远程分支 {} 失败: {}", branch, e)),
                     }
                 }
             }
@@ -192,10 +184,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
 
 fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(
-        &search_path,
-        args.max_depth.unwrap_or(3),
-    )?;
+    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
         Output::not_found("未找到 Git 仓库");
@@ -240,10 +229,7 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
 
 fn execute_rename(args: BranchRenameArgs) -> Result<()> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(
-        &search_path,
-        args.max_depth.unwrap_or(3),
-    )?;
+    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
         Output::not_found("未找到 Git 仓库");
@@ -268,21 +254,16 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
             continue;
         }
 
-        match runner.execute_streaming(
-            &["branch", "-m", &args.old_name, &args.new_name],
-            repo_path,
-        ) {
+        match runner
+            .execute_streaming(&["branch", "-m", &args.old_name, &args.new_name], repo_path)
+        {
             Ok(()) => Output::success(&format!(
                 "{}: {} -> {}",
                 repo_path.display(),
                 args.old_name,
                 args.new_name
             )),
-            Err(e) => Output::error(&format!(
-                "{}: 重命名失败: {}",
-                repo_path.display(),
-                e
-            )),
+            Err(e) => Output::error(&format!("{}: 重命名失败: {}", repo_path.display(), e)),
         }
     }
 
