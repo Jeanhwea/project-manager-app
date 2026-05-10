@@ -467,8 +467,7 @@ fn run_js_lockfile_update(
 
     if lock_path.exists() {
         let path_str = lock_path.to_string_lossy().replace('\\', "/");
-        GitCommandRunner::new()
-            .execute_with_success(&["add", &path_str], None)?;
+        GitCommandRunner::new().execute_with_success(&["add", &path_str], None)?;
     }
     Ok(())
 }
