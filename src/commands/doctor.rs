@@ -1,8 +1,8 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::control::context::collect_context;
 use crate::control::remote::diagnose_remote_names;
-use crate::domain::AppError;
 use crate::domain::git::GitCommandRunner;
+use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
 use crate::utils::output::Output;
@@ -32,7 +32,7 @@ struct DoctorContext {
     issues: Vec<String>,
 }
 
-pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
+pub fn run(args: DoctorArgs) -> Result<()> {
     let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
     };
@@ -88,7 +88,7 @@ pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn get_context(args: &DoctorArgs, repo_path: &Path) -> anyhow::Result<DoctorContext> {
+fn get_context(args: &DoctorArgs, repo_path: &Path) -> Result<DoctorContext> {
     let issues = diagnose_repo(repo_path);
     let git_ctx = if args.fix && !issues.is_empty() {
         collect_context(repo_path).ok()
@@ -99,7 +99,7 @@ fn get_context(args: &DoctorArgs, repo_path: &Path) -> anyhow::Result<DoctorCont
     Ok(DoctorContext { git_ctx, issues })
 }
 
-fn make_plan(args: &DoctorArgs, ctx: &DoctorContext) -> anyhow::Result<ExecutionPlan> {
+fn make_plan(args: &DoctorArgs, ctx: &DoctorContext) -> Result<ExecutionPlan> {
     let Some(git_ctx) = &ctx.git_ctx else {
         return Ok(ExecutionPlan::new());
     };
@@ -146,7 +146,7 @@ fn make_plan(args: &DoctorArgs, ctx: &DoctorContext) -> anyhow::Result<Execution
     Ok(plan)
 }
 
-fn check_prerequisites() -> anyhow::Result<()> {
+fn check_prerequisites() -> Result<()> {
     let tools = ["git"];
     let missing: Vec<&str> = tools
         .iter()

@@ -1,7 +1,7 @@
 use crate::control::pipeline::Pipeline;
-use crate::domain::AppError;
 use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
+use crate::error::{AppError, Result};
 use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
 use std::path::PathBuf;
 
@@ -52,14 +52,14 @@ struct CloneContext {
     protocol: String,
 }
 
-pub fn run(args: GitLabArgs) -> anyhow::Result<()> {
+pub fn run(args: GitLabArgs) -> Result<()> {
     match args {
         GitLabArgs::Login(args) => Pipeline::run(args, get_login_context, make_login_plan),
         GitLabArgs::Clone(args) => Pipeline::run(args, get_clone_context, make_clone_plan),
     }
 }
 
-fn get_login_context(args: &LoginArgs) -> anyhow::Result<LoginContext> {
+fn get_login_context(args: &LoginArgs) -> Result<LoginContext> {
     let mut config = ConfigManager::load_gitlab();
     let is_update = config.servers.iter().any(|s| s.url == args.url);
 
@@ -79,7 +79,7 @@ fn get_login_context(args: &LoginArgs) -> anyhow::Result<LoginContext> {
     Ok(LoginContext { config, is_update })
 }
 
-fn make_login_plan(args: &LoginArgs, ctx: &LoginContext) -> anyhow::Result<ExecutionPlan> {
+fn make_login_plan(args: &LoginArgs, ctx: &LoginContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
 
     if ctx.is_update {
@@ -89,7 +89,7 @@ fn make_login_plan(args: &LoginArgs, ctx: &LoginContext) -> anyhow::Result<Execu
     }
 
     let config_content = toml::to_string_pretty(&ctx.config)
-        .map_err(|e| anyhow::anyhow!("序列化配置失败: {}", e))?;
+        .map_err(|e| AppError::InvalidInput(format!("序列化配置失败: {}", e)))?;
 
     plan.add(EditOperation::WriteFile {
         path: ConfigManager::gitlab_path().to_string_lossy().to_string(),
@@ -104,7 +104,7 @@ fn make_login_plan(args: &LoginArgs, ctx: &LoginContext) -> anyhow::Result<Execu
     Ok(plan)
 }
 
-fn get_clone_context(args: &CloneArgs) -> anyhow::Result<CloneContext> {
+fn get_clone_context(args: &CloneArgs) -> Result<CloneContext> {
     let config = ConfigManager::load_gitlab();
 
     let server = if let Some(url) = &args.server {
@@ -140,7 +140,7 @@ fn get_clone_context(args: &CloneArgs) -> anyhow::Result<CloneContext> {
     })
 }
 
-fn make_clone_plan(args: &CloneArgs, ctx: &CloneContext) -> anyhow::Result<ExecutionPlan> {
+fn make_clone_plan(args: &CloneArgs, ctx: &CloneContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
 
     plan.add(MessageOperation::Header {
@@ -171,7 +171,7 @@ fn make_clone_plan(args: &CloneArgs, ctx: &CloneContext) -> anyhow::Result<Execu
     Ok(plan)
 }
 
-fn extract_host(url: &str) -> anyhow::Result<String> {
+fn extract_host(url: &str) -> Result<String> {
     let parsed = url::Url::parse(url)
         .map_err(|_| AppError::invalid_input(format!("无效的 URL: {}", url)))?;
     parsed

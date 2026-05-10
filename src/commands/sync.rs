@@ -1,7 +1,7 @@
 use crate::control::context::collect_context;
 use crate::control::pipeline::Pipeline;
-use crate::domain::AppError;
 use crate::domain::git::repository::RepoWalker;
+use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
 use crate::utils::output::Output;
@@ -36,7 +36,7 @@ struct SyncContext {
     target_remote: String,
 }
 
-pub fn run(args: SyncArgs) -> anyhow::Result<()> {
+pub fn run(args: SyncArgs) -> Result<()> {
     let effective_path = resolve_effective_path(&args.path)?;
     let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 
@@ -48,7 +48,7 @@ pub fn run(args: SyncArgs) -> anyhow::Result<()> {
     Pipeline::run_multi_repo(&args, &walker, get_context, make_plan)
 }
 
-fn resolve_effective_path(path: &str) -> anyhow::Result<std::path::PathBuf> {
+fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {
     if path.is_empty() {
         let cwd = std::env::current_dir()?;
         Ok(find_git_repository_upwards(&cwd).unwrap_or(cwd))
@@ -57,7 +57,7 @@ fn resolve_effective_path(path: &str) -> anyhow::Result<std::path::PathBuf> {
     }
 }
 
-fn get_context(args: &SyncArgs, repo_path: &Path) -> anyhow::Result<SyncContext> {
+fn get_context(args: &SyncArgs, repo_path: &Path) -> Result<SyncContext> {
     let git_ctx = collect_context(repo_path)?;
 
     if git_ctx.remotes.is_empty() {
@@ -75,10 +75,7 @@ fn get_context(args: &SyncArgs, repo_path: &Path) -> anyhow::Result<SyncContext>
     })
 }
 
-fn resolve_target_remote(
-    git_ctx: &GitContext,
-    explicit_remote: Option<&str>,
-) -> anyhow::Result<String> {
+fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) -> Result<String> {
     if let Some(name) = explicit_remote {
         if !git_ctx.has_remote(name) {
             return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)).into());
@@ -92,7 +89,7 @@ fn resolve_target_remote(
         .ok_or_else(|| AppError::not_found("无可用远程仓库").into())
 }
 
-fn make_plan(args: &SyncArgs, ctx: &SyncContext) -> anyhow::Result<ExecutionPlan> {
+fn make_plan(args: &SyncArgs, ctx: &SyncContext) -> Result<ExecutionPlan> {
     if ctx.git_ctx.remotes.is_empty() || ctx.target_remote.is_empty() {
         return skip_plan("无远程仓库");
     }
@@ -101,14 +98,19 @@ fn make_plan(args: &SyncArgs, ctx: &SyncContext) -> anyhow::Result<ExecutionPlan
     let branch = ctx.git_ctx.current_branch.clone();
     let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
 
-    plan.add(GitOperation::Pull { remote: remote.clone(), branch });
-    plan.add(GitOperation::PushAll { remote: remote.clone() });
+    plan.add(GitOperation::Pull {
+        remote: remote.clone(),
+        branch,
+    });
+    plan.add(GitOperation::PushAll {
+        remote: remote.clone(),
+    });
     plan.add(GitOperation::PushTags { remote });
 
     Ok(plan)
 }
 
-fn skip_plan(msg: &str) -> anyhow::Result<ExecutionPlan> {
+fn skip_plan(msg: &str) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
     plan.add(MessageOperation::Skip {
         msg: msg.to_string(),

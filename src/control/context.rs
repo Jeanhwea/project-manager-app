@@ -1,8 +1,9 @@
 use crate::domain::git::GitCommandRunner;
+use crate::error::Result;
 use crate::model::git::{Branch, GitContext, Remote, Tag};
 use std::path::{Path, PathBuf};
 
-pub fn collect_context(repo_path: &Path) -> anyhow::Result<GitContext> {
+pub fn collect_context(repo_path: &Path) -> Result<GitContext> {
     let runner = GitCommandRunner::new();
 
     let root = runner.execute(&["rev-parse", "--show-toplevel"], Some(repo_path))?;
@@ -24,7 +25,7 @@ pub fn collect_context(repo_path: &Path) -> anyhow::Result<GitContext> {
     })
 }
 
-fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> anyhow::Result<Vec<Remote>> {
+fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Remote>> {
     let names = runner.get_remote_list(root)?;
     let mut remotes = Vec::new();
     for name in &names {
@@ -43,7 +44,7 @@ fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> anyhow::Result<Vec
     Ok(remotes)
 }
 
-fn collect_branches(runner: &GitCommandRunner, root: &Path) -> anyhow::Result<Vec<Branch>> {
+fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch>> {
     let output = runner.execute(&["branch", "-vv", "--all"], Some(root))?;
     let mut branches = Vec::new();
 
@@ -75,7 +76,7 @@ fn collect_branches(runner: &GitCommandRunner, root: &Path) -> anyhow::Result<Ve
     Ok(branches)
 }
 
-fn collect_tags(runner: &GitCommandRunner, root: &Path) -> anyhow::Result<Vec<Tag>> {
+fn collect_tags(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Tag>> {
     let output = runner.execute(
         &[
             "for-each-ref",

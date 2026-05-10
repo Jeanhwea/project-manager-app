@@ -1,6 +1,7 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::control::context::collect_context;
 use crate::control::pipeline::Pipeline;
+use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{ExecutionPlan, MessageOperation};
 use std::path::Path;
@@ -15,7 +16,7 @@ struct StatusContext {
     git_ctx: GitContext,
 }
 
-pub fn run(args: StatusArgs) -> anyhow::Result<()> {
+pub fn run(args: StatusArgs) -> Result<()> {
     let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
     };
@@ -23,12 +24,12 @@ pub fn run(args: StatusArgs) -> anyhow::Result<()> {
     Pipeline::run_multi_repo(&args, &walker, get_context, make_plan)
 }
 
-fn get_context(_args: &StatusArgs, repo_path: &Path) -> anyhow::Result<StatusContext> {
+fn get_context(_args: &StatusArgs, repo_path: &Path) -> Result<StatusContext> {
     let git_ctx = collect_context(repo_path)?;
     Ok(StatusContext { git_ctx })
 }
 
-fn make_plan(_args: &StatusArgs, ctx: &StatusContext) -> anyhow::Result<ExecutionPlan> {
+fn make_plan(_args: &StatusArgs, ctx: &StatusContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
 
     plan.add(MessageOperation::Item {

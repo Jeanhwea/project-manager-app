@@ -3,23 +3,22 @@ use std::process::{Command as StdCommand, Stdio};
 use std::thread;
 
 use super::{CommandResult, ExecutionContext, OutputMode};
+use crate::error::{AppError, Result};
 
 pub struct CommandRunner;
 
 impl CommandRunner {
-    pub fn execute(&self, context: &ExecutionContext) -> anyhow::Result<CommandResult> {
+    pub fn execute(&self, context: &ExecutionContext) -> Result<CommandResult> {
         match context.output_mode {
             OutputMode::Capture => self.execute_capture(context),
             OutputMode::Streaming => self.execute_streaming(context),
         }
     }
 
-    fn execute_capture(&self, context: &ExecutionContext) -> anyhow::Result<CommandResult> {
+    fn execute_capture(&self, context: &ExecutionContext) -> Result<CommandResult> {
         let mut cmd = self.build_command(context)?;
 
-        let output = cmd.output().map_err(|e| {
-            anyhow::anyhow!("Failed to start command '{}': {}", context.program, e)
-        })?;
+        let output = cmd.output().map_err(|e| AppError::Io(e))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
@@ -31,41 +30,37 @@ impl CommandRunner {
         ))
     }
 
-    fn execute_streaming(&self, context: &ExecutionContext) -> anyhow::Result<CommandResult> {
+    fn execute_streaming(&self, context: &ExecutionContext) -> Result<CommandResult> {
         let mut cmd = self.build_command(context)?;
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd.spawn().map_err(|e| {
-            anyhow::anyhow!("Failed to start command '{}': {}", context.program, e)
-        })?;
+        let mut child = cmd.spawn().map_err(|e| AppError::Io(e))?;
 
         let stdout = child
             .stdout
             .take()
-            .ok_or_else(|| anyhow::anyhow!("Failed to capture stdout"))?;
+            .ok_or_else(|| AppError::InvalidInput("Failed to capture stdout".to_string()))?;
         let stderr = child
             .stderr
             .take()
-            .ok_or_else(|| anyhow::anyhow!("Failed to capture stderr"))?;
+            .ok_or_else(|| AppError::InvalidInput("Failed to capture stderr".to_string()))?;
 
         let stdout_thread = thread::spawn(move || {
             let reader = BufReader::new(stdout);
-            for line in reader.lines().map_while(Result::ok) {
+            for line in reader.lines().map_while(std::result::Result::ok) {
                 println!("{}", line);
             }
         });
 
         let stderr_thread = thread::spawn(move || {
             let reader = BufReader::new(stderr);
-            for line in reader.lines().map_while(Result::ok) {
+            for line in reader.lines().map_while(std::result::Result::ok) {
                 eprintln!("{}", line);
             }
         });
 
-        let status = child
-            .wait()
-            .map_err(|e| anyhow::anyhow!("Command '{}' failed: {}", context.program, e))?;
+        let status = child.wait().map_err(|e| AppError::Io(e))?;
 
         let _ = stdout_thread.join();
         let _ = stderr_thread.join();
@@ -78,7 +73,7 @@ impl CommandRunner {
         })
     }
 
-    fn build_command(&self, context: &ExecutionContext) -> anyhow::Result<StdCommand> {
+    fn build_command(&self, context: &ExecutionContext) -> Result<StdCommand> {
         let mut cmd = StdCommand::new(&context.program);
         cmd.args(&context.args);
 

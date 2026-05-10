@@ -1,11 +1,12 @@
 use crate::domain::git::GitCommandRunner;
+use crate::error::{AppError, Result};
 use crate::model::plan::{
     EditOperation, ExecutionPlan, GitOperation, MessageOperation, Operation, ShellOperation,
 };
 use crate::utils::output::Output;
 use std::path::Path;
 
-pub fn run_plan(plan: &ExecutionPlan) -> anyhow::Result<()> {
+pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
     if plan.dry_run {
         Output::dry_run_header("将要执行的操作:");
         display_plan(plan);
@@ -61,7 +62,7 @@ fn execute_message(op: &MessageOperation) {
     }
 }
 
-fn execute_operation(op: &Operation) -> anyhow::Result<()> {
+fn execute_operation(op: &Operation) -> Result<()> {
     match op {
         Operation::Git(git_op) => execute_git(git_op),
         Operation::Shell(shell_op) => execute_shell(shell_op),
@@ -70,7 +71,7 @@ fn execute_operation(op: &Operation) -> anyhow::Result<()> {
     }
 }
 
-fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
+fn execute_git(op: &GitOperation) -> Result<()> {
     let runner = GitCommandRunner::new();
     match op {
         GitOperation::Init { dir } => runner.execute_with_success(&["init"], Some(dir))?,
@@ -126,7 +127,7 @@ fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn execute_shell(op: &ShellOperation) -> anyhow::Result<()> {
+fn execute_shell(op: &ShellOperation) -> Result<()> {
     match op {
         ShellOperation::Run {
             program, args, dir, ..
@@ -156,16 +157,17 @@ fn execute_shell(op: &ShellOperation) -> anyhow::Result<()> {
                 cmd.status()
             };
 
-            let status = result.map_err(|e| anyhow::anyhow!("无法执行 {}: {}", program, e))?;
+            let status = result
+                .map_err(|e| AppError::InvalidInput(format!("无法执行 {}: {}", program, e)))?;
             if !status.success() {
-                return Err(anyhow::anyhow!("{} 执行失败", program));
+                return Err(AppError::InvalidInput(format!("{} 执行失败", program)));
             }
         }
     }
     Ok(())
 }
 
-fn execute_edit(op: &EditOperation) -> anyhow::Result<()> {
+fn execute_edit(op: &EditOperation) -> Result<()> {
     match op {
         EditOperation::WriteFile { path, content, .. } => {
             crate::domain::editor::write_with_backup(path, content)?;

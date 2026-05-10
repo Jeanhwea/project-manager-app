@@ -5,6 +5,7 @@ use crate::commands::{
     gitlab::GitLabArgs, release::ReleaseArgs, selfman::SelfManageArgs, snap::SnapArgs,
     status::StatusArgs, sync::SyncArgs,
 };
+use crate::error::Result;
 
 #[derive(Parser)]
 #[command(name = "pma")]
@@ -70,7 +71,7 @@ pub enum Commands {
     },
 }
 
-pub fn dispatch(cli: Cli) -> anyhow::Result<()> {
+pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Release(args) => crate::commands::release::run(args),
         Commands::Sync(args) => crate::commands::sync::run(args),

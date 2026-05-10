@@ -1,5 +1,5 @@
 use crate::control::pipeline::Pipeline;
-use crate::domain::AppError;
+use crate::error::{AppError, Result};
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation, ShellOperation};
 use std::path::{Path, PathBuf};
 
@@ -22,11 +22,11 @@ struct ForkContext {
     target: PathBuf,
 }
 
-pub fn run(args: ForkArgs) -> anyhow::Result<()> {
+pub fn run(args: ForkArgs) -> Result<()> {
     Pipeline::run(args, get_context, make_plan)
 }
 
-fn get_context(args: &ForkArgs) -> anyhow::Result<ForkContext> {
+fn get_context(args: &ForkArgs) -> Result<ForkContext> {
     let source = Path::new(&args.source);
     let target = Path::new(&args.target);
 
@@ -44,7 +44,7 @@ fn get_context(args: &ForkArgs) -> anyhow::Result<ForkContext> {
     })
 }
 
-fn make_plan(args: &ForkArgs, ctx: &ForkContext) -> anyhow::Result<ExecutionPlan> {
+fn make_plan(args: &ForkArgs, ctx: &ForkContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
 
     plan.add(MessageOperation::Header {

@@ -1,6 +1,6 @@
 use crate::control::pipeline::Pipeline;
-use crate::domain::AppError;
 use crate::domain::git::GitCommandRunner;
+use crate::error::{AppError, Result};
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
 use std::path::{Path, PathBuf};
 
@@ -69,7 +69,7 @@ struct SnapRestoreContext {
     commit_ref: String,
 }
 
-pub fn run(args: SnapArgs) -> anyhow::Result<()> {
+pub fn run(args: SnapArgs) -> Result<()> {
     match args {
         SnapArgs::Create(args) => Pipeline::run(args, get_create_context, make_create_plan),
         SnapArgs::List(args) => Pipeline::run(args, get_list_context, make_list_plan),
@@ -77,7 +77,7 @@ pub fn run(args: SnapArgs) -> anyhow::Result<()> {
     }
 }
 
-fn get_create_context(args: &CreateArgs) -> anyhow::Result<SnapCreateContext> {
+fn get_create_context(args: &CreateArgs) -> Result<SnapCreateContext> {
     let project_path = Path::new(&args.path).to_path_buf();
 
     if !project_path.exists() {
@@ -119,7 +119,7 @@ fn get_create_context(args: &CreateArgs) -> anyhow::Result<SnapCreateContext> {
     })
 }
 
-fn make_create_plan(args: &CreateArgs, ctx: &SnapCreateContext) -> anyhow::Result<ExecutionPlan> {
+fn make_create_plan(args: &CreateArgs, ctx: &SnapCreateContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
 
     if !ctx.has_changes {
@@ -151,7 +151,7 @@ fn make_create_plan(args: &CreateArgs, ctx: &SnapCreateContext) -> anyhow::Resul
     Ok(plan)
 }
 
-fn get_list_context(args: &ListArgs) -> anyhow::Result<SnapListContext> {
+fn get_list_context(args: &ListArgs) -> Result<SnapListContext> {
     let project_path = Path::new(&args.path);
 
     if !project_path.exists() {
@@ -177,7 +177,7 @@ fn get_list_context(args: &ListArgs) -> anyhow::Result<SnapListContext> {
     Ok(SnapListContext { snap_commits })
 }
 
-fn make_list_plan(_args: &ListArgs, ctx: &SnapListContext) -> anyhow::Result<ExecutionPlan> {
+fn make_list_plan(_args: &ListArgs, ctx: &SnapListContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
 
     if ctx.snap_commits.is_empty() {
@@ -213,7 +213,7 @@ fn make_list_plan(_args: &ListArgs, ctx: &SnapListContext) -> anyhow::Result<Exe
     Ok(plan)
 }
 
-fn get_restore_context(args: &RestoreArgs) -> anyhow::Result<SnapRestoreContext> {
+fn get_restore_context(args: &RestoreArgs) -> Result<SnapRestoreContext> {
     let project_path = Path::new(&args.path);
 
     if !project_path.exists() {
@@ -230,10 +230,7 @@ fn get_restore_context(args: &RestoreArgs) -> anyhow::Result<SnapRestoreContext>
     Ok(SnapRestoreContext { commit_ref })
 }
 
-fn make_restore_plan(
-    args: &RestoreArgs,
-    ctx: &SnapRestoreContext,
-) -> anyhow::Result<ExecutionPlan> {
+fn make_restore_plan(args: &RestoreArgs, ctx: &SnapRestoreContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
     plan.add(GitOperation::Checkout {
         ref_name: ctx.commit_ref.clone(),
@@ -251,7 +248,7 @@ fn resolve_snapshot_ref(
     runner: &GitCommandRunner,
     project_path: &Path,
     snapshot: &str,
-) -> anyhow::Result<String> {
+) -> Result<String> {
     if snapshot.starts_with("snap-") {
         let output =
             runner.execute_raw(&["log", "--oneline", "--grep", snapshot], project_path)?;

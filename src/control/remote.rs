@@ -1,5 +1,6 @@
 use crate::domain::config::ConfigManager;
 use crate::domain::git::GitCommandRunner;
+use crate::error::Result;
 use crate::model::git::Remote;
 
 pub struct RemoteIssue {
@@ -49,7 +50,7 @@ pub fn diagnose_remote_names(repo_path: &std::path::Path) -> Vec<RemoteIssue> {
 fn collect_remotes(
     runner: &GitCommandRunner,
     repo_path: &std::path::Path,
-) -> anyhow::Result<Vec<Remote>> {
+) -> Result<Vec<Remote>> {
     let names = runner.get_remote_list(repo_path)?;
     let mut remotes = Vec::new();
     for name in &names {

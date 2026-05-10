@@ -1,7 +1,7 @@
 use crate::control::pipeline::Pipeline;
-use crate::domain::AppError;
 use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
+use crate::error::{AppError, Result};
 use crate::model::plan::{EditOperation, ExecutionPlan, MessageOperation};
 use std::path::PathBuf;
 
@@ -32,7 +32,7 @@ struct ConfigPathContext {
     base_dir: PathBuf,
 }
 
-pub fn run(args: ConfigArgs) -> anyhow::Result<()> {
+pub fn run(args: ConfigArgs) -> Result<()> {
     match args {
         ConfigArgs::Init => Pipeline::run(InitArgs, get_init_context, make_init_plan),
         ConfigArgs::Show => Pipeline::run(ShowArgs, get_show_context, make_show_plan),
@@ -44,7 +44,7 @@ struct InitArgs;
 struct ShowArgs;
 struct PathArgs;
 
-fn get_init_context(_args: &InitArgs) -> anyhow::Result<ConfigInitContext> {
+fn get_init_context(_args: &InitArgs) -> Result<ConfigInitContext> {
     let base_dir = ConfigManager::base_dir();
     if base_dir.exists() {
         return Err(
@@ -59,7 +59,7 @@ fn get_init_context(_args: &InitArgs) -> anyhow::Result<ConfigInitContext> {
     })
 }
 
-fn make_init_plan(_args: &InitArgs, ctx: &ConfigInitContext) -> anyhow::Result<ExecutionPlan> {
+fn make_init_plan(_args: &InitArgs, ctx: &ConfigInitContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
 
     plan.add(EditOperation::WriteFile {
@@ -90,7 +90,7 @@ fn make_init_plan(_args: &InitArgs, ctx: &ConfigInitContext) -> anyhow::Result<E
     Ok(plan)
 }
 
-fn get_show_context(_args: &ShowArgs) -> anyhow::Result<ConfigShowContext> {
+fn get_show_context(_args: &ShowArgs) -> Result<ConfigShowContext> {
     let base_dir = ConfigManager::base_dir();
     let dir_exists = base_dir.exists();
     let config = ConfigManager::load_config();
@@ -104,7 +104,7 @@ fn get_show_context(_args: &ShowArgs) -> anyhow::Result<ConfigShowContext> {
     })
 }
 
-fn make_show_plan(_args: &ShowArgs, ctx: &ConfigShowContext) -> anyhow::Result<ExecutionPlan> {
+fn make_show_plan(_args: &ShowArgs, ctx: &ConfigShowContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
 
     let dir_status = if ctx.dir_exists {
@@ -177,13 +177,13 @@ fn make_show_plan(_args: &ShowArgs, ctx: &ConfigShowContext) -> anyhow::Result<E
     Ok(plan)
 }
 
-fn get_path_context(_args: &PathArgs) -> anyhow::Result<ConfigPathContext> {
+fn get_path_context(_args: &PathArgs) -> Result<ConfigPathContext> {
     Ok(ConfigPathContext {
         base_dir: ConfigManager::base_dir(),
     })
 }
 
-fn make_path_plan(_args: &PathArgs, ctx: &ConfigPathContext) -> anyhow::Result<ExecutionPlan> {
+fn make_path_plan(_args: &PathArgs, ctx: &ConfigPathContext) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
     plan.add(MessageOperation::Skip {
         msg: ctx.base_dir.display().to_string(),

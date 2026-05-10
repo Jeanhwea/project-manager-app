@@ -39,7 +39,15 @@ pub enum AppError {
 
     #[error("{0}")]
     Snapshot(String),
+
+    #[error("Regex error: {0}")]
+    Regex(#[from] regex::Error),
+
+    #[error("Parse error: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
 }
+
+pub type Result<T> = std::result::Result<T, AppError>;
 
 impl AppError {
     pub fn command_not_available(name: &str) -> Self {
@@ -64,10 +72,6 @@ impl AppError {
 
     pub fn release(msg: impl Into<String>) -> Self {
         AppError::Release(msg.into())
-    }
-
-    pub fn self_update(msg: impl Into<String>) -> Self {
-        AppError::SelfUpdate(msg.into())
     }
 
     pub fn snapshot(msg: impl Into<String>) -> Self {
