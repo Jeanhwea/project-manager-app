@@ -1,5 +1,5 @@
+use crate::control::command::MultiRepoCommand;
 use crate::control::context::collect_context;
-use crate::control::pipeline::Pipeline;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
@@ -31,9 +31,52 @@ pub struct SyncArgs {
     pub dry_run: bool,
 }
 
-struct SyncContext {
+pub(crate) struct SyncContext {
     git_ctx: GitContext,
     target_remote: String,
+}
+
+impl MultiRepoCommand for SyncArgs {
+    type Context = SyncContext;
+
+    fn context(&self, repo_path: &Path) -> Result<SyncContext> {
+        let git_ctx = collect_context(repo_path)?;
+
+        if git_ctx.remotes.is_empty() {
+            return Ok(SyncContext {
+                git_ctx,
+                target_remote: String::new(),
+            });
+        }
+
+        let target_remote = resolve_target_remote(&git_ctx, self.remote.as_deref())?;
+
+        Ok(SyncContext {
+            git_ctx,
+            target_remote,
+        })
+    }
+
+    fn plan(&self, ctx: &SyncContext) -> Result<ExecutionPlan> {
+        if ctx.git_ctx.remotes.is_empty() || ctx.target_remote.is_empty() {
+            return skip_plan("无远程仓库");
+        }
+
+        let remote = ctx.target_remote.clone();
+        let branch = ctx.git_ctx.current_branch.clone();
+        let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+
+        plan.add(GitOperation::Pull {
+            remote: remote.clone(),
+            branch,
+        });
+        plan.add(GitOperation::PushAll {
+            remote: remote.clone(),
+        });
+        plan.add(GitOperation::PushTags { remote });
+
+        Ok(plan)
+    }
 }
 
 pub fn run(args: SyncArgs) -> Result<()> {
@@ -45,7 +88,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
         return Ok(());
     }
 
-    Pipeline::run_multi_repo(&args, &walker, get_context, make_plan)
+    MultiRepoCommand::run(&args, &walker)
 }
 
 fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {
@@ -55,24 +98,6 @@ fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {
     } else {
         Ok(crate::utils::path::canonicalize_path(path)?)
     }
-}
-
-fn get_context(args: &SyncArgs, repo_path: &Path) -> Result<SyncContext> {
-    let git_ctx = collect_context(repo_path)?;
-
-    if git_ctx.remotes.is_empty() {
-        return Ok(SyncContext {
-            git_ctx,
-            target_remote: String::new(),
-        });
-    }
-
-    let target_remote = resolve_target_remote(&git_ctx, args.remote.as_deref())?;
-
-    Ok(SyncContext {
-        git_ctx,
-        target_remote,
-    })
 }
 
 fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) -> Result<String> {
@@ -87,27 +112,6 @@ fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) ->
         .preferred_remote()
         .or_else(|| git_ctx.first_remote_name())
         .ok_or_else(|| AppError::not_found("无可用远程仓库"))
-}
-
-fn make_plan(args: &SyncArgs, ctx: &SyncContext) -> Result<ExecutionPlan> {
-    if ctx.git_ctx.remotes.is_empty() || ctx.target_remote.is_empty() {
-        return skip_plan("无远程仓库");
-    }
-
-    let remote = ctx.target_remote.clone();
-    let branch = ctx.git_ctx.current_branch.clone();
-    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
-
-    plan.add(GitOperation::Pull {
-        remote: remote.clone(),
-        branch,
-    });
-    plan.add(GitOperation::PushAll {
-        remote: remote.clone(),
-    });
-    plan.add(GitOperation::PushTags { remote });
-
-    Ok(plan)
 }
 
 fn skip_plan(msg: &str) -> Result<ExecutionPlan> {

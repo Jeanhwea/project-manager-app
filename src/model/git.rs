@@ -1,11 +1,7 @@
-use std::path::PathBuf;
-
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct Remote {
     pub name: String,
     pub url: String,
-    pub fetch_url: Option<String>,
 }
 
 impl Remote {
@@ -25,13 +21,11 @@ impl Remote {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct Branch {
     pub name: String,
     pub is_current: bool,
     pub is_remote: bool,
     pub tracking_branch: Option<String>,
-    pub ahead_behind: Option<(usize, usize)>,
 }
 
 impl Branch {
@@ -51,18 +45,12 @@ impl Branch {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct Tag {
     pub name: String,
-    pub commit: String,
-    pub is_annotated: bool,
-    pub message: Option<String>,
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct GitContext {
-    pub root: PathBuf,
     pub current_branch: String,
     pub remotes: Vec<Remote>,
     pub branches: Vec<Branch>,

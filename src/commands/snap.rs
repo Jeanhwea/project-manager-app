@@ -1,4 +1,4 @@
-use crate::control::pipeline::Pipeline;
+use crate::control::command::Command;
 use crate::domain::git::GitCommandRunner;
 use crate::error::{AppError, Result};
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
@@ -54,205 +54,217 @@ pub struct RestoreArgs {
     pub dry_run: bool,
 }
 
-struct SnapCreateContext {
+pub(crate) struct SnapCreateContext {
     project_path: PathBuf,
     needs_init: bool,
     has_changes: bool,
     num_commit: usize,
 }
 
-struct SnapListContext {
+pub(crate) struct SnapListContext {
     snap_commits: Vec<String>,
 }
 
-struct SnapRestoreContext {
+pub(crate) struct SnapRestoreContext {
     commit_ref: String,
+}
+
+impl Command for CreateArgs {
+    type Context = SnapCreateContext;
+
+    fn context(&self) -> Result<SnapCreateContext> {
+        let project_path = Path::new(&self.path).to_path_buf();
+
+        if !project_path.exists() {
+            return Err(AppError::not_found(format!(
+                "项目路径不存在: {}",
+                self.path
+            )));
+        }
+
+        if !project_path.join(".git").exists() {
+            return Ok(SnapCreateContext {
+                project_path,
+                needs_init: true,
+                has_changes: true,
+                num_commit: 0,
+            });
+        }
+
+        let runner = GitCommandRunner::new();
+        let has_changes = runner
+            .has_uncommitted_changes(&project_path)
+            .unwrap_or(true);
+        if !has_changes {
+            return Ok(SnapCreateContext {
+                project_path,
+                needs_init: false,
+                has_changes: false,
+                num_commit: 0,
+            });
+        }
+
+        let output = runner.execute_raw(&["rev-list", "--count", "HEAD"], &project_path)?;
+        let num_commit = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse::<usize>()?;
+
+        Ok(SnapCreateContext {
+            project_path,
+            needs_init: false,
+            has_changes: true,
+            num_commit,
+        })
+    }
+
+    fn plan(&self, ctx: &SnapCreateContext) -> Result<ExecutionPlan> {
+        let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+
+        if !ctx.has_changes {
+            plan.add(MessageOperation::Skip {
+                msg: "无变更，跳过快照".to_string(),
+            });
+            return Ok(plan);
+        }
+
+        if ctx.needs_init {
+            plan.add(GitOperation::Init {
+                dir: ctx.project_path.clone(),
+            });
+            plan.add(GitOperation::Add {
+                path: ".".to_string(),
+            });
+            plan.add(GitOperation::Commit {
+                message: "snap-000000".to_string(),
+            });
+        } else {
+            plan.add(GitOperation::Add {
+                path: ".".to_string(),
+            });
+            plan.add(GitOperation::Commit {
+                message: format!("snap-{:06}", ctx.num_commit),
+            });
+        }
+
+        Ok(plan)
+    }
+}
+
+impl Command for ListArgs {
+    type Context = SnapListContext;
+
+    fn context(&self) -> Result<SnapListContext> {
+        let project_path = Path::new(&self.path);
+
+        if !project_path.exists() {
+            return Err(AppError::not_found(format!(
+                "项目路径不存在: {}",
+                self.path
+            )));
+        }
+
+        if !project_path.join(".git").exists() {
+            return Ok(SnapListContext {
+                snap_commits: Vec::new(),
+            });
+        }
+
+        let runner = GitCommandRunner::new();
+        let output = runner.execute_raw(&["log", "--oneline"], project_path)?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        let snap_commits: Vec<String> = stdout
+            .lines()
+            .filter(|line| line.contains("snap-"))
+            .map(|s| s.to_string())
+            .collect();
+
+        Ok(SnapListContext { snap_commits })
+    }
+
+    fn plan(&self, ctx: &SnapListContext) -> Result<ExecutionPlan> {
+        let mut plan = ExecutionPlan::new();
+
+        if ctx.snap_commits.is_empty() {
+            plan.add(MessageOperation::Warning {
+                msg: "无快照记录".to_string(),
+            });
+            return Ok(plan);
+        }
+
+        plan.add(MessageOperation::Section {
+            title: "快照历史:".to_string(),
+        });
+
+        for (index, commit) in ctx.snap_commits.iter().enumerate() {
+            let parts: Vec<&str> = commit.splitn(2, ' ').collect();
+            if parts.len() == 2 {
+                plan.add(MessageOperation::Skip {
+                    msg: format!("#{} {} {}", index, parts[0], parts[1]),
+                });
+            } else {
+                plan.add(MessageOperation::Skip {
+                    msg: format!("#{} {}", index, commit),
+                });
+            }
+        }
+
+        plan.add(MessageOperation::Blank);
+        plan.add(MessageOperation::Item {
+            label: "汇总".to_string(),
+            value: format!("共 {} 个快照", ctx.snap_commits.len()),
+        });
+
+        Ok(plan)
+    }
+}
+
+impl Command for RestoreArgs {
+    type Context = SnapRestoreContext;
+
+    fn context(&self) -> Result<SnapRestoreContext> {
+        let project_path = Path::new(&self.path);
+
+        if !project_path.exists() {
+            return Err(AppError::not_found(format!(
+                "项目路径不存在: {}",
+                self.path
+            )));
+        }
+
+        if !project_path.join(".git").exists() {
+            return Err(AppError::not_found(
+                "项目尚未初始化快照，无法恢复".to_string(),
+            ));
+        }
+
+        let runner = GitCommandRunner::new();
+        let commit_ref = resolve_snapshot_ref(&runner, project_path, &self.snapshot)?;
+
+        Ok(SnapRestoreContext { commit_ref })
+    }
+
+    fn plan(&self, ctx: &SnapRestoreContext) -> Result<ExecutionPlan> {
+        let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+        plan.add(GitOperation::Checkout {
+            ref_name: ctx.commit_ref.clone(),
+        });
+        plan.add(MessageOperation::Success {
+            msg: format!("已恢复到快照 {}", ctx.commit_ref),
+        });
+        plan.add(MessageOperation::Warning {
+            msg: "若要回到最新状态，请执行: git checkout -".to_string(),
+        });
+        Ok(plan)
+    }
 }
 
 pub fn run(args: SnapArgs) -> Result<()> {
     match args {
-        SnapArgs::Create(args) => Pipeline::run(args, get_create_context, make_create_plan),
-        SnapArgs::List(args) => Pipeline::run(args, get_list_context, make_list_plan),
-        SnapArgs::Restore(args) => Pipeline::run(args, get_restore_context, make_restore_plan),
+        SnapArgs::Create(args) => Command::run(&args),
+        SnapArgs::List(args) => Command::run(&args),
+        SnapArgs::Restore(args) => Command::run(&args),
     }
-}
-
-fn get_create_context(args: &CreateArgs) -> Result<SnapCreateContext> {
-    let project_path = Path::new(&args.path).to_path_buf();
-
-    if !project_path.exists() {
-        return Err(AppError::not_found(format!(
-            "项目路径不存在: {}",
-            args.path
-        )));
-    }
-
-    if !project_path.join(".git").exists() {
-        return Ok(SnapCreateContext {
-            project_path,
-            needs_init: true,
-            has_changes: true,
-            num_commit: 0,
-        });
-    }
-
-    let runner = GitCommandRunner::new();
-    let has_changes = runner
-        .has_uncommitted_changes(&project_path)
-        .unwrap_or(true);
-    if !has_changes {
-        return Ok(SnapCreateContext {
-            project_path,
-            needs_init: false,
-            has_changes: false,
-            num_commit: 0,
-        });
-    }
-
-    let output = runner.execute_raw(&["rev-list", "--count", "HEAD"], &project_path)?;
-    let num_commit = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .parse::<usize>()?;
-
-    Ok(SnapCreateContext {
-        project_path,
-        needs_init: false,
-        has_changes: true,
-        num_commit,
-    })
-}
-
-fn make_create_plan(args: &CreateArgs, ctx: &SnapCreateContext) -> Result<ExecutionPlan> {
-    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
-
-    if !ctx.has_changes {
-        plan.add(MessageOperation::Skip {
-            msg: "无变更，跳过快照".to_string(),
-        });
-        return Ok(plan);
-    }
-
-    if ctx.needs_init {
-        plan.add(GitOperation::Init {
-            dir: ctx.project_path.clone(),
-        });
-        plan.add(GitOperation::Add {
-            path: ".".to_string(),
-        });
-        plan.add(GitOperation::Commit {
-            message: "snap-000000".to_string(),
-        });
-    } else {
-        plan.add(GitOperation::Add {
-            path: ".".to_string(),
-        });
-        plan.add(GitOperation::Commit {
-            message: format!("snap-{:06}", ctx.num_commit),
-        });
-    }
-
-    Ok(plan)
-}
-
-fn get_list_context(args: &ListArgs) -> Result<SnapListContext> {
-    let project_path = Path::new(&args.path);
-
-    if !project_path.exists() {
-        return Err(AppError::not_found(format!(
-            "项目路径不存在: {}",
-            args.path
-        )));
-    }
-
-    if !project_path.join(".git").exists() {
-        return Ok(SnapListContext {
-            snap_commits: Vec::new(),
-        });
-    }
-
-    let runner = GitCommandRunner::new();
-    let output = runner.execute_raw(&["log", "--oneline"], project_path)?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    let snap_commits: Vec<String> = stdout
-        .lines()
-        .filter(|line| line.contains("snap-"))
-        .map(|s| s.to_string())
-        .collect();
-
-    Ok(SnapListContext { snap_commits })
-}
-
-fn make_list_plan(_args: &ListArgs, ctx: &SnapListContext) -> Result<ExecutionPlan> {
-    let mut plan = ExecutionPlan::new();
-
-    if ctx.snap_commits.is_empty() {
-        plan.add(MessageOperation::Warning {
-            msg: "无快照记录".to_string(),
-        });
-        return Ok(plan);
-    }
-
-    plan.add(MessageOperation::Section {
-        title: "快照历史:".to_string(),
-    });
-
-    for (index, commit) in ctx.snap_commits.iter().enumerate() {
-        let parts: Vec<&str> = commit.splitn(2, ' ').collect();
-        if parts.len() == 2 {
-            plan.add(MessageOperation::Skip {
-                msg: format!("#{} {} {}", index, parts[0], parts[1]),
-            });
-        } else {
-            plan.add(MessageOperation::Skip {
-                msg: format!("#{} {}", index, commit),
-            });
-        }
-    }
-
-    plan.add(MessageOperation::Blank);
-    plan.add(MessageOperation::Item {
-        label: "汇总".to_string(),
-        value: format!("共 {} 个快照", ctx.snap_commits.len()),
-    });
-
-    Ok(plan)
-}
-
-fn get_restore_context(args: &RestoreArgs) -> Result<SnapRestoreContext> {
-    let project_path = Path::new(&args.path);
-
-    if !project_path.exists() {
-        return Err(AppError::not_found(format!(
-            "项目路径不存在: {}",
-            args.path
-        )));
-    }
-
-    if !project_path.join(".git").exists() {
-        return Err(AppError::not_found(
-            "项目尚未初始化快照，无法恢复".to_string(),
-        ));
-    }
-
-    let runner = GitCommandRunner::new();
-    let commit_ref = resolve_snapshot_ref(&runner, project_path, &args.snapshot)?;
-
-    Ok(SnapRestoreContext { commit_ref })
-}
-
-fn make_restore_plan(args: &RestoreArgs, ctx: &SnapRestoreContext) -> Result<ExecutionPlan> {
-    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
-    plan.add(GitOperation::Checkout {
-        ref_name: ctx.commit_ref.clone(),
-    });
-    plan.add(MessageOperation::Success {
-        msg: format!("已恢复到快照 {}", ctx.commit_ref),
-    });
-    plan.add(MessageOperation::Warning {
-        msg: "若要回到最新状态，请执行: git checkout -".to_string(),
-    });
-    Ok(plan)
 }
 
 fn resolve_snapshot_ref(

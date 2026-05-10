@@ -95,7 +95,6 @@ impl EditOperation {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum MessageOperation {
     Header {
         title: String,
@@ -123,9 +122,6 @@ pub enum MessageOperation {
     Warning {
         msg: String,
     },
-    Info {
-        msg: String,
-    },
     Skip {
         msg: String,
     },
@@ -150,7 +146,6 @@ impl MessageOperation {
             ),
             MessageOperation::Success { msg } => format!("OK> {}", msg),
             MessageOperation::Warning { msg } => format!("WARN {}", msg),
-            MessageOperation::Info { msg } => format!("INFO {}", msg),
             MessageOperation::Skip { msg } => format!("SKIP {}", msg),
             MessageOperation::Blank => String::new(),
         }

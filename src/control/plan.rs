@@ -56,7 +56,6 @@ fn execute_message(op: &MessageOperation) {
         }
         MessageOperation::Success { msg } => Output::success(msg),
         MessageOperation::Warning { msg } => Output::warning(msg),
-        MessageOperation::Info { msg } => Output::info(msg),
         MessageOperation::Skip { msg } => Output::skip(msg),
         MessageOperation::Blank => Output::blank(),
     }
