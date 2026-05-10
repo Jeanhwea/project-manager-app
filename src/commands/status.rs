@@ -6,35 +6,13 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Args)]
 pub struct StatusArgs {
-    /// Maximum depth to search for repositories
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
+    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
     pub max_depth: Option<usize>,
-    /// Show short status (branch + clean/dirty only)
-    #[arg(
-        long,
-        short,
-        default_value = "false",
-        help = "Show short status (branch + clean/dirty only)"
-    )]
+    #[arg(long, short, default_value = "false", help = "Show short status")]
     pub short: bool,
-    /// Filter repositories by status
-    #[arg(
-        long,
-        short,
-        value_enum,
-        help = "Filter repositories by status: dirty, clean, ahead, behind"
-    )]
+    #[arg(long, short, value_enum, help = "Filter by status: dirty, clean, ahead, behind")]
     pub filter: Option<StatusFilter>,
-    /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(
-        default_value = ".",
-        help = "Path to the directory to search for repositories, defaults to current directory"
-    )]
+    #[arg(default_value = ".", help = "Path to search")]
     pub path: String,
 }
 
@@ -170,7 +148,7 @@ fn collect_repo_status(repo_path: &Path) -> RepoStatus {
 }
 
 fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let branch = match runner.get_current_branch(repo_path) {
         Ok(b) => b,
         Err(_) => return (0, 0),
@@ -202,7 +180,7 @@ fn get_ahead_behind(repo_path: &Path) -> (usize, usize) {
 }
 
 fn get_dirty_counts(repo_path: &Path) -> (usize, usize, usize) {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let output = match runner.execute_in_dir(&["status", "--porcelain"], repo_path) {
         Ok(o) => o,
         Err(_) => return (0, 0, 0),
@@ -290,7 +268,7 @@ fn print_short_status(status: &RepoStatus) {
 }
 
 fn print_full_status(repo_path: &Path, status: &RepoStatus) {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let branch_display = status.branch.as_deref().unwrap_or("HEAD (detached)");
 
     Output::item("分支", branch_display);
@@ -354,7 +332,7 @@ fn print_ahead_behind_from_status(status: &RepoStatus) {
 }
 
 fn print_latest_tag(repo_path: &Path) {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let output =
         match runner.execute_in_dir(&["tag", "-l", "v*", "--sort=-version:refname"], repo_path) {
             Ok(o) => o,

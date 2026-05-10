@@ -6,16 +6,12 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct DoctorArgs {
-    /// Maximum depth to search for repositories
     #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Path to search for repositories
     #[arg(default_value = ".")]
     pub path: String,
-    /// Automatically fix issues
     #[arg(long, short, default_value = "false")]
     pub fix: bool,
-    /// Dry run: show what would be changed without making any modifications
     #[arg(long, default_value = "false")]
     pub dry_run: bool,
 }
@@ -163,7 +159,7 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
 }
 
 fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> Result<usize> {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let mut fixed = 0;
 
     for issue in issues {
@@ -181,8 +177,7 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> Result<usiz
                 }
                 Err(e) => Output::error(&format!("无法清理陈旧的远程跟踪分支: {}", e)),
             }
-        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支")
-        {
+        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支") {
             if let Ok(branch) = runner.get_current_branch(repo_path) {
                 match runner.execute_with_success_in_dir(
                     &["branch", "--set-upstream-to", &format!("origin/{}", branch)],

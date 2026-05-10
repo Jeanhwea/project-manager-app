@@ -5,74 +5,56 @@ use std::path::Path;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum BranchArgs {
-    /// List branches across all repositories
     #[command(visible_alias = "ls")]
     List(BranchListArgs),
-    /// Clean up merged branches across all repositories
     #[command(visible_alias = "cl")]
     Clean(BranchCleanArgs),
-    /// Switch to a branch across all repositories
     #[command(visible_alias = "sw")]
     Switch(BranchSwitchArgs),
-    /// Rename a branch across all repositories
     #[command(visible_alias = "rn")]
     Rename(BranchRenameArgs),
 }
 
 #[derive(Debug, clap::Args)]
 pub struct BranchListArgs {
-    /// Maximum depth to search for repositories
     #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Path to search for repositories
     #[arg(default_value = ".")]
     pub path: String,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct BranchCleanArgs {
-    /// Maximum depth to search for repositories
     #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Branch name pattern to clean (supports wildcards)
     #[arg(long, short)]
     pub pattern: Option<String>,
-    /// Also delete remote branches
     #[arg(long, default_value = "false")]
     pub remote: bool,
-    /// Dry run: show what would be changed without making any modifications
     #[arg(long, default_value = "false")]
     pub dry_run: bool,
-    /// Path to search for repositories
     #[arg(default_value = ".")]
     pub path: String,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct BranchSwitchArgs {
-    /// Branch name to switch to
     #[arg(help = "Branch name to switch to")]
     pub branch: String,
-    /// Maximum depth to search for repositories
     #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Path to search for repositories
     #[arg(default_value = ".")]
     pub path: String,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct BranchRenameArgs {
-    /// Old branch name
     #[arg(help = "Old branch name")]
     pub old_name: String,
-    /// New branch name
     #[arg(help = "New branch name")]
     pub new_name: String,
-    /// Maximum depth to search for repositories
     #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Path to search for repositories
     #[arg(default_value = ".")]
     pub path: String,
 }
@@ -140,7 +122,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
         return Ok(());
     }
 
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;
@@ -193,7 +175,9 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
                         repo_path,
                     ) {
                         Ok(()) => Output::success(&format!("已删除远程分支: {}", branch)),
-                        Err(e) => Output::error(&format!("删除远程分支 {} 失败: {}", branch, e)),
+                        Err(e) => {
+                            Output::error(&format!("删除远程分支 {} 失败: {}", branch, e))
+                        }
                     }
                 }
             }
@@ -215,7 +199,7 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
         return Ok(());
     }
 
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;
@@ -263,7 +247,7 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
         return Ok(());
     }
 
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;
@@ -291,7 +275,11 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
                 args.old_name,
                 args.new_name
             )),
-            Err(e) => Output::error(&format!("{}: 重命名失败: {}", repo_path.display(), e)),
+            Err(e) => Output::error(&format!(
+                "{}: 重命名失败: {}",
+                repo_path.display(),
+                e
+            )),
         }
     }
 
