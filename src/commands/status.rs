@@ -5,13 +5,27 @@ use anyhow::Result;
 
 #[derive(Debug, clap::Args)]
 pub struct StatusArgs {
-    #[arg(long, short, default_value = "3")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     #[arg(default_value = ".", help = "Path to search")]
     pub path: String,
-    #[arg(long, short, default_value = "false")]
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Show detailed change list per repository"
+    )]
     pub verbose: bool,
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Fetch from remote before checking sync status"
+    )]
     pub fetch: bool,
 }
 

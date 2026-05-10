@@ -6,16 +6,25 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
-    #[arg(long, short, default_value = "3")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     #[arg(
         default_value = "",
         help = "Path to search, defaults to current directory"
     )]
     pub path: String,
-    #[arg(long, short)]
+    #[arg(long, short, help = "Target remote name (e.g. origin, upstream)")]
     pub remote: Option<String>,
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show commands without executing"
+    )]
     pub dry_run: bool,
 }
 
@@ -68,10 +77,7 @@ fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> Re
     let current_branch = runner.get_current_branch(repo_path)?;
 
     if args.dry_run {
-        Output::skip(&format!(
-            "git pull {} {}",
-            target_remote, current_branch
-        ));
+        Output::skip(&format!("git pull {} {}", target_remote, current_branch));
         Output::skip("git push --all");
         Output::skip("git push --tags");
     } else {

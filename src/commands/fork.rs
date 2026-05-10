@@ -9,17 +9,17 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Args)]
 pub struct ForkArgs {
-    /// Template project path
     #[arg(help = "Template project path")]
     pub path: String,
-    /// New project name
     #[arg(help = "New project name")]
     pub name: String,
-    /// Target directory for the new project
     #[arg(long, short, help = "Target directory for the new project")]
     pub target: Option<String>,
-    /// Dry run: show what would be changed without making any modifications
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be changed without making modifications"
+    )]
     pub dry_run: bool,
 }
 

@@ -8,9 +8,18 @@ use std::path::Path;
 pub struct DoctorArgs {
     #[command(flatten)]
     pub repo_path: RepoPathArgs,
-    #[arg(long, short, default_value = "false")]
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Automatically fix detected issues"
+    )]
     pub fix: bool,
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be fixed"
+    )]
     pub dry_run: bool,
 }
 

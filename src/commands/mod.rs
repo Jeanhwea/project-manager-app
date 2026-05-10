@@ -15,9 +15,14 @@ use anyhow::Result;
 
 #[derive(Debug, clap::Args)]
 pub struct RepoPathArgs {
-    #[arg(long, short, default_value = "3")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
-    #[arg(default_value = ".")]
+    #[arg(default_value = ".", help = "Path to search for repositories")]
     pub path: String,
 }
 

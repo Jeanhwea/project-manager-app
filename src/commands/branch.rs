@@ -26,11 +26,19 @@ pub struct BranchListArgs {
 pub struct BranchCleanArgs {
     #[command(flatten)]
     pub repo_path: RepoPathArgs,
-    #[arg(long, short)]
+    #[arg(long, short, help = "Branch name pattern to match (e.g. 'feature/*')")]
     pub pattern: Option<String>,
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Also delete matching remote branches"
+    )]
     pub remote: bool,
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be deleted"
+    )]
     pub dry_run: bool,
 }
 
