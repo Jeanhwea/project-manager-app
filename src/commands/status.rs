@@ -6,11 +6,21 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Args)]
 pub struct StatusArgs {
-    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     #[arg(long, short, default_value = "false", help = "Show short status")]
     pub short: bool,
-    #[arg(long, short, value_enum, help = "Filter by status: dirty, clean, ahead, behind")]
+    #[arg(
+        long,
+        short,
+        value_enum,
+        help = "Filter by status: dirty, clean, ahead, behind"
+    )]
     pub filter: Option<StatusFilter>,
     #[arg(default_value = ".", help = "Path to search")]
     pub path: String,

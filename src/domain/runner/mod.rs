@@ -96,7 +96,12 @@ impl DryRunContext {
         self.dry_run
     }
 
-    pub fn run_in_dir(&self, program: &str, args: &[&str], dir: Option<&Path>) -> anyhow::Result<()> {
+    pub fn run_in_dir(
+        &self,
+        program: &str,
+        args: &[&str],
+        dir: Option<&Path>,
+    ) -> anyhow::Result<()> {
         let mode = if self.dry_run {
             OutputMode::DryRun
         } else {

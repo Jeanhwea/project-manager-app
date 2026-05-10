@@ -108,27 +108,26 @@ mod tests {
 
     #[test]
     fn test_remote_parsing() {
-        use crate::domain::git::GitProtocol;
-        use crate::domain::git::remote::Remote;
+        use crate::domain::git::{GitProtocol, detect_protocol};
 
         assert_eq!(
-            Remote::parse_url("ssh://git@example.com/repo.git").unwrap(),
+            detect_protocol("ssh://git@example.com/repo.git").unwrap(),
             GitProtocol::Ssh
         );
         assert_eq!(
-            Remote::parse_url("git@github.com:user/repo.git").unwrap(),
+            detect_protocol("git@github.com:user/repo.git").unwrap(),
             GitProtocol::Ssh
         );
         assert_eq!(
-            Remote::parse_url("http://example.com/repo.git").unwrap(),
+            detect_protocol("http://example.com/repo.git").unwrap(),
             GitProtocol::Http
         );
         assert_eq!(
-            Remote::parse_url("https://example.com/repo.git").unwrap(),
+            detect_protocol("https://example.com/repo.git").unwrap(),
             GitProtocol::Https
         );
         assert_eq!(
-            Remote::parse_url("git://example.com/repo.git").unwrap(),
+            detect_protocol("git://example.com/repo.git").unwrap(),
             GitProtocol::Git
         );
     }

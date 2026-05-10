@@ -136,10 +136,7 @@ mod tests {
 
     #[test]
     fn test_detect_protocol_heuristic_ssh() {
-        assert_eq!(
-            detect_protocol("user@host:path").unwrap(),
-            GitProtocol::Ssh
-        );
+        assert_eq!(detect_protocol("user@host:path").unwrap(), GitProtocol::Ssh);
     }
 
     #[test]

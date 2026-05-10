@@ -175,9 +175,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
                         repo_path,
                     ) {
                         Ok(()) => Output::success(&format!("已删除远程分支: {}", branch)),
-                        Err(e) => {
-                            Output::error(&format!("删除远程分支 {} 失败: {}", branch, e))
-                        }
+                        Err(e) => Output::error(&format!("删除远程分支 {} 失败: {}", branch, e)),
                     }
                 }
             }
@@ -275,11 +273,7 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
                 args.old_name,
                 args.new_name
             )),
-            Err(e) => Output::error(&format!(
-                "{}: 重命名失败: {}",
-                repo_path.display(),
-                e
-            )),
+            Err(e) => Output::error(&format!("{}: 重命名失败: {}", repo_path.display(), e)),
         }
     }
 

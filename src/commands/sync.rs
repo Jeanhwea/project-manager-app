@@ -11,19 +11,41 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
-    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     #[arg(long, short, help = "Remotes to skip")]
     pub skip_remotes: Vec<String>,
-    #[arg(long, short, default_value = "false", help = "Whether to pull all local branches")]
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Whether to pull all local branches"
+    )]
     pub all_branch: bool,
-    #[arg(default_value = "", help = "Path to search, defaults to current directory")]
+    #[arg(
+        default_value = "",
+        help = "Path to search, defaults to current directory"
+    )]
     pub path: String,
     #[arg(long, default_value = "false", help = "Dry run")]
     pub dry_run: bool,
-    #[arg(long, short = 'f', default_value = "false", help = "Only fetch, do not pull or push")]
+    #[arg(
+        long,
+        short = 'f',
+        default_value = "false",
+        help = "Only fetch, do not pull or push"
+    )]
     pub fetch_only: bool,
-    #[arg(long, default_value = "false", help = "Use rebase instead of merge when pulling")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Use rebase instead of merge when pulling"
+    )]
     pub rebase: bool,
 }
 

@@ -8,13 +8,27 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct ReleaseArgs {
-    #[arg(value_enum, default_value = "patch", help = "Bump type: major, minor, patch")]
+    #[arg(
+        value_enum,
+        default_value = "patch",
+        help = "Bump type: major, minor, patch"
+    )]
     pub bump_type: BumpType,
     #[arg(help = "Files to update version (auto-detect if not specified)")]
     pub files: Vec<String>,
-    #[arg(long, short = 'n', default_value = "false", help = "Stay in current directory")]
+    #[arg(
+        long,
+        short = 'n',
+        default_value = "false",
+        help = "Stay in current directory"
+    )]
     pub no_root: bool,
-    #[arg(long, short, default_value = "false", help = "Force release even if not on master")]
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Force release even if not on master"
+    )]
     pub force: bool,
     #[arg(long, default_value = "false", help = "Skip pushing tags and branches")]
     pub skip_push: bool,
@@ -459,8 +473,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
     }
 
     if lock_path.exists() {
-        GitCommandRunner::new()
-            .execute_with_success(&["add", &lock_path.to_string_lossy()])?;
+        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()])?;
     }
     Ok(())
 }
@@ -493,8 +506,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     }
 
     if lock_path.exists() {
-        GitCommandRunner::new()
-            .execute_with_success(&["add", &lock_path.to_string_lossy()])?;
+        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()])?;
     }
     Ok(())
 }
@@ -527,8 +539,7 @@ fn update_yarn_lock(package_json_path: &str) -> Result<()> {
     }
 
     if lock_path.exists() {
-        GitCommandRunner::new()
-            .execute_with_success(&["add", &lock_path.to_string_lossy()])?;
+        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()])?;
     }
     Ok(())
 }
@@ -705,8 +716,11 @@ serde = "1.0""#,
         let temp_dir = tempdir().unwrap();
         let cargo_toml_path = temp_dir.path().join("Cargo.toml");
 
-        std::fs::write(&cargo_toml_path, r#"[dependencies]
-serde = "1.0""#)
+        std::fs::write(
+            &cargo_toml_path,
+            r#"[dependencies]
+serde = "1.0""#,
+        )
         .unwrap();
 
         assert!(read_cargo_package_name(&cargo_toml_path.to_string_lossy()).is_err());

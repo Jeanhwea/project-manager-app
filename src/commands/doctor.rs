@@ -177,7 +177,8 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> Result<usiz
                 }
                 Err(e) => Output::error(&format!("无法清理陈旧的远程跟踪分支: {}", e)),
             }
-        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支") {
+        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支")
+        {
             if let Ok(branch) = runner.get_current_branch(repo_path) {
                 match runner.execute_with_success_in_dir(
                     &["branch", "--set-upstream-to", &format!("origin/{}", branch)],
