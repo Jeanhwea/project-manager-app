@@ -1,5 +1,6 @@
 use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition,
+    find_version_value_in_quotes, replace_at_position,
 };
 use std::path::Path;
 
@@ -7,15 +8,8 @@ pub struct PomXmlEditor;
 
 impl PomXmlEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
-        let version_pattern = regex::Regex::new(r#"<version>([^<]+)</version>"#).ok()?;
-
-        if let Some(m) = version_pattern.find(content) {
-            let start = m.start();
-            let end = m.end();
-            return Some(VersionPosition { start, end });
-        }
-
-        None
+        let pattern = regex::Regex::new(r#"<version>([^<]+)</version>"#).ok()?;
+        find_version_value_in_quotes(content, &pattern)
     }
 }
 
@@ -53,11 +47,7 @@ impl FileEditor for PomXmlEditor {
         new_version: &str,
     ) -> Result<String> {
         if let Some(ref pos) = location.project_version {
-            let mut result = String::new();
-            result.push_str(&content[..pos.start]);
-            result.push_str(&format!("<version>{}</version>", new_version));
-            result.push_str(&content[pos.end..]);
-            Ok(preserve_line_endings(content, result))
+            Ok(replace_at_position(content, pos, new_version))
         } else {
             Err(EditorError::VersionNotFound(
                 "pom.xml does not have version field".to_string(),

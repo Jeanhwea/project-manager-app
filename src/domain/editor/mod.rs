@@ -147,17 +147,21 @@ pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
     }
 }
 
-pub fn preserve_line_endings(original: &str, edited: String) -> String {
-    let original_has_crlf = original.contains("\r\n");
-    let edited_has_crlf = edited.contains("\r\n");
+pub fn replace_at_position(content: &str, pos: &VersionPosition, new_value: &str) -> String {
+    let mut result = String::with_capacity(content.len() + new_value.len());
+    result.push_str(&content[..pos.start]);
+    result.push_str(new_value);
+    result.push_str(&content[pos.end..]);
+    result
+}
 
-    if original_has_crlf && !edited_has_crlf {
-        edited.replace("\n", "\r\n")
-    } else if !original_has_crlf && edited_has_crlf {
-        edited.replace("\r\n", "\n")
-    } else {
-        edited
-    }
+pub fn find_version_value_in_quotes(content: &str, pattern: &regex::Regex) -> Option<VersionPosition> {
+    let caps = pattern.captures(content)?;
+    let version_match = caps.get(1)?;
+    Some(VersionPosition {
+        start: version_match.start(),
+        end: version_match.end(),
+    })
 }
 
 #[cfg(test)]
@@ -170,23 +174,6 @@ mod tests {
         assert!(registry.detect_editor(Path::new("Cargo.toml")).is_some());
         assert!(registry.detect_editor(Path::new("package.json")).is_some());
         assert!(registry.detect_editor(Path::new("unknown.xyz")).is_none());
-    }
-
-    #[test]
-    fn test_preserve_line_endings() {
-        let original_crlf = "line1\r\nline2\r\n";
-        let original_lf = "line1\nline2\n";
-
-        let edited = "line1\nline2\n";
-
-        assert_eq!(
-            preserve_line_endings(original_crlf, edited.to_string()),
-            "line1\r\nline2\r\n"
-        );
-        assert_eq!(
-            preserve_line_endings(original_lf, edited.to_string()),
-            "line1\nline2\n"
-        );
     }
 
     #[test]
@@ -207,6 +194,8 @@ serde = "1.0""#;
         let edited = editor.edit(content, &location, "2.0.0").unwrap();
         assert!(edited.contains("version = \"2.0.0\""));
         assert!(!edited.contains("version = \"1.2.3\""));
+        assert!(edited.contains("name = \"test\""));
+        assert!(edited.contains("serde = \"1.0\""));
     }
 
     #[test]
@@ -227,5 +216,41 @@ serde = "1.0""#;
         let edited = editor.edit(content, &location, "2.0.0").unwrap();
         assert!(edited.contains("\"version\": \"2.0.0\""));
         assert!(!edited.contains("\"version\": \"1.2.3\""));
+        assert!(edited.contains("\"name\": \"test\""));
+        assert!(edited.contains("\"lodash\": \"^4.17.0\""));
+        assert!(edited.contains("\"dependencies\""));
+    }
+
+    #[test]
+    fn test_package_json_preserves_key_order() {
+        let content = r#"{
+  "name": "test",
+  "private": true,
+  "version": "1.2.3",
+  "scripts": {
+    "dev": "vite"
+  }
+}"#;
+
+        let editor = PackageJsonEditor;
+        let location = editor.parse(content).unwrap();
+        let edited = editor.edit(content, &location, "2.0.0").unwrap();
+
+        let name_pos = edited.find("\"name\"").unwrap();
+        let private_pos = edited.find("\"private\"").unwrap();
+        let version_pos = edited.find("\"version\"").unwrap();
+        let scripts_pos = edited.find("\"scripts\"").unwrap();
+
+        assert!(name_pos < private_pos, "key order should be preserved");
+        assert!(private_pos < version_pos, "key order should be preserved");
+        assert!(version_pos < scripts_pos, "key order should be preserved");
+    }
+
+    #[test]
+    fn test_replace_at_position() {
+        let content = "version = \"1.2.3\"";
+        let pos = VersionPosition { start: 11, end: 16 };
+        let result = replace_at_position(content, &pos, "2.0.0");
+        assert_eq!(result, "version = \"2.0.0\"");
     }
 }

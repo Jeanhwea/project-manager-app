@@ -1,5 +1,5 @@
 use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
 };
 use std::path::Path;
 
@@ -54,11 +54,7 @@ impl FileEditor for CMakeListsEditor {
         new_version: &str,
     ) -> Result<String> {
         if let Some(ref pos) = location.project_version {
-            let mut result = String::new();
-            result.push_str(&content[..pos.start]);
-            result.push_str(new_version);
-            result.push_str(&content[pos.end..]);
-            Ok(preserve_line_endings(content, result))
+            Ok(replace_at_position(content, pos, new_version))
         } else {
             Err(EditorError::VersionNotFound(
                 "CMakeLists.txt does not have project(VERSION ...) declaration".to_string(),

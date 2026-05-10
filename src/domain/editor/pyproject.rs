@@ -1,36 +1,13 @@
 use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
 };
 use std::path::Path;
 
 pub struct PyprojectEditor;
 
 impl PyprojectEditor {
-    fn find_version_in_section(
-        content: &str,
-        doc: &toml_edit::DocumentMut,
-        section_path: &[&str],
-    ) -> Option<VersionPosition> {
-        let mut current: Option<&toml_edit::Item> = None;
-        for key in section_path {
-            current = match current {
-                None => doc.get(key),
-                Some(item) => item.get(key),
-            };
-        }
-
-        let table = current?.as_table_like()?;
-        if !table.contains_key("version") {
-            return None;
-        }
-
-        let section_header = if section_path.len() == 1 {
-            format!("[{}]", section_path[0])
-        } else {
-            format!("[{}]", section_path.join("."))
-        };
-
-        let section_start = content.find(&section_header)?;
+    fn find_version_in_section(content: &str, section_header: &str) -> Option<VersionPosition> {
+        let section_start = content.find(section_header)?;
         let section_end = content[section_start..]
             .find("\n[")
             .map(|p| section_start + p)
@@ -38,14 +15,14 @@ impl PyprojectEditor {
 
         let section_content = &content[section_start..section_end];
 
-        let version_pattern = regex::Regex::new(r#"version\s*=\s*"[^"]*""#).ok()?;
-        if let Some(m) = version_pattern.find(section_content) {
-            let start = section_start + m.start();
-            let end = section_start + m.end();
-            return Some(VersionPosition { start, end });
-        }
+        let pattern = regex::Regex::new(r#"version\s*=\s*"([^"]*)""#).ok()?;
+        let caps = pattern.captures(section_content)?;
+        let version_match = caps.get(1)?;
 
-        None
+        Some(VersionPosition {
+            start: section_start + version_match.start(),
+            end: section_start + version_match.end(),
+        })
     }
 }
 
@@ -67,7 +44,7 @@ impl FileEditor for PyprojectEditor {
         })?;
 
         if doc.contains_key("project") {
-            let project_version = Self::find_version_in_section(content, &doc, &["project"]);
+            let project_version = Self::find_version_in_section(content, "[project]");
             if project_version.is_some() {
                 return Ok(VersionLocation {
                     project_version,
@@ -81,8 +58,7 @@ impl FileEditor for PyprojectEditor {
             && let Some(tool_table) = tool.as_table_like()
             && tool_table.contains_key("poetry")
         {
-            let project_version =
-                Self::find_version_in_section(content, &doc, &["tool", "poetry"]);
+            let project_version = Self::find_version_in_section(content, "[tool.poetry]");
             if project_version.is_some() {
                 return Ok(VersionLocation {
                     project_version,
@@ -100,39 +76,16 @@ impl FileEditor for PyprojectEditor {
     fn edit(
         &self,
         content: &str,
-        _location: &VersionLocation,
+        location: &VersionLocation,
         new_version: &str,
     ) -> Result<String> {
-        let mut doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
-            EditorError::ParseError(format!("Failed to parse pyproject.toml: {}", e))
-        })?;
-
-        if doc.contains_key("project")
-            && let Some(project) = doc.get_mut("project")
-            && let Some(table) = project.as_table_like_mut()
-            && table.contains_key("version")
-        {
-            table.insert("version", toml_edit::value(new_version));
-            let edited = doc.to_string();
-            return Ok(preserve_line_endings(content, edited));
+        if let Some(ref pos) = location.project_version {
+            Ok(replace_at_position(content, pos, new_version))
+        } else {
+            Err(EditorError::VersionNotFound(
+                "pyproject.toml does not have version field".to_string(),
+            ))
         }
-
-        if doc.contains_key("tool")
-            && let Some(tool) = doc.get_mut("tool")
-            && let Some(tool_table) = tool.as_table_like_mut()
-            && tool_table.contains_key("poetry")
-            && let Some(poetry) = tool_table.get_mut("poetry")
-            && let Some(poetry_table) = poetry.as_table_like_mut()
-            && poetry_table.contains_key("version")
-        {
-            poetry_table.insert("version", toml_edit::value(new_version));
-            let edited = doc.to_string();
-            return Ok(preserve_line_endings(content, edited));
-        }
-
-        Err(EditorError::VersionNotFound(
-            "pyproject.toml does not have version field".to_string(),
-        ))
     }
 
     fn validate(&self, _original: &str, edited: &str) -> Result<()> {

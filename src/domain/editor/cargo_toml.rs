@@ -1,23 +1,12 @@
 use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
 };
 use std::path::Path;
 
 pub struct CargoTomlEditor;
 
 impl CargoTomlEditor {
-    fn find_version_position(
-        content: &str,
-        doc: &toml_edit::DocumentMut,
-    ) -> Option<VersionPosition> {
-        let package = doc.get("package")?.as_table_like()?;
-
-        if !package.contains_key("version") {
-            return None;
-        }
-
-        let version_pattern = regex::Regex::new(r#"version\s*=\s*"[^"]*""#).ok()?;
-
+    fn find_version_position(content: &str) -> Option<VersionPosition> {
         let package_start = content.find("[package]")?;
         let package_end = content[package_start..]
             .find("\n[")
@@ -26,13 +15,14 @@ impl CargoTomlEditor {
 
         let package_section = &content[package_start..package_end];
 
-        if let Some(m) = version_pattern.find(package_section) {
-            let start = package_start + m.start();
-            let end = package_start + m.end();
-            return Some(VersionPosition { start, end });
-        }
+        let pattern = regex::Regex::new(r#"version\s*=\s*"([^"]*)""#).ok()?;
+        let caps = pattern.captures(package_section)?;
+        let version_match = caps.get(1)?;
 
-        None
+        Some(VersionPosition {
+            start: package_start + version_match.start(),
+            end: package_start + version_match.end(),
+        })
     }
 }
 
@@ -69,7 +59,7 @@ impl FileEditor for CargoTomlEditor {
             ));
         }
 
-        let project_version = Self::find_version_position(content, &doc);
+        let project_version = Self::find_version_position(content);
 
         if project_version.is_none() {
             return Err(EditorError::VersionNotFound(
@@ -95,18 +85,13 @@ impl FileEditor for CargoTomlEditor {
             ));
         }
 
-        let mut doc = content
-            .parse::<toml_edit::DocumentMut>()
-            .map_err(|e| EditorError::ParseError(format!("Failed to parse Cargo.toml: {}", e)))?;
-
-        if let Some(package) = doc.get_mut("package")
-            && let Some(table) = package.as_table_like_mut()
-        {
-            table.insert("version", toml_edit::value(new_version));
+        if let Some(ref pos) = location.project_version {
+            Ok(replace_at_position(content, pos, new_version))
+        } else {
+            Err(EditorError::VersionNotFound(
+                "Cargo.toml does not have version field".to_string(),
+            ))
         }
-
-        let edited = doc.to_string();
-        Ok(preserve_line_endings(content, edited))
     }
 
     fn validate(&self, _original: &str, edited: &str) -> Result<()> {

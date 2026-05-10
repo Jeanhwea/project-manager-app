@@ -74,8 +74,10 @@ pub fn run(args: ReleaseArgs) -> Result<()> {
     let registry = EditorRegistry::default_with_editors();
     let config_files = resolve_config_files(&registry, &resolved_files)?;
 
+    show_release_plan(&registry, &config_files, &state)?;
+
     if args.dry_run {
-        execute_dry_run(&args, &registry, &config_files, &state)
+        show_operations_plan(&args, &config_files, &state)
     } else {
         execute_release_operations(&args, &registry, &config_files, &state)
     }
@@ -236,18 +238,26 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     results
 }
 
-fn execute_dry_run(
-    args: &ReleaseArgs,
+fn show_release_plan(
     registry: &EditorRegistry,
     config_files: &[String],
     state: &GitState,
 ) -> Result<()> {
-    Output::dry_run_header("将要修改的文件:");
+    Output::header("修改计划");
+
     for file_path in config_files {
         let editor = registry.detect_editor(Path::new(file_path)).unwrap();
         print_file_diff(editor, &state.new_tag, file_path)?;
     }
 
+    Ok(())
+}
+
+fn show_operations_plan(
+    args: &ReleaseArgs,
+    config_files: &[String],
+    state: &GitState,
+) -> Result<()> {
     Output::dry_run_header("将要执行的操作:");
     for file_path in config_files {
         print_lockfile_update_plan(file_path);
