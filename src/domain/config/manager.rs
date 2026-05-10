@@ -90,17 +90,14 @@ impl ConfigDir {
             return;
         }
 
-        if let Ok(content) = std::fs::read_to_string(&legacy_path) {
-            if let Ok(config) = toml::from_str::<AppConfig>(&content) {
-                if Self::ensure_dir().is_ok() {
-                    if let Ok(new_content) = toml::to_string_pretty(&config) {
-                        if std::fs::write(&new_path, new_content).is_ok() {
-                            let _ = std::fs::remove_file(&legacy_path);
-                            eprintln!("已将旧配置文件迁移到 {}", new_path.display());
-                        }
-                    }
-                }
-            }
+        if let Ok(content) = std::fs::read_to_string(&legacy_path)
+            && let Ok(config) = toml::from_str::<AppConfig>(&content)
+            && Self::ensure_dir().is_ok()
+            && let Ok(new_content) = toml::to_string_pretty(&config)
+            && std::fs::write(&new_path, new_content).is_ok()
+        {
+            let _ = std::fs::remove_file(&legacy_path);
+            eprintln!("已将旧配置文件迁移到 {}", new_path.display());
         }
     }
 }
