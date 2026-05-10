@@ -1,6 +1,7 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::domain::AppError;
 use crate::domain::git::command::GitCommandRunner;
+use crate::domain::git::remote::{diagnose_remote_names, fix_remote_names};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -152,6 +153,13 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
         }
     }
 
+    for remote_issue in diagnose_remote_names(repo_path) {
+        issues.push(format!(
+            "remote 名称不匹配: {} -> {} (主机: {})",
+            remote_issue.current_name, remote_issue.expected_name, remote_issue.host
+        ));
+    }
+
     issues
 }
 
@@ -202,6 +210,9 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Res
             Output::warning("stash 条目需要手动处理");
         }
     }
+
+    let remote_issues = diagnose_remote_names(repo_path);
+    fixed += fix_remote_names(repo_path, &remote_issues, dry_run);
 
     Ok(fixed)
 }

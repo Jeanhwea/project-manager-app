@@ -1,4 +1,6 @@
 pub mod command;
+pub mod models;
+pub mod remote;
 pub mod repository;
 
 #[derive(Debug, thiserror::Error)]
