@@ -41,8 +41,6 @@ pub enum EditorError {
 pub type Result<T> = std::result::Result<T, EditorError>;
 
 pub trait FileEditor: Send + Sync {
-    #[allow(dead_code)]
-    fn name(&self) -> &'static str;
     fn file_patterns(&self) -> &[&str];
     fn matches_file(&self, path: &Path) -> bool;
     fn parse(&self, content: &str) -> Result<VersionLocation>;
@@ -167,8 +165,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_editor_registry_default() {
-        let _registry = EditorRegistry::default_with_editors();
+    fn test_editor_registry_detects_cargo_toml() {
+        let registry = EditorRegistry::default_with_editors();
+        assert!(registry.detect_editor(Path::new("Cargo.toml")).is_some());
+        assert!(registry.detect_editor(Path::new("package.json")).is_some());
+        assert!(registry.detect_editor(Path::new("unknown.xyz")).is_none());
     }
 
     #[test]

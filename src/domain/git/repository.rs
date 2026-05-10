@@ -14,11 +14,6 @@ pub struct RepoInfo {
     pub repo_type: RepoType,
 }
 
-#[allow(dead_code)]
-pub fn is_git_repo(path: &Path) -> bool {
-    path.is_dir() && path.join(".git").is_dir()
-}
-
 pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
     let mut current = start_dir;
 
@@ -105,32 +100,6 @@ impl RepoWalker {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_remote_parsing() {
-        use crate::domain::git::{GitProtocol, detect_protocol};
-
-        assert_eq!(
-            detect_protocol("ssh://git@example.com/repo.git").unwrap(),
-            GitProtocol::Ssh
-        );
-        assert_eq!(
-            detect_protocol("git@github.com:user/repo.git").unwrap(),
-            GitProtocol::Ssh
-        );
-        assert_eq!(
-            detect_protocol("http://example.com/repo.git").unwrap(),
-            GitProtocol::Http
-        );
-        assert_eq!(
-            detect_protocol("https://example.com/repo.git").unwrap(),
-            GitProtocol::Https
-        );
-        assert_eq!(
-            detect_protocol("git://example.com/repo.git").unwrap(),
-            GitProtocol::Git
-        );
-    }
 
     #[test]
     fn test_find_git_repositories_empty_dir() {

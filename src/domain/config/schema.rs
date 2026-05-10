@@ -153,8 +153,11 @@ pub struct GitLabConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitLabServer {
+    #[serde(default)]
     pub url: String,
+    #[serde(default)]
     pub token: String,
+    #[serde(default = "default_gitlab_protocol")]
     pub protocol: String,
 }
 

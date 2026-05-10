@@ -46,8 +46,6 @@ struct GitState {
     commit_message: String,
 }
 
-type ConfigFileEntry = String;
-
 const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Cargo.toml", false),
     ("src-tauri/Cargo.toml", false),
@@ -172,7 +170,7 @@ fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
 fn resolve_config_files(
     registry: &EditorRegistry,
     files: &[String],
-) -> Result<Vec<ConfigFileEntry>> {
+) -> Result<Vec<String>> {
     if files.is_empty() {
         return detect_config_files(registry);
     }
@@ -185,7 +183,7 @@ fn resolve_config_files(
         .collect()
 }
 
-fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<ConfigFileEntry>> {
+fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     let mut result = Vec::new();
 
     for (pattern, is_dynamic) in CONFIG_FILE_CANDIDATES {
@@ -245,7 +243,7 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
 fn execute_dry_run(
     args: &ReleaseArgs,
     registry: &EditorRegistry,
-    config_files: &[ConfigFileEntry],
+    config_files: &[String],
     state: &GitState,
 ) -> Result<()> {
     Output::dry_run_header("将要修改的文件:");
@@ -271,7 +269,7 @@ fn execute_dry_run(
 fn execute_release_operations(
     args: &ReleaseArgs,
     registry: &EditorRegistry,
-    config_files: &[ConfigFileEntry],
+    config_files: &[String],
     state: &GitState,
 ) -> Result<()> {
     let runner = GitCommandRunner::new();
@@ -283,7 +281,10 @@ fn execute_release_operations(
         runner.execute_with_success(&["add", file_path], None)?;
     }
 
-    runner.execute_with_success(&["diff", "--cached"], None)?;
+    let root = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
+    let root_path = Path::new(root.trim());
+
+    runner.execute_streaming(&["diff", "--cached"], root_path)?;
     runner.execute_with_success(&["commit", "-m", &state.commit_message], None)?;
     runner.execute_with_success(&["tag", &state.new_tag], None)?;
     push_to_remotes(args.skip_push, &state.current_branch, &state.new_tag)?;
@@ -375,26 +376,35 @@ fn update_lockfile_after_edit(config_file: &str) -> Result<()> {
 fn update_js_lockfile(package_json_path: &str) -> Result<()> {
     let pkg_dir = parent_dir(Path::new(package_json_path));
 
-    if pkg_dir.join("pnpm-lock.yaml").exists() {
-        return update_pnpm_lock(package_json_path);
+    let lockfiles: &[(&str, &str, &[&str])] = &[
+        ("pnpm-lock.yaml", "pnpm", &["install", "--lockfile-only"]),
+        ("yarn.lock", "yarn", &["install", "--mode", "update-lockfile"]),
+        ("package-lock.json", "npm", &["install", "--package-lock-only"]),
+    ];
+
+    for (lock_name, cmd, args) in lockfiles {
+        if pkg_dir.join(lock_name).exists() {
+            return run_js_lockfile_update(pkg_dir, lock_name, cmd, args);
+        }
     }
-    if pkg_dir.join("yarn.lock").exists() {
-        return update_yarn_lock(package_json_path);
+
+    if is_command_available("pnpm") {
+        return run_js_lockfile_update(
+            pkg_dir,
+            "pnpm-lock.yaml",
+            "pnpm",
+            &["install", "--lockfile-only"],
+        );
     }
-    if pkg_dir.join("package-lock.json").exists() {
-        return update_npm_lock(package_json_path);
-    }
-    if is_pnpm_available() {
-        return update_pnpm_lock(package_json_path);
-    }
+
     Ok(())
 }
 
-fn is_pnpm_available() -> bool {
+fn is_command_available(name: &str) -> bool {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
-            .args(["/c", "pnpm", "--version"])
+            .args(["/c", name, "--version"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
@@ -402,13 +412,57 @@ fn is_pnpm_available() -> bool {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        std::process::Command::new("pnpm")
+        std::process::Command::new(name)
             .arg("--version")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
             .is_ok_and(|s| s.success())
     }
+}
+
+fn run_js_lockfile_update(
+    pkg_dir: &Path,
+    lock_name: &str,
+    cmd: &str,
+    args: &[&str],
+) -> Result<()> {
+    let lock_path = pkg_dir.join(lock_name);
+
+    if is_gitignored(&lock_path) {
+        Output::skip(&format!("{} 在 .gitignore 中，跳过更新", lock_name));
+        return Ok(());
+    }
+
+    let cmd_str = format!("{} {}", cmd, args.join(" "));
+    Output::cmd(&cmd_str);
+
+    #[cfg(target_os = "windows")]
+    let status = std::process::Command::new("cmd")
+        .args(
+            std::iter::once(&"/c")
+                .chain(std::iter::once(&cmd))
+                .chain(args.iter())
+                .map(|s| *s),
+        )
+        .current_dir(pkg_dir)
+        .status()
+        .map_err(|e| anyhow::anyhow!("无法执行 {}: {}", cmd_str, e))?;
+    #[cfg(not(target_os = "windows"))]
+    let status = std::process::Command::new(cmd)
+        .args(args)
+        .current_dir(pkg_dir)
+        .status()
+        .map_err(|e| anyhow::anyhow!("无法执行 {}: {}", cmd_str, e))?;
+
+    if !status.success() {
+        Output::error(&format!("{} 执行失败", cmd_str));
+    }
+
+    if lock_path.exists() {
+        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
+    }
+    Ok(())
 }
 
 fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
@@ -439,105 +493,6 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     }
 
     runner.execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
-    Ok(())
-}
-
-fn update_npm_lock(package_json_path: &str) -> Result<()> {
-    let pkg_dir = parent_dir(Path::new(package_json_path));
-    let lock_path = pkg_dir.join("package-lock.json");
-
-    if is_gitignored(&lock_path) {
-        Output::skip("package-lock.json 在 .gitignore 中，跳过更新");
-        return Ok(());
-    }
-
-    Output::cmd("npm install --package-lock-only");
-    #[cfg(target_os = "windows")]
-    let status = std::process::Command::new("cmd")
-        .args(["/c", "npm", "install", "--package-lock-only"])
-        .current_dir(pkg_dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 npm install: {}", e))?;
-    #[cfg(not(target_os = "windows"))]
-    let status = std::process::Command::new("npm")
-        .args(["install", "--package-lock-only"])
-        .current_dir(pkg_dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 npm install: {}", e))?;
-
-    if !status.success() {
-        Output::error("npm install --package-lock-only 执行失败");
-    }
-
-    if lock_path.exists() {
-        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
-    }
-    Ok(())
-}
-
-fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
-    let pkg_dir = parent_dir(Path::new(package_json_path));
-    let lock_path = pkg_dir.join("pnpm-lock.yaml");
-
-    if is_gitignored(&lock_path) {
-        Output::skip("pnpm-lock.yaml 在 .gitignore 中，跳过更新");
-        return Ok(());
-    }
-
-    Output::cmd("pnpm install --lockfile-only");
-    #[cfg(target_os = "windows")]
-    let status = std::process::Command::new("cmd")
-        .args(["/c", "pnpm", "install", "--lockfile-only"])
-        .current_dir(pkg_dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 pnpm install: {}", e))?;
-    #[cfg(not(target_os = "windows"))]
-    let status = std::process::Command::new("pnpm")
-        .args(["install", "--lockfile-only"])
-        .current_dir(pkg_dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 pnpm install: {}", e))?;
-
-    if !status.success() {
-        Output::error("pnpm install --lockfile-only 执行失败");
-    }
-
-    if lock_path.exists() {
-        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
-    }
-    Ok(())
-}
-
-fn update_yarn_lock(package_json_path: &str) -> Result<()> {
-    let pkg_dir = parent_dir(Path::new(package_json_path));
-    let lock_path = pkg_dir.join("yarn.lock");
-
-    if is_gitignored(&lock_path) {
-        Output::skip("yarn.lock 在 .gitignore 中，跳过更新");
-        return Ok(());
-    }
-
-    Output::cmd("yarn install --mode update-lockfile");
-    #[cfg(target_os = "windows")]
-    let status = std::process::Command::new("cmd")
-        .args(["/c", "yarn", "install", "--mode", "update-lockfile"])
-        .current_dir(pkg_dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 yarn install: {}", e))?;
-    #[cfg(not(target_os = "windows"))]
-    let status = std::process::Command::new("yarn")
-        .args(["install", "--mode", "update-lockfile"])
-        .current_dir(pkg_dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 yarn install: {}", e))?;
-
-    if !status.success() {
-        Output::error("yarn install --mode update-lockfile 执行失败");
-    }
-
-    if lock_path.exists() {
-        GitCommandRunner::new().execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
-    }
     Ok(())
 }
 

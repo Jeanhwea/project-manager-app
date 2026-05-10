@@ -2,7 +2,6 @@ mod command;
 
 pub use command::CommandRunner;
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::utils::output::Output;
@@ -20,7 +19,6 @@ pub struct ExecutionContext {
     pub program: String,
     pub args: Vec<String>,
     pub working_dir: Option<PathBuf>,
-    pub env_vars: HashMap<String, String>,
     pub output_mode: OutputMode,
 }
 
@@ -30,7 +28,6 @@ impl ExecutionContext {
             program: program.into(),
             args: Vec::new(),
             working_dir: None,
-            env_vars: HashMap::new(),
             output_mode: OutputMode::default(),
         }
     }

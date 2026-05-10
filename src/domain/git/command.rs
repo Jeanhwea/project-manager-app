@@ -113,23 +113,6 @@ impl GitCommandRunner {
         self.execute(&["branch", "--show-current"], Some(repo_path))
     }
 
-    #[allow(dead_code)]
-    pub fn get_remote_urls(&self, repo_path: &Path) -> Result<Vec<String>> {
-        let output = self.execute(&["remote", "-v"], Some(repo_path))?;
-        let urls: Vec<String> = output
-            .lines()
-            .filter_map(|line| {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    Some(parts[1].to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
-        Ok(urls)
-    }
-
     pub fn get_remote_list(&self, repo_path: &Path) -> Result<Vec<String>> {
         let output = self.execute(&["remote"], Some(repo_path))?;
         let remotes: Vec<String> = output

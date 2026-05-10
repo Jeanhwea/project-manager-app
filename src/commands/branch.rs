@@ -1,4 +1,5 @@
 use crate::domain::git::command::GitCommandRunner;
+use crate::domain::git::repository::RepoWalker;
 use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
@@ -70,7 +71,7 @@ pub fn run(args: BranchArgs) -> Result<()> {
 
 fn execute_list(args: BranchListArgs) -> Result<()> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = crate::domain::git::repository::RepoWalker::new(
+    let walker = RepoWalker::new(
         &search_path,
         args.max_depth.unwrap_or(3),
     )?;
@@ -112,7 +113,7 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
 
 fn execute_clean(args: BranchCleanArgs) -> Result<()> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = crate::domain::git::repository::RepoWalker::new(
+    let walker = RepoWalker::new(
         &search_path,
         args.max_depth.unwrap_or(3),
     )?;
@@ -189,7 +190,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
 
 fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = crate::domain::git::repository::RepoWalker::new(
+    let walker = RepoWalker::new(
         &search_path,
         args.max_depth.unwrap_or(3),
     )?;
@@ -237,7 +238,7 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
 
 fn execute_rename(args: BranchRenameArgs) -> Result<()> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = crate::domain::git::repository::RepoWalker::new(
+    let walker = RepoWalker::new(
         &search_path,
         args.max_depth.unwrap_or(3),
     )?;

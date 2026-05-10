@@ -95,10 +95,6 @@ impl CommandRunner {
             cmd.current_dir(dir);
         }
 
-        for (key, value) in &context.env_vars {
-            cmd.env(key, value);
-        }
-
         Ok(cmd)
     }
 
