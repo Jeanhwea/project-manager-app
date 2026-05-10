@@ -14,12 +14,22 @@ fn load_toml_config<T: Default + serde::de::DeserializeOwned>(
         Ok(content) => match toml::from_str(&content) {
             Ok(config) => config,
             Err(e) => {
-                eprintln!("警告: {}配置文件解析失败 ({}): {}", label, path.display(), e);
+                eprintln!(
+                    "警告: {}配置文件解析失败 ({}): {}",
+                    label,
+                    path.display(),
+                    e
+                );
                 T::default()
             }
         },
         Err(e) => {
-            eprintln!("警告: 无法读取{}配置文件 ({}): {}", label, path.display(), e);
+            eprintln!(
+                "警告: 无法读取{}配置文件 ({}): {}",
+                label,
+                path.display(),
+                e
+            );
             T::default()
         }
     }
