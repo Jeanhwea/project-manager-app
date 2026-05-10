@@ -168,12 +168,12 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
 
 fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Result<usize> {
     let ctx = collect_context(repo_path)?;
-    let mut plan = ExecutionPlan::new().dry_run(dry_run);
+    let mut plan = ExecutionPlan::new().with_dry_run(dry_run);
     let mut fixed = 0;
 
     for issue in issues {
         if issue.contains("陈旧") {
-            plan.add(GitOperation::RemotePrune {
+            plan.add(GitOperation::PruneRemote {
                 remote: "origin".to_string(),
             });
             fixed += 1;
@@ -197,7 +197,7 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Res
                 .next()
                 .unwrap_or(expected_with_host);
             if !ctx.has_remote(expected) {
-                plan.add(GitOperation::RemoteRename {
+                plan.add(GitOperation::RenameRemote {
                     old: current.to_string(),
                     new: expected.to_string(),
                 });

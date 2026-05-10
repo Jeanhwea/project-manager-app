@@ -35,9 +35,9 @@ fn load_toml_config<T: Default + serde::de::DeserializeOwned>(
     }
 }
 
-pub struct ConfigDir;
+pub struct ConfigManager;
 
-impl ConfigDir {
+impl ConfigManager {
     pub fn base_dir() -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         home.join(".pma")

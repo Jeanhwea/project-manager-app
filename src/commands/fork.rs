@@ -34,7 +34,7 @@ pub fn run(args: ForkArgs) -> anyhow::Result<()> {
     Output::item("源", &args.source);
     Output::item("目标", &args.target);
 
-    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
 
     #[cfg(target_os = "windows")]
     plan.add(ShellOperation::Run {

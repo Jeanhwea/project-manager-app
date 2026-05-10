@@ -1,5 +1,5 @@
 use crate::domain::AppError;
-use crate::domain::config::ConfigDir;
+use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
 use crate::utils::output::Output;
 
@@ -22,7 +22,7 @@ pub fn run(args: ConfigArgs) -> anyhow::Result<()> {
 }
 
 fn execute_init() -> anyhow::Result<()> {
-    let dir = ConfigDir::base_dir();
+    let dir = ConfigManager::base_dir();
     if dir.exists() {
         return Err(
             AppError::already_exists(format!("配置目录已存在: {}", dir.display())).into(),
@@ -30,22 +30,31 @@ fn execute_init() -> anyhow::Result<()> {
     }
 
     std::fs::create_dir_all(&dir)?;
-    std::fs::write(ConfigDir::config_path(), schema::default_config_content())?;
     std::fs::write(
-        ConfigDir::gitlab_path(),
+        ConfigManager::config_path(),
+        schema::default_config_content(),
+    )?;
+    std::fs::write(
+        ConfigManager::gitlab_path(),
         schema::default_gitlab_config_content(),
     )?;
 
     Output::item("已创建配置目录", &dir.display().to_string());
-    Output::detail("主配置", &ConfigDir::config_path().display().to_string());
-    Output::detail("GitLab", &ConfigDir::gitlab_path().display().to_string());
+    Output::detail(
+        "主配置",
+        &ConfigManager::config_path().display().to_string(),
+    );
+    Output::detail(
+        "GitLab",
+        &ConfigManager::gitlab_path().display().to_string(),
+    );
     Ok(())
 }
 
 fn execute_show() -> anyhow::Result<()> {
-    let dir = ConfigDir::base_dir();
-    let cfg = ConfigDir::load_config();
-    let gitlab_cfg = ConfigDir::load_gitlab();
+    let dir = ConfigManager::base_dir();
+    let cfg = ConfigManager::load_config();
+    let gitlab_cfg = ConfigManager::load_gitlab();
 
     let dir_status = if dir.exists() {
         String::new()
@@ -87,6 +96,6 @@ fn execute_show() -> anyhow::Result<()> {
 }
 
 fn execute_path() -> anyhow::Result<()> {
-    Output::message(&ConfigDir::base_dir().display().to_string());
+    Output::message(&ConfigManager::base_dir().display().to_string());
     Ok(())
 }

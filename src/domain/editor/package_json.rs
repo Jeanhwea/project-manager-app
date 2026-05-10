@@ -1,11 +1,11 @@
-use super::{EditorError, FileEditor, Result, VersionPosition, find_version_value_in_quotes};
+use super::{EditorError, FileEditor, Result, VersionPosition, extract_version_position};
 
 pub struct PackageJsonEditor;
 
 impl PackageJsonEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
         let pattern = regex::Regex::new(r#""version"\s*:\s*"([^"]*)""#).ok()?;
-        find_version_value_in_quotes(content, &pattern)
+        extract_version_position(content, &pattern)
     }
 }
 

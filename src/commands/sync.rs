@@ -80,7 +80,7 @@ fn sync_repo(repo_path: &Path, args: &SyncArgs) -> anyhow::Result<()> {
             .clone(),
     };
 
-    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
     plan.add(GitOperation::Pull {
         remote: target_remote.clone(),
         branch: ctx.current_branch.clone(),

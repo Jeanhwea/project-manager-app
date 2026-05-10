@@ -45,7 +45,7 @@ pub fn run(args: GitLabArgs) -> anyhow::Result<()> {
 }
 
 fn execute_login(args: LoginArgs) -> anyhow::Result<()> {
-    let mut config = crate::domain::config::ConfigDir::load_gitlab();
+    let mut config = crate::domain::config::ConfigManager::load_gitlab();
 
     if let Some(existing) = config.servers.iter_mut().find(|s| s.url == args.url) {
         Output::warning(&format!("服务器 {} 已存在，将更新 token", args.url));
@@ -61,14 +61,14 @@ fn execute_login(args: LoginArgs) -> anyhow::Result<()> {
             });
     }
 
-    crate::domain::config::ConfigDir::save_gitlab(&config)?;
+    crate::domain::config::ConfigManager::save_gitlab(&config)?;
 
     Output::success(&format!("已添加 GitLab 服务器: {}", args.url));
     Ok(())
 }
 
 fn execute_clone(args: CloneArgs) -> anyhow::Result<()> {
-    let config = crate::domain::config::ConfigDir::load_gitlab();
+    let config = crate::domain::config::ConfigManager::load_gitlab();
 
     let server = if let Some(url) = &args.server {
         config
@@ -100,7 +100,7 @@ fn execute_clone(args: CloneArgs) -> anyhow::Result<()> {
     Output::item("协议", &server.protocol);
     Output::item("URL", &clone_url);
 
-    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
     plan.add(GitOperation::Clone {
         url: clone_url,
         dir: std::path::PathBuf::from(&target_dir),

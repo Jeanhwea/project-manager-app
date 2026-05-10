@@ -42,14 +42,13 @@ fn execute_message(op: &MessageOperation) {
         MessageOperation::Section { title } => Output::section(title),
         MessageOperation::Item { label, value } => Output::detail(label, value),
         MessageOperation::Diff {
-            file,
+            file: _,
             line_num,
-            old,
-            new,
+            old_content,
+            new_content,
         } => {
-            Output::detail(&format!("L{} -", line_num), old);
-            Output::detail(&format!("L{} +", line_num), new);
-            let _ = file;
+            Output::detail(&format!("L{} -", line_num), old_content);
+            Output::detail(&format!("L{} +", line_num), new_content);
         }
     }
 }
@@ -91,19 +90,19 @@ fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
         GitOperation::Checkout { ref_name } => {
             runner.execute_streaming(&["checkout", ref_name], Path::new("."))?
         }
-        GitOperation::BranchDelete { branch } => {
+        GitOperation::DeleteBranch { branch } => {
             runner.execute_with_success(&["branch", "-d", branch], None)?
         }
-        GitOperation::BranchRename { old, new } => {
+        GitOperation::RenameBranch { old, new } => {
             runner.execute_streaming(&["branch", "-m", old, new], Path::new("."))?
         }
-        GitOperation::RemoteDelete { remote, branch } => {
+        GitOperation::DeleteRemoteBranch { remote, branch } => {
             runner.execute_streaming(&["push", remote, "--delete", branch], Path::new("."))?
         }
-        GitOperation::RemoteRename { old, new } => {
+        GitOperation::RenameRemote { old, new } => {
             runner.execute_with_success(&["remote", "rename", old, new], Some(Path::new(".")))?
         }
-        GitOperation::RemotePrune { remote } => {
+        GitOperation::PruneRemote { remote } => {
             runner.execute_with_success(&["remote", "prune", remote], Some(Path::new(".")))?
         }
         GitOperation::SetUpstream { remote, branch } => runner.execute_with_success(

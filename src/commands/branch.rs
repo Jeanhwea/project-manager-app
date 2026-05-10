@@ -136,13 +136,13 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
 
         Output::repo_header(index + 1, total, repo_path);
 
-        let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
+        let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
         for branch in &branches {
-            plan.add(GitOperation::BranchDelete {
+            plan.add(GitOperation::DeleteBranch {
                 branch: branch.to_string(),
             });
             if args.remote {
-                plan.add(GitOperation::RemoteDelete {
+                plan.add(GitOperation::DeleteRemoteBranch {
                     remote: "origin".to_string(),
                     branch: branch.to_string(),
                 });
@@ -213,7 +213,7 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
         }
 
         let mut plan = ExecutionPlan::new();
-        plan.add(GitOperation::BranchRename {
+        plan.add(GitOperation::RenameBranch {
             old: args.old_name.clone(),
             new: args.new_name.clone(),
         });

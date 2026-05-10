@@ -176,7 +176,7 @@ pub fn replace_at_position(content: &str, pos: &VersionPosition, new_value: &str
     result
 }
 
-pub fn find_version_value_in_quotes(
+pub fn extract_version_position(
     content: &str,
     pattern: &regex::Regex,
 ) -> Option<VersionPosition> {

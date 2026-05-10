@@ -13,11 +13,11 @@ pub enum GitOperation {
     PushTags { remote: String },
     Pull { remote: String, branch: String },
     Checkout { ref_name: String },
-    BranchDelete { branch: String },
-    BranchRename { old: String, new: String },
-    RemoteDelete { remote: String, branch: String },
-    RemoteRename { old: String, new: String },
-    RemotePrune { remote: String },
+    DeleteBranch { branch: String },
+    RenameBranch { old: String, new: String },
+    DeleteRemoteBranch { remote: String, branch: String },
+    RenameRemote { old: String, new: String },
+    PruneRemote { remote: String },
     SetUpstream { remote: String, branch: String },
     Gc,
 }
@@ -40,17 +40,17 @@ impl GitOperation {
             GitOperation::PushTags { remote } => format!("git push --tags {}", remote),
             GitOperation::Pull { remote, branch } => format!("git pull {} {}", remote, branch),
             GitOperation::Checkout { ref_name } => format!("git checkout {}", ref_name),
-            GitOperation::BranchDelete { branch } => format!("git branch -d {}", branch),
-            GitOperation::BranchRename { old, new } => {
+            GitOperation::DeleteBranch { branch } => format!("git branch -d {}", branch),
+            GitOperation::RenameBranch { old, new } => {
                 format!("git branch -m {} {}", old, new)
             }
-            GitOperation::RemoteDelete { remote, branch } => {
+            GitOperation::DeleteRemoteBranch { remote, branch } => {
                 format!("git push {} --delete {}", remote, branch)
             }
-            GitOperation::RemoteRename { old, new } => {
+            GitOperation::RenameRemote { old, new } => {
                 format!("git remote rename {} {}", old, new)
             }
-            GitOperation::RemotePrune { remote } => format!("git remote prune {}", remote),
+            GitOperation::PruneRemote { remote } => format!("git remote prune {}", remote),
             GitOperation::SetUpstream { remote, branch } => {
                 format!("git branch --set-upstream-to {}/{}", remote, branch)
             }
@@ -107,8 +107,8 @@ pub enum MessageOperation {
     Diff {
         file: String,
         line_num: usize,
-        old: String,
-        new: String,
+        old_content: String,
+        new_content: String,
     },
 }
 
@@ -120,11 +120,11 @@ impl MessageOperation {
             MessageOperation::Diff {
                 file,
                 line_num,
-                old,
-                new,
+                old_content,
+                new_content,
             } => format!(
                 "{} L{} -:  {}\n{} L{} +:  {}",
-                file, line_num, old, file, line_num, new
+                file, line_num, old_content, file, line_num, new_content
             ),
         }
     }
@@ -186,7 +186,7 @@ impl ExecutionPlan {
         }
     }
 
-    pub fn dry_run(mut self, value: bool) -> Self {
+    pub fn with_dry_run(mut self, value: bool) -> Self {
         self.dry_run = value;
         self
     }

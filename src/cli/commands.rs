@@ -2,7 +2,7 @@ use clap::Parser;
 
 use crate::commands::{
     branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs,
-    gitlab::GitLabArgs, release::ReleaseArgs, selfman::SelfManArgs, snap::SnapArgs,
+    gitlab::GitLabArgs, release::ReleaseArgs, selfman::SelfManageArgs, snap::SnapArgs,
     status::StatusArgs, sync::SyncArgs,
 };
 
@@ -60,7 +60,7 @@ pub enum Commands {
     #[command(name = "self")]
     Self_ {
         #[command(subcommand)]
-        command: SelfManArgs,
+        command: SelfManageArgs,
     },
 
     /// Manage configuration

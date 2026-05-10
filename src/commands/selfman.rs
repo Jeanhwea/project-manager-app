@@ -36,7 +36,7 @@ struct Asset {
 }
 
 #[derive(Debug, clap::Subcommand)]
-pub enum SelfManArgs {
+pub enum SelfManageArgs {
     /// Update to the latest version from GitHub releases
     #[command(visible_alias = "up")]
     Update(UpdateArgs),
@@ -56,10 +56,10 @@ pub struct UpdateArgs {
     pub force: bool,
 }
 
-pub fn run(args: SelfManArgs) -> Result<()> {
+pub fn run(args: SelfManageArgs) -> Result<()> {
     match args {
-        SelfManArgs::Update(update_args) => execute_update(update_args),
-        SelfManArgs::Version => {
+        SelfManageArgs::Update(update_args) => execute_update(update_args),
+        SelfManageArgs::Version => {
             show_version();
             Ok(())
         }

@@ -1,4 +1,4 @@
-use super::{EditorError, FileEditor, Result, VersionPosition, find_version_value_in_quotes};
+use super::{EditorError, FileEditor, Result, VersionPosition, extract_version_position};
 use std::path::Path;
 
 pub struct HomebrewFormulaEditor;
@@ -6,7 +6,7 @@ pub struct HomebrewFormulaEditor;
 impl HomebrewFormulaEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
         let pattern = regex::Regex::new(r#"version\s+"([^"]+)""#).ok()?;
-        find_version_value_in_quotes(content, &pattern)
+        extract_version_position(content, &pattern)
     }
 }
 

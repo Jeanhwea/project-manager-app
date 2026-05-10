@@ -71,7 +71,7 @@ fn execute_create(args: CreateArgs) -> anyhow::Result<()> {
         return Err(AppError::not_found(format!("项目路径不存在: {}", args.path)).into());
     }
 
-    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
 
     if !project_path.join(".git").exists() {
         plan.add(GitOperation::Init {
@@ -162,7 +162,7 @@ fn execute_restore(args: RestoreArgs) -> anyhow::Result<()> {
 
     let commit_ref = resolve_snapshot_ref(&runner, project_path, &args.snapshot)?;
 
-    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
     plan.add(GitOperation::Checkout {
         ref_name: commit_ref.clone(),
     });

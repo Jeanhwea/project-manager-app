@@ -47,7 +47,7 @@ pub struct ReleaseArgs {
     pub pre_release: Option<String>,
 }
 
-struct GitState {
+struct ReleaseGitState {
     current_branch: String,
     new_tag: String,
     commit_message: String,
@@ -112,7 +112,7 @@ fn switch_to_git_root() -> Result<()> {
     Ok(())
 }
 
-fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<GitState> {
+fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<ReleaseGitState> {
     if !args.force && ctx.current_branch != "master" {
         return Err(AppError::release("只能在 master 分支上执行 release").into());
     }
@@ -155,7 +155,7 @@ fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<GitState> 
         Output::item("提交消息", &commit_message);
     }
 
-    Ok(GitState {
+    Ok(ReleaseGitState {
         current_branch: ctx.current_branch.clone(),
         new_tag,
         commit_message,
@@ -234,7 +234,7 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
 fn build_execution_plan(
     args: &ReleaseArgs,
     config_files: &[String],
-    state: &GitState,
+    state: &ReleaseGitState,
     ctx: &GitContext,
     registry: &EditorRegistry,
 ) -> ExecutionPlan {
@@ -257,8 +257,8 @@ fn build_execution_plan(
                     plan.add(MessageOperation::Diff {
                         file: file_path.clone(),
                         line_num,
-                        old: old_line.to_string(),
-                        new: new_line.to_string(),
+                        old_content: old_line.to_string(),
+                        new_content: new_line.to_string(),
                     });
                 }
             }

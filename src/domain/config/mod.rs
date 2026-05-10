@@ -1,4 +1,4 @@
 pub mod manager;
 pub mod schema;
 
-pub use manager::ConfigDir;
+pub use manager::ConfigManager;
