@@ -1,11 +1,12 @@
-use super::EditorError;
-use super::Result;
-use std::fmt;
+use clap::ValueEnum;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum BumpType {
+    #[value(alias = "ma")]
     Major,
+    #[value(alias = "mi")]
     Minor,
+    #[value(alias = "pa")]
     Patch,
 }
 
@@ -17,23 +18,23 @@ pub struct Version {
 }
 
 impl Version {
-    pub fn parse(s: &str) -> Result<Self> {
+    pub fn parse(s: &str) -> super::Result<Self> {
         let parts: Vec<&str> = s.trim().split('.').collect();
         if parts.len() != 3 {
-            return Err(EditorError::VersionFormatError(format!(
+            return Err(super::EditorError::VersionFormatError(format!(
                 "Invalid version format: {}",
                 s
             )));
         }
 
         let major = parts[0].parse::<u32>().map_err(|_| {
-            EditorError::VersionFormatError(format!("Invalid major version: {}", parts[0]))
+            super::EditorError::VersionFormatError(format!("Invalid major version: {}", parts[0]))
         })?;
         let minor = parts[1].parse::<u32>().map_err(|_| {
-            EditorError::VersionFormatError(format!("Invalid minor version: {}", parts[1]))
+            super::EditorError::VersionFormatError(format!("Invalid minor version: {}", parts[1]))
         })?;
         let patch = parts[2].parse::<u32>().map_err(|_| {
-            EditorError::VersionFormatError(format!("Invalid patch version: {}", parts[2]))
+            super::EditorError::VersionFormatError(format!("Invalid patch version: {}", parts[2]))
         })?;
 
         Ok(Version {
@@ -74,8 +75,8 @@ impl Version {
     }
 }
 
-impl fmt::Display for Version {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
     }
 }

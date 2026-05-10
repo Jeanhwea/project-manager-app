@@ -96,25 +96,6 @@ impl RepoWalker {
         self.repos.len()
     }
 
-    pub fn walk<F>(&self, mut callback: F) -> Result<()>
-    where
-        F: FnMut(&Path, usize, usize) -> Result<()>,
-    {
-        let total = self.repos.len();
-        for (index, repo) in self.repos.iter().enumerate() {
-            let abs_path =
-                std::fs::canonicalize(&repo.path).unwrap_or_else(|_| repo.path.clone());
-            println!(
-                "({}/{})>> {}",
-                index + 1,
-                total,
-                crate::utils::path::format_path(&abs_path)
-            );
-            callback(&repo.path, index, total)?;
-        }
-        Ok(())
-    }
-
     pub fn repositories(&self) -> &[RepoInfo] {
         &self.repos
     }

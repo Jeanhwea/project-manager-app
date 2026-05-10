@@ -1,4 +1,3 @@
-use crate::domain::context::AppContext;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version, write_with_backup};
 use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::{ItemColor, Output};
@@ -9,13 +8,12 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct ReleaseArgs {
-    /// Bump type: major, minor, patch
     #[arg(
         value_enum,
         default_value = "patch",
         help = "Bump type: major, minor, patch"
     )]
-    pub bump_type: crate::cli::BumpType,
+    pub bump_type: BumpType,
     /// Files to update version (auto-detect if not specified)
     #[arg(help = "Files to update version (auto-detect if not specified)")]
     pub files: Vec<String>,
@@ -125,26 +123,26 @@ fn resolve_file_paths(files: &[String]) -> Vec<String> {
 }
 
 fn switch_to_git_root() -> Result<()> {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let output = runner.execute(&["rev-parse", "--show-toplevel"])?;
     let root = output.trim();
 
     if !root.is_empty() {
         std::env::set_current_dir(root)
-            .map_err(|e| anyhow::anyhow!("无法切换到 git 根目录: {} - {}", root, e))?;
+            .map_err(|e| anyhow::anyhow!("无法切换�?git 根目�? {} - {}", root, e))?;
     }
 
     Ok(())
 }
 
 fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     let current_branch = runner.execute(&["branch", "--show-current"])?;
     let current_branch = current_branch.trim().to_string();
 
     if !args.force && current_branch != "master" {
-        anyhow::bail!("只能在 master 分支上执行 release");
+        anyhow::bail!("只能�?master 分支上执�?release");
     }
 
     let previous_tag = get_current_version(&runner);
@@ -154,12 +152,12 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
         let rev_current_tag = runner.execute(&["rev-parse", tag])?;
         let rev_head = runner.execute(&["rev-parse", "HEAD"])?;
         if rev_current_tag.trim() == rev_head.trim() {
-            anyhow::bail!("当前 HEAD 已被标记为 {}", tag);
+            anyhow::bail!("当前 HEAD 已被标记�?{}", tag);
         }
     }
 
-    let version = parse_version_from_tag(&current_tag).unwrap_or_default();
-    let new_version = version.bump(&to_domain_bump_type(args.bump_type.clone()));
+    let version = Version::from_tag(&current_tag).unwrap_or_default();
+    let new_version = version.bump(&args.bump_type);
     let mut new_tag = new_version.to_tag();
 
     if let Some(pre) = &args.pre_release {
@@ -193,18 +191,6 @@ fn get_current_version(runner: &GitCommandRunner) -> Option<String> {
         .execute(&["describe", "--tags", "--match", "v*"])
         .ok()?;
     output.split('-').next().map(|s| s.to_string())
-}
-
-fn parse_version_from_tag(tag: &str) -> Option<Version> {
-    Version::from_tag(tag)
-}
-
-fn to_domain_bump_type(bump_type: crate::cli::BumpType) -> BumpType {
-    match bump_type {
-        crate::cli::BumpType::Major => BumpType::Major,
-        crate::cli::BumpType::Minor => BumpType::Minor,
-        crate::cli::BumpType::Patch => BumpType::Patch,
-    }
 }
 
 fn resolve_config_files(
@@ -291,12 +277,12 @@ fn execute_dry_run(
     config_files: &[ConfigFileEntry],
     state: &GitState,
 ) -> Result<()> {
-    Output::dry_run_header("将要修改的文件:");
+    Output::dry_run_header("将要修改的文�?");
     for (file_path, editor) in config_files {
         print_file_diff(registry, editor.as_ref(), &state.new_tag, file_path)?;
     }
 
-    Output::dry_run_header("将要执行的操作:");
+    Output::dry_run_header("将要执行的操�?");
     for (file_path, _editor) in config_files {
         print_lockfile_update_plan(file_path);
     }
@@ -316,7 +302,7 @@ fn execute_release_operations(
     config_files: &[ConfigFileEntry],
     state: &GitState,
 ) -> Result<()> {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     for (file_path, editor) in config_files {
         edit_version_in_file(registry, editor.as_ref(), &state.new_tag, file_path)?;
@@ -496,12 +482,12 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
     }
 
     if is_gitignored(&lock_path) {
-        Output::skip("Cargo.lock 在 .gitignore 中，跳过更新");
+        Output::skip("Cargo.lock �?.gitignore 中，跳过更新");
         return Ok(());
     }
 
     let pkg_name = read_cargo_package_name(cargo_toml_path)?;
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     Output::cmd(&format!("cargo update --package {}", pkg_name));
     let status = std::process::Command::new("cargo")
@@ -532,7 +518,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
     let lock_path = pkg_dir.join("package-lock.json");
 
     if is_gitignored(&lock_path) {
-        Output::skip("package-lock.json 在 .gitignore 中，跳过更新");
+        Output::skip("package-lock.json �?.gitignore 中，跳过更新");
         return Ok(());
     }
 
@@ -557,7 +543,7 @@ fn update_npm_lock(package_json_path: &str) -> Result<()> {
 
     if lock_path.exists() {
         let lock_str = lock_path.to_string_lossy().to_string();
-        let runner = AppContext::git_runner();
+        let runner = GitCommandRunner::new();
         runner.execute_with_success(&["add", &lock_str])?;
     }
     Ok(())
@@ -576,7 +562,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
     let lock_path = pkg_dir.join("pnpm-lock.yaml");
 
     if is_gitignored(&lock_path) {
-        Output::skip("pnpm-lock.yaml 在 .gitignore 中，跳过更新");
+        Output::skip("pnpm-lock.yaml �?.gitignore 中，跳过更新");
         return Ok(());
     }
 
@@ -601,7 +587,7 @@ fn update_pnpm_lock(package_json_path: &str) -> Result<()> {
 
     if lock_path.exists() {
         let lock_str = lock_path.to_string_lossy().to_string();
-        let runner = AppContext::git_runner();
+        let runner = GitCommandRunner::new();
         runner.execute_with_success(&["add", &lock_str])?;
     }
     Ok(())
@@ -620,7 +606,7 @@ fn update_yarn_lock(package_json_path: &str) -> Result<()> {
     let lock_path = pkg_dir.join("yarn.lock");
 
     if is_gitignored(&lock_path) {
-        Output::skip("yarn.lock 在 .gitignore 中，跳过更新");
+        Output::skip("yarn.lock �?.gitignore 中，跳过更新");
         return Ok(());
     }
 
@@ -645,7 +631,7 @@ fn update_yarn_lock(package_json_path: &str) -> Result<()> {
 
     if lock_path.exists() {
         let lock_str = lock_path.to_string_lossy().to_string();
-        let runner = AppContext::git_runner();
+        let runner = GitCommandRunner::new();
         runner.execute_with_success(&["add", &lock_str])?;
     }
     Ok(())
@@ -659,7 +645,7 @@ fn is_gitignored(file_path: &Path) -> bool {
         return false;
     };
 
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let output = runner.execute_quiet_in_dir(&["check-ignore", file_name], parent);
 
     match output {
@@ -683,7 +669,7 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
             return Ok(caps[1].to_string());
         }
     }
-    anyhow::bail!("未在 {} 中找到 [package] name", cargo_toml_path)
+    anyhow::bail!("未在 {} 中找�?[package] name", cargo_toml_path)
 }
 
 fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
@@ -691,7 +677,7 @@ fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
         return;
     }
 
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let remotes = match runner.execute(&["remote"]) {
         Ok(output) => output
             .lines()
@@ -711,7 +697,7 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
         return Ok(());
     }
 
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let remotes = match runner.execute(&["remote"]) {
         Ok(output) => output
             .lines()
@@ -722,10 +708,10 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
 
     for remote in remotes {
         if let Err(e) = runner.execute_with_success(&["push", &remote, new_tag]) {
-            Output::warning(&format!("推送标签失败: {}", e));
+            Output::warning(&format!("推送标签失�? {}", e));
         }
         if let Err(e) = runner.execute_with_success(&["push", &remote, current_branch]) {
-            Output::warning(&format!("推送分支失败: {}", e));
+            Output::warning(&format!("推送分支失�? {}", e));
         }
     }
 

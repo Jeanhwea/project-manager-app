@@ -1,4 +1,3 @@
-use crate::domain::context::AppContext;
 use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::Output;
 use anyhow::Result;
@@ -99,7 +98,7 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
         return Ok(());
     }
 
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;

@@ -1,6 +1,7 @@
 use super::schema::{AppConfig, GitLabConfig};
 use super::{ConfigError, Result};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 pub struct ConfigDir;
 
@@ -34,6 +35,11 @@ impl ConfigDir {
     }
 
     pub fn load_config() -> AppConfig {
+        static CONFIG: OnceLock<AppConfig> = OnceLock::new();
+        CONFIG.get_or_init(Self::read_config_file).clone()
+    }
+
+    fn read_config_file() -> AppConfig {
         let path = Self::config_path();
         if !path.exists() {
             return AppConfig::default();
@@ -86,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let config = AppConfig::default();
+        let config = ConfigDir::load_config();
         assert_eq!(config.repository.max_depth, 3);
         assert!(!config.repository.skip_dirs.is_empty());
         assert!(!config.sync.skip_push_hosts.is_empty());

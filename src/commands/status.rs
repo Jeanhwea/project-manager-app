@@ -1,4 +1,4 @@
-use crate::domain::context::AppContext;
+use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
 use crate::utils::output::{ItemColor, Output, SummaryBuilder};
 use anyhow::Result;
@@ -152,7 +152,7 @@ fn matches_filter(status: &RepoStatus, filter: &Option<StatusFilter>) -> bool {
 }
 
 fn collect_repo_status(repo_path: &Path) -> RepoStatus {
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
     let branch = runner.get_current_branch(repo_path).ok();
     let dirty = runner.has_uncommitted_changes(repo_path).unwrap_or(false);
     let (ahead, behind) = get_ahead_behind(repo_path);

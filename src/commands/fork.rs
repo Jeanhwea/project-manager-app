@@ -1,4 +1,3 @@
-use crate::domain::context::AppContext;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::find_git_repository_upwards;
 use crate::utils::output::Output;
@@ -89,7 +88,7 @@ pub fn run(args: ForkArgs) -> Result<()> {
 
     copy_dir_recursive(&repo_dir, &project_dir)?;
 
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     clean_git_history(&project_dir, &runner)?;
 

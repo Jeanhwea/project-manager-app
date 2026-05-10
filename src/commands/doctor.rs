@@ -1,4 +1,4 @@
-use crate::domain::context::AppContext;
+use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::RepoWalker;
 use crate::utils::output::Output;
 use anyhow::Result;
@@ -91,7 +91,7 @@ fn check_prerequisites() -> Result<()> {
 
 fn diagnose_repo(repo_path: &Path) -> Vec<String> {
     let mut issues = Vec::new();
-    let runner = AppContext::git_runner();
+    let runner = GitCommandRunner::new();
 
     if let Ok(output) = runner.execute_in_dir(&["symbolic-ref", "HEAD"], repo_path)
         && output.trim().is_empty()

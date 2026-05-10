@@ -1,21 +1,10 @@
-use super::url_parser::RemoteUrlParser;
-use crate::domain::git::{GitError, GitProtocol, Result};
+use crate::domain::git::{GitError, Result};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct Remote {
     pub name: String,
     pub url: String,
-}
-
-impl Remote {
-    pub fn parse_url(url: &str) -> Result<GitProtocol> {
-        RemoteUrlParser::detect_protocol(url)
-    }
-
-    pub fn extract_host_and_path(url: &str) -> Option<(String, String)> {
-        RemoteUrlParser::extract_host_and_path(url)
-    }
 }
 
 pub struct RemoteManager {
@@ -78,49 +67,49 @@ impl Default for RemoteManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::git::{GitProtocol, detect_protocol, extract_host_and_path};
 
     #[test]
     fn test_remote_parse_url_valid() {
         assert_eq!(
-            Remote::parse_url("git@github.com:user/repo.git").unwrap(),
+            detect_protocol("git@github.com:user/repo.git").unwrap(),
             GitProtocol::Ssh
         );
         assert_eq!(
-            Remote::parse_url("https://github.com/user/repo.git").unwrap(),
+            detect_protocol("https://github.com/user/repo.git").unwrap(),
             GitProtocol::Https
         );
         assert_eq!(
-            Remote::parse_url("http://github.com/user/repo.git").unwrap(),
+            detect_protocol("http://github.com/user/repo.git").unwrap(),
             GitProtocol::Http
         );
         assert_eq!(
-            Remote::parse_url("git://github.com/user/repo.git").unwrap(),
+            detect_protocol("git://github.com/user/repo.git").unwrap(),
             GitProtocol::Git
         );
     }
 
     #[test]
     fn test_remote_parse_url_invalid() {
-        assert!(Remote::parse_url("").is_err());
-        assert!(Remote::parse_url("invalid-url").is_err());
+        assert!(detect_protocol("").is_err());
+        assert!(detect_protocol("invalid-url").is_err());
     }
 
     #[test]
     fn test_remote_extract_host_and_path() {
-        let (host, path) = Remote::extract_host_and_path("git@github.com:user/repo.git").unwrap();
+        let (host, path) = extract_host_and_path("git@github.com:user/repo.git").unwrap();
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
 
-        let (host, path) =
-            Remote::extract_host_and_path("https://github.com/user/repo.git").unwrap();
+        let (host, path) = extract_host_and_path("https://github.com/user/repo.git").unwrap();
         assert_eq!(host, "github.com");
         assert_eq!(path, "user/repo.git");
     }
 
     #[test]
     fn test_remote_extract_host_and_path_invalid() {
-        assert!(Remote::extract_host_and_path("").is_none());
-        assert!(Remote::extract_host_and_path("invalid-url").is_none());
+        assert!(extract_host_and_path("").is_none());
+        assert!(extract_host_and_path("invalid-url").is_none());
     }
 
     #[test]
@@ -137,7 +126,7 @@ mod tests {
     #[cfg(not(target_os = "windows"))]
     fn test_remote_manager_list_remotes_empty() {
         let manager = RemoteManager::new();
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempdir::tempdir().unwrap();
 
         let repo_path = temp_dir.path();
         let _ = std::process::Command::new("git")
