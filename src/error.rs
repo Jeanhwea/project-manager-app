@@ -1,6 +1,5 @@
 use crate::domain::editor::EditorError;
 use crate::domain::git::GitError;
-use crate::domain::gitlab::GitLabError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -12,9 +11,6 @@ pub enum AppError {
 
     #[error("{0}")]
     Git(#[from] GitError),
-
-    #[error("{0}")]
-    GitLab(#[from] GitLabError),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),

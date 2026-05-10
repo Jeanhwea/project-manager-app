@@ -15,7 +15,6 @@ pub fn collect_context(repo_path: &Path) -> Result<GitContext> {
     let has_uncommitted_changes = runner.has_uncommitted_changes(&root)?;
 
     Ok(GitContext {
-        root,
         current_branch,
         remotes,
         branches,
@@ -29,14 +28,9 @@ pub fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Rem
     let mut remotes = Vec::new();
     for name in &names {
         if let Ok(url) = runner.execute(&["remote", "get-url", name], Some(root)) {
-            let fetch_url = runner
-                .execute(&["remote", "get-url", "--push", name], Some(root))
-                .ok();
-            let fetch_url = fetch_url.filter(|u| *u != url);
             remotes.push(Remote {
                 name: name.to_string(),
                 url,
-                fetch_url,
             });
         }
     }
@@ -68,7 +62,6 @@ fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch
             is_current: is_current && !is_remote,
             is_remote,
             tracking_branch: extract_tracking_branch(info),
-            ahead_behind: extract_ahead_behind(info),
         });
     }
 
@@ -77,11 +70,7 @@ fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch
 
 fn collect_tags(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Tag>> {
     let output = runner.execute(
-        &[
-            "for-each-ref",
-            "--format=%(refname:short) %(objectname:short) %(objecttype)",
-            "refs/tags",
-        ],
+        &["for-each-ref", "--format=%(refname:short)", "refs/tags"],
         Some(root),
     )?;
 
@@ -91,16 +80,9 @@ fn collect_tags(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Tag>> {
         if line.is_empty() {
             continue;
         }
-
-        let parts: Vec<&str> = line.splitn(3, ' ').collect();
-        if parts.len() >= 2 {
-            tags.push(Tag {
-                name: parts[0].to_string(),
-                commit: parts[1].to_string(),
-                is_annotated: parts.get(2).map(|t| t == &"tag").unwrap_or(false),
-                message: None,
-            });
-        }
+        tags.push(Tag {
+            name: line.to_string(),
+        });
     }
 
     Ok(tags)
@@ -119,29 +101,4 @@ fn extract_tracking_branch(info: &str) -> Option<String> {
     } else {
         None
     }
-}
-
-fn extract_ahead_behind(info: &str) -> Option<(usize, usize)> {
-    if let Some(start) = info.find('[')
-        && let Some(end) = info.find(']')
-    {
-        let inner = &info[start + 1..end];
-        if let Some(ahead) = inner.strip_prefix("ahead ") {
-            if let Some(space) = ahead.find(' ')
-                && let Some(behind) = ahead[space + 1..].strip_prefix("behind ")
-                && let (Ok(a), Ok(b)) = (ahead[..space].parse(), behind.parse())
-            {
-                return Some((a, b));
-            }
-        } else if let Some(behind) = inner.strip_prefix("behind ")
-            && let Ok(b) = behind.parse::<usize>()
-        {
-            return Some((0, b));
-        } else if let Some(ahead) = inner.strip_prefix("ahead ")
-            && let Ok(a) = ahead.parse::<usize>()
-        {
-            return Some((a, 0));
-        }
-    }
-    None
 }

@@ -2,7 +2,7 @@ use super::GitCommandRunner;
 use crate::domain::editor::{BumpType, Version};
 use crate::error::AppError;
 use crate::model::git::GitContext;
-use crate::utils::output::{ItemColor, Output};
+use crate::utils::output::Output;
 use std::path::Path;
 
 pub struct ReleaseGitState {
@@ -60,11 +60,7 @@ pub fn validate_git_state(
         None => new_tag.clone(),
     };
 
-    Output::item_colored(
-        &format!("版本变更: {} ->", current_tag),
-        &new_tag,
-        ItemColor::Yellow,
-    );
+    Output::item(&format!("版本变更: {} ->", current_tag), &new_tag);
 
     if message.is_some() {
         Output::item("提交消息", &commit_message);
