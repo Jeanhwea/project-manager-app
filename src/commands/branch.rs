@@ -158,9 +158,7 @@ fn get_clean_context(
         .map(|s| s.to_string())
         .collect();
 
-    Ok(BranchCleanContext {
-        branches_to_delete,
-    })
+    Ok(BranchCleanContext { branches_to_delete })
 }
 
 fn make_clean_plan(
