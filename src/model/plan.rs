@@ -221,10 +221,6 @@ impl ExecutionPlan {
     pub fn add(&mut self, op: impl Into<Operation>) {
         self.operations.push(op.into());
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.operations.is_empty()
-    }
 }
 
 impl Default for ExecutionPlan {

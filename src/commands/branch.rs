@@ -72,29 +72,19 @@ pub fn run(args: BranchArgs) -> Result<()> {
     }
 }
 
-#[allow(dead_code)]
 struct BranchListContext {
     git_ctx: GitContext,
 }
 
-#[allow(dead_code)]
 struct BranchCleanContext {
-    git_ctx: GitContext,
     branches_to_delete: Vec<String>,
 }
 
-#[allow(dead_code)]
 struct BranchSwitchContext {
-    git_ctx: GitContext,
-    branch: String,
     exists: bool,
 }
 
-#[allow(dead_code)]
 struct BranchRenameContext {
-    git_ctx: GitContext,
-    old_name: String,
-    new_name: String,
     exists: bool,
 }
 
@@ -169,7 +159,6 @@ fn get_clean_context(
         .collect();
 
     Ok(BranchCleanContext {
-        git_ctx,
         branches_to_delete,
     })
 }
@@ -210,11 +199,7 @@ fn get_switch_context(
         .local_branches()
         .iter()
         .any(|b| b.name == args.branch);
-    Ok(BranchSwitchContext {
-        git_ctx,
-        branch: args.branch.clone(),
-        exists,
-    })
+    Ok(BranchSwitchContext { exists })
 }
 
 fn make_switch_plan(
@@ -255,12 +240,7 @@ fn get_rename_context(
         .local_branches()
         .iter()
         .any(|b| b.name == args.old_name);
-    Ok(BranchRenameContext {
-        git_ctx,
-        old_name: args.old_name.clone(),
-        new_name: args.new_name.clone(),
-        exists,
-    })
+    Ok(BranchRenameContext { exists })
 }
 
 fn make_rename_plan(

@@ -78,13 +78,6 @@ impl ConfigManager {
         load_toml_config::<GitLabConfig>(&Self::gitlab_path(), " GitLab")
     }
 
-    pub fn save_gitlab(config: &GitLabConfig) -> io::Result<()> {
-        Self::ensure_dir()?;
-        let content = toml::to_string_pretty(config)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        std::fs::write(Self::gitlab_path(), content)
-    }
-
     fn migrate_legacy_config() {
         let legacy_path = Self::legacy_config_path();
         let new_path = Self::config_path();

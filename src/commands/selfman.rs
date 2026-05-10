@@ -65,11 +65,9 @@ struct VersionContext {
     arch: &'static str,
 }
 
-#[allow(dead_code)]
 struct UpdateContext {
     current: &'static str,
     latest: String,
-    force: bool,
     release: Release,
 }
 
@@ -141,7 +139,6 @@ fn get_update_context(args: &UpdateArgs) -> anyhow::Result<UpdateContext> {
     Ok(UpdateContext {
         current: PKG_VERSION,
         latest,
-        force: args.force,
         release,
     })
 }
