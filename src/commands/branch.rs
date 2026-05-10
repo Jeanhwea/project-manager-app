@@ -1,5 +1,5 @@
+use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::repository::RepoWalker;
 use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
@@ -18,34 +18,28 @@ pub enum BranchArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct BranchListArgs {
-    #[arg(long, short, default_value = "3")]
-    pub max_depth: Option<usize>,
-    #[arg(default_value = ".")]
-    pub path: String,
+    #[command(flatten)]
+    pub repo_path: RepoPathArgs,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct BranchCleanArgs {
-    #[arg(long, short, default_value = "3")]
-    pub max_depth: Option<usize>,
+    #[command(flatten)]
+    pub repo_path: RepoPathArgs,
     #[arg(long, short)]
     pub pattern: Option<String>,
     #[arg(long, default_value = "false")]
     pub remote: bool,
     #[arg(long, default_value = "false")]
     pub dry_run: bool,
-    #[arg(default_value = ".")]
-    pub path: String,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct BranchSwitchArgs {
     #[arg(help = "Branch name to switch to")]
     pub branch: String,
-    #[arg(long, short, default_value = "3")]
-    pub max_depth: Option<usize>,
-    #[arg(default_value = ".")]
-    pub path: String,
+    #[command(flatten)]
+    pub repo_path: RepoPathArgs,
 }
 
 #[derive(Debug, clap::Args)]
@@ -54,10 +48,8 @@ pub struct BranchRenameArgs {
     pub old_name: String,
     #[arg(help = "New branch name")]
     pub new_name: String,
-    #[arg(long, short, default_value = "3")]
-    pub max_depth: Option<usize>,
-    #[arg(default_value = ".")]
-    pub path: String,
+    #[command(flatten)]
+    pub repo_path: RepoPathArgs,
 }
 
 pub fn run(args: BranchArgs) -> Result<()> {
@@ -70,13 +62,9 @@ pub fn run(args: BranchArgs) -> Result<()> {
 }
 
 fn execute_list(args: BranchListArgs) -> Result<()> {
-    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
-
-    if walker.is_empty() {
-        Output::not_found("未找到 Git 仓库");
+    let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
-    }
+    };
 
     let runner = GitCommandRunner::new();
     let total = walker.total();
@@ -110,13 +98,9 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
 }
 
 fn execute_clean(args: BranchCleanArgs) -> Result<()> {
-    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
-
-    if walker.is_empty() {
-        Output::not_found("未找到 Git 仓库");
+    let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
-    }
+    };
 
     let runner = GitCommandRunner::new();
     let total = walker.total();
@@ -183,13 +167,9 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
 }
 
 fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
-    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
-
-    if walker.is_empty() {
-        Output::not_found("未找到 Git 仓库");
+    let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
-    }
+    };
 
     let runner = GitCommandRunner::new();
 
@@ -228,13 +208,9 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
 }
 
 fn execute_rename(args: BranchRenameArgs) -> Result<()> {
-    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
-
-    if walker.is_empty() {
-        Output::not_found("未找到 Git 仓库");
+    let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
-    }
+    };
 
     let runner = GitCommandRunner::new();
 

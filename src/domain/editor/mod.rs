@@ -41,16 +41,60 @@ pub enum EditorError {
 pub type Result<T> = std::result::Result<T, EditorError>;
 
 pub trait FileEditor: Send + Sync {
+    fn name(&self) -> &str;
     fn file_patterns(&self) -> &[&str];
-    fn matches_file(&self, path: &Path) -> bool;
-    fn parse(&self, content: &str) -> Result<VersionLocation>;
+    fn find_version(&self, content: &str) -> Option<VersionPosition>;
+
+    fn matches_file(&self, path: &Path) -> bool {
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        self.file_patterns().iter().any(|pattern| {
+            if pattern.contains("{parent}") {
+                let parent_dir = path
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+                let replaced = pattern.replace("{parent}", parent_dir);
+                file_name == replaced || path.ends_with(&replaced)
+            } else {
+                file_name == *pattern || path.ends_with(pattern)
+            }
+        })
+    }
+
+    fn parse(&self, content: &str) -> Result<VersionLocation> {
+        let project_version = self.find_version(content);
+        if project_version.is_none() {
+            return Err(EditorError::VersionNotFound(format!(
+                "{} does not have version field",
+                self.name()
+            )));
+        }
+        Ok(VersionLocation {
+            project_version,
+            is_workspace_root: false,
+        })
+    }
+
     fn edit(
         &self,
         content: &str,
         location: &VersionLocation,
         new_version: &str,
-    ) -> Result<String>;
-    fn validate(&self, original: &str, edited: &str) -> Result<()>;
+    ) -> Result<String> {
+        if let Some(ref pos) = location.project_version {
+            Ok(replace_at_position(content, pos, new_version))
+        } else {
+            Err(EditorError::VersionNotFound(format!(
+                "{} does not have version field",
+                self.name()
+            )))
+        }
+    }
+
+    fn validate(&self, _original: &str, _edited: &str) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -94,33 +138,10 @@ impl EditorRegistry {
     }
 
     pub fn detect_editor(&self, path: &Path) -> Option<&dyn FileEditor> {
-        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-        for editor in &self.editors {
-            for pattern in editor.file_patterns() {
-                if pattern.contains("{parent}") {
-                    let parent_dir = path
-                        .parent()
-                        .and_then(|p| p.file_name())
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("");
-                    let replaced = pattern.replace("{parent}", parent_dir);
-                    if file_name == replaced || path.ends_with(&replaced) {
-                        return Some(editor.as_ref());
-                    }
-                } else if file_name == *pattern || path.ends_with(pattern) {
-                    return Some(editor.as_ref());
-                }
-            }
-        }
-
-        for editor in &self.editors {
-            if editor.matches_file(path) {
-                return Some(editor.as_ref());
-            }
-        }
-
-        None
+        self.editors
+            .iter()
+            .find(|editor| editor.matches_file(path))
+            .map(|e| e.as_ref())
     }
 }
 

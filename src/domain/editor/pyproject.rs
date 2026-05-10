@@ -1,7 +1,4 @@
-use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
-};
-use std::path::Path;
+use super::{EditorError, FileEditor, Result, VersionPosition};
 
 pub struct PyprojectEditor;
 
@@ -27,18 +24,20 @@ impl PyprojectEditor {
 }
 
 impl FileEditor for PyprojectEditor {
+    fn name(&self) -> &str {
+        "pyproject.toml"
+    }
+
     fn file_patterns(&self) -> &[&str] {
         &["pyproject.toml"]
     }
 
-    fn matches_file(&self, path: &Path) -> bool {
-        path.file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| n == "pyproject.toml")
-            .unwrap_or(false)
+    fn find_version(&self, content: &str) -> Option<VersionPosition> {
+        Self::find_version_in_section(content, "[project]")
+            .or_else(|| Self::find_version_in_section(content, "[tool.poetry]"))
     }
 
-    fn parse(&self, content: &str) -> Result<VersionLocation> {
+    fn parse(&self, content: &str) -> Result<super::VersionLocation> {
         let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
             EditorError::ParseError(format!("Failed to parse pyproject.toml: {}", e))
         })?;
@@ -46,7 +45,7 @@ impl FileEditor for PyprojectEditor {
         if doc.contains_key("project") {
             let project_version = Self::find_version_in_section(content, "[project]");
             if project_version.is_some() {
-                return Ok(VersionLocation {
+                return Ok(super::VersionLocation {
                     project_version,
                     is_workspace_root: false,
                 });
@@ -60,7 +59,7 @@ impl FileEditor for PyprojectEditor {
         {
             let project_version = Self::find_version_in_section(content, "[tool.poetry]");
             if project_version.is_some() {
-                return Ok(VersionLocation {
+                return Ok(super::VersionLocation {
                     project_version,
                     is_workspace_root: false,
                 });
@@ -71,21 +70,6 @@ impl FileEditor for PyprojectEditor {
             "pyproject.toml does not have version field in [project] or [tool.poetry] section"
                 .to_string(),
         ))
-    }
-
-    fn edit(
-        &self,
-        content: &str,
-        location: &VersionLocation,
-        new_version: &str,
-    ) -> Result<String> {
-        if let Some(ref pos) = location.project_version {
-            Ok(replace_at_position(content, pos, new_version))
-        } else {
-            Err(EditorError::VersionNotFound(
-                "pyproject.toml does not have version field".to_string(),
-            ))
-        }
     }
 
     fn validate(&self, _original: &str, edited: &str) -> Result<()> {

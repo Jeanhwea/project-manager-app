@@ -1,15 +1,13 @@
+use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::repository::RepoWalker;
 use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct DoctorArgs {
-    #[arg(long, short, default_value = "3")]
-    pub max_depth: Option<usize>,
-    #[arg(default_value = ".")]
-    pub path: String,
+    #[command(flatten)]
+    pub repo_path: RepoPathArgs,
     #[arg(long, short, default_value = "false")]
     pub fix: bool,
     #[arg(long, default_value = "false")]
@@ -17,13 +15,9 @@ pub struct DoctorArgs {
 }
 
 pub fn run(args: DoctorArgs) -> Result<()> {
-    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
-
-    if walker.is_empty() {
-        Output::not_found("未找到 Git 仓库");
+    let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
-    }
+    };
 
     if args.fix {
         check_prerequisites()?;
@@ -68,13 +62,7 @@ fn check_prerequisites() -> Result<()> {
     let tools = ["git"];
     let missing: Vec<&str> = tools
         .iter()
-        .filter(|tool| {
-            std::process::Command::new(tool)
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .is_err()
-        })
+        .filter(|tool| !crate::utils::is_command_available(tool))
         .copied()
         .collect();
 

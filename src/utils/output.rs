@@ -93,36 +93,10 @@ impl Output {
     }
 }
 
+#[allow(dead_code)]
 pub enum ItemColor {
     Green,
     Yellow,
     Red,
     Cyan,
-}
-
-pub struct SummaryBuilder {
-    items: Vec<(String, String)>,
-}
-
-impl SummaryBuilder {
-    pub fn new() -> Self {
-        Self { items: Vec::new() }
-    }
-
-    pub fn add(mut self, label: &str, value: impl Into<String>) -> Self {
-        self.items.push((label.to_string(), value.into()));
-        self
-    }
-
-    pub fn print(self) {
-        for (label, value) in self.items {
-            println!("  {}: {}", label, value);
-        }
-    }
-}
-
-impl Default for SummaryBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
 }

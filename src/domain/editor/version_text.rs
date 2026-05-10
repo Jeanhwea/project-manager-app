@@ -1,64 +1,27 @@
-use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
-};
-use std::path::Path;
+use super::{EditorError, FileEditor, Result, VersionPosition};
 
 pub struct VersionTextEditor;
 
-impl VersionTextEditor {
-    fn find_version_position(content: &str) -> Option<VersionPosition> {
-        let version_pattern = regex::Regex::new(r#"\d+\.\d+\.\d+"#).ok()?;
-
-        if let Some(m) = version_pattern.find(content) {
-            let start = m.start();
-            let end = m.end();
-            return Some(VersionPosition { start, end });
-        }
-
-        None
-    }
-}
-
 impl FileEditor for VersionTextEditor {
+    fn name(&self) -> &str {
+        "version text file"
+    }
+
     fn file_patterns(&self) -> &[&str] {
         &["version.txt", "VERSION", "VERSION.txt"]
     }
 
-    fn matches_file(&self, path: &Path) -> bool {
-        path.file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| n == "version.txt" || n == "VERSION" || n == "VERSION.txt")
-            .unwrap_or(false)
-    }
+    fn find_version(&self, content: &str) -> Option<VersionPosition> {
+        let version_pattern = regex::Regex::new(r#"\d+\.\d+\.\d+"#).ok()?;
 
-    fn parse(&self, content: &str) -> Result<VersionLocation> {
-        let project_version = Self::find_version_position(content);
-
-        if project_version.is_none() {
-            return Err(EditorError::VersionNotFound(
-                "No version found in text file".to_string(),
-            ));
+        if let Some(m) = version_pattern.find(content) {
+            return Some(VersionPosition {
+                start: m.start(),
+                end: m.end(),
+            });
         }
 
-        Ok(VersionLocation {
-            project_version,
-            is_workspace_root: false,
-        })
-    }
-
-    fn edit(
-        &self,
-        content: &str,
-        location: &VersionLocation,
-        new_version: &str,
-    ) -> Result<String> {
-        if let Some(ref pos) = location.project_version {
-            Ok(replace_at_position(content, pos, new_version))
-        } else {
-            Err(EditorError::VersionNotFound(
-                "No version position found".to_string(),
-            ))
-        }
+        None
     }
 
     fn validate(&self, original: &str, edited: &str) -> Result<()> {

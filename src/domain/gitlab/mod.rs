@@ -19,9 +19,4 @@ pub enum GitLabError {
     RateLimited,
 }
 
-struct GitLabConnection {
-    server: Option<String>,
-    token: Option<String>,
-}
-
-type Result<T> = std::result::Result<T, GitLabError>;
+pub type Result<T> = std::result::Result<T, GitLabError>;

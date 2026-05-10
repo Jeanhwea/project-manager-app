@@ -2,16 +2,9 @@ use super::{GitError, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum RepoType {
-    Regular,
-    Submodule,
-}
-
 #[derive(Debug)]
 pub struct RepoInfo {
     pub path: PathBuf,
-    pub repo_type: RepoType,
 }
 
 pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
@@ -39,15 +32,8 @@ fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoIn
 
     let git_path = root_dir.join(".git");
     if git_path.exists() {
-        let repo_type = if git_path.is_dir() {
-            RepoType::Regular
-        } else {
-            RepoType::Submodule
-        };
-
         repos.push(RepoInfo {
             path: root_dir.to_path_buf(),
-            repo_type,
         });
         return Ok(repos);
     }

@@ -22,7 +22,7 @@ pub fn run(args: ConfigArgs) -> Result<()> {
 }
 
 fn execute_init() -> Result<()> {
-    let dir = ConfigDir::dir();
+    let dir = ConfigDir::base_dir();
     if dir.exists() {
         anyhow::bail!("配置目录已存在: {}", dir.display());
     }
@@ -41,7 +41,7 @@ fn execute_init() -> Result<()> {
 }
 
 fn execute_show() -> Result<()> {
-    let dir = ConfigDir::dir();
+    let dir = ConfigDir::base_dir();
     let cfg = ConfigDir::load_config();
     let gitlab_cfg = ConfigDir::load_gitlab();
     let dir_exists = dir.exists();
@@ -86,6 +86,6 @@ fn execute_show() -> Result<()> {
 }
 
 fn execute_path() -> Result<()> {
-    Output::message(&ConfigDir::dir().display().to_string());
+    Output::message(&ConfigDir::base_dir().display().to_string());
     Ok(())
 }
