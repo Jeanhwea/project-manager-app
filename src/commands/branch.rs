@@ -106,12 +106,18 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
     Pipeline::run_multi_repo(&args, &walker, get_list_context, make_list_plan)
 }
 
-fn get_list_context(_args: &BranchListArgs, repo_path: &Path) -> anyhow::Result<BranchListContext> {
+fn get_list_context(
+    _args: &BranchListArgs,
+    repo_path: &Path,
+) -> anyhow::Result<BranchListContext> {
     let git_ctx = collect_context(repo_path)?;
     Ok(BranchListContext { git_ctx })
 }
 
-fn make_list_plan(_args: &BranchListArgs, ctx: &BranchListContext) -> anyhow::Result<ExecutionPlan> {
+fn make_list_plan(
+    _args: &BranchListArgs,
+    ctx: &BranchListContext,
+) -> anyhow::Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
     if ctx.git_ctx.branches.is_empty() {
         return Ok(plan);
@@ -141,7 +147,10 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
     Pipeline::run_multi_repo(&args, &walker, get_clean_context, make_clean_plan)
 }
 
-fn get_clean_context(args: &BranchCleanArgs, repo_path: &Path) -> anyhow::Result<BranchCleanContext> {
+fn get_clean_context(
+    args: &BranchCleanArgs,
+    repo_path: &Path,
+) -> anyhow::Result<BranchCleanContext> {
     let git_ctx = collect_context(repo_path)?;
 
     let branches_to_delete: Vec<String> = git_ctx
@@ -159,10 +168,16 @@ fn get_clean_context(args: &BranchCleanArgs, repo_path: &Path) -> anyhow::Result
         .map(|s| s.to_string())
         .collect();
 
-    Ok(BranchCleanContext { git_ctx, branches_to_delete })
+    Ok(BranchCleanContext {
+        git_ctx,
+        branches_to_delete,
+    })
 }
 
-fn make_clean_plan(args: &BranchCleanArgs, ctx: &BranchCleanContext) -> anyhow::Result<ExecutionPlan> {
+fn make_clean_plan(
+    args: &BranchCleanArgs,
+    ctx: &BranchCleanContext,
+) -> anyhow::Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
     for branch in &ctx.branches_to_delete {
         plan.add(GitOperation::DeleteBranch {
@@ -186,13 +201,26 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
     Pipeline::run_multi_repo(&args, &walker, get_switch_context, make_switch_plan)
 }
 
-fn get_switch_context(args: &BranchSwitchArgs, repo_path: &Path) -> anyhow::Result<BranchSwitchContext> {
+fn get_switch_context(
+    args: &BranchSwitchArgs,
+    repo_path: &Path,
+) -> anyhow::Result<BranchSwitchContext> {
     let git_ctx = collect_context(repo_path)?;
-    let exists = git_ctx.local_branches().iter().any(|b| b.name == args.branch);
-    Ok(BranchSwitchContext { git_ctx, branch: args.branch.clone(), exists })
+    let exists = git_ctx
+        .local_branches()
+        .iter()
+        .any(|b| b.name == args.branch);
+    Ok(BranchSwitchContext {
+        git_ctx,
+        branch: args.branch.clone(),
+        exists,
+    })
 }
 
-fn make_switch_plan(args: &BranchSwitchArgs, ctx: &BranchSwitchContext) -> anyhow::Result<ExecutionPlan> {
+fn make_switch_plan(
+    args: &BranchSwitchArgs,
+    ctx: &BranchSwitchContext,
+) -> anyhow::Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
     if !ctx.exists {
         plan.add(MessageOperation::Skip {
@@ -218,13 +246,27 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
     Pipeline::run_multi_repo(&args, &walker, get_rename_context, make_rename_plan)
 }
 
-fn get_rename_context(args: &BranchRenameArgs, repo_path: &Path) -> anyhow::Result<BranchRenameContext> {
+fn get_rename_context(
+    args: &BranchRenameArgs,
+    repo_path: &Path,
+) -> anyhow::Result<BranchRenameContext> {
     let git_ctx = collect_context(repo_path)?;
-    let exists = git_ctx.local_branches().iter().any(|b| b.name == args.old_name);
-    Ok(BranchRenameContext { git_ctx, old_name: args.old_name.clone(), new_name: args.new_name.clone(), exists })
+    let exists = git_ctx
+        .local_branches()
+        .iter()
+        .any(|b| b.name == args.old_name);
+    Ok(BranchRenameContext {
+        git_ctx,
+        old_name: args.old_name.clone(),
+        new_name: args.new_name.clone(),
+        exists,
+    })
 }
 
-fn make_rename_plan(args: &BranchRenameArgs, ctx: &BranchRenameContext) -> anyhow::Result<ExecutionPlan> {
+fn make_rename_plan(
+    args: &BranchRenameArgs,
+    ctx: &BranchRenameContext,
+) -> anyhow::Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
     if !ctx.exists {
         plan.add(MessageOperation::Skip {

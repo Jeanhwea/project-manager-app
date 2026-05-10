@@ -67,7 +67,11 @@ pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
         if args.fix {
             if let Ok(ctx) = ctx {
                 let plan = make_plan(&args, &ctx)?;
-                let fixed = plan.operations.iter().filter(|op| !matches!(op, crate::model::plan::Operation::Message(_))).count();
+                let fixed = plan
+                    .operations
+                    .iter()
+                    .filter(|op| !matches!(op, crate::model::plan::Operation::Message(_)))
+                    .count();
                 crate::control::plan::run_plan(&plan)?;
                 total_fixed += fixed;
             }
@@ -107,7 +111,8 @@ fn make_plan(args: &DoctorArgs, ctx: &DoctorContext) -> anyhow::Result<Execution
             plan.add(GitOperation::PruneRemote {
                 remote: "origin".to_string(),
             });
-        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支") {
+        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支")
+        {
             plan.add(GitOperation::SetUpstream {
                 remote: "origin".to_string(),
                 branch: git_ctx.current_branch.clone(),

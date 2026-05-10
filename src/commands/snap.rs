@@ -94,7 +94,9 @@ fn get_create_context(args: &CreateArgs) -> anyhow::Result<SnapCreateContext> {
     }
 
     let runner = GitCommandRunner::new();
-    let has_changes = runner.has_uncommitted_changes(&project_path).unwrap_or(true);
+    let has_changes = runner
+        .has_uncommitted_changes(&project_path)
+        .unwrap_or(true);
     if !has_changes {
         return Ok(SnapCreateContext {
             project_path,
@@ -228,7 +230,10 @@ fn get_restore_context(args: &RestoreArgs) -> anyhow::Result<SnapRestoreContext>
     Ok(SnapRestoreContext { commit_ref })
 }
 
-fn make_restore_plan(args: &RestoreArgs, ctx: &SnapRestoreContext) -> anyhow::Result<ExecutionPlan> {
+fn make_restore_plan(
+    args: &RestoreArgs,
+    ctx: &SnapRestoreContext,
+) -> anyhow::Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
     plan.add(GitOperation::Checkout {
         ref_name: ctx.commit_ref.clone(),

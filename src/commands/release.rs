@@ -102,7 +102,13 @@ fn get_context(args: &ReleaseArgs) -> anyhow::Result<ReleaseContext> {
 }
 
 fn make_plan(args: &ReleaseArgs, ctx: &ReleaseContext) -> anyhow::Result<ExecutionPlan> {
-    let mut plan = build_execution_plan(args, &ctx.config_files, &ctx.state, &ctx.git_ctx, &ctx.registry);
+    let mut plan = build_execution_plan(
+        args,
+        &ctx.config_files,
+        &ctx.state,
+        &ctx.git_ctx,
+        &ctx.registry,
+    );
     plan.dry_run = args.dry_run;
     Ok(plan)
 }

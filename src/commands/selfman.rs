@@ -75,8 +75,12 @@ struct UpdateContext {
 
 pub fn run(args: SelfManageArgs) -> Result<()> {
     match args {
-        SelfManageArgs::Update(update_args) => Pipeline::run(update_args, get_update_context, make_update_plan),
-        SelfManageArgs::Version => Pipeline::run(VersionMarker, get_version_context, make_version_plan),
+        SelfManageArgs::Update(update_args) => {
+            Pipeline::run(update_args, get_update_context, make_update_plan)
+        }
+        SelfManageArgs::Version => {
+            Pipeline::run(VersionMarker, get_version_context, make_version_plan)
+        }
     }
 }
 
@@ -91,7 +95,10 @@ fn get_version_context(_args: &VersionMarker) -> anyhow::Result<VersionContext> 
     })
 }
 
-fn make_version_plan(_args: &VersionMarker, ctx: &VersionContext) -> anyhow::Result<ExecutionPlan> {
+fn make_version_plan(
+    _args: &VersionMarker,
+    ctx: &VersionContext,
+) -> anyhow::Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
     plan.add(MessageOperation::Skip {
         msg: format!(
