@@ -1,8 +1,8 @@
 mod command;
-pub mod context;
-pub mod diagnose;
+mod context;
+mod diagnose;
 pub mod release;
-pub mod remote;
+mod remote;
 pub mod repository;
 
 pub use command::GitCommandRunner;
