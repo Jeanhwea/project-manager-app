@@ -47,9 +47,10 @@ struct PathArgs;
 fn get_init_context(_args: &InitArgs) -> Result<ConfigInitContext> {
     let base_dir = ConfigManager::base_dir();
     if base_dir.exists() {
-        return Err(
-            AppError::already_exists(format!("配置目录已存在: {}", base_dir.display())).into(),
-        );
+        return Err(AppError::already_exists(format!(
+            "配置目录已存在: {}",
+            base_dir.display()
+        )));
     }
 
     Ok(ConfigInitContext {

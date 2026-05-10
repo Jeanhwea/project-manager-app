@@ -155,7 +155,7 @@ fn check_prerequisites() -> Result<()> {
         .collect();
 
     if !missing.is_empty() {
-        return Err(AppError::command_not_available(&missing.join(", ")).into());
+        return Err(AppError::command_not_available(&missing.join(", ")));
     }
 
     Ok(())

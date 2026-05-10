@@ -140,7 +140,7 @@ fn switch_to_git_root() -> Result<()> {
 
 fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<ReleaseGitState> {
     if !args.force && ctx.current_branch != "master" {
-        return Err(AppError::release("只能在 master 分支上执行 release").into());
+        return Err(AppError::release("只能在 master 分支上执行 release"));
     }
 
     let runner = GitCommandRunner::new();
@@ -154,7 +154,7 @@ fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<ReleaseGit
         let rev_current_tag = runner.execute(&["rev-parse", tag], None)?;
         let rev_head = runner.execute(&["rev-parse", "HEAD"], None)?;
         if rev_current_tag.trim() == rev_head.trim() {
-            return Err(AppError::release(format!("当前 HEAD 已被标记为 {}", tag)).into());
+            return Err(AppError::release(format!("当前 HEAD 已被标记为 {}", tag)));
         }
     }
 
@@ -220,7 +220,7 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     }
 
     if result.is_empty() {
-        return Err(AppError::release("未检测到可编辑的配置文件").into());
+        return Err(AppError::release("未检测到可编辑的配置文件"));
     }
 
     Ok(result)
@@ -465,7 +465,10 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
             return Ok(caps[1].to_string());
         }
     }
-    Err(AppError::release(format!("未在 {} 中找到 [package] name", cargo_toml_path)).into())
+    Err(AppError::release(format!(
+        "未在 {} 中找到 [package] name",
+        cargo_toml_path
+    )))
 }
 
 #[cfg(test)]

@@ -18,7 +18,7 @@ impl CommandRunner {
     fn execute_capture(&self, context: &ExecutionContext) -> Result<CommandResult> {
         let mut cmd = self.build_command(context)?;
 
-        let output = cmd.output().map_err(|e| AppError::Io(e))?;
+        let output = cmd.output().map_err(AppError::Io)?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
@@ -35,7 +35,7 @@ impl CommandRunner {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd.spawn().map_err(|e| AppError::Io(e))?;
+        let mut child = cmd.spawn().map_err(AppError::Io)?;
 
         let stdout = child
             .stdout
@@ -60,7 +60,7 @@ impl CommandRunner {
             }
         });
 
-        let status = child.wait().map_err(|e| AppError::Io(e))?;
+        let status = child.wait().map_err(AppError::Io)?;
 
         let _ = stdout_thread.join();
         let _ = stderr_thread.join();

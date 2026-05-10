@@ -78,7 +78,7 @@ fn get_context(args: &SyncArgs, repo_path: &Path) -> Result<SyncContext> {
 fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) -> Result<String> {
     if let Some(name) = explicit_remote {
         if !git_ctx.has_remote(name) {
-            return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)).into());
+            return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)));
         }
         return Ok(name.to_string());
     }
@@ -86,7 +86,7 @@ fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) ->
     git_ctx
         .preferred_remote()
         .or_else(|| git_ctx.first_remote_name())
-        .ok_or_else(|| AppError::not_found("无可用远程仓库").into())
+        .ok_or_else(|| AppError::not_found("无可用远程仓库"))
 }
 
 fn make_plan(args: &SyncArgs, ctx: &SyncContext) -> Result<ExecutionPlan> {

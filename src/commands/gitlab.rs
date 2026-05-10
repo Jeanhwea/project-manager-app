@@ -177,5 +177,5 @@ fn extract_host(url: &str) -> Result<String> {
     parsed
         .host_str()
         .map(String::from)
-        .ok_or_else(|| AppError::invalid_input(format!("URL 中缺少主机名: {}", url)).into())
+        .ok_or_else(|| AppError::invalid_input(format!("URL 中缺少主机名: {}", url)))
 }

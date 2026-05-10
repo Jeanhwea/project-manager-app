@@ -31,11 +31,17 @@ fn get_context(args: &ForkArgs) -> Result<ForkContext> {
     let target = Path::new(&args.target);
 
     if !source.exists() {
-        return Err(AppError::not_found(format!("源路径不存在: {}", args.source)).into());
+        return Err(AppError::not_found(format!(
+            "源路径不存在: {}",
+            args.source
+        )));
     }
 
     if target.exists() {
-        return Err(AppError::already_exists(format!("目标路径已存在: {}", args.target)).into());
+        return Err(AppError::already_exists(format!(
+            "目标路径已存在: {}",
+            args.target
+        )));
     }
 
     Ok(ForkContext {
