@@ -5,13 +5,27 @@ use anyhow::Result;
 
 #[derive(Debug, clap::Args)]
 pub struct StatusArgs {
-    #[arg(long, short, default_value = "3")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     #[arg(default_value = ".", help = "Path to search")]
     pub path: String,
-    #[arg(long, short, default_value = "false")]
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Show detailed change list per repository"
+    )]
     pub verbose: bool,
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Fetch from remote before checking sync status"
+    )]
     pub fetch: bool,
 }
 
@@ -48,12 +62,11 @@ pub fn run(args: StatusArgs) -> Result<()> {
             Output::success("工作目录干净");
         }
 
-        if args.fetch {
-            if let Ok(remotes) = runner.get_remote_list(repo_path)
-                && remotes.iter().any(|r| r == "origin")
-            {
-                let _ = runner.execute(&["fetch", "origin"], Some(repo_path));
-            }
+        if args.fetch
+            && let Ok(remotes) = runner.get_remote_list(repo_path)
+            && remotes.iter().any(|r| r == "origin")
+        {
+            let _ = runner.execute(&["fetch", "origin"], Some(repo_path));
         }
 
         if let Ok(remotes) = runner.get_remote_list(repo_path) {
@@ -78,11 +91,11 @@ pub fn run(args: StatusArgs) -> Result<()> {
             }
         }
 
-        if args.verbose {
-            if let Ok(output) = runner.execute(&["status", "--short"], Some(repo_path)) {
-                for line in output.lines() {
-                    Output::detail("变更", line);
-                }
+        if args.verbose
+            && let Ok(output) = runner.execute(&["status", "--short"], Some(repo_path))
+        {
+            for line in output.lines() {
+                Output::detail("变更", line);
             }
         }
     }

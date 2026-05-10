@@ -6,21 +6,26 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
-    #[arg(long, short, default_value = "3")]
+    #[arg(
+        long,
+        short,
+        default_value = "3",
+        help = "Maximum depth to search for repositories"
+    )]
     pub max_depth: Option<usize>,
     #[arg(
         default_value = "",
         help = "Path to search, defaults to current directory"
     )]
     pub path: String,
-    #[arg(long, short)]
+    #[arg(long, short, help = "Target remote name (e.g. origin, upstream)")]
     pub remote: Option<String>,
-    #[arg(long, short, default_value = "false")]
-    pub fetch: bool,
-    #[arg(long, default_value = "false")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show commands without executing"
+    )]
     pub dry_run: bool,
-    #[arg(long, default_value = "false")]
-    pub prune: bool,
 }
 
 pub fn run(args: SyncArgs) -> Result<()> {
@@ -54,28 +59,31 @@ pub fn run(args: SyncArgs) -> Result<()> {
 }
 
 fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> Result<()> {
-    let target_remote = args.remote.as_deref().unwrap_or("origin");
+    let remotes = runner.get_remote_list(repo_path)?;
+    if remotes.is_empty() {
+        return Ok(());
+    }
 
-    if args.fetch {
-        let fetch_args = if args.prune {
-            vec!["fetch", target_remote, "--prune"]
-        } else {
-            vec!["fetch", target_remote]
-        };
-
-        if args.dry_run {
-            Output::skip(&format!("git {}", fetch_args.join(" ")));
-        } else {
-            runner.execute_streaming(&fetch_args, repo_path)?;
+    let target_remote = match args.remote.as_deref() {
+        Some(name) => {
+            if !remotes.iter().any(|r| r == name) {
+                anyhow::bail!("远程仓库 {} 不存在", name);
+            }
+            name
         }
+        None => remotes.first().unwrap(),
+    };
+
+    let current_branch = runner.get_current_branch(repo_path)?;
+
+    if args.dry_run {
+        Output::skip(&format!("git pull {} {}", target_remote, current_branch));
+        Output::skip("git push --all");
+        Output::skip("git push --tags");
     } else {
-        let current_branch = runner.get_current_branch(repo_path)?;
-
-        if args.dry_run {
-            Output::skip(&format!("git pull {} {}", target_remote, current_branch));
-        } else {
-            runner.execute_streaming(&["pull", target_remote, &current_branch], repo_path)?;
-        }
+        runner.execute_streaming(&["pull", target_remote, &current_branch], repo_path)?;
+        runner.execute_streaming(&["push", "--all", target_remote], repo_path)?;
+        runner.execute_streaming(&["push", "--tags", target_remote], repo_path)?;
     }
 
     Ok(())
