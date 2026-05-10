@@ -56,6 +56,11 @@ pub fn run(args: SyncArgs) -> Result<()> {
 fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> Result<()> {
     let target_remote = args.remote.as_deref().unwrap_or("origin");
 
+    let remotes = runner.get_remote_list(repo_path)?;
+    if !remotes.iter().any(|r| r == target_remote) {
+        return Ok(());
+    }
+
     if args.fetch {
         let fetch_args = if args.prune {
             vec!["fetch", target_remote, "--prune"]
