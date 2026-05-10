@@ -54,6 +54,7 @@ pub struct RestoreArgs {
     pub dry_run: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct SnapCreateContext {
     project_path: PathBuf,
     needs_init: bool,
@@ -61,10 +62,12 @@ pub(crate) struct SnapCreateContext {
     num_commit: usize,
 }
 
+#[derive(Debug)]
 pub(crate) struct SnapListContext {
     snap_commits: Vec<String>,
 }
 
+#[derive(Debug)]
 pub(crate) struct SnapRestoreContext {
     commit_ref: String,
 }

@@ -9,6 +9,7 @@ pub mod snap;
 pub mod status;
 pub mod sync;
 
+use crate::control::command::MultiRepoCommand;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::Result;
 use crate::utils::output::Output;
@@ -21,17 +22,24 @@ pub struct RepoPathArgs {
         default_value = "3",
         help = "Maximum depth to search for repositories"
     )]
-    pub max_depth: Option<usize>,
+    pub max_depth: usize,
     #[arg(default_value = ".", help = "Path to search for repositories")]
     pub path: String,
 }
 
 pub fn init_repo_walker(args: &RepoPathArgs) -> Result<Option<RepoWalker>> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
-    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
+    let walker = RepoWalker::new(&search_path, args.max_depth)?;
     if walker.is_empty() {
         Output::not_found("未找到 Git 仓库");
         return Ok(None);
     }
     Ok(Some(walker))
+}
+
+pub fn run_multi_repo(cmd: &impl MultiRepoCommand, repo_path: &RepoPathArgs) -> Result<()> {
+    let Some(walker) = init_repo_walker(repo_path)? else {
+        return Ok(());
+    };
+    MultiRepoCommand::run(cmd, &walker)
 }

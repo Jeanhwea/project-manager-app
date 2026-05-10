@@ -32,6 +32,7 @@ pub struct UpdateArgs {
     pub force: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct VersionContext {
     pkg_name: &'static str,
     pkg_version: &'static str,

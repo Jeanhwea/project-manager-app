@@ -17,6 +17,7 @@ pub struct ForkArgs {
     pub dry_run: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct ForkContext {
     source: PathBuf,
     target: PathBuf,

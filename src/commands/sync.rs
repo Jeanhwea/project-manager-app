@@ -1,5 +1,6 @@
+use crate::commands::RepoPathArgs;
 use crate::control::command::MultiRepoCommand;
-use crate::control::context::collect_context;
+use crate::domain::git::collect_context;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
@@ -9,18 +10,8 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
-    pub max_depth: Option<usize>,
-    #[arg(
-        default_value = "",
-        help = "Path to search, defaults to current directory"
-    )]
-    pub path: String,
+    #[command(flatten)]
+    pub repo_path: RepoPathArgs,
     #[arg(long, short, help = "Target remote name (e.g. origin, upstream)")]
     pub remote: Option<String>,
     #[arg(
@@ -31,6 +22,7 @@ pub struct SyncArgs {
     pub dry_run: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct SyncContext {
     git_ctx: GitContext,
     target_remote: String,
@@ -80,8 +72,8 @@ impl MultiRepoCommand for SyncArgs {
 }
 
 pub fn run(args: SyncArgs) -> Result<()> {
-    let effective_path = resolve_effective_path(&args.path)?;
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
+    let effective_path = resolve_effective_path(&args.repo_path.path)?;
+    let walker = RepoWalker::new(&effective_path, args.repo_path.max_depth)?;
 
     if walker.is_empty() {
         Output::not_found("未找到 Git 仓库");
@@ -92,7 +84,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
 }
 
 fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {
-    if path.is_empty() {
+    if path == "." {
         let cwd = std::env::current_dir()?;
         Ok(find_git_repository_upwards(&cwd).unwrap_or(cwd))
     } else {

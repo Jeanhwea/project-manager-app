@@ -7,8 +7,8 @@ pub mod repository;
 
 pub use command::GitCommandRunner;
 pub use context::collect_context;
-pub use diagnose::diagnose_repo;
-pub use release::{ReleaseGitState, switch_to_git_root, validate_git_state};
+pub use diagnose::{Diagnosis, diagnose_repo};
+pub use release::{ReleaseGitState, resolve_git_root, validate_git_state};
 
 use thiserror::Error;
 

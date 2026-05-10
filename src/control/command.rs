@@ -47,7 +47,10 @@ pub(crate) trait MultiRepoCommand {
                     }
                     Err(e) => Output::error(&format!("{}", e)),
                 },
-                Err(_) => continue,
+                Err(e) => {
+                    Output::warning(&format!("跳过 {}: {}", repo_path.display(), e));
+                    continue;
+                }
             }
         }
         Ok(())

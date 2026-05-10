@@ -1,7 +1,6 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::control::command::MultiRepoCommand;
-use crate::control::context::collect_context;
-use crate::domain::git::diagnose_repo;
+use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::domain::git::repository::RepoWalker;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
@@ -28,9 +27,10 @@ pub struct DoctorArgs {
     pub dry_run: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct DoctorContext {
     git_ctx: Option<GitContext>,
-    issues: Vec<String>,
+    issues: Vec<Diagnosis>,
 }
 
 impl MultiRepoCommand for DoctorArgs {
@@ -55,39 +55,39 @@ impl MultiRepoCommand for DoctorArgs {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
         for issue in &ctx.issues {
-            if issue.contains("陈旧") {
-                plan.add(GitOperation::PruneRemote {
-                    remote: "origin".to_string(),
-                });
-            } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支")
-            {
-                plan.add(GitOperation::SetUpstream {
-                    remote: "origin".to_string(),
-                    branch: git_ctx.current_branch.clone(),
-                });
-            } else if issue.contains("仓库大小较大") {
-                plan.add(GitOperation::Gc);
-            } else if issue.contains("stash") {
-                plan.add(MessageOperation::Warning {
-                    msg: "stash 条目需要手动处理".to_string(),
-                });
-            } else if let Some(rest) = issue.strip_prefix("remote 名称不匹配: ")
-                && let Some((current, expected_with_host)) = rest.split_once(" -> ")
-            {
-                let expected = expected_with_host
-                    .split(' ')
-                    .next()
-                    .unwrap_or(expected_with_host);
-                if git_ctx.has_remote(expected) {
-                    plan.add(MessageOperation::Warning {
-                        msg: format!("目标 remote 名称 {} 已存在，跳过", expected),
-                    });
-                } else {
-                    plan.add(GitOperation::RenameRemote {
-                        old: current.to_string(),
-                        new: expected.to_string(),
+            match issue {
+                Diagnosis::StaleRefs { remote } => {
+                    plan.add(GitOperation::PruneRemote {
+                        remote: remote.clone(),
                     });
                 }
+                Diagnosis::NoRemoteTrackingBranch | Diagnosis::SingleLocalBranch => {
+                    plan.add(GitOperation::SetUpstream {
+                        remote: "origin".to_string(),
+                        branch: git_ctx.current_branch.clone(),
+                    });
+                }
+                Diagnosis::LargeRepo { .. } => {
+                    plan.add(GitOperation::Gc);
+                }
+                Diagnosis::StashExists => {
+                    plan.add(MessageOperation::Warning {
+                        msg: "stash 条目需要手动处理".to_string(),
+                    });
+                }
+                Diagnosis::RemoteNameMismatch { current, expected, .. } => {
+                    if git_ctx.has_remote(expected) {
+                        plan.add(MessageOperation::Warning {
+                            msg: format!("目标 remote 名称 {} 已存在，跳过", expected),
+                        });
+                    } else {
+                        plan.add(GitOperation::RenameRemote {
+                            old: current.clone(),
+                            new: expected.clone(),
+                        });
+                    }
+                }
+                Diagnosis::DetachedHead | Diagnosis::NoRemote => {}
             }
         }
 
@@ -119,7 +119,7 @@ impl MultiRepoCommand for DoctorArgs {
             Output::warning(&format!("{}: {} 个问题", repo_path.display(), issues.len()));
 
             for issue in &issues {
-                Output::detail("问题", issue);
+                Output::detail("问题", &issue.display_message());
             }
 
             if self.fix

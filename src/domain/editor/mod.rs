@@ -116,6 +116,14 @@ pub struct EditorRegistry {
     editors: Vec<Box<dyn FileEditor>>,
 }
 
+impl std::fmt::Debug for EditorRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EditorRegistry")
+            .field("editors", &self.editors.len())
+            .finish()
+    }
+}
+
 impl EditorRegistry {
     pub fn new() -> Self {
         Self {
@@ -150,25 +158,17 @@ impl EditorRegistry {
 
 impl Default for EditorRegistry {
     fn default() -> Self {
-        Self::new()
+        Self::default_with_editors()
     }
 }
 
 pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
-    let backup_path = format!("{}.bak", path);
-
-    std::fs::copy(path, &backup_path).map_err(EditorError::WriteError)?;
-
-    match std::fs::write(path, content) {
-        Ok(_) => {
-            let _ = std::fs::remove_file(&backup_path);
-            Ok(())
-        }
-        Err(e) => {
-            let _ = std::fs::rename(&backup_path, path);
-            Err(EditorError::WriteError(e))
-        }
-    }
+    let tmp_path = format!("{}.tmp", path);
+    std::fs::write(&tmp_path, content).map_err(EditorError::WriteError)?;
+    std::fs::rename(&tmp_path, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp_path);
+        EditorError::WriteError(e)
+    })
 }
 
 pub fn replace_at_position(content: &str, pos: &VersionPosition, new_value: &str) -> String {

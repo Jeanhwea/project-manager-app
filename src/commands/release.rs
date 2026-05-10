@@ -1,10 +1,9 @@
 use crate::control::command::Command;
-use crate::control::context::collect_context;
 use crate::domain::editor::{
     BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content,
     resolve_config_files,
 };
-use crate::domain::git::{ReleaseGitState, switch_to_git_root, validate_git_state};
+use crate::domain::git::{ReleaseGitState, collect_context, resolve_git_root, validate_git_state};
 use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
@@ -45,6 +44,7 @@ pub struct ReleaseArgs {
     pub pre_release: Option<String>,
 }
 
+#[derive(Debug)]
 pub(crate) struct ReleaseContext {
     git_ctx: GitContext,
     state: ReleaseGitState,
@@ -56,14 +56,17 @@ impl Command for ReleaseArgs {
     type Context = ReleaseContext;
 
     fn context(&self) -> Result<ReleaseContext> {
-        let resolved_files = resolve_file_paths(&self.files);
+        let work_dir = if self.no_root {
+            std::env::current_dir()?
+        } else {
+            resolve_git_root()?
+        };
 
-        if !self.no_root {
-            switch_to_git_root()?;
-        }
+        let resolved_files = resolve_file_paths(&self.files, &work_dir);
 
-        let git_ctx = collect_context(Path::new("."))?;
+        let git_ctx = collect_context(&work_dir)?;
         let state = validate_git_state(
+            &work_dir,
             self.force,
             &self.bump_type,
             &self.pre_release,
@@ -98,12 +101,17 @@ pub fn run(args: ReleaseArgs) -> Result<()> {
     Command::run(&args)
 }
 
-fn resolve_file_paths(files: &[String]) -> Vec<String> {
+fn resolve_file_paths(files: &[String], base_dir: &Path) -> Vec<String> {
     files
         .iter()
         .map(|f| {
-            if Path::new(f).is_absolute() {
+            let path = Path::new(f);
+            if path.is_absolute() {
                 f.clone().replace('\\', "/")
+            } else if path.starts_with(".") || f.contains('/') || f.contains('\\') {
+                canonicalize_path(base_dir.join(f))
+                    .map(|p| p.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_else(|_| f.clone().replace('\\', "/"))
             } else {
                 canonicalize_path(f)
                     .map(|p| p.to_string_lossy().replace('\\', "/"))

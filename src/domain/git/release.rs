@@ -3,25 +3,26 @@ use crate::domain::editor::{BumpType, Version};
 use crate::error::AppError;
 use crate::model::git::GitContext;
 use crate::utils::output::Output;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+#[derive(Debug)]
 pub struct ReleaseGitState {
     pub current_branch: String,
     pub new_tag: String,
     pub commit_message: String,
 }
 
-pub fn switch_to_git_root() -> crate::error::Result<()> {
+pub fn resolve_git_root() -> crate::error::Result<PathBuf> {
     let runner = GitCommandRunner::new();
     let root = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
-    if !root.is_empty() {
-        std::env::set_current_dir(&root)
-            .map_err(|e| AppError::Release(format!("无法切换到 git 根目录: {} - {}", root, e)))?;
+    if root.is_empty() {
+        return Err(AppError::Release("无法确定 git 根目录".to_string()));
     }
-    Ok(())
+    Ok(PathBuf::from(root))
 }
 
 pub fn validate_git_state(
+    repo_path: &Path,
     force: bool,
     bump_type: &BumpType,
     pre_release: &Option<String>,
@@ -34,14 +35,14 @@ pub fn validate_git_state(
 
     let runner = GitCommandRunner::new();
     let previous_tag = runner
-        .execute(&["describe", "--tags", "--match", "v*"], None)
+        .execute(&["describe", "--tags", "--match", "v*"], Some(repo_path))
         .ok()
         .and_then(|o| o.split('-').next().map(|s| s.to_string()));
     let current_tag = previous_tag.clone().unwrap_or_else(|| "v0.0.0".to_string());
 
     if let Some(ref tag) = previous_tag {
-        let rev_current_tag = runner.execute(&["rev-parse", tag], None)?;
-        let rev_head = runner.execute(&["rev-parse", "HEAD"], None)?;
+        let rev_current_tag = runner.execute(&["rev-parse", tag], Some(repo_path))?;
+        let rev_head = runner.execute(&["rev-parse", "HEAD"], Some(repo_path))?;
         if rev_current_tag.trim() == rev_head.trim() {
             return Err(AppError::release(format!("当前 HEAD 已被标记为 {}", tag)));
         }

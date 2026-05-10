@@ -39,11 +39,13 @@ pub struct CloneArgs {
     pub dry_run: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct LoginContext {
     config: schema::GitLabConfig,
     is_update: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct CloneContext {
     clone_url: String,
     target_dir: String,
