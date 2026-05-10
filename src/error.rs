@@ -45,6 +45,9 @@ pub enum AppError {
 
     #[error("Parse error: {0}")]
     ParseInt(#[from] std::num::ParseIntError),
+
+    #[error("Version parsing error: {0}")]
+    SemVer(#[from] semver::Error),
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
