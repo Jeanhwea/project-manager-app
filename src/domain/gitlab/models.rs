@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct Project {
     pub path: String,
@@ -18,6 +19,7 @@ pub struct Group {
     pub full_path: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct User {
     pub username: String,

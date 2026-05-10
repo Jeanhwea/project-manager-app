@@ -50,10 +50,6 @@ impl PyprojectEditor {
 }
 
 impl FileEditor for PyprojectEditor {
-    fn name(&self) -> &'static str {
-        "pyproject"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["pyproject.toml"]
     }

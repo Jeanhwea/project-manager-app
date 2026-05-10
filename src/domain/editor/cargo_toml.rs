@@ -37,10 +37,6 @@ impl CargoTomlEditor {
 }
 
 impl FileEditor for CargoTomlEditor {
-    fn name(&self) -> &'static str {
-        "cargo_toml"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["Cargo.toml"]
     }

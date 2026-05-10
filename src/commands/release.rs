@@ -443,7 +443,7 @@ fn run_js_lockfile_update(
             std::iter::once(&"/c")
                 .chain(std::iter::once(&cmd))
                 .chain(args.iter())
-                .map(|s| *s),
+                .copied(),
         )
         .current_dir(pkg_dir)
         .status()

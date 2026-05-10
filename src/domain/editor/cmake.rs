@@ -21,10 +21,6 @@ impl CMakeListsEditor {
 }
 
 impl FileEditor for CMakeListsEditor {
-    fn name(&self) -> &'static str {
-        "cmake"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["CMakeLists.txt"]
     }

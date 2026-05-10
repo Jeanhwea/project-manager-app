@@ -20,10 +20,6 @@ impl PythonVersionEditor {
 }
 
 impl FileEditor for PythonVersionEditor {
-    fn name(&self) -> &'static str {
-        "project_py"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["__init__.py", "version.py", "__version__.py"]
     }

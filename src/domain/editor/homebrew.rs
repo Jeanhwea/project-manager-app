@@ -20,10 +20,6 @@ impl HomebrewFormulaEditor {
 }
 
 impl FileEditor for HomebrewFormulaEditor {
-    fn name(&self) -> &'static str {
-        "homebrew"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["{parent}.rb"]
     }

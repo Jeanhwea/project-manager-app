@@ -95,13 +95,13 @@ fn execute_update(args: UpdateArgs) -> Result<()> {
     let current_ver = semver::Version::parse(current)
         .with_context(|| format!("无法解析当前版本号: {}", current))?;
 
-    if !args.force && current_ver >= latest_ver {
-        Output::success("已经是最新版本，无需更新。");
-        return Ok(());
-    }
-
-    if args.force && current_ver >= latest_ver {
-        Output::warning("强制更新模式，继续更新...");
+    if current_ver >= latest_ver {
+        if args.force {
+            Output::warning("强制更新模式，继续更新...");
+        } else {
+            Output::success("已经是最新版本，无需更新。");
+            return Ok(());
+        }
     }
 
     let asset_name = get_asset_name(&release.tag_name).context("获取资源名称失败")?;

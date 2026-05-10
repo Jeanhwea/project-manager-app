@@ -20,10 +20,6 @@ impl PackageJsonEditor {
 }
 
 impl FileEditor for PackageJsonEditor {
-    fn name(&self) -> &'static str {
-        "package_json"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["package.json"]
     }

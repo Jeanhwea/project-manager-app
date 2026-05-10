@@ -20,10 +20,6 @@ impl PomXmlEditor {
 }
 
 impl FileEditor for PomXmlEditor {
-    fn name(&self) -> &'static str {
-        "pom_xml"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["pom.xml"]
     }

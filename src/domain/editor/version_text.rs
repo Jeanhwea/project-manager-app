@@ -20,10 +20,6 @@ impl VersionTextEditor {
 }
 
 impl FileEditor for VersionTextEditor {
-    fn name(&self) -> &'static str {
-        "version_text"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["version.txt", "VERSION", "VERSION.txt"]
     }
