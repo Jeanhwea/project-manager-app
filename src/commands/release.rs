@@ -88,11 +88,11 @@ fn resolve_file_paths(files: &[String]) -> Vec<String> {
         .iter()
         .map(|f| {
             if Path::new(f).is_absolute() {
-                f.clone()
+                f.clone().replace('\\', "/")
             } else {
                 canonicalize_path(f)
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|_| f.clone())
+                    .map(|p| p.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_else(|_| f.clone().replace('\\', "/"))
             }
         })
         .collect()
@@ -466,8 +466,9 @@ fn run_js_lockfile_update(
     }
 
     if lock_path.exists() {
+        let path_str = lock_path.to_string_lossy().replace('\\', "/");
         GitCommandRunner::new()
-            .execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
+            .execute_with_success(&["add", &path_str], None)?;
     }
     Ok(())
 }
@@ -499,7 +500,8 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
         anyhow::bail!("cargo update --package {} 执行失败", pkg_name);
     }
 
-    runner.execute_with_success(&["add", &lock_path.to_string_lossy()], None)?;
+    let path_str = lock_path.to_string_lossy().replace('\\', "/");
+    runner.execute_with_success(&["add", &path_str], None)?;
     Ok(())
 }
 
