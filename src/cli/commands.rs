@@ -2,9 +2,10 @@ use clap::Parser;
 
 use crate::commands::{
     branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs,
-    gitlab::GitLabArgs, release::ReleaseArgs, selfman::SelfManArgs, snap::SnapArgs,
+    gitlab::GitLabArgs, release::ReleaseArgs, selfman::SelfManageArgs, snap::SnapArgs,
     status::StatusArgs, sync::SyncArgs,
 };
+use crate::error::Result;
 
 #[derive(Parser)]
 #[command(name = "pma")]
@@ -60,7 +61,7 @@ pub enum Commands {
     #[command(name = "self")]
     Self_ {
         #[command(subcommand)]
-        command: SelfManArgs,
+        command: SelfManageArgs,
     },
 
     /// Manage configuration
@@ -70,7 +71,7 @@ pub enum Commands {
     },
 }
 
-pub fn dispatch(cli: Cli) -> anyhow::Result<()> {
+pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Release(args) => crate::commands::release::run(args),
         Commands::Sync(args) => crate::commands::sync::run(args),

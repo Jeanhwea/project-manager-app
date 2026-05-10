@@ -1,5 +1,5 @@
 use super::{GitLabError, Result};
-use crate::domain::config::manager::ConfigDir;
+use crate::domain::config::manager::ConfigManager;
 use crate::domain::gitlab::models::{Group, Project, User};
 use serde::de::DeserializeOwned;
 
@@ -11,7 +11,7 @@ pub struct GitLabClient {
 
 impl GitLabClient {
     pub fn new() -> Result<Self> {
-        let gitlab_config = ConfigDir::load_gitlab();
+        let gitlab_config = ConfigManager::load_gitlab();
         let server = gitlab_config.servers.first().ok_or_else(|| {
             GitLabError::AuthenticationError("GitLab server not configured".to_string())
         })?;

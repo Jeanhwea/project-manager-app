@@ -1,11 +1,12 @@
 use crate::domain::git::GitCommandRunner;
+use crate::error::{AppError, Result};
 use crate::model::plan::{
     EditOperation, ExecutionPlan, GitOperation, MessageOperation, Operation, ShellOperation,
 };
 use crate::utils::output::Output;
 use std::path::Path;
 
-pub fn run_plan(plan: &ExecutionPlan) -> anyhow::Result<()> {
+pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
     if plan.dry_run {
         Output::dry_run_header("将要执行的操作:");
         display_plan(plan);
@@ -38,23 +39,30 @@ pub fn display_plan(plan: &ExecutionPlan) {
 }
 
 fn execute_message(op: &MessageOperation) {
+    use colored::Colorize;
     match op {
+        MessageOperation::Header { title } => Output::header(title),
         MessageOperation::Section { title } => Output::section(title),
-        MessageOperation::Item { label, value } => Output::detail(label, value),
+        MessageOperation::Item { label, value } => Output::item(label, value),
+        MessageOperation::Detail { label, value } => Output::detail(label, value),
         MessageOperation::Diff {
-            file,
+            file: _,
             line_num,
-            old,
-            new,
+            old_content,
+            new_content,
         } => {
-            Output::detail(&format!("L{} -", line_num), old);
-            Output::detail(&format!("L{} +", line_num), new);
-            let _ = file;
+            println!("    L{} {}", line_num, format!("- {}", old_content).red());
+            println!("    L{} {}", line_num, format!("+ {}", new_content).green());
         }
+        MessageOperation::Success { msg } => Output::success(msg),
+        MessageOperation::Warning { msg } => Output::warning(msg),
+        MessageOperation::Info { msg } => Output::info(msg),
+        MessageOperation::Skip { msg } => Output::skip(msg),
+        MessageOperation::Blank => Output::blank(),
     }
 }
 
-fn execute_operation(op: &Operation) -> anyhow::Result<()> {
+fn execute_operation(op: &Operation) -> Result<()> {
     match op {
         Operation::Git(git_op) => execute_git(git_op),
         Operation::Shell(shell_op) => execute_shell(shell_op),
@@ -63,7 +71,7 @@ fn execute_operation(op: &Operation) -> anyhow::Result<()> {
     }
 }
 
-fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
+fn execute_git(op: &GitOperation) -> Result<()> {
     let runner = GitCommandRunner::new();
     match op {
         GitOperation::Init { dir } => runner.execute_with_success(&["init"], Some(dir))?,
@@ -91,19 +99,19 @@ fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
         GitOperation::Checkout { ref_name } => {
             runner.execute_streaming(&["checkout", ref_name], Path::new("."))?
         }
-        GitOperation::BranchDelete { branch } => {
+        GitOperation::DeleteBranch { branch } => {
             runner.execute_with_success(&["branch", "-d", branch], None)?
         }
-        GitOperation::BranchRename { old, new } => {
+        GitOperation::RenameBranch { old, new } => {
             runner.execute_streaming(&["branch", "-m", old, new], Path::new("."))?
         }
-        GitOperation::RemoteDelete { remote, branch } => {
+        GitOperation::DeleteRemoteBranch { remote, branch } => {
             runner.execute_streaming(&["push", remote, "--delete", branch], Path::new("."))?
         }
-        GitOperation::RemoteRename { old, new } => {
+        GitOperation::RenameRemote { old, new } => {
             runner.execute_with_success(&["remote", "rename", old, new], Some(Path::new(".")))?
         }
-        GitOperation::RemotePrune { remote } => {
+        GitOperation::PruneRemote { remote } => {
             runner.execute_with_success(&["remote", "prune", remote], Some(Path::new(".")))?
         }
         GitOperation::SetUpstream { remote, branch } => runner.execute_with_success(
@@ -119,7 +127,7 @@ fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn execute_shell(op: &ShellOperation) -> anyhow::Result<()> {
+fn execute_shell(op: &ShellOperation) -> Result<()> {
     match op {
         ShellOperation::Run {
             program, args, dir, ..
@@ -149,16 +157,17 @@ fn execute_shell(op: &ShellOperation) -> anyhow::Result<()> {
                 cmd.status()
             };
 
-            let status = result.map_err(|e| anyhow::anyhow!("无法执行 {}: {}", program, e))?;
+            let status = result
+                .map_err(|e| AppError::InvalidInput(format!("无法执行 {}: {}", program, e)))?;
             if !status.success() {
-                return Err(anyhow::anyhow!("{} 执行失败", program));
+                return Err(AppError::InvalidInput(format!("{} 执行失败", program)));
             }
         }
     }
     Ok(())
 }
 
-fn execute_edit(op: &EditOperation) -> anyhow::Result<()> {
+fn execute_edit(op: &EditOperation) -> Result<()> {
     match op {
         EditOperation::WriteFile { path, content, .. } => {
             crate::domain::editor::write_with_backup(path, content)?;

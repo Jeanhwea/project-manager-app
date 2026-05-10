@@ -1,7 +1,9 @@
-use crate::control::plan::run_plan;
-use crate::domain::AppError;
-use crate::model::plan::{ExecutionPlan, GitOperation};
-use crate::utils::output::Output;
+use crate::control::pipeline::Pipeline;
+use crate::domain::config::ConfigManager;
+use crate::domain::config::schema;
+use crate::error::{AppError, Result};
+use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
+use std::path::PathBuf;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum GitLabArgs {
@@ -37,38 +39,73 @@ pub struct CloneArgs {
     pub dry_run: bool,
 }
 
-pub fn run(args: GitLabArgs) -> anyhow::Result<()> {
+struct LoginContext {
+    config: schema::GitLabConfig,
+    is_update: bool,
+}
+
+struct CloneContext {
+    clone_url: String,
+    target_dir: String,
+    server_url: String,
+    project: String,
+    protocol: String,
+}
+
+pub fn run(args: GitLabArgs) -> Result<()> {
     match args {
-        GitLabArgs::Login(args) => execute_login(args),
-        GitLabArgs::Clone(args) => execute_clone(args),
+        GitLabArgs::Login(args) => Pipeline::run(args, get_login_context, make_login_plan),
+        GitLabArgs::Clone(args) => Pipeline::run(args, get_clone_context, make_clone_plan),
     }
 }
 
-fn execute_login(args: LoginArgs) -> anyhow::Result<()> {
-    let mut config = crate::domain::config::ConfigDir::load_gitlab();
+fn get_login_context(args: &LoginArgs) -> Result<LoginContext> {
+    let mut config = ConfigManager::load_gitlab();
+    let is_update = config.servers.iter().any(|s| s.url == args.url);
 
-    if let Some(existing) = config.servers.iter_mut().find(|s| s.url == args.url) {
-        Output::warning(&format!("服务器 {} 已存在，将更新 token", args.url));
-        existing.token = args.token.clone();
-        existing.protocol = args.protocol.clone();
+    if !is_update {
+        config.servers.push(schema::GitLabServer {
+            url: args.url.clone(),
+            token: args.token.clone(),
+            protocol: args.protocol.clone(),
+        });
     } else {
-        config
-            .servers
-            .push(crate::domain::config::schema::GitLabServer {
-                url: args.url.clone(),
-                token: args.token.clone(),
-                protocol: args.protocol.clone(),
-            });
+        if let Some(existing) = config.servers.iter_mut().find(|s| s.url == args.url) {
+            existing.token = args.token.clone();
+            existing.protocol = args.protocol.clone();
+        }
     }
 
-    crate::domain::config::ConfigDir::save_gitlab(&config)?;
-
-    Output::success(&format!("已添加 GitLab 服务器: {}", args.url));
-    Ok(())
+    Ok(LoginContext { config, is_update })
 }
 
-fn execute_clone(args: CloneArgs) -> anyhow::Result<()> {
-    let config = crate::domain::config::ConfigDir::load_gitlab();
+fn make_login_plan(args: &LoginArgs, ctx: &LoginContext) -> Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
+
+    if ctx.is_update {
+        plan.add(MessageOperation::Warning {
+            msg: format!("服务器 {} 已存在，将更新 token", args.url),
+        });
+    }
+
+    let config_content = toml::to_string_pretty(&ctx.config)
+        .map_err(|e| AppError::InvalidInput(format!("序列化配置失败: {}", e)))?;
+
+    plan.add(EditOperation::WriteFile {
+        path: ConfigManager::gitlab_path().to_string_lossy().to_string(),
+        content: config_content,
+        description: "save gitlab config".to_string(),
+    });
+
+    plan.add(MessageOperation::Success {
+        msg: format!("已添加 GitLab 服务器: {}", args.url),
+    });
+
+    Ok(plan)
+}
+
+fn get_clone_context(args: &CloneArgs) -> Result<CloneContext> {
+    let config = ConfigManager::load_gitlab();
 
     let server = if let Some(url) = &args.server {
         config
@@ -94,25 +131,51 @@ fn execute_clone(args: CloneArgs) -> anyhow::Result<()> {
         .unwrap_or(&args.project)
         .to_string();
 
-    Output::header("克隆项目");
-    Output::item("服务器", &server.url);
-    Output::item("项目", &args.project);
-    Output::item("协议", &server.protocol);
-    Output::item("URL", &clone_url);
-
-    let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
-    plan.add(GitOperation::Clone {
-        url: clone_url,
-        dir: std::path::PathBuf::from(&target_dir),
-    });
-    run_plan(&plan)
+    Ok(CloneContext {
+        clone_url,
+        target_dir,
+        server_url: server.url.clone(),
+        project: args.project.clone(),
+        protocol: server.protocol.clone(),
+    })
 }
 
-fn extract_host(url: &str) -> anyhow::Result<String> {
+fn make_clone_plan(args: &CloneArgs, ctx: &CloneContext) -> Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
+
+    plan.add(MessageOperation::Header {
+        title: "克隆项目".to_string(),
+    });
+    plan.add(MessageOperation::Item {
+        label: "服务器".to_string(),
+        value: ctx.server_url.clone(),
+    });
+    plan.add(MessageOperation::Item {
+        label: "项目".to_string(),
+        value: ctx.project.clone(),
+    });
+    plan.add(MessageOperation::Item {
+        label: "协议".to_string(),
+        value: ctx.protocol.clone(),
+    });
+    plan.add(MessageOperation::Item {
+        label: "URL".to_string(),
+        value: ctx.clone_url.clone(),
+    });
+
+    plan.add(GitOperation::Clone {
+        url: ctx.clone_url.clone(),
+        dir: PathBuf::from(&ctx.target_dir),
+    });
+
+    Ok(plan)
+}
+
+fn extract_host(url: &str) -> Result<String> {
     let parsed = url::Url::parse(url)
         .map_err(|_| AppError::invalid_input(format!("无效的 URL: {}", url)))?;
     parsed
         .host_str()
         .map(String::from)
-        .ok_or_else(|| AppError::invalid_input(format!("URL 中缺少主机名: {}", url)).into())
+        .ok_or_else(|| AppError::invalid_input(format!("URL 中缺少主机名: {}", url)))
 }

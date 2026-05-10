@@ -38,6 +38,16 @@ impl Branch {
     pub fn local_branches(branches: &[Branch]) -> Vec<&Branch> {
         branches.iter().filter(|b| !b.is_remote).collect()
     }
+
+    pub fn is_current_local(&self) -> bool {
+        self.is_current && !self.is_remote
+    }
+
+    pub fn upstream_remote(&self) -> Option<String> {
+        self.tracking_branch
+            .as_ref()
+            .and_then(|tracking| tracking.split('/').next().map(String::from))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -71,5 +81,21 @@ impl GitContext {
 
     pub fn local_branches(&self) -> Vec<&Branch> {
         Branch::local_branches(&self.branches)
+    }
+
+    pub fn first_remote_name(&self) -> Option<String> {
+        self.remotes.first().map(|r| r.name.clone())
+    }
+
+    pub fn current_branch_upstream_remote(&self) -> Option<String> {
+        self.branches
+            .iter()
+            .find(|b| b.is_current_local())
+            .and_then(Branch::upstream_remote)
+    }
+
+    pub fn preferred_remote(&self) -> Option<String> {
+        self.current_branch_upstream_remote()
+            .filter(|name| self.has_remote(name))
     }
 }

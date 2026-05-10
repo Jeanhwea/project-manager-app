@@ -35,9 +35,9 @@ fn load_toml_config<T: Default + serde::de::DeserializeOwned>(
     }
 }
 
-pub struct ConfigDir;
+pub struct ConfigManager;
 
-impl ConfigDir {
+impl ConfigManager {
     pub fn base_dir() -> PathBuf {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         home.join(".pma")
@@ -76,13 +76,6 @@ impl ConfigDir {
 
     pub fn load_gitlab() -> GitLabConfig {
         load_toml_config::<GitLabConfig>(&Self::gitlab_path(), " GitLab")
-    }
-
-    pub fn save_gitlab(config: &GitLabConfig) -> io::Result<()> {
-        Self::ensure_dir()?;
-        let content = toml::to_string_pretty(config)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        std::fs::write(Self::gitlab_path(), content)
     }
 
     fn migrate_legacy_config() {

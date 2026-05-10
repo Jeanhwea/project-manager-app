@@ -1,10 +1,10 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::control::context::collect_context;
-use crate::control::plan::run_plan;
+use crate::control::pipeline::Pipeline;
 use crate::domain::git::GitCommandRunner;
-use crate::model::plan::{ExecutionPlan, GitOperation};
-use crate::utils::output::Output;
-use anyhow::Result;
+use crate::error::Result;
+use crate::model::git::GitContext;
+use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
 use std::path::Path;
 
 #[derive(Debug, clap::Subcommand)]
@@ -72,35 +72,55 @@ pub fn run(args: BranchArgs) -> Result<()> {
     }
 }
 
+struct BranchListContext {
+    git_ctx: GitContext,
+}
+
+struct BranchCleanContext {
+    branches_to_delete: Vec<String>,
+}
+
+struct BranchSwitchContext {
+    exists: bool,
+}
+
+struct BranchRenameContext {
+    exists: bool,
+}
+
 fn execute_list(args: BranchListArgs) -> Result<()> {
     let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
     };
 
-    let total = walker.total();
+    Pipeline::run_multi_repo(&args, &walker, get_list_context, make_list_plan)
+}
 
-    for (index, repo_info) in walker.repositories().iter().enumerate() {
-        let repo_path = &repo_info.path;
-        let Ok(ctx) = collect_context(repo_path) else {
-            continue;
-        };
+fn get_list_context(_args: &BranchListArgs, repo_path: &Path) -> Result<BranchListContext> {
+    let git_ctx = collect_context(repo_path)?;
+    Ok(BranchListContext { git_ctx })
+}
 
-        if ctx.branches.is_empty() {
-            continue;
-        }
+fn make_list_plan(_args: &BranchListArgs, ctx: &BranchListContext) -> Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
+    if ctx.git_ctx.branches.is_empty() {
+        return Ok(plan);
+    }
 
-        Output::repo_header(index + 1, total, repo_path);
-
-        for branch in ctx.local_branches() {
-            if branch.is_current {
-                Output::item("当前", &branch.name);
-            } else {
-                Output::message(&format!("  {}", branch.name));
-            }
+    for branch in ctx.git_ctx.local_branches() {
+        if branch.is_current {
+            plan.add(MessageOperation::Item {
+                label: "当前".to_string(),
+                value: branch.name.clone(),
+            });
+        } else {
+            plan.add(MessageOperation::Skip {
+                msg: format!("  {}", branch.name),
+            });
         }
     }
 
-    Ok(())
+    Ok(plan)
 }
 
 fn execute_clean(args: BranchCleanArgs) -> Result<()> {
@@ -108,50 +128,44 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
         return Ok(());
     };
 
-    let total = walker.total();
+    Pipeline::run_multi_repo(&args, &walker, get_clean_context, make_clean_plan)
+}
 
-    for (index, repo_info) in walker.repositories().iter().enumerate() {
-        let repo_path = &repo_info.path;
-        let Ok(ctx) = collect_context(repo_path) else {
-            continue;
-        };
+fn get_clean_context(args: &BranchCleanArgs, repo_path: &Path) -> Result<BranchCleanContext> {
+    let git_ctx = collect_context(repo_path)?;
 
-        let branches: Vec<&str> = ctx
-            .local_branches()
-            .iter()
-            .map(|b| b.name.as_str())
-            .filter(|name| *name != ctx.current_branch)
-            .filter(|name| {
-                if let Some(ref pattern) = args.pattern {
-                    match_pattern(name, pattern)
-                } else {
-                    is_merged_branch(name, repo_path)
-                }
-            })
-            .collect();
-
-        if branches.is_empty() {
-            continue;
-        }
-
-        Output::repo_header(index + 1, total, repo_path);
-
-        let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
-        for branch in &branches {
-            plan.add(GitOperation::BranchDelete {
-                branch: branch.to_string(),
-            });
-            if args.remote {
-                plan.add(GitOperation::RemoteDelete {
-                    remote: "origin".to_string(),
-                    branch: branch.to_string(),
-                });
+    let branches_to_delete: Vec<String> = git_ctx
+        .local_branches()
+        .iter()
+        .map(|b| b.name.as_str())
+        .filter(|name| *name != git_ctx.current_branch)
+        .filter(|name| {
+            if let Some(ref pattern) = args.pattern {
+                match_pattern(name, pattern)
+            } else {
+                is_merged_branch(name, repo_path)
             }
-        }
-        run_plan(&plan)?;
-    }
+        })
+        .map(|s| s.to_string())
+        .collect();
 
-    Ok(())
+    Ok(BranchCleanContext { branches_to_delete })
+}
+
+fn make_clean_plan(args: &BranchCleanArgs, ctx: &BranchCleanContext) -> Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
+    for branch in &ctx.branches_to_delete {
+        plan.add(GitOperation::DeleteBranch {
+            branch: branch.clone(),
+        });
+        if args.remote {
+            plan.add(GitOperation::DeleteRemoteBranch {
+                remote: "origin".to_string(),
+                branch: branch.clone(),
+            });
+        }
+    }
+    Ok(plan)
 }
 
 fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
@@ -159,36 +173,34 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
         return Ok(());
     };
 
-    for repo_info in walker.repositories() {
-        let repo_path = &repo_info.path;
+    Pipeline::run_multi_repo(&args, &walker, get_switch_context, make_switch_plan)
+}
 
-        let Ok(ctx) = collect_context(repo_path) else {
-            continue;
-        };
+fn get_switch_context(args: &BranchSwitchArgs, repo_path: &Path) -> Result<BranchSwitchContext> {
+    let git_ctx = collect_context(repo_path)?;
+    let exists = git_ctx
+        .local_branches()
+        .iter()
+        .any(|b| b.name == args.branch);
+    Ok(BranchSwitchContext { exists })
+}
 
-        if !ctx.local_branches().iter().any(|b| b.name == args.branch) {
-            Output::skip(&format!(
-                "{}: 分支 {} 不存在",
-                repo_path.display(),
-                args.branch
-            ));
-            continue;
-        }
-
-        let mut plan = ExecutionPlan::new();
-        plan.add(GitOperation::Checkout {
-            ref_name: args.branch.clone(),
+fn make_switch_plan(args: &BranchSwitchArgs, ctx: &BranchSwitchContext) -> Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
+    if !ctx.exists {
+        plan.add(MessageOperation::Skip {
+            msg: format!("分支 {} 不存在", args.branch),
         });
-        run_plan(&plan)?;
-
-        Output::success(&format!(
-            "{}: 已切换到 {}",
-            repo_path.display(),
-            args.branch
-        ));
+        return Ok(plan);
     }
 
-    Ok(())
+    plan.add(GitOperation::Checkout {
+        ref_name: args.branch.clone(),
+    });
+    plan.add(MessageOperation::Success {
+        msg: format!("已切换到 {}", args.branch),
+    });
+    Ok(plan)
 }
 
 fn execute_rename(args: BranchRenameArgs) -> Result<()> {
@@ -196,38 +208,35 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
         return Ok(());
     };
 
-    for repo_info in walker.repositories() {
-        let repo_path = &repo_info.path;
+    Pipeline::run_multi_repo(&args, &walker, get_rename_context, make_rename_plan)
+}
 
-        let Ok(ctx) = collect_context(repo_path) else {
-            continue;
-        };
+fn get_rename_context(args: &BranchRenameArgs, repo_path: &Path) -> Result<BranchRenameContext> {
+    let git_ctx = collect_context(repo_path)?;
+    let exists = git_ctx
+        .local_branches()
+        .iter()
+        .any(|b| b.name == args.old_name);
+    Ok(BranchRenameContext { exists })
+}
 
-        if !ctx.local_branches().iter().any(|b| b.name == args.old_name) {
-            Output::skip(&format!(
-                "{}: 分支 {} 不存在",
-                repo_path.display(),
-                args.old_name
-            ));
-            continue;
-        }
-
-        let mut plan = ExecutionPlan::new();
-        plan.add(GitOperation::BranchRename {
-            old: args.old_name.clone(),
-            new: args.new_name.clone(),
+fn make_rename_plan(args: &BranchRenameArgs, ctx: &BranchRenameContext) -> Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
+    if !ctx.exists {
+        plan.add(MessageOperation::Skip {
+            msg: format!("分支 {} 不存在", args.old_name),
         });
-        run_plan(&plan)?;
-
-        Output::success(&format!(
-            "{}: {} -> {}",
-            repo_path.display(),
-            args.old_name,
-            args.new_name
-        ));
+        return Ok(plan);
     }
 
-    Ok(())
+    plan.add(GitOperation::RenameBranch {
+        old: args.old_name.clone(),
+        new: args.new_name.clone(),
+    });
+    plan.add(MessageOperation::Success {
+        msg: format!("{} -> {}", args.old_name, args.new_name),
+    });
+    Ok(plan)
 }
 
 fn match_pattern(name: &str, pattern: &str) -> bool {

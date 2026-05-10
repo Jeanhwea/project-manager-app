@@ -1,15 +1,15 @@
 use crate::control::context::collect_context;
-use crate::control::plan::run_plan;
-use crate::domain::AppError;
+use crate::control::pipeline::Pipeline;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version};
 use crate::domain::git::GitCommandRunner;
+use crate::error::AppError;
+use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{
     EditOperation, ExecutionPlan, GitOperation, MessageOperation, ShellOperation,
 };
 use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
-use anyhow::Result;
 use regex::Regex;
 use std::path::Path;
 
@@ -47,10 +47,17 @@ pub struct ReleaseArgs {
     pub pre_release: Option<String>,
 }
 
-struct GitState {
+struct ReleaseGitState {
     current_branch: String,
     new_tag: String,
     commit_message: String,
+}
+
+struct ReleaseContext {
+    git_ctx: GitContext,
+    state: ReleaseGitState,
+    config_files: Vec<String>,
+    registry: EditorRegistry,
 }
 
 const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
@@ -70,21 +77,40 @@ const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Formula/pma.rb", false),
 ];
 
-pub fn run(args: ReleaseArgs) -> anyhow::Result<()> {
+pub fn run(args: ReleaseArgs) -> Result<()> {
+    Pipeline::run(args, get_context, make_plan)
+}
+
+fn get_context(args: &ReleaseArgs) -> Result<ReleaseContext> {
     let resolved_files = resolve_file_paths(&args.files);
 
     if !args.no_root {
         switch_to_git_root()?;
     }
 
-    let ctx = collect_context(Path::new("."))?;
-    let state = validate_git_state(&args, &ctx)?;
+    let git_ctx = collect_context(Path::new("."))?;
+    let state = validate_git_state(args, &git_ctx)?;
     let registry = EditorRegistry::default_with_editors();
     let config_files = resolve_config_files(&registry, &resolved_files)?;
 
-    let mut plan = build_execution_plan(&args, &config_files, &state, &ctx, &registry);
+    Ok(ReleaseContext {
+        git_ctx,
+        state,
+        config_files,
+        registry,
+    })
+}
+
+fn make_plan(args: &ReleaseArgs, ctx: &ReleaseContext) -> Result<ExecutionPlan> {
+    let mut plan = build_execution_plan(
+        args,
+        &ctx.config_files,
+        &ctx.state,
+        &ctx.git_ctx,
+        &ctx.registry,
+    );
     plan.dry_run = args.dry_run;
-    run_plan(&plan)
+    Ok(plan)
 }
 
 fn resolve_file_paths(files: &[String]) -> Vec<String> {
@@ -107,14 +133,14 @@ fn switch_to_git_root() -> Result<()> {
     let root = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
     if !root.is_empty() {
         std::env::set_current_dir(&root)
-            .map_err(|e| anyhow::anyhow!("无法切换到 git 根目录: {} - {}", root, e))?;
+            .map_err(|e| AppError::Release(format!("无法切换到 git 根目录: {} - {}", root, e)))?;
     }
     Ok(())
 }
 
-fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<GitState> {
+fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<ReleaseGitState> {
     if !args.force && ctx.current_branch != "master" {
-        return Err(AppError::release("只能在 master 分支上执行 release").into());
+        return Err(AppError::release("只能在 master 分支上执行 release"));
     }
 
     let runner = GitCommandRunner::new();
@@ -128,7 +154,7 @@ fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<GitState> 
         let rev_current_tag = runner.execute(&["rev-parse", tag], None)?;
         let rev_head = runner.execute(&["rev-parse", "HEAD"], None)?;
         if rev_current_tag.trim() == rev_head.trim() {
-            return Err(AppError::release(format!("当前 HEAD 已被标记为 {}", tag)).into());
+            return Err(AppError::release(format!("当前 HEAD 已被标记为 {}", tag)));
         }
     }
 
@@ -155,7 +181,7 @@ fn validate_git_state(args: &ReleaseArgs, ctx: &GitContext) -> Result<GitState> 
         Output::item("提交消息", &commit_message);
     }
 
-    Ok(GitState {
+    Ok(ReleaseGitState {
         current_branch: ctx.current_branch.clone(),
         new_tag,
         commit_message,
@@ -194,7 +220,7 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     }
 
     if result.is_empty() {
-        return Err(AppError::release("未检测到可编辑的配置文件").into());
+        return Err(AppError::release("未检测到可编辑的配置文件"));
     }
 
     Ok(result)
@@ -234,7 +260,7 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
 fn build_execution_plan(
     args: &ReleaseArgs,
     config_files: &[String],
-    state: &GitState,
+    state: &ReleaseGitState,
     ctx: &GitContext,
     registry: &EditorRegistry,
 ) -> ExecutionPlan {
@@ -257,8 +283,8 @@ fn build_execution_plan(
                     plan.add(MessageOperation::Diff {
                         file: file_path.clone(),
                         line_num,
-                        old: old_line.to_string(),
-                        new: new_line.to_string(),
+                        old_content: old_line.to_string(),
+                        new_content: new_line.to_string(),
                     });
                 }
             }
@@ -389,7 +415,7 @@ fn compute_edited_content(
 ) -> Result<(String, String)> {
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file)
-        .map_err(|e| anyhow::anyhow!("无法读取 {}: {}", config_file, e))?;
+        .map_err(|e| AppError::Release(format!("无法读取 {}: {}", config_file, e)))?;
 
     let location = editor.parse(&content)?;
     let edited = editor.edit(&content, &location, version)?;
@@ -426,7 +452,7 @@ fn is_gitignored(file_path: &Path) -> bool {
 
 fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
     let content = std::fs::read_to_string(cargo_toml_path)
-        .map_err(|e| anyhow::anyhow!("无法读取 {}: {}", cargo_toml_path, e))?;
+        .map_err(|e| AppError::Release(format!("无法读取 {}: {}", cargo_toml_path, e)))?;
     let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)?;
     let mut in_package = false;
     for line in content.lines() {
@@ -439,7 +465,10 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
             return Ok(caps[1].to_string());
         }
     }
-    Err(AppError::release(format!("未在 {} 中找到 [package] name", cargo_toml_path)).into())
+    Err(AppError::release(format!(
+        "未在 {} 中找到 [package] name",
+        cargo_toml_path
+    )))
 }
 
 #[cfg(test)]

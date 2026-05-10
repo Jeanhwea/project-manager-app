@@ -10,8 +10,8 @@ pub mod status;
 pub mod sync;
 
 use crate::domain::git::repository::RepoWalker;
+use crate::error::Result;
 use crate::utils::output::Output;
-use anyhow::Result;
 
 #[derive(Debug, clap::Args)]
 pub struct RepoPathArgs {

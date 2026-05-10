@@ -1,6 +1,7 @@
-use crate::domain::AppError;
+use crate::control::pipeline::Pipeline;
+use crate::error::{AppError, Result};
+use crate::model::plan::{ExecutionPlan, MessageOperation};
 use crate::utils::output::Output;
-use anyhow::{Context, Result};
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::Deserialize;
 use std::env;
@@ -36,7 +37,7 @@ struct Asset {
 }
 
 #[derive(Debug, clap::Subcommand)]
-pub enum SelfManArgs {
+pub enum SelfManageArgs {
     /// Update to the latest version from GitHub releases
     #[command(visible_alias = "up")]
     Update(UpdateArgs),
@@ -56,77 +57,116 @@ pub struct UpdateArgs {
     pub force: bool,
 }
 
-pub fn run(args: SelfManArgs) -> Result<()> {
+struct VersionContext {
+    pkg_name: &'static str,
+    pkg_version: &'static str,
+    os: &'static str,
+    arch: &'static str,
+}
+
+struct UpdateContext {
+    current: &'static str,
+    latest: String,
+    release: Release,
+}
+
+pub fn run(args: SelfManageArgs) -> Result<()> {
     match args {
-        SelfManArgs::Update(update_args) => execute_update(update_args),
-        SelfManArgs::Version => {
-            show_version();
-            Ok(())
+        SelfManageArgs::Update(update_args) => {
+            Pipeline::run(update_args, get_update_context, make_update_plan)
+        }
+        SelfManageArgs::Version => {
+            Pipeline::run(VersionMarker, get_version_context, make_version_plan)
         }
     }
 }
 
-fn show_version() {
-    Output::message(&format!(
-        "{} v{} ({}-{})",
-        PKG_NAME,
-        PKG_VERSION,
-        env::consts::OS,
-        env::consts::ARCH,
-    ));
+struct VersionMarker;
+
+fn get_version_context(_args: &VersionMarker) -> Result<VersionContext> {
+    Ok(VersionContext {
+        pkg_name: PKG_NAME,
+        pkg_version: PKG_VERSION,
+        os: env::consts::OS,
+        arch: env::consts::ARCH,
+    })
 }
 
-fn execute_update(args: UpdateArgs) -> Result<()> {
+fn make_version_plan(_args: &VersionMarker, ctx: &VersionContext) -> Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
+    plan.add(MessageOperation::Skip {
+        msg: format!(
+            "{} v{} ({}-{})",
+            ctx.pkg_name, ctx.pkg_version, ctx.os, ctx.arch
+        ),
+    });
+    Ok(plan)
+}
+
+fn get_update_context(args: &UpdateArgs) -> Result<UpdateContext> {
     if env::var("PMA_NPM_INSTALL").is_ok() {
         return Err(AppError::SelfUpdate(
             "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma".to_string(),
-        )
-        .into());
+        ));
     }
 
     Output::info("检查最新版本...");
 
-    let release = fetch_latest_release().context("获取发布信息失败")?;
-    let latest = release.tag_name.trim_start_matches('v');
-    let current = PKG_VERSION;
+    let release = fetch_latest_release()
+        .map_err(|e| AppError::SelfUpdate(format!("获取发布信息失败: {}", e)))?;
+    let latest = release.tag_name.trim_start_matches('v').to_string();
 
-    Output::item("当前版本", &format!("v{}", current));
+    Output::item("当前版本", &format!("v{}", PKG_VERSION));
     Output::item("最新版本", &format!("v{}", latest));
 
-    let latest_ver = semver::Version::parse(latest)
-        .with_context(|| format!("无法解析最新版本号: {}", latest))?;
-    let current_ver = semver::Version::parse(current)
-        .with_context(|| format!("无法解析当前版本号: {}", current))?;
+    let latest_ver = semver::Version::parse(&latest)
+        .map_err(|_| AppError::SelfUpdate(format!("无法解析最新版本号: {}", latest)))?;
+    let current_ver = semver::Version::parse(PKG_VERSION)
+        .map_err(|_| AppError::SelfUpdate(format!("无法解析当前版本号: {}", PKG_VERSION)))?;
 
-    if current_ver >= latest_ver {
-        if args.force {
-            Output::warning("强制更新模式，继续更新...");
-        } else {
-            Output::success("已经是最新版本，无需更新。");
-            return Ok(());
-        }
+    if current_ver >= latest_ver && !args.force {
+        return Err(AppError::SelfUpdate(
+            "已经是最新版本，无需更新。".to_string(),
+        ));
     }
 
-    let asset_name = get_asset_name(&release.tag_name)
-        .map_err(|e| AppError::self_update(format!("获取资源名称失败: {}", e)))?;
-    let asset = release
+    if current_ver >= latest_ver && args.force {
+        Output::warning("强制更新模式，继续更新...");
+    }
+
+    Ok(UpdateContext {
+        current: PKG_VERSION,
+        latest,
+        release,
+    })
+}
+
+fn make_update_plan(_args: &UpdateArgs, ctx: &UpdateContext) -> Result<ExecutionPlan> {
+    let asset_name = get_asset_name(&ctx.release.tag_name)?;
+    let asset = ctx
+        .release
         .assets
         .iter()
         .find(|a| a.name == asset_name)
         .ok_or_else(|| {
-            AppError::self_update(format!("未找到适合当前平台的安装包: {}", asset_name))
+            AppError::SelfUpdate(format!("未找到适合当前平台的安装包: {}", asset_name))
         })?;
 
     Output::info(&format!("下载 {}...", asset.name));
     let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
-        .context("下载资源失败")?;
+        .map_err(|e| AppError::SelfUpdate(format!("下载资源失败: {}", e)))?;
     Output::success("下载完成");
 
-    let current_exe = env::current_exe().context("无法获取当前可执行文件路径")?;
-    install_binary(&data, &asset.name, &current_exe).context("安装二进制文件失败")?;
+    let current_exe = env::current_exe()
+        .map_err(|e| AppError::SelfUpdate(format!("无法获取当前可执行文件路径: {}", e)))?;
+    install_binary(&data, &asset.name, &current_exe)
+        .map_err(|e| AppError::SelfUpdate(format!("安装二进制文件失败: {}", e)))?;
 
-    Output::success(&format!("更新成功! v{} -> v{}", current, latest));
-    Ok(())
+    let mut plan = ExecutionPlan::new();
+    plan.add(MessageOperation::Success {
+        msg: format!("更新成功! v{} -> v{}", ctx.current, ctx.latest),
+    });
+    Ok(plan)
 }
 
 fn fetch_latest_release() -> Result<Release> {
@@ -138,8 +178,12 @@ fn fetch_latest_release() -> Result<Release> {
         req = req.set("Authorization", &format!("Bearer {}", token));
     }
 
-    let resp = req.call().context("请求 GitHub API 失败")?;
-    let release: Release = resp.into_json().context("解析 release 信息失败")?;
+    let resp = req
+        .call()
+        .map_err(|e| AppError::SelfUpdate(format!("请求 GitHub API 失败: {}", e)))?;
+    let release: Release = resp
+        .into_json()
+        .map_err(|e| AppError::SelfUpdate(format!("解析 release 信息失败: {}", e)))?;
     Ok(release)
 }
 
@@ -174,12 +218,12 @@ fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Result<
         }
     }
 
-    anyhow::bail!(
+    Err(AppError::SelfUpdate(format!(
         "所有下载方式均失败，请手动下载: {}\n\
-         提示: 可设置 PMA_DOWNLOAD_URL 环境变量指定下载地址，\n\
-         或设置 GITHUB_TOKEN 环境变量提高 API 下载成功率",
+             提示: 可设置 PMA_DOWNLOAD_URL 环境变量指定下载地址，\n\
+             或设置 GITHUB_TOKEN 环境变量提高 API 下载成功率",
         browser_url
-    )
+    )))
 }
 
 fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
@@ -192,7 +236,7 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
     };
 
     if !valid {
-        return Err(AppError::self_update("下载的文件格式无效".to_string()).into());
+        return Err(AppError::SelfUpdate("下载的文件格式无效".to_string()));
     }
     Ok(())
 }
@@ -226,7 +270,9 @@ fn read_response_with_progress(resp: ureq::Response) -> Result<Vec<u8>> {
     let mut data = Vec::with_capacity(total as usize);
     let mut buf = [0u8; 8192];
     loop {
-        let n = reader.read(&mut buf).context("读取下载内容失败")?;
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| AppError::SelfUpdate(format!("读取下载内容失败: {}", e)))?;
         if n == 0 {
             break;
         }
@@ -246,7 +292,9 @@ fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
         req = req.set("Authorization", &format!("Bearer {}", token));
     }
 
-    let resp = req.call().context("API 下载失败")?;
+    let resp = req
+        .call()
+        .map_err(|e| AppError::SelfUpdate(format!("API 下载失败: {}", e)))?;
     read_response_with_progress(resp)
 }
 
@@ -254,7 +302,7 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
     let resp = ureq::get(url)
         .set("User-Agent", "pma-self-update")
         .call()
-        .context("下载安装包失败")?;
+        .map_err(|e| AppError::SelfUpdate(format!("下载安装包失败: {}", e)))?;
 
     read_response_with_progress(resp)
 }
@@ -267,7 +315,7 @@ fn get_asset_name(tag: &str) -> Result<String> {
         ("windows", "x86_64") => ("windows", "x86_64", "zip"),
         ("windows", "aarch64") => ("windows", "arm64", "zip"),
         (os, arch) => {
-            return Err(AppError::not_supported(format!("{}-{}", os, arch)).into());
+            return Err(AppError::not_supported(format!("{}-{}", os, arch)));
         }
     };
     Ok(format!("pma-{}-{}-{}.{}", os, arch, tag, ext))
@@ -281,7 +329,10 @@ fn install_binary(data: &[u8], asset_name: &str, target: &PathBuf) -> Result<()>
     } else if asset_name.ends_with(".zip") {
         install_from_zip(data, bin_name, target)
     } else {
-        Err(AppError::self_update(format!("未知的安装包格式: {}", asset_name)).into())
+        Err(AppError::SelfUpdate(format!(
+            "未知的安装包格式: {}",
+            asset_name
+        )))
     }
 }
 
@@ -289,24 +340,36 @@ fn install_from_tar_gz(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<
     let decoder = flate2::read::GzDecoder::new(io::Cursor::new(data));
     let mut archive = tar::Archive::new(decoder);
 
-    for entry in archive.entries().context("读取 tar.gz 失败")? {
-        let mut entry = entry.context("读取 tar entry 失败")?;
-        let path = entry.path().context("读取 entry 路径失败")?;
+    for entry in archive
+        .entries()
+        .map_err(|e| AppError::SelfUpdate(format!("读取 tar.gz 失败: {}", e)))?
+    {
+        let mut entry =
+            entry.map_err(|e| AppError::SelfUpdate(format!("读取 tar entry 失败: {}", e)))?;
+        let path = entry
+            .path()
+            .map_err(|e| AppError::SelfUpdate(format!("读取 entry 路径失败: {}", e)))?;
         if path.file_name().and_then(|n| n.to_str()) == Some(bin_name) {
             let mut buf = Vec::new();
             entry.read_to_end(&mut buf)?;
             return replace_binary(&buf, target);
         }
     }
-    Err(AppError::self_update(format!("在 tar.gz 中未找到 {}", bin_name)).into())
+    Err(AppError::SelfUpdate(format!(
+        "在 tar.gz 中未找到 {}",
+        bin_name
+    )))
 }
 
 fn install_from_zip(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<()> {
     let cursor = io::Cursor::new(data);
-    let mut archive = zip::ZipArchive::new(cursor).context("读取 zip 失败")?;
+    let mut archive = zip::ZipArchive::new(cursor)
+        .map_err(|e| AppError::SelfUpdate(format!("读取 zip 失败: {}", e)))?;
 
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i).context("读取 zip entry 失败")?;
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| AppError::SelfUpdate(format!("读取 zip entry 失败: {}", e)))?;
         let name = file.name().to_string();
         if name.ends_with(bin_name) {
             let mut buf = Vec::new();
@@ -314,7 +377,10 @@ fn install_from_zip(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<()>
             return replace_binary(&buf, target);
         }
     }
-    Err(AppError::self_update(format!("在 zip 中未找到 {}", bin_name)).into())
+    Err(AppError::SelfUpdate(format!(
+        "在 zip 中未找到 {}",
+        bin_name
+    )))
 }
 
 fn replace_binary(new_binary: &[u8], target: &PathBuf) -> Result<()> {
@@ -322,8 +388,10 @@ fn replace_binary(new_binary: &[u8], target: &PathBuf) -> Result<()> {
     if backup.exists() {
         let _ = fs::remove_file(&backup);
     }
-    fs::rename(target, &backup).context("备份旧版本失败")?;
-    fs::write(target, new_binary).context("写入新版本失败")?;
+    fs::rename(target, &backup)
+        .map_err(|e| AppError::SelfUpdate(format!("备份旧版本失败: {}", e)))?;
+    fs::write(target, new_binary)
+        .map_err(|e| AppError::SelfUpdate(format!("写入新版本失败: {}", e)))?;
 
     #[cfg(unix)]
     {
