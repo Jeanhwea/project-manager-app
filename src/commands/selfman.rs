@@ -1,4 +1,4 @@
-use crate::control::pipeline::Pipeline;
+use crate::control::command::Command;
 use crate::error::{AppError, Result};
 use crate::model::plan::{ExecutionPlan, MessageOperation};
 use crate::utils::output::Output;
@@ -57,116 +57,121 @@ pub struct UpdateArgs {
     pub force: bool,
 }
 
-struct VersionContext {
+pub(crate) struct VersionContext {
     pkg_name: &'static str,
     pkg_version: &'static str,
     os: &'static str,
     arch: &'static str,
 }
 
-struct UpdateContext {
+pub(crate) struct UpdateContext {
     current: &'static str,
     latest: String,
     release: Release,
 }
 
-pub fn run(args: SelfManageArgs) -> Result<()> {
-    match args {
-        SelfManageArgs::Update(update_args) => {
-            Pipeline::run(update_args, get_update_context, make_update_plan)
-        }
-        SelfManageArgs::Version => {
-            Pipeline::run(VersionMarker, get_version_context, make_version_plan)
-        }
-    }
-}
-
 struct VersionMarker;
 
-fn get_version_context(_args: &VersionMarker) -> Result<VersionContext> {
-    Ok(VersionContext {
-        pkg_name: PKG_NAME,
-        pkg_version: PKG_VERSION,
-        os: env::consts::OS,
-        arch: env::consts::ARCH,
-    })
-}
+impl Command for VersionMarker {
+    type Context = VersionContext;
 
-fn make_version_plan(_args: &VersionMarker, ctx: &VersionContext) -> Result<ExecutionPlan> {
-    let mut plan = ExecutionPlan::new();
-    plan.add(MessageOperation::Skip {
-        msg: format!(
-            "{} v{} ({}-{})",
-            ctx.pkg_name, ctx.pkg_version, ctx.os, ctx.arch
-        ),
-    });
-    Ok(plan)
-}
-
-fn get_update_context(args: &UpdateArgs) -> Result<UpdateContext> {
-    if env::var("PMA_NPM_INSTALL").is_ok() {
-        return Err(AppError::SelfUpdate(
-            "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma".to_string(),
-        ));
+    fn context(&self) -> Result<VersionContext> {
+        Ok(VersionContext {
+            pkg_name: PKG_NAME,
+            pkg_version: PKG_VERSION,
+            os: env::consts::OS,
+            arch: env::consts::ARCH,
+        })
     }
 
-    Output::info("检查最新版本...");
-
-    let release = fetch_latest_release()
-        .map_err(|e| AppError::SelfUpdate(format!("获取发布信息失败: {}", e)))?;
-    let latest = release.tag_name.trim_start_matches('v').to_string();
-
-    Output::item("当前版本", &format!("v{}", PKG_VERSION));
-    Output::item("最新版本", &format!("v{}", latest));
-
-    let latest_ver = semver::Version::parse(&latest)
-        .map_err(|_| AppError::SelfUpdate(format!("无法解析最新版本号: {}", latest)))?;
-    let current_ver = semver::Version::parse(PKG_VERSION)
-        .map_err(|_| AppError::SelfUpdate(format!("无法解析当前版本号: {}", PKG_VERSION)))?;
-
-    if current_ver >= latest_ver && !args.force {
-        return Err(AppError::SelfUpdate(
-            "已经是最新版本，无需更新。".to_string(),
-        ));
+    fn plan(&self, ctx: &VersionContext) -> Result<ExecutionPlan> {
+        let mut plan = ExecutionPlan::new();
+        plan.add(MessageOperation::Skip {
+            msg: format!(
+                "{} v{} ({}-{})",
+                ctx.pkg_name, ctx.pkg_version, ctx.os, ctx.arch
+            ),
+        });
+        Ok(plan)
     }
-
-    if current_ver >= latest_ver && args.force {
-        Output::warning("强制更新模式，继续更新...");
-    }
-
-    Ok(UpdateContext {
-        current: PKG_VERSION,
-        latest,
-        release,
-    })
 }
 
-fn make_update_plan(_args: &UpdateArgs, ctx: &UpdateContext) -> Result<ExecutionPlan> {
-    let asset_name = get_asset_name(&ctx.release.tag_name)?;
-    let asset = ctx
-        .release
-        .assets
-        .iter()
-        .find(|a| a.name == asset_name)
-        .ok_or_else(|| {
-            AppError::SelfUpdate(format!("未找到适合当前平台的安装包: {}", asset_name))
-        })?;
+impl Command for UpdateArgs {
+    type Context = UpdateContext;
 
-    Output::info(&format!("下载 {}...", asset.name));
-    let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
-        .map_err(|e| AppError::SelfUpdate(format!("下载资源失败: {}", e)))?;
-    Output::success("下载完成");
+    fn context(&self) -> Result<UpdateContext> {
+        if env::var("PMA_NPM_INSTALL").is_ok() {
+            return Err(AppError::SelfUpdate(
+                "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma"
+                    .to_string(),
+            ));
+        }
 
-    let current_exe = env::current_exe()
-        .map_err(|e| AppError::SelfUpdate(format!("无法获取当前可执行文件路径: {}", e)))?;
-    install_binary(&data, &asset.name, &current_exe)
-        .map_err(|e| AppError::SelfUpdate(format!("安装二进制文件失败: {}", e)))?;
+        Output::info("检查最新版本...");
 
-    let mut plan = ExecutionPlan::new();
-    plan.add(MessageOperation::Success {
-        msg: format!("更新成功! v{} -> v{}", ctx.current, ctx.latest),
-    });
-    Ok(plan)
+        let release = fetch_latest_release()
+            .map_err(|e| AppError::SelfUpdate(format!("获取发布信息失败: {}", e)))?;
+        let latest = release.tag_name.trim_start_matches('v').to_string();
+
+        Output::item("当前版本", &format!("v{}", PKG_VERSION));
+        Output::item("最新版本", &format!("v{}", latest));
+
+        let latest_ver = semver::Version::parse(&latest)
+            .map_err(|_| AppError::SelfUpdate(format!("无法解析最新版本号: {}", latest)))?;
+        let current_ver = semver::Version::parse(PKG_VERSION)
+            .map_err(|_| AppError::SelfUpdate(format!("无法解析当前版本号: {}", PKG_VERSION)))?;
+
+        if current_ver >= latest_ver && !self.force {
+            return Err(AppError::SelfUpdate(
+                "已经是最新版本，无需更新。".to_string(),
+            ));
+        }
+
+        if current_ver >= latest_ver && self.force {
+            Output::warning("强制更新模式，继续更新...");
+        }
+
+        Ok(UpdateContext {
+            current: PKG_VERSION,
+            latest,
+            release,
+        })
+    }
+
+    fn plan(&self, ctx: &UpdateContext) -> Result<ExecutionPlan> {
+        let asset_name = get_asset_name(&ctx.release.tag_name)?;
+        let asset = ctx
+            .release
+            .assets
+            .iter()
+            .find(|a| a.name == asset_name)
+            .ok_or_else(|| {
+                AppError::SelfUpdate(format!("未找到适合当前平台的安装包: {}", asset_name))
+            })?;
+
+        Output::info(&format!("下载 {}...", asset.name));
+        let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
+            .map_err(|e| AppError::SelfUpdate(format!("下载资源失败: {}", e)))?;
+        Output::success("下载完成");
+
+        let current_exe = env::current_exe()
+            .map_err(|e| AppError::SelfUpdate(format!("无法获取当前可执行文件路径: {}", e)))?;
+        install_binary(&data, &asset.name, &current_exe)
+            .map_err(|e| AppError::SelfUpdate(format!("安装二进制文件失败: {}", e)))?;
+
+        let mut plan = ExecutionPlan::new();
+        plan.add(MessageOperation::Success {
+            msg: format!("更新成功! v{} -> v{}", ctx.current, ctx.latest),
+        });
+        Ok(plan)
+    }
+}
+
+pub fn run(args: SelfManageArgs) -> Result<()> {
+    match args {
+        SelfManageArgs::Update(update_args) => Command::run(&update_args),
+        SelfManageArgs::Version => Command::run(&VersionMarker),
+    }
 }
 
 fn fetch_latest_release() -> Result<Release> {

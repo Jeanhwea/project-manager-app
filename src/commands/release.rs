@@ -1,5 +1,5 @@
+use crate::control::command::Command;
 use crate::control::context::collect_context;
-use crate::control::pipeline::Pipeline;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version};
 use crate::domain::git::GitCommandRunner;
 use crate::error::AppError;
@@ -47,13 +47,13 @@ pub struct ReleaseArgs {
     pub pre_release: Option<String>,
 }
 
-struct ReleaseGitState {
+pub(crate) struct ReleaseGitState {
     current_branch: String,
     new_tag: String,
     commit_message: String,
 }
 
-struct ReleaseContext {
+pub(crate) struct ReleaseContext {
     git_ctx: GitContext,
     state: ReleaseGitState,
     config_files: Vec<String>,
@@ -77,40 +77,44 @@ const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Formula/pma.rb", false),
 ];
 
-pub fn run(args: ReleaseArgs) -> Result<()> {
-    Pipeline::run(args, get_context, make_plan)
-}
+impl Command for ReleaseArgs {
+    type Context = ReleaseContext;
 
-fn get_context(args: &ReleaseArgs) -> Result<ReleaseContext> {
-    let resolved_files = resolve_file_paths(&args.files);
+    fn context(&self) -> Result<ReleaseContext> {
+        let resolved_files = resolve_file_paths(&self.files);
 
-    if !args.no_root {
-        switch_to_git_root()?;
+        if !self.no_root {
+            switch_to_git_root()?;
+        }
+
+        let git_ctx = collect_context(Path::new("."))?;
+        let state = validate_git_state(self, &git_ctx)?;
+        let registry = EditorRegistry::default_with_editors();
+        let config_files = resolve_config_files(&registry, &resolved_files)?;
+
+        Ok(ReleaseContext {
+            git_ctx,
+            state,
+            config_files,
+            registry,
+        })
     }
 
-    let git_ctx = collect_context(Path::new("."))?;
-    let state = validate_git_state(args, &git_ctx)?;
-    let registry = EditorRegistry::default_with_editors();
-    let config_files = resolve_config_files(&registry, &resolved_files)?;
-
-    Ok(ReleaseContext {
-        git_ctx,
-        state,
-        config_files,
-        registry,
-    })
+    fn plan(&self, ctx: &ReleaseContext) -> Result<ExecutionPlan> {
+        let mut plan = build_execution_plan(
+            self,
+            &ctx.config_files,
+            &ctx.state,
+            &ctx.git_ctx,
+            &ctx.registry,
+        );
+        plan.dry_run = self.dry_run;
+        Ok(plan)
+    }
 }
 
-fn make_plan(args: &ReleaseArgs, ctx: &ReleaseContext) -> Result<ExecutionPlan> {
-    let mut plan = build_execution_plan(
-        args,
-        &ctx.config_files,
-        &ctx.state,
-        &ctx.git_ctx,
-        &ctx.registry,
-    );
-    plan.dry_run = args.dry_run;
-    Ok(plan)
+pub fn run(args: ReleaseArgs) -> Result<()> {
+    Command::run(&args)
 }
 
 fn resolve_file_paths(files: &[String]) -> Vec<String> {
