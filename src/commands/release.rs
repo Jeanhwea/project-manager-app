@@ -4,7 +4,9 @@ use crate::domain::AppError;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version};
 use crate::domain::git::GitCommandRunner;
 use crate::model::git::GitContext;
-use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, ShellOperation};
+use crate::model::plan::{
+    EditOperation, ExecutionPlan, GitOperation, MessageOperation, ShellOperation,
+};
 use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
 use anyhow::Result;
@@ -80,9 +82,7 @@ pub fn run(args: ReleaseArgs) -> anyhow::Result<()> {
     let registry = EditorRegistry::default_with_editors();
     let config_files = resolve_config_files(&registry, &resolved_files)?;
 
-    show_release_plan(&registry, &config_files, &state)?;
-
-    let mut plan = build_execution_plan(&args, &config_files, &state, &ctx);
+    let mut plan = build_execution_plan(&args, &config_files, &state, &ctx, &registry);
     plan.dry_run = args.dry_run;
     run_plan(&plan)
 }
@@ -231,33 +231,38 @@ fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     results
 }
 
-fn show_release_plan(
-    registry: &EditorRegistry,
-    config_files: &[String],
-    state: &GitState,
-) -> Result<()> {
-    Output::header("修改计划");
-
-    for file_path in config_files {
-        let editor = registry.detect_editor(Path::new(file_path)).unwrap();
-        print_file_diff(editor, &state.new_tag, file_path)?;
-    }
-
-    Ok(())
-}
-
 fn build_execution_plan(
     args: &ReleaseArgs,
     config_files: &[String],
     state: &GitState,
     ctx: &GitContext,
+    registry: &EditorRegistry,
 ) -> ExecutionPlan {
     let mut plan = ExecutionPlan::new();
-    let registry = EditorRegistry::default_with_editors();
+
+    plan.add(MessageOperation::Section {
+        title: "修改计划".to_string(),
+    });
 
     for file_path in config_files {
         let editor = registry.detect_editor(Path::new(file_path)).unwrap();
-        if let Ok((_, edited)) = compute_edited_content(editor, &state.new_tag, file_path) {
+        if let Ok((original, edited)) = compute_edited_content(editor, &state.new_tag, file_path)
+        {
+            let old_lines: Vec<&str> = original.lines().collect();
+            let new_lines: Vec<&str> = edited.lines().collect();
+            for (line_num, (old_line, new_line)) in
+                (1..).zip(old_lines.iter().zip(new_lines.iter()))
+            {
+                if old_line != new_line {
+                    plan.add(MessageOperation::Diff {
+                        file: file_path.clone(),
+                        line_num,
+                        old: old_line.to_string(),
+                        new: new_line.to_string(),
+                    });
+                }
+            }
+
             plan.add(EditOperation::WriteFile {
                 path: file_path.clone(),
                 content: edited,
@@ -375,24 +380,6 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
             });
         }
     }
-}
-
-fn print_file_diff(editor: &dyn FileEditor, tag: &str, config_file: &str) -> Result<()> {
-    let (original, edited) = compute_edited_content(editor, tag, config_file)?;
-
-    Output::message(config_file);
-
-    let old_lines: Vec<&str> = original.lines().collect();
-    let new_lines: Vec<&str> = edited.lines().collect();
-
-    for (line_num, (old_line, new_line)) in (1..).zip(old_lines.iter().zip(new_lines.iter())) {
-        if old_line != new_line {
-            Output::detail(&format!("L{} -", line_num), old_line);
-            Output::detail(&format!("L{} +", line_num), new_line);
-        }
-    }
-
-    Ok(())
 }
 
 fn compute_edited_content(

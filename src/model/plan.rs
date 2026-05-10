@@ -95,10 +95,47 @@ impl EditOperation {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub enum MessageOperation {
+    Section {
+        title: String,
+    },
+    Item {
+        label: String,
+        value: String,
+    },
+    Diff {
+        file: String,
+        line_num: usize,
+        old: String,
+        new: String,
+    },
+}
+
+impl MessageOperation {
+    pub fn description(&self) -> String {
+        match self {
+            MessageOperation::Section { title } => title.clone(),
+            MessageOperation::Item { label, value } => format!("{}: {}", label, value),
+            MessageOperation::Diff {
+                file,
+                line_num,
+                old,
+                new,
+            } => format!(
+                "{} L{} -:  {}\n{} L{} +:  {}",
+                file, line_num, old, file, line_num, new
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Operation {
     Git(GitOperation),
     Shell(ShellOperation),
     Edit(EditOperation),
+    Message(MessageOperation),
 }
 
 impl Operation {
@@ -107,6 +144,7 @@ impl Operation {
             Operation::Git(op) => op.description(),
             Operation::Shell(op) => op.description(),
             Operation::Edit(op) => op.description(),
+            Operation::Message(op) => op.description(),
         }
     }
 }
@@ -126,6 +164,12 @@ impl From<ShellOperation> for Operation {
 impl From<EditOperation> for Operation {
     fn from(op: EditOperation) -> Self {
         Operation::Edit(op)
+    }
+}
+
+impl From<MessageOperation> for Operation {
+    fn from(op: MessageOperation) -> Self {
+        Operation::Message(op)
     }
 }
 

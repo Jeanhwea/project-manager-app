@@ -1,5 +1,7 @@
 use crate::domain::git::GitCommandRunner;
-use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, Operation, ShellOperation};
+use crate::model::plan::{
+    EditOperation, ExecutionPlan, GitOperation, MessageOperation, Operation, ShellOperation,
+};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -11,8 +13,13 @@ pub fn run_plan(plan: &ExecutionPlan) -> anyhow::Result<()> {
     }
 
     for op in &plan.operations {
-        Output::cmd(&op.description());
-        execute_operation(op)?;
+        match op {
+            Operation::Message(msg_op) => execute_message(msg_op),
+            _ => {
+                Output::cmd(&op.description());
+                execute_operation(op)?;
+            }
+        }
     }
     Ok(())
 }
@@ -23,7 +30,27 @@ pub fn display_plan(plan: &ExecutionPlan) {
         return;
     }
     for op in &plan.operations {
-        Output::message(&op.description());
+        match op {
+            Operation::Message(msg_op) => execute_message(msg_op),
+            _ => Output::message(&op.description()),
+        }
+    }
+}
+
+fn execute_message(op: &MessageOperation) {
+    match op {
+        MessageOperation::Section { title } => Output::section(title),
+        MessageOperation::Item { label, value } => Output::detail(label, value),
+        MessageOperation::Diff {
+            file,
+            line_num,
+            old,
+            new,
+        } => {
+            Output::detail(&format!("L{} -", line_num), old);
+            Output::detail(&format!("L{} +", line_num), new);
+            let _ = file;
+        }
     }
 }
 
@@ -32,6 +59,7 @@ fn execute_operation(op: &Operation) -> anyhow::Result<()> {
         Operation::Git(git_op) => execute_git(git_op),
         Operation::Shell(shell_op) => execute_shell(shell_op),
         Operation::Edit(edit_op) => execute_edit(edit_op),
+        Operation::Message(_) => Ok(()),
     }
 }
 
@@ -46,16 +74,16 @@ fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
         }
         GitOperation::CreateTag { tag } => runner.execute_with_success(&["tag", tag], None)?,
         GitOperation::PushTag { remote, tag } => {
-            runner.execute_with_success(&["push", remote, tag], None)?
+            runner.execute_streaming(&["push", remote, tag], Path::new("."))?
         }
         GitOperation::PushBranch { remote, branch } => {
-            runner.execute_with_success(&["push", remote, branch], None)?
+            runner.execute_streaming(&["push", remote, branch], Path::new("."))?
         }
         GitOperation::PushAll { remote } => {
-            runner.execute_with_success(&["push", "--all", remote], None)?
+            runner.execute_streaming(&["push", "--all", remote], Path::new("."))?
         }
         GitOperation::PushTags { remote } => {
-            runner.execute_with_success(&["push", "--tags", remote], None)?
+            runner.execute_streaming(&["push", "--tags", remote], Path::new("."))?
         }
         GitOperation::Pull { remote, branch } => {
             runner.execute_streaming(&["pull", remote, branch], Path::new("."))?
@@ -70,7 +98,7 @@ fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
             runner.execute_streaming(&["branch", "-m", old, new], Path::new("."))?
         }
         GitOperation::RemoteDelete { remote, branch } => {
-            runner.execute_with_success(&["push", remote, "--delete", branch], None)?
+            runner.execute_streaming(&["push", remote, "--delete", branch], Path::new("."))?
         }
         GitOperation::RemoteRename { old, new } => {
             runner.execute_with_success(&["remote", "rename", old, new], Some(Path::new(".")))?
@@ -86,7 +114,7 @@ fn execute_git(op: &GitOperation) -> anyhow::Result<()> {
             ],
             Some(Path::new(".")),
         )?,
-        GitOperation::Gc => runner.execute_with_success(&["gc", "--aggressive"], None)?,
+        GitOperation::Gc => runner.execute_streaming(&["gc", "--aggressive"], Path::new("."))?,
     }
     Ok(())
 }
