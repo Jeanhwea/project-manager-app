@@ -23,10 +23,31 @@ impl Default for RepositoryConfig {
         Self {
             max_depth: 3,
             skip_dirs: vec![
-                ".venv", "venv", "env", ".env", "node_modules", "__pycache__", ".tox",
-                ".mypy_cache", ".pytest_cache", ".ruff_cache", "dist", "build", "target",
-                ".gradle", ".idea", ".vscode", ".fleet", ".cache", ".next", ".nuxt",
-                ".svelte-kit", ".angular", "bower_components", ".terraform", ".cargo",
+                ".venv",
+                "venv",
+                "env",
+                ".env",
+                "node_modules",
+                "__pycache__",
+                ".tox",
+                ".mypy_cache",
+                ".pytest_cache",
+                ".ruff_cache",
+                "dist",
+                "build",
+                "target",
+                ".gradle",
+                ".idea",
+                ".vscode",
+                ".fleet",
+                ".cache",
+                ".next",
+                ".nuxt",
+                ".svelte-kit",
+                ".angular",
+                "bower_components",
+                ".terraform",
+                ".cargo",
             ]
             .into_iter()
             .map(String::from)
@@ -111,7 +132,11 @@ pub struct SyncConfig {
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            skip_push_hosts: vec!["github.com".into(), "githubfast.com".into(), "gitee.com".into()],
+            skip_push_hosts: vec![
+                "github.com".into(),
+                "githubfast.com".into(),
+                "gitee.com".into(),
+            ],
         }
     }
 }
