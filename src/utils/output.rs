@@ -3,19 +3,8 @@ use std::path::Path;
 
 const SYMBOL_WIDTH: usize = 6;
 
-const TAG_OK: &str = "  OK  ";
-const TAG_FAIL: &str = " FAIL ";
-const TAG_WARN: &str = " WARN ";
-const TAG_INFO: &str = " INFO ";
-const TAG_SKIP: &str = " SKIP ";
-const TAG_CMD: &str = " EXEC ";
-const TAG_DRY: &str = " DRY  ";
-
 fn tag_box(label: &str, color: colored::Color) -> String {
-    format!("[{}]", label)
-        .color(color)
-        .bold()
-        .to_string()
+    format!("[{}]", label).color(color).bold().to_string()
 }
 
 pub struct Output;
@@ -49,33 +38,27 @@ impl Output {
     }
 
     pub fn success(msg: &str) {
-        let tag = tag_box(TAG_OK, colored::Color::Green);
-        println!("  {} {}", tag, msg.green());
+        println!("  {} {}", "<==".green().bold(), msg.green());
     }
 
     pub fn error(msg: &str) {
-        let tag = tag_box(TAG_FAIL, colored::Color::Red);
-        println!("  {} {}", tag, msg.red());
+        println!("  {} {}", "<==".red().bold(), msg.red());
     }
 
     pub fn warning(msg: &str) {
-        let tag = tag_box(TAG_WARN, colored::Color::Yellow);
-        println!("  {} {}", tag, msg.yellow());
+        println!("  {} {}", "<==".yellow().bold(), msg.yellow());
     }
 
     pub fn info(msg: &str) {
-        let tag = tag_box(TAG_INFO, colored::Color::Cyan);
-        println!("  {} {}", tag, msg);
+        println!("  {} {}", "<==".cyan().bold(), msg);
     }
 
     pub fn skip(msg: &str) {
-        let tag = tag_box(TAG_SKIP, colored::Color::White);
-        println!("  {} {}", tag.dimmed(), msg.dimmed());
+        println!("  {} {}", "<==".dimmed(), msg.dimmed());
     }
 
     pub fn cmd(cmd: &str) {
-        let tag = tag_box(TAG_CMD, colored::Color::Cyan);
-        println!("  {} {}", tag, cmd.white());
+        println!("{} {}", "==>".yellow().bold(), cmd.yellow().bold());
     }
 
     pub fn item(label: &str, value: &str) {
@@ -109,13 +92,12 @@ impl Output {
 
     pub fn dry_run_header(msg: &str) {
         println!();
-        let tag = tag_box(TAG_DRY, colored::Color::Magenta);
+        let tag = tag_box("DRY", colored::Color::Magenta);
         println!("{} {}", tag, msg.cyan().bold());
     }
 
     pub fn not_found(msg: &str) {
-        let tag = tag_box(TAG_WARN, colored::Color::Yellow);
-        println!("  {} {}", tag, msg.yellow());
+        println!("  {} {}", "<==".yellow().bold(), msg.yellow());
     }
 }
 
