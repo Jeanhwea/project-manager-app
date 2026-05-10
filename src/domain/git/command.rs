@@ -119,6 +119,16 @@ impl GitCommandRunner {
         let output = self.execute(&["status", "--porcelain"], Some(repo_path))?;
         Ok(!output.is_empty())
     }
+
+    pub fn is_merged_branch(&self, name: &str, repo_path: &Path) -> bool {
+        self.execute(&["branch", "--merged", "master"], Some(repo_path))
+            .map(|output| {
+                output
+                    .lines()
+                    .any(|line| line.trim_start_matches("* ").trim() == name)
+            })
+            .unwrap_or(false)
+    }
 }
 
 impl Default for GitCommandRunner {

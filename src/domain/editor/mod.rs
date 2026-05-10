@@ -1,5 +1,6 @@
 mod cargo_toml;
 mod cmake;
+mod detect;
 mod homebrew;
 mod package_json;
 mod pom_xml;
@@ -7,6 +8,8 @@ mod project_py;
 mod pyproject;
 mod version_bump;
 mod version_text;
+
+pub use detect::{add_lockfile_operations, compute_edited_content, resolve_config_files};
 
 use cargo_toml::CargoTomlEditor;
 use cmake::CMakeListsEditor;

@@ -125,7 +125,7 @@ impl MultiRepoCommand for BranchCleanArgs {
                 if let Some(ref pattern) = self.pattern {
                     match_pattern(name, pattern)
                 } else {
-                    is_merged_branch(name, repo_path)
+                    GitCommandRunner::new().is_merged_branch(name, repo_path)
                 }
             })
             .map(|s| s.to_string())
@@ -252,16 +252,4 @@ fn match_pattern(name: &str, pattern: &str) -> bool {
     } else {
         name == pattern
     }
-}
-
-fn is_merged_branch(name: &str, repo_path: &Path) -> bool {
-    let runner = GitCommandRunner::new();
-    runner
-        .execute(&["branch", "--merged", "master"], Some(repo_path))
-        .map(|output| {
-            output
-                .lines()
-                .any(|line| line.trim_start_matches("* ").trim() == name)
-        })
-        .unwrap_or(false)
 }
