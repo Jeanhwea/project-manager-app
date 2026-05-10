@@ -1,7 +1,7 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::control::command::MultiRepoCommand;
 use crate::control::context::collect_context;
-use crate::control::remote::diagnose_remote_names;
+use crate::domain::git::remote::diagnose_remote_names;
 use crate::domain::git::GitCommandRunner;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::{AppError, Result};

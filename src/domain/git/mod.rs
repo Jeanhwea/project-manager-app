@@ -1,4 +1,5 @@
 mod command;
+pub mod remote;
 pub mod repository;
 
 pub use command::GitCommandRunner;

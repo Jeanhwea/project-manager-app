@@ -1,6 +1,7 @@
+use crate::domain::git::remote::collect_remotes;
 use crate::domain::git::GitCommandRunner;
 use crate::error::Result;
-use crate::model::git::{Branch, GitContext, Remote, Tag};
+use crate::model::git::{Branch, GitContext, Tag};
 use std::path::{Path, PathBuf};
 
 pub fn collect_context(repo_path: &Path) -> Result<GitContext> {
@@ -23,25 +24,6 @@ pub fn collect_context(repo_path: &Path) -> Result<GitContext> {
         tags,
         has_uncommitted_changes,
     })
-}
-
-fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Remote>> {
-    let names = runner.get_remote_list(root)?;
-    let mut remotes = Vec::new();
-    for name in &names {
-        if let Ok(url) = runner.execute(&["remote", "get-url", name], Some(root)) {
-            let fetch_url = runner
-                .execute(&["remote", "get-url", "--push", name], Some(root))
-                .ok();
-            let fetch_url = fetch_url.filter(|u| *u != url);
-            remotes.push(Remote {
-                name: name.to_string(),
-                url,
-                fetch_url,
-            });
-        }
-    }
-    Ok(remotes)
 }
 
 fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch>> {

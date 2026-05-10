@@ -1,6 +1,5 @@
 use crate::domain::config::ConfigManager;
-use crate::domain::git::GitCommandRunner;
-use crate::error::Result;
+use super::{GitCommandRunner, Result};
 use crate::model::git::Remote;
 
 pub struct RemoteIssue {
@@ -17,6 +16,28 @@ pub fn resolve_remote_name(host: &str) -> Option<String> {
         }
     }
     None
+}
+
+pub fn collect_remotes(
+    runner: &GitCommandRunner,
+    repo_path: &std::path::Path,
+) -> Result<Vec<Remote>> {
+    let names = runner.get_remote_list(repo_path)?;
+    let mut remotes = Vec::new();
+    for name in &names {
+        if let Ok(url) = runner.execute(&["remote", "get-url", name], Some(repo_path)) {
+            let fetch_url = runner
+                .execute(&["remote", "get-url", "--push", name], Some(repo_path))
+                .ok();
+            let fetch_url = fetch_url.filter(|u| *u != url);
+            remotes.push(Remote {
+                name: name.to_string(),
+                url,
+                fetch_url,
+            });
+        }
+    }
+    Ok(remotes)
 }
 
 pub fn diagnose_remote_names(repo_path: &std::path::Path) -> Vec<RemoteIssue> {
@@ -45,26 +66,4 @@ pub fn diagnose_remote_names(repo_path: &std::path::Path) -> Vec<RemoteIssue> {
     }
 
     issues
-}
-
-fn collect_remotes(
-    runner: &GitCommandRunner,
-    repo_path: &std::path::Path,
-) -> Result<Vec<Remote>> {
-    let names = runner.get_remote_list(repo_path)?;
-    let mut remotes = Vec::new();
-    for name in &names {
-        if let Ok(url) = runner.execute(&["remote", "get-url", name], Some(repo_path)) {
-            let fetch_url = runner
-                .execute(&["remote", "get-url", "--push", name], Some(repo_path))
-                .ok();
-            let fetch_url = fetch_url.filter(|u| *u != url);
-            remotes.push(Remote {
-                name: name.to_string(),
-                url,
-                fetch_url,
-            });
-        }
-    }
-    Ok(remotes)
 }
