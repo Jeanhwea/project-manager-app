@@ -1,7 +1,6 @@
 use super::{
     EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
 };
-use std::path::Path;
 
 pub struct CargoTomlEditor;
 
@@ -27,15 +26,16 @@ impl CargoTomlEditor {
 }
 
 impl FileEditor for CargoTomlEditor {
+    fn name(&self) -> &str {
+        "Cargo.toml"
+    }
+
     fn file_patterns(&self) -> &[&str] {
         &["Cargo.toml"]
     }
 
-    fn matches_file(&self, path: &Path) -> bool {
-        path.file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| n == "Cargo.toml")
-            .unwrap_or(false)
+    fn find_version(&self, content: &str) -> Option<VersionPosition> {
+        Self::find_version_position(content)
     }
 
     fn parse(&self, content: &str) -> Result<VersionLocation> {
@@ -59,7 +59,7 @@ impl FileEditor for CargoTomlEditor {
             ));
         }
 
-        let project_version = Self::find_version_position(content);
+        let project_version = self.find_version(content);
 
         if project_version.is_none() {
             return Err(EditorError::VersionNotFound(

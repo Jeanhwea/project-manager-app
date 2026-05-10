@@ -1,4 +1,4 @@
-use super::{GitError, Result};
+use super::{GitError, Remote, Result};
 use crate::domain::runner::{CommandResult, CommandRunner, ExecutionContext, OutputMode};
 use crate::utils::output::Output;
 use std::path::Path;
@@ -128,7 +128,7 @@ impl GitCommandRunner {
         Ok(!output.is_empty())
     }
 
-    pub fn list_remotes(&self, repo_path: &Path) -> Result<Vec<super::remote::Remote>> {
+    pub fn list_remotes(&self, repo_path: &Path) -> Result<Vec<Remote>> {
         let remote_names_result = self.execute(&["remote"], Some(repo_path));
 
         let remote_names: Vec<String> = match remote_names_result {
@@ -143,7 +143,7 @@ impl GitCommandRunner {
         let mut remotes = Vec::new();
         for name in remote_names {
             if let Ok(url) = self.get_remote_url(repo_path, &name) {
-                remotes.push(super::remote::Remote {
+                remotes.push(Remote {
                     name: name.to_string(),
                     url,
                 });

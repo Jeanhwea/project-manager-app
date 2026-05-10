@@ -1,6 +1,11 @@
 pub mod command;
-pub mod remote;
 pub mod repository;
+
+#[derive(Debug, Clone)]
+pub struct Remote {
+    pub name: String,
+    pub url: String,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
@@ -13,11 +18,8 @@ pub enum GitError {
     #[error("Remote not found: {0}")]
     RemoteNotFound(String),
 
-    #[error("I/O error: {0}")]
+    #[error(transparent)]
     Io(#[from] std::io::Error),
-
-    #[error("Anyhow error: {0}")]
-    Anyhow(#[from] anyhow::Error),
 }
 
 #[derive(Debug, Clone, PartialEq)]

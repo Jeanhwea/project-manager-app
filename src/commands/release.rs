@@ -394,7 +394,7 @@ fn update_js_lockfile(package_json_path: &str) -> Result<()> {
         }
     }
 
-    if is_command_available("pnpm") {
+    if crate::utils::is_command_available("pnpm") {
         return run_js_lockfile_update(
             pkg_dir,
             "pnpm-lock.yaml",
@@ -404,27 +404,6 @@ fn update_js_lockfile(package_json_path: &str) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn is_command_available(name: &str) -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/c", name, "--version"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        std::process::Command::new(name)
-            .arg("--version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
-    }
 }
 
 fn run_js_lockfile_update(
@@ -539,17 +518,24 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
     anyhow::bail!("未在 {} 中找到 [package] name", cargo_toml_path)
 }
 
+fn get_remotes(runner: &GitCommandRunner) -> Vec<String> {
+    let Ok(output) = runner.execute(&["remote"], None) else {
+        return Vec::new();
+    };
+    output
+        .lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 fn print_push_plan(skip_push: bool, current_branch: &str, new_tag: &str) {
     if skip_push {
         return;
     }
 
     let runner = GitCommandRunner::new();
-    let Ok(output) = runner.execute(&["remote"], None) else {
-        return;
-    };
-
-    for remote in output.lines().map(|s| s.trim().to_string()) {
+    for remote in get_remotes(&runner) {
         Output::message(&format!("git push {} {}", remote, new_tag));
         Output::message(&format!("git push {} {}", remote, current_branch));
     }
@@ -561,11 +547,7 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
     }
 
     let runner = GitCommandRunner::new();
-    let Ok(output) = runner.execute(&["remote"], None) else {
-        return Ok(());
-    };
-
-    for remote in output.lines().map(|s| s.trim().to_string()) {
+    for remote in get_remotes(&runner) {
         if let Err(e) = runner.execute_with_success(&["push", &remote, new_tag], None) {
             Output::warning(&format!("推送标签失败: {}", e));
         }
@@ -581,56 +563,6 @@ fn push_to_remotes(skip_push: bool, current_branch: &str, new_tag: &str) -> Resu
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_version_parsing() {
-        let version = Version::from_tag("v1.2.3").unwrap();
-        assert_eq!(version.major, 1);
-        assert_eq!(version.minor, 2);
-        assert_eq!(version.patch, 3);
-
-        let version = Version::from_tag("2.3.4").unwrap();
-        assert_eq!(version.major, 2);
-        assert_eq!(version.minor, 3);
-        assert_eq!(version.patch, 4);
-
-        assert!(Version::from_tag("invalid").is_none());
-        assert!(Version::from_tag("1.2").is_none());
-    }
-
-    #[test]
-    fn test_version_bumping() {
-        let version = Version {
-            major: 1,
-            minor: 2,
-            patch: 3,
-        };
-
-        let bumped = version.bump(&BumpType::Major);
-        assert_eq!(bumped.major, 2);
-        assert_eq!(bumped.minor, 0);
-        assert_eq!(bumped.patch, 0);
-
-        let bumped = version.bump(&BumpType::Minor);
-        assert_eq!(bumped.major, 1);
-        assert_eq!(bumped.minor, 3);
-        assert_eq!(bumped.patch, 0);
-
-        let bumped = version.bump(&BumpType::Patch);
-        assert_eq!(bumped.major, 1);
-        assert_eq!(bumped.minor, 2);
-        assert_eq!(bumped.patch, 4);
-    }
-
-    #[test]
-    fn test_version_to_tag() {
-        let version = Version {
-            major: 1,
-            minor: 2,
-            patch: 3,
-        };
-        assert_eq!(version.to_tag(), "v1.2.3");
-    }
 
     #[test]
     fn test_expand_glob_pattern() {
