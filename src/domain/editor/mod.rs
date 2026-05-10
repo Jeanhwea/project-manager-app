@@ -155,7 +155,10 @@ pub fn replace_at_position(content: &str, pos: &VersionPosition, new_value: &str
     result
 }
 
-pub fn find_version_value_in_quotes(content: &str, pattern: &regex::Regex) -> Option<VersionPosition> {
+pub fn find_version_value_in_quotes(
+    content: &str,
+    pattern: &regex::Regex,
+) -> Option<VersionPosition> {
     let caps = pattern.captures(content)?;
     let version_match = caps.get(1)?;
     Some(VersionPosition {
