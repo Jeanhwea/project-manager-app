@@ -1,4 +1,4 @@
-use super::{GitError, Remote, Result};
+use super::{GitError, Result};
 use crate::domain::runner::{CommandResult, CommandRunner, ExecutionContext, OutputMode};
 use crate::utils::output::Output;
 use std::path::Path;
@@ -126,41 +126,6 @@ impl GitCommandRunner {
     pub fn has_uncommitted_changes(&self, repo_path: &Path) -> Result<bool> {
         let output = self.execute(&["status", "--porcelain"], Some(repo_path))?;
         Ok(!output.is_empty())
-    }
-
-    pub fn list_remotes(&self, repo_path: &Path) -> Result<Vec<Remote>> {
-        let remote_names_result = self.execute(&["remote"], Some(repo_path));
-
-        let remote_names: Vec<String> = match remote_names_result {
-            Ok(output) => output
-                .lines()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect(),
-            Err(_) => return Ok(Vec::new()),
-        };
-
-        let mut remotes = Vec::new();
-        for name in remote_names {
-            if let Ok(url) = self.get_remote_url(repo_path, &name) {
-                remotes.push(Remote {
-                    name: name.to_string(),
-                    url,
-                });
-            }
-        }
-
-        Ok(remotes)
-    }
-
-    fn get_remote_url(&self, repo_path: &Path, name: &str) -> Result<String> {
-        let output = self.execute(&["remote", "get-url", name], Some(repo_path))?;
-
-        if output.trim().is_empty() {
-            Err(GitError::RemoteNotFound(name.to_string()))
-        } else {
-            Ok(output)
-        }
     }
 }
 

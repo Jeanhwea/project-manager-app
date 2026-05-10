@@ -90,21 +90,6 @@ impl GitLabClient {
         let request = self.client.get(&url);
         self.send_request(request)
     }
-
-    pub fn list_projects(&self, group_id: &str) -> Result<Vec<Project>> {
-        let url = format!(
-            "{}/api/v4/groups/{}/projects?include_subgroups=true&per_page=100",
-            self.base_url, group_id
-        );
-        let request = self.client.get(&url);
-        self.send_request(request)
-    }
-
-    pub fn list_groups(&self) -> Result<Vec<Group>> {
-        let url = format!("{}/api/v4/groups?per_page=100", self.base_url);
-        let request = self.client.get(&url);
-        self.send_request(request)
-    }
 }
 
 fn normalize_server_url(server: &str) -> String {

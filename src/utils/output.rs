@@ -93,6 +93,7 @@ impl Output {
     }
 }
 
+#[allow(dead_code)]
 pub enum ItemColor {
     Green,
     Yellow,
