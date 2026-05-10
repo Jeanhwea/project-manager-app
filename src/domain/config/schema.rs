@@ -23,31 +23,10 @@ impl Default for RepositoryConfig {
         Self {
             max_depth: 3,
             skip_dirs: vec![
-                ".venv",
-                "venv",
-                "env",
-                ".env",
-                "node_modules",
-                "__pycache__",
-                ".tox",
-                ".mypy_cache",
-                ".pytest_cache",
-                ".ruff_cache",
-                "dist",
-                "build",
-                "target",
-                ".gradle",
-                ".idea",
-                ".vscode",
-                ".fleet",
-                ".cache",
-                ".next",
-                ".nuxt",
-                ".svelte-kit",
-                ".angular",
-                "bower_components",
-                ".terraform",
-                ".cargo",
+                ".venv", "venv", "env", ".env", "node_modules", "__pycache__", ".tox",
+                ".mypy_cache", ".pytest_cache", ".ruff_cache", "dist", "build", "target",
+                ".gradle", ".idea", ".vscode", ".fleet", ".cache", ".next", ".nuxt",
+                ".svelte-kit", ".angular", "bower_components", ".terraform", ".cargo",
             ]
             .into_iter()
             .map(String::from)
@@ -78,7 +57,7 @@ impl Default for RemoteConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RemoteRule {
     #[serde(default)]
     pub hosts: Vec<String>,
@@ -97,21 +76,16 @@ fn default_remote_rules() -> Vec<RemoteRule> {
         RemoteRule {
             hosts: vec!["github.com".into(), "githubfast.com".into()],
             name: "github".into(),
-            url_prefix: None,
-            path_prefixes: vec![],
-            path_prefix_name: None,
+            ..Default::default()
         },
         RemoteRule {
             hosts: vec!["gitana.jeanhwea.io".into()],
             name: "gitana".into(),
-            url_prefix: None,
-            path_prefixes: vec![],
-            path_prefix_name: None,
+            ..Default::default()
         },
         RemoteRule {
             hosts: vec!["gitee.com".into()],
             name: "gitee".into(),
-            url_prefix: None,
             path_prefixes: vec![
                 "red_8/".into(),
                 "redtool/".into(),
@@ -119,6 +93,7 @@ fn default_remote_rules() -> Vec<RemoteRule> {
                 "teampuzzle/".into(),
             ],
             path_prefix_name: Some("redinf".into()),
+            ..Default::default()
         },
     ]
 }
@@ -132,11 +107,7 @@ pub struct SyncConfig {
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            skip_push_hosts: vec![
-                "github.com".into(),
-                "githubfast.com".into(),
-                "gitee.com".into(),
-            ],
+            skip_push_hosts: vec!["github.com".into(), "githubfast.com".into(), "gitee.com".into()],
         }
     }
 }

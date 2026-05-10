@@ -7,19 +7,19 @@ fn load_toml_config<T: Default + serde::de::DeserializeOwned>(
     path: &std::path::Path,
     label: &str,
 ) -> T {
-    let result = std::fs::read_to_string(path)
-        .map_err(|e| format!("无法读取{}配置文件 ({}): {}", label, path.display(), e))
-        .and_then(|content| {
-            toml::from_str(&content)
-                .map_err(|e| format!("{}配置文件解析失败 ({}): {}", label, path.display(), e))
-        });
-
-    match result {
-        Ok(config) => config,
-        Err(msg) => {
-            if std::fs::metadata(path).is_ok() {
-                eprintln!("警告: {}", msg);
+    if !path.exists() {
+        return T::default();
+    }
+    match std::fs::read_to_string(path) {
+        Ok(content) => match toml::from_str(&content) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("警告: {}配置文件解析失败 ({}): {}", label, path.display(), e);
+                T::default()
             }
+        },
+        Err(e) => {
+            eprintln!("警告: 无法读取{}配置文件 ({}): {}", label, path.display(), e);
             T::default()
         }
     }
