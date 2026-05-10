@@ -86,31 +86,10 @@ fn resolve_target_remote(
         return Ok(name.to_string());
     }
 
-    find_preferred_remote(git_ctx)
-        .or_else(|| first_remote_name(git_ctx))
-        .ok_or_else(|| AppError::not_found("无可用远程仓库").into())
-}
-
-fn find_preferred_remote(git_ctx: &GitContext) -> Option<String> {
-    current_branch_upstream(git_ctx)
-        .filter(|name| git_ctx.has_remote(name))
-}
-
-fn current_branch_upstream(git_ctx: &GitContext) -> Option<String> {
     git_ctx
-        .branches
-        .iter()
-        .find(|b| b.is_current_local())
-        .and_then(|b| b.tracking_branch.as_ref())
-        .and_then(|t| extract_remote_from_tracking(t))
-}
-
-fn extract_remote_from_tracking(tracking: &str) -> Option<String> {
-    tracking.split('/').next().map(String::from)
-}
-
-fn first_remote_name(git_ctx: &GitContext) -> Option<String> {
-    git_ctx.remotes.first().map(|r| r.name.clone())
+        .preferred_remote()
+        .or_else(|| git_ctx.first_remote_name())
+        .ok_or_else(|| AppError::not_found("无可用远程仓库").into())
 }
 
 fn make_plan(args: &SyncArgs, ctx: &SyncContext) -> anyhow::Result<ExecutionPlan> {
