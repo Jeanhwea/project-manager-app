@@ -54,18 +54,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
 }
 
 fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> Result<()> {
-    let remotes = runner.get_remote_list(repo_path)?;
-    if remotes.is_empty() {
-        Output::warning("没有配置远程仓库");
-        return Ok(());
-    }
-
     let target_remote = args.remote.as_deref().unwrap_or("origin");
-
-    if !remotes.iter().any(|r| r == target_remote) {
-        Output::warning(&format!("远程仓库 {} 不存在", target_remote));
-        return Ok(());
-    }
 
     if args.fetch {
         let fetch_args = if args.prune {
