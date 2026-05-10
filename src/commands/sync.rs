@@ -37,13 +37,7 @@ struct SyncContext {
 }
 
 pub fn run(args: SyncArgs) -> anyhow::Result<()> {
-    let effective_path = if args.path.is_empty() {
-        let cwd = std::env::current_dir()?;
-        find_git_repository_upwards(&cwd).unwrap_or(cwd)
-    } else {
-        crate::utils::path::canonicalize_path(&args.path)?
-    };
-
+    let effective_path = resolve_effective_path(&args.path)?;
     let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
@@ -54,8 +48,18 @@ pub fn run(args: SyncArgs) -> anyhow::Result<()> {
     Pipeline::run_multi_repo(&args, &walker, get_context, make_plan)
 }
 
+fn resolve_effective_path(path: &str) -> anyhow::Result<std::path::PathBuf> {
+    if path.is_empty() {
+        let cwd = std::env::current_dir()?;
+        Ok(find_git_repository_upwards(&cwd).unwrap_or(cwd))
+    } else {
+        Ok(crate::utils::path::canonicalize_path(path)?)
+    }
+}
+
 fn get_context(args: &SyncArgs, repo_path: &Path) -> anyhow::Result<SyncContext> {
     let git_ctx = collect_context(repo_path)?;
+
     if git_ctx.remotes.is_empty() {
         return Ok(SyncContext {
             git_ctx,
@@ -63,20 +67,7 @@ fn get_context(args: &SyncArgs, repo_path: &Path) -> anyhow::Result<SyncContext>
         });
     }
 
-    let target_remote = match args.remote.as_deref() {
-        Some(name) => {
-            if !git_ctx.has_remote(name) {
-                return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)).into());
-            }
-            name.to_string()
-        }
-        None => git_ctx
-            .remotes
-            .first()
-            .expect("remotes should not be empty")
-            .name
-            .clone(),
-    };
+    let target_remote = resolve_target_remote(&git_ctx, args.remote.as_deref())?;
 
     Ok(SyncContext {
         git_ctx,
@@ -84,35 +75,72 @@ fn get_context(args: &SyncArgs, repo_path: &Path) -> anyhow::Result<SyncContext>
     })
 }
 
-fn make_plan(args: &SyncArgs, ctx: &SyncContext) -> anyhow::Result<ExecutionPlan> {
-    if ctx.git_ctx.remotes.is_empty() || ctx.target_remote.is_empty() {
-        let mut plan = ExecutionPlan::new();
-        plan.add(MessageOperation::Skip {
-            msg: "无远程仓库".to_string(),
-        });
-        return Ok(plan);
+fn resolve_target_remote(
+    git_ctx: &GitContext,
+    explicit_remote: Option<&str>,
+) -> anyhow::Result<String> {
+    if let Some(name) = explicit_remote {
+        if !git_ctx.has_remote(name) {
+            return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)).into());
+        }
+        return Ok(name.to_string());
     }
 
-    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
-    plan.add(GitOperation::Pull {
-        remote: ctx.target_remote.clone(),
-        branch: ctx.git_ctx.current_branch.clone(),
-    });
-    plan.add(GitOperation::PushAll {
-        remote: ctx.target_remote.clone(),
-    });
-    plan.add(GitOperation::PushTags {
-        remote: ctx.target_remote.clone(),
-    });
+    find_preferred_remote(git_ctx)
+        .or_else(|| first_remote_name(git_ctx))
+        .ok_or_else(|| AppError::not_found("无可用远程仓库").into())
+}
 
+fn find_preferred_remote(git_ctx: &GitContext) -> Option<String> {
+    current_branch_upstream(git_ctx)
+        .filter(|name| git_ctx.has_remote(name))
+}
+
+fn current_branch_upstream(git_ctx: &GitContext) -> Option<String> {
+    git_ctx
+        .branches
+        .iter()
+        .find(|b| b.is_current_local())
+        .and_then(|b| b.tracking_branch.as_ref())
+        .and_then(|t| extract_remote_from_tracking(t))
+}
+
+fn extract_remote_from_tracking(tracking: &str) -> Option<String> {
+    tracking.split('/').next().map(String::from)
+}
+
+fn first_remote_name(git_ctx: &GitContext) -> Option<String> {
+    git_ctx.remotes.first().map(|r| r.name.clone())
+}
+
+fn make_plan(args: &SyncArgs, ctx: &SyncContext) -> anyhow::Result<ExecutionPlan> {
+    if ctx.git_ctx.remotes.is_empty() || ctx.target_remote.is_empty() {
+        return skip_plan("无远程仓库");
+    }
+
+    let remote = ctx.target_remote.clone();
+    let branch = ctx.git_ctx.current_branch.clone();
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
+
+    plan.add(GitOperation::Pull { remote: remote.clone(), branch });
+    plan.add(GitOperation::PushAll { remote: remote.clone() });
+    plan.add(GitOperation::PushTags { remote });
+
+    Ok(plan)
+}
+
+fn skip_plan(msg: &str) -> anyhow::Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
+    plan.add(MessageOperation::Skip {
+        msg: msg.to_string(),
+    });
     Ok(plan)
 }
 
 fn find_git_repository_upwards(start_dir: &Path) -> Option<std::path::PathBuf> {
     let mut current = start_dir.to_path_buf();
     loop {
-        let git_dir = current.join(".git");
-        if git_dir.exists() {
+        if current.join(".git").exists() {
             return Some(current);
         }
         if !current.pop() {

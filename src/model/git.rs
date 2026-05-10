@@ -38,6 +38,10 @@ impl Branch {
     pub fn local_branches(branches: &[Branch]) -> Vec<&Branch> {
         branches.iter().filter(|b| !b.is_remote).collect()
     }
+
+    pub fn is_current_local(&self) -> bool {
+        self.is_current && !self.is_remote
+    }
 }
 
 #[derive(Debug, Clone)]
