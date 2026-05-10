@@ -6,46 +6,39 @@ use serde::de::DeserializeOwned;
 pub struct GitLabClient {
     client: ureq::Agent,
     base_url: String,
+    token: String,
 }
 
 impl GitLabClient {
     pub fn new() -> Result<Self> {
         let gitlab_config = ConfigDir::load_gitlab();
-        let server = gitlab_config.server.ok_or_else(|| {
+        let server = gitlab_config.servers.first().ok_or_else(|| {
             GitLabError::AuthenticationError("GitLab server not configured".to_string())
         })?;
-        let base_url = if server.starts_with("http") {
-            server.trim_end_matches('/').to_string()
-        } else {
-            format!("https://{}", server.trim_start_matches("https://").trim_start_matches("http://"))
-        };
+        let base_url = normalize_server_url(&server.url);
+        let token = server.token.clone();
 
         let client = ureq::agent();
-        Ok(Self { client, base_url })
-    }
-
-    pub fn with_config(server: String, _token: String) -> Self {
-        let base_url = if server.starts_with("http") {
-            server.trim_end_matches('/').to_string()
-        } else {
-            format!("https://{}", server.trim_start_matches("https://").trim_start_matches("http://"))
-        };
-
-        let client = ureq::agent();
-        Self { client, base_url }
-    }
-
-    fn token(&self) -> Result<&str> {
-        let gitlab_config = ConfigDir::load_gitlab();
-        gitlab_config.token.as_deref().ok_or_else(|| {
-            GitLabError::AuthenticationError("GitLab token not configured".to_string())
+        Ok(Self {
+            client,
+            base_url,
+            token,
         })
     }
 
+    pub fn with_url_and_token(url: &str, token: &str) -> Self {
+        let base_url = normalize_server_url(url);
+        let client = ureq::agent();
+        Self {
+            client,
+            base_url,
+            token: token.to_string(),
+        }
+    }
+
     fn send_request<T: DeserializeOwned>(&self, request: ureq::Request) -> Result<T> {
-        let token = self.token()?;
         let response = request
-            .set("PRIVATE-TOKEN", token)
+            .set("PRIVATE-TOKEN", &self.token)
             .set("User-Agent", "pma-gitlab")
             .call()
             .map_err(|e| GitLabError::NetworkError(Box::new(e)))?;
@@ -76,28 +69,32 @@ impl GitLabClient {
         self.send_request(request)
     }
 
-    pub fn list_projects(&self, group_id: &str) -> Result<Vec<Project>> {
+    pub fn get_groups(&self) -> Result<Vec<Group>> {
+        let url = format!("{}/api/v4/groups?per_page=100", self.base_url);
+        let request = self.client.get(&url);
+        self.send_request(request)
+    }
+
+    pub fn get_group_projects(
+        &self,
+        group_id: u64,
+        include_subgroups: bool,
+        archived: bool,
+    ) -> Result<Vec<Project>> {
+        let include = if include_subgroups { "true" } else { "false" };
+        let archived_flag = if archived { "true" } else { "false" };
         let url = format!(
-            "{}/api/v4/groups/{}/projects?include_subgroups=true&per_page=100",
-            self.base_url, group_id
+            "{}/api/v4/groups/{}/projects?include_subgroups={}&per_page=100&archived={}",
+            self.base_url, group_id, include, archived_flag
         );
         let request = self.client.get(&url);
         self.send_request(request)
     }
 
-    pub fn list_projects_with_query(
-        &self,
-        group_id: &str,
-        query: &[(&str, &str)],
-    ) -> Result<Vec<Project>> {
-        let query_str: String = query
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect::<Vec<_>>()
-            .join("&");
+    pub fn list_projects(&self, group_id: &str) -> Result<Vec<Project>> {
         let url = format!(
-            "{}/api/v4/groups/{}/projects?include_subgroups=true&per_page=100&{}",
-            self.base_url, group_id, query_str
+            "{}/api/v4/groups/{}/projects?include_subgroups=true&per_page=100",
+            self.base_url, group_id
         );
         let request = self.client.get(&url);
         self.send_request(request)
@@ -108,19 +105,18 @@ impl GitLabClient {
         let request = self.client.get(&url);
         self.send_request(request)
     }
+}
 
-    pub fn list_groups_with_query(&self, query: &[(&str, &str)]) -> Result<Vec<Group>> {
-        let query_str: String = query
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect::<Vec<_>>()
-            .join("&");
-        let url = format!(
-            "{}/api/v4/groups?per_page=100&{}",
-            self.base_url, query_str
-        );
-        let request = self.client.get(&url);
-        self.send_request(request)
+fn normalize_server_url(server: &str) -> String {
+    if server.starts_with("http") {
+        server.trim_end_matches('/').to_string()
+    } else {
+        format!(
+            "https://{}",
+            server
+                .trim_start_matches("https://")
+                .trim_start_matches("http://")
+        )
     }
 }
 
@@ -129,6 +125,7 @@ impl Default for GitLabClient {
         Self::new().unwrap_or_else(|_| Self {
             client: ureq::agent(),
             base_url: String::new(),
+            token: String::new(),
         })
     }
 }

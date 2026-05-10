@@ -1,4 +1,4 @@
-use super::{EditorError, FileEditor, Result, VersionPosition, replace_at_position};
+use super::{EditorError, FileEditor, Result, VersionPosition};
 
 pub struct PyprojectEditor;
 
