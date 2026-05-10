@@ -8,13 +8,7 @@ pub enum AppError {
     CommandNotAvailable(String),
 
     #[error("{0}")]
-    Config(String),
-
-    #[error("{0}")]
     Editor(#[from] EditorError),
-
-    #[error("{0}")]
-    Fork(String),
 
     #[error("{0}")]
     Git(#[from] GitError),
@@ -50,14 +44,6 @@ pub enum AppError {
 impl AppError {
     pub fn command_not_available(name: &str) -> Self {
         AppError::CommandNotAvailable(name.to_string())
-    }
-
-    pub fn config(msg: impl Into<String>) -> Self {
-        AppError::Config(msg.into())
-    }
-
-    pub fn fork(msg: impl Into<String>) -> Self {
-        AppError::Fork(msg.into())
     }
 
     pub fn not_found(msg: impl Into<String>) -> Self {

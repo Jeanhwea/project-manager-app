@@ -1,5 +1,6 @@
+use crate::control::plan::run_plan;
 use crate::domain::AppError;
-use crate::domain::git::executor::{ExecutionPlan, GitOperation};
+use crate::model::plan::{ExecutionPlan, GitOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -55,5 +56,5 @@ pub fn run(args: ForkArgs) -> anyhow::Result<()> {
         message: "fork: initial commit".to_string(),
     });
 
-    plan.execute()
+    run_plan(&plan)
 }

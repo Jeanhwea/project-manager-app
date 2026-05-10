@@ -1,5 +1,5 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
-use crate::domain::git::executor::GitContext;
+use crate::control::context::collect_context;
 use crate::utils::output::Output;
 
 #[derive(Debug, clap::Args)]
@@ -17,7 +17,7 @@ pub fn run(args: StatusArgs) -> anyhow::Result<()> {
 
     for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
-        let Ok(ctx) = GitContext::collect(repo_path) else {
+        let Ok(ctx) = collect_context(repo_path) else {
             continue;
         };
 

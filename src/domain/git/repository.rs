@@ -7,22 +7,6 @@ pub struct RepoInfo {
     pub path: PathBuf,
 }
 
-pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
-    let mut current = start_dir;
-
-    loop {
-        let git_path = current.join(".git");
-        if git_path.exists() {
-            return Some(current.to_path_buf());
-        }
-
-        match current.parent() {
-            Some(parent) => current = parent,
-            None => return None,
-        }
-    }
-}
-
 fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoInfo>> {
     let mut repos = Vec::new();
 

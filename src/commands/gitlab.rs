@@ -1,5 +1,6 @@
+use crate::control::plan::run_plan;
 use crate::domain::AppError;
-use crate::domain::git::executor::{ExecutionPlan, GitOperation};
+use crate::model::plan::{ExecutionPlan, GitOperation};
 use crate::utils::output::Output;
 
 #[derive(Debug, clap::Subcommand)]
@@ -26,11 +27,7 @@ pub struct LoginArgs {
 pub struct CloneArgs {
     #[arg(help = "Project path on GitLab (e.g. group/project)")]
     pub project: String,
-    #[arg(
-        long,
-        short,
-        help = "GitLab server URL (overrides configured server)"
-    )]
+    #[arg(long, short, help = "GitLab server URL (overrides configured server)")]
     pub server: Option<String>,
     #[arg(
         long,
@@ -55,11 +52,13 @@ fn execute_login(args: LoginArgs) -> anyhow::Result<()> {
         existing.token = args.token.clone();
         existing.protocol = args.protocol.clone();
     } else {
-        config.servers.push(crate::domain::config::schema::GitLabServer {
-            url: args.url.clone(),
-            token: args.token.clone(),
-            protocol: args.protocol.clone(),
-        });
+        config
+            .servers
+            .push(crate::domain::config::schema::GitLabServer {
+                url: args.url.clone(),
+                token: args.token.clone(),
+                protocol: args.protocol.clone(),
+            });
     }
 
     crate::domain::config::ConfigDir::save_gitlab(&config)?;
@@ -78,10 +77,9 @@ fn execute_clone(args: CloneArgs) -> anyhow::Result<()> {
             .find(|s| &s.url == url)
             .ok_or_else(|| AppError::not_found(format!("GitLab 服务器 {} 未配置", url)))?
     } else {
-        config
-            .servers
-            .first()
-            .ok_or_else(|| AppError::not_found("未配置 GitLab 服务器，请先执行 pma gitlab login"))?
+        config.servers.first().ok_or_else(|| {
+            AppError::not_found("未配置 GitLab 服务器，请先执行 pma gitlab login")
+        })?
     };
 
     let clone_url = match server.protocol.as_str() {
@@ -92,7 +90,7 @@ fn execute_clone(args: CloneArgs) -> anyhow::Result<()> {
     let target_dir = args
         .project
         .split('/')
-        .last()
+        .next_back()
         .unwrap_or(&args.project)
         .to_string();
 
@@ -107,7 +105,7 @@ fn execute_clone(args: CloneArgs) -> anyhow::Result<()> {
         url: clone_url,
         dir: std::path::PathBuf::from(&target_dir),
     });
-    plan.execute()
+    run_plan(&plan)
 }
 
 fn extract_host(url: &str) -> anyhow::Result<String> {

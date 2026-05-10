@@ -1,4 +1,6 @@
+#[allow(dead_code)]
 pub mod client;
+#[allow(dead_code)]
 pub mod models;
 
 #[derive(Debug, thiserror::Error)]
@@ -19,4 +21,5 @@ pub enum GitLabError {
     RateLimited,
 }
 
+#[allow(dead_code)]
 pub type Result<T> = std::result::Result<T, GitLabError>;

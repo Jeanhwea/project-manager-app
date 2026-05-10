@@ -1,6 +1,8 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
-use crate::domain::git::executor::{ExecutionPlan, GitContext, GitOperation};
-use crate::domain::git::command::GitCommandRunner;
+use crate::control::context::collect_context;
+use crate::control::plan::run_plan;
+use crate::domain::git::GitCommandRunner;
+use crate::model::plan::{ExecutionPlan, GitOperation};
 use crate::utils::output::Output;
 use anyhow::Result;
 use std::path::Path;
@@ -79,7 +81,7 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
 
     for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
-        let Ok(ctx) = GitContext::collect(repo_path) else {
+        let Ok(ctx) = collect_context(repo_path) else {
             continue;
         };
 
@@ -110,7 +112,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
 
     for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
-        let Ok(ctx) = GitContext::collect(repo_path) else {
+        let Ok(ctx) = collect_context(repo_path) else {
             continue;
         };
 
@@ -146,7 +148,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
                 });
             }
         }
-        plan.execute()?;
+        run_plan(&plan)?;
     }
 
     Ok(())
@@ -160,7 +162,7 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;
 
-        let Ok(ctx) = GitContext::collect(repo_path) else {
+        let Ok(ctx) = collect_context(repo_path) else {
             continue;
         };
 
@@ -177,7 +179,7 @@ fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
         plan.add(GitOperation::Checkout {
             ref_name: args.branch.clone(),
         });
-        plan.execute()?;
+        run_plan(&plan)?;
 
         Output::success(&format!(
             "{}: 已切换到 {}",
@@ -197,7 +199,7 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
     for repo_info in walker.repositories() {
         let repo_path = &repo_info.path;
 
-        let Ok(ctx) = GitContext::collect(repo_path) else {
+        let Ok(ctx) = collect_context(repo_path) else {
             continue;
         };
 
@@ -215,7 +217,7 @@ fn execute_rename(args: BranchRenameArgs) -> Result<()> {
             old: args.old_name.clone(),
             new: args.new_name.clone(),
         });
-        plan.execute()?;
+        run_plan(&plan)?;
 
         Output::success(&format!(
             "{}: {} -> {}",

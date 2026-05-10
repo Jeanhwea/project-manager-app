@@ -58,15 +58,6 @@ pub struct CommandResult {
 }
 
 impl CommandResult {
-    pub fn success() -> Self {
-        Self {
-            exit_code: 0,
-            success: true,
-            stdout: None,
-            stderr: None,
-        }
-    }
-
     pub fn with_output(exit_code: i32, stdout: String, stderr: String) -> Self {
         Self {
             exit_code,

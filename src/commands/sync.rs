@@ -1,6 +1,8 @@
+use crate::control::context::collect_context;
+use crate::control::plan::run_plan;
 use crate::domain::AppError;
-use crate::domain::git::executor::{ExecutionPlan, GitContext, GitOperation};
 use crate::domain::git::repository::RepoWalker;
+use crate::model::plan::{ExecutionPlan, GitOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -58,7 +60,7 @@ pub fn run(args: SyncArgs) -> anyhow::Result<()> {
 }
 
 fn sync_repo(repo_path: &Path, args: &SyncArgs) -> anyhow::Result<()> {
-    let ctx = GitContext::collect(repo_path)?;
+    let ctx = collect_context(repo_path)?;
     if ctx.remotes.is_empty() {
         return Ok(());
     }
@@ -70,7 +72,12 @@ fn sync_repo(repo_path: &Path, args: &SyncArgs) -> anyhow::Result<()> {
             }
             name.to_string()
         }
-        None => ctx.remotes.first().expect("remotes should not be empty").name.clone(),
+        None => ctx
+            .remotes
+            .first()
+            .expect("remotes should not be empty")
+            .name
+            .clone(),
     };
 
     let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
@@ -85,7 +92,7 @@ fn sync_repo(repo_path: &Path, args: &SyncArgs) -> anyhow::Result<()> {
         remote: target_remote,
     });
 
-    plan.execute()
+    run_plan(&plan)
 }
 
 fn find_git_repository_upwards(start_dir: &Path) -> Option<std::path::PathBuf> {

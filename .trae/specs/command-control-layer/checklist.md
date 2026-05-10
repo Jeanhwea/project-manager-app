@@ -1,0 +1,12 @@
+- [x] model::git 包含 Remote/Branch/Tag/GitContext 数据结构
+- [x] model::plan 包含 GitOperation/ExecutionPlan 数据结构
+- [x] control::context 包含 collect_context，通过 domain 层收集
+- [x] control::plan 包含 run_plan/display_plan，调用 domain 层执行
+- [x] control::remote 包含 resolve_remote_name/diagnose_remote_names
+- [x] domain/git 只保留 command.rs/repository.rs/mod.rs/error
+- [x] domain/git/executor.rs 已移除
+- [x] domain/git/models.rs 已移除
+- [x] domain/git/remote.rs 已移除
+- [x] commands/ 层通过 control 层工作，不直接调用 domain 层
+- [x] cargo check 无错误
+- [x] cargo test 通过

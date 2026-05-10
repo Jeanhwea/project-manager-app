@@ -1,7 +1,10 @@
+use crate::control::context::collect_context;
+use crate::control::plan::run_plan;
 use crate::domain::AppError;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version, write_with_backup};
-use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::executor::{ExecutionPlan, GitContext, GitOperation};
+use crate::domain::git::GitCommandRunner;
+use crate::model::git::GitContext;
+use crate::model::plan::{ExecutionPlan, GitOperation};
 use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
 use anyhow::Result;
@@ -72,7 +75,7 @@ pub fn run(args: ReleaseArgs) -> anyhow::Result<()> {
         switch_to_git_root()?;
     }
 
-    let ctx = GitContext::collect(Path::new("."))?;
+    let ctx = collect_context(Path::new("."))?;
     let state = validate_git_state(&args, &ctx)?;
     let registry = EditorRegistry::default_with_editors();
     let config_files = resolve_config_files(&registry, &resolved_files)?;
@@ -81,7 +84,7 @@ pub fn run(args: ReleaseArgs) -> anyhow::Result<()> {
 
     let mut plan = build_execution_plan(&args, &config_files, &state, &ctx);
     plan.dry_run = args.dry_run;
-    plan.execute()
+    run_plan(&plan)
 }
 
 fn resolve_file_paths(files: &[String]) -> Vec<String> {

@@ -1,8 +1,10 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
+use crate::control::context::collect_context;
+use crate::control::plan::run_plan;
+use crate::control::remote::diagnose_remote_names;
 use crate::domain::AppError;
-use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::executor::{ExecutionPlan, GitContext, GitOperation};
-use crate::domain::git::remote::diagnose_remote_names;
+use crate::domain::git::GitCommandRunner;
+use crate::model::plan::{ExecutionPlan, GitOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -165,7 +167,7 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
 }
 
 fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Result<usize> {
-    let ctx = GitContext::collect(repo_path)?;
+    let ctx = collect_context(repo_path)?;
     let mut plan = ExecutionPlan::new().dry_run(dry_run);
     let mut fixed = 0;
 
@@ -175,7 +177,8 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Res
                 remote: "origin".to_string(),
             });
             fixed += 1;
-        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支") {
+        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支")
+        {
             plan.add(GitOperation::SetUpstream {
                 remote: "origin".to_string(),
                 branch: ctx.current_branch.clone(),
@@ -186,27 +189,27 @@ fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Res
             fixed += 1;
         } else if issue.contains("stash") {
             Output::warning("stash 条目需要手动处理");
-        } else if let Some(rest) = issue.strip_prefix("remote 名称不匹配: ") {
-            if let Some((current, expected_with_host)) = rest.split_once(" -> ") {
-                let expected = expected_with_host
-                    .split(' ')
-                    .next()
-                    .unwrap_or(expected_with_host);
-                if !ctx.has_remote(expected) {
-                    plan.add(GitOperation::RemoteRename {
-                        old: current.to_string(),
-                        new: expected.to_string(),
-                    });
-                    fixed += 1;
-                } else {
-                    Output::warning(&format!("目标 remote 名称 {} 已存在，跳过", expected));
-                }
+        } else if let Some(rest) = issue.strip_prefix("remote 名称不匹配: ")
+            && let Some((current, expected_with_host)) = rest.split_once(" -> ")
+        {
+            let expected = expected_with_host
+                .split(' ')
+                .next()
+                .unwrap_or(expected_with_host);
+            if !ctx.has_remote(expected) {
+                plan.add(GitOperation::RemoteRename {
+                    old: current.to_string(),
+                    new: expected.to_string(),
+                });
+                fixed += 1;
+            } else {
+                Output::warning(&format!("目标 remote 名称 {} 已存在，跳过", expected));
             }
         }
     }
 
     if !plan.is_empty() {
-        plan.execute()?;
+        run_plan(&plan)?;
     }
 
     Ok(fixed)

@@ -1,6 +1,7 @@
+use crate::control::plan::run_plan;
 use crate::domain::AppError;
-use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::executor::{ExecutionPlan, GitOperation};
+use crate::domain::git::GitCommandRunner;
+use crate::model::plan::{ExecutionPlan, GitOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -102,7 +103,7 @@ fn execute_create(args: CreateArgs) -> anyhow::Result<()> {
         });
     }
 
-    plan.execute()
+    run_plan(&plan)
 }
 
 fn execute_list(args: ListArgs) -> anyhow::Result<()> {
@@ -165,7 +166,7 @@ fn execute_restore(args: RestoreArgs) -> anyhow::Result<()> {
     plan.add(GitOperation::Checkout {
         ref_name: commit_ref.clone(),
     });
-    plan.execute()?;
+    run_plan(&plan)?;
 
     Output::success(&format!("已恢复到快照 {}", commit_ref));
     Output::warning("若要回到最新状态，请执行: git checkout -");

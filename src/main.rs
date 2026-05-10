@@ -1,6 +1,8 @@
 mod cli;
 mod commands;
+mod control;
 mod domain;
+mod model;
 mod utils;
 
 use anyhow::Result;
