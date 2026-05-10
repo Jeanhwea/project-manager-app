@@ -38,6 +38,7 @@ pub fn display_plan(plan: &ExecutionPlan) {
 }
 
 fn execute_message(op: &MessageOperation) {
+    use colored::Colorize;
     match op {
         MessageOperation::Header { title } => Output::header(title),
         MessageOperation::Section { title } => Output::section(title),
@@ -49,8 +50,8 @@ fn execute_message(op: &MessageOperation) {
             old_content,
             new_content,
         } => {
-            Output::detail(&format!("L{} -", line_num), old_content);
-            Output::detail(&format!("L{} +", line_num), new_content);
+            println!("    L{} {}", line_num, format!("- {}", old_content).red());
+            println!("    L{} {}", line_num, format!("+ {}", new_content).green());
         }
         MessageOperation::Success { msg } => Output::success(msg),
         MessageOperation::Warning { msg } => Output::warning(msg),
