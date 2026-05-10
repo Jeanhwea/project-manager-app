@@ -2,70 +2,24 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum GitOperation {
-    Init {
-        dir: PathBuf,
-    },
-    Clone {
-        url: String,
-        dir: PathBuf,
-    },
-    Add {
-        path: String,
-    },
-    Commit {
-        message: String,
-    },
-    CreateTag {
-        tag: String,
-    },
-    PushTag {
-        remote: String,
-        tag: String,
-    },
-    PushBranch {
-        remote: String,
-        branch: String,
-    },
-    PushAll {
-        remote: String,
-    },
-    PushTags {
-        remote: String,
-    },
-    Pull {
-        remote: String,
-        branch: String,
-    },
-    Checkout {
-        ref_name: String,
-    },
-    BranchDelete {
-        branch: String,
-    },
-    BranchRename {
-        old: String,
-        new: String,
-    },
-    RemoteDelete {
-        remote: String,
-        branch: String,
-    },
-    RemoteRename {
-        old: String,
-        new: String,
-    },
-    RemotePrune {
-        remote: String,
-    },
-    SetUpstream {
-        remote: String,
-        branch: String,
-    },
+    Init { dir: PathBuf },
+    Clone { url: String, dir: PathBuf },
+    Add { path: String },
+    Commit { message: String },
+    CreateTag { tag: String },
+    PushTag { remote: String, tag: String },
+    PushBranch { remote: String, branch: String },
+    PushAll { remote: String },
+    PushTags { remote: String },
+    Pull { remote: String, branch: String },
+    Checkout { ref_name: String },
+    BranchDelete { branch: String },
+    BranchRename { old: String, new: String },
+    RemoteDelete { remote: String, branch: String },
+    RemoteRename { old: String, new: String },
+    RemotePrune { remote: String },
+    SetUpstream { remote: String, branch: String },
     Gc,
-    Custom {
-        args: Vec<String>,
-        description: String,
-    },
 }
 
 impl GitOperation {
@@ -101,13 +55,82 @@ impl GitOperation {
                 format!("git branch --set-upstream-to {}/{}", remote, branch)
             }
             GitOperation::Gc => "git gc --aggressive".to_string(),
-            GitOperation::Custom { description, .. } => description.clone(),
         }
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum ShellOperation {
+    Run {
+        program: String,
+        args: Vec<String>,
+        dir: Option<PathBuf>,
+        description: String,
+    },
+}
+
+impl ShellOperation {
+    pub fn description(&self) -> String {
+        match self {
+            ShellOperation::Run { description, .. } => description.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum EditOperation {
+    WriteFile {
+        path: String,
+        content: String,
+        description: String,
+    },
+}
+
+impl EditOperation {
+    pub fn description(&self) -> String {
+        match self {
+            EditOperation::WriteFile { description, .. } => description.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Operation {
+    Git(GitOperation),
+    Shell(ShellOperation),
+    Edit(EditOperation),
+}
+
+impl Operation {
+    pub fn description(&self) -> String {
+        match self {
+            Operation::Git(op) => op.description(),
+            Operation::Shell(op) => op.description(),
+            Operation::Edit(op) => op.description(),
+        }
+    }
+}
+
+impl From<GitOperation> for Operation {
+    fn from(op: GitOperation) -> Self {
+        Operation::Git(op)
+    }
+}
+
+impl From<ShellOperation> for Operation {
+    fn from(op: ShellOperation) -> Self {
+        Operation::Shell(op)
+    }
+}
+
+impl From<EditOperation> for Operation {
+    fn from(op: EditOperation) -> Self {
+        Operation::Edit(op)
+    }
+}
+
 pub struct ExecutionPlan {
-    pub operations: Vec<GitOperation>,
+    pub operations: Vec<Operation>,
     pub dry_run: bool,
 }
 
@@ -124,8 +147,8 @@ impl ExecutionPlan {
         self
     }
 
-    pub fn add(&mut self, op: GitOperation) {
-        self.operations.push(op);
+    pub fn add(&mut self, op: impl Into<Operation>) {
+        self.operations.push(op.into());
     }
 
     pub fn is_empty(&self) -> bool {

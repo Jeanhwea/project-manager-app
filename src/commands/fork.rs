@@ -1,6 +1,6 @@
 use crate::control::plan::run_plan;
 use crate::domain::AppError;
-use crate::model::plan::{ExecutionPlan, GitOperation};
+use crate::model::plan::{ExecutionPlan, GitOperation, ShellOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -36,13 +36,27 @@ pub fn run(args: ForkArgs) -> anyhow::Result<()> {
 
     let mut plan = ExecutionPlan::new().dry_run(args.dry_run);
 
-    plan.add(GitOperation::Custom {
+    #[cfg(target_os = "windows")]
+    plan.add(ShellOperation::Run {
+        program: "xcopy".to_string(),
         args: vec![
-            "cp".to_string(),
+            source.to_string_lossy().to_string(),
+            target.to_string_lossy().to_string(),
+            "/E".to_string(),
+            "/I".to_string(),
+        ],
+        dir: None,
+        description: format!("xcopy {} {} /E /I", args.source, args.target),
+    });
+    #[cfg(not(target_os = "windows"))]
+    plan.add(ShellOperation::Run {
+        program: "cp".to_string(),
+        args: vec![
             "-r".to_string(),
             source.to_string_lossy().to_string(),
             target.to_string_lossy().to_string(),
         ],
+        dir: None,
         description: format!("cp -r {} {}", args.source, args.target),
     });
 

@@ -1,10 +1,10 @@
 use crate::control::context::collect_context;
 use crate::control::plan::run_plan;
 use crate::domain::AppError;
-use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version, write_with_backup};
+use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version};
 use crate::domain::git::GitCommandRunner;
 use crate::model::git::GitContext;
-use crate::model::plan::{ExecutionPlan, GitOperation};
+use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, ShellOperation};
 use crate::utils::output::{ItemColor, Output};
 use crate::utils::path::canonicalize_path;
 use anyhow::Result;
@@ -253,12 +253,19 @@ fn build_execution_plan(
     ctx: &GitContext,
 ) -> ExecutionPlan {
     let mut plan = ExecutionPlan::new();
+    let registry = EditorRegistry::default_with_editors();
 
     for file_path in config_files {
-        let registry = EditorRegistry::default_with_editors();
         let editor = registry.detect_editor(Path::new(file_path)).unwrap();
-        if edit_version_in_file(editor, &state.new_tag, file_path).is_ok() {
-            update_lockfile_after_edit(file_path).ok();
+        if let Ok((_, edited)) = compute_edited_content(editor, &state.new_tag, file_path) {
+            plan.add(EditOperation::WriteFile {
+                path: file_path.clone(),
+                content: edited,
+                description: format!("edit {}", file_path),
+            });
+
+            add_lockfile_operations(&mut plan, file_path);
+
             plan.add(GitOperation::Add {
                 path: file_path.clone(),
             });
@@ -286,6 +293,88 @@ fn build_execution_plan(
     }
 
     plan
+}
+
+fn add_lockfile_operations(plan: &mut ExecutionPlan, config_file: &str) {
+    if config_file.ends_with("Cargo.toml") {
+        add_cargo_lock_operations(plan, config_file);
+    } else if config_file.ends_with("package.json") {
+        add_js_lockfile_operations(plan, config_file);
+    }
+}
+
+fn add_cargo_lock_operations(plan: &mut ExecutionPlan, cargo_toml_path: &str) {
+    let dir = parent_dir(Path::new(cargo_toml_path));
+    let lock_path = dir.join("Cargo.lock");
+
+    if !lock_path.exists() || is_gitignored(&lock_path) {
+        return;
+    }
+
+    let Ok(pkg_name) = read_cargo_package_name(cargo_toml_path) else {
+        return;
+    };
+
+    plan.add(ShellOperation::Run {
+        program: "cargo".to_string(),
+        args: vec![
+            "update".to_string(),
+            "--package".to_string(),
+            pkg_name.clone(),
+        ],
+        dir: Some(dir.to_path_buf()),
+        description: format!("cargo update --package {}", pkg_name),
+    });
+
+    let path_str = lock_path.to_string_lossy().replace('\\', "/");
+    plan.add(GitOperation::Add { path: path_str });
+}
+
+fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str) {
+    let pkg_dir = parent_dir(Path::new(package_json_path));
+
+    let lockfiles: &[(&str, &str, &[&str])] = &[
+        ("pnpm-lock.yaml", "pnpm", &["install", "--lockfile-only"]),
+        (
+            "yarn.lock",
+            "yarn",
+            &["install", "--mode", "update-lockfile"],
+        ),
+        (
+            "package-lock.json",
+            "npm",
+            &["install", "--package-lock-only"],
+        ),
+    ];
+
+    for (lock_name, cmd, args) in lockfiles {
+        let lock_path = pkg_dir.join(lock_name);
+        if lock_path.exists() && !is_gitignored(&lock_path) {
+            let args_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+            plan.add(ShellOperation::Run {
+                program: cmd.to_string(),
+                args: args_vec,
+                dir: Some(pkg_dir.to_path_buf()),
+                description: format!("{} {}", cmd, args.join(" ")),
+            });
+
+            let path_str = lock_path.to_string_lossy().replace('\\', "/");
+            plan.add(GitOperation::Add { path: path_str });
+            return;
+        }
+    }
+
+    if crate::utils::is_command_available("pnpm") {
+        let lock_path = pkg_dir.join("pnpm-lock.yaml");
+        if !is_gitignored(&lock_path) {
+            plan.add(ShellOperation::Run {
+                program: "pnpm".to_string(),
+                args: vec!["install".to_string(), "--lockfile-only".to_string()],
+                dir: Some(pkg_dir.to_path_buf()),
+                description: "pnpm install --lockfile-only".to_string(),
+            });
+        }
+    }
 }
 
 fn print_file_diff(editor: &dyn FileEditor, tag: &str, config_file: &str) -> Result<()> {
@@ -322,12 +411,6 @@ fn compute_edited_content(
     Ok((content, edited))
 }
 
-fn edit_version_in_file(editor: &dyn FileEditor, tag: &str, config_file: &str) -> Result<()> {
-    let (_, edited) = compute_edited_content(editor, tag, config_file)?;
-    write_with_backup(config_file, &edited)?;
-    Ok(())
-}
-
 fn parent_dir(path: &Path) -> &Path {
     let parent = path.parent().unwrap_or(Path::new("."));
     if parent.as_os_str().is_empty() {
@@ -335,128 +418,6 @@ fn parent_dir(path: &Path) -> &Path {
     } else {
         parent
     }
-}
-
-fn update_lockfile_after_edit(config_file: &str) -> Result<()> {
-    if config_file.ends_with("Cargo.toml") {
-        update_cargo_lock(config_file)?;
-    } else if config_file.ends_with("package.json") {
-        update_js_lockfile(config_file)?;
-    }
-    Ok(())
-}
-
-fn update_js_lockfile(package_json_path: &str) -> Result<()> {
-    let pkg_dir = parent_dir(Path::new(package_json_path));
-
-    let lockfiles: &[(&str, &str, &[&str])] = &[
-        ("pnpm-lock.yaml", "pnpm", &["install", "--lockfile-only"]),
-        (
-            "yarn.lock",
-            "yarn",
-            &["install", "--mode", "update-lockfile"],
-        ),
-        (
-            "package-lock.json",
-            "npm",
-            &["install", "--package-lock-only"],
-        ),
-    ];
-
-    for (lock_name, cmd, args) in lockfiles {
-        if pkg_dir.join(lock_name).exists() {
-            return run_js_lockfile_update(pkg_dir, lock_name, cmd, args);
-        }
-    }
-
-    if crate::utils::is_command_available("pnpm") {
-        return run_js_lockfile_update(
-            pkg_dir,
-            "pnpm-lock.yaml",
-            "pnpm",
-            &["install", "--lockfile-only"],
-        );
-    }
-
-    Ok(())
-}
-
-fn run_js_lockfile_update(
-    pkg_dir: &Path,
-    lock_name: &str,
-    cmd: &str,
-    args: &[&str],
-) -> Result<()> {
-    let lock_path = pkg_dir.join(lock_name);
-
-    if is_gitignored(&lock_path) {
-        Output::skip(&format!("{} 在 .gitignore 中，跳过更新", lock_name));
-        return Ok(());
-    }
-
-    let cmd_str = format!("{} {}", cmd, args.join(" "));
-    Output::cmd(&cmd_str);
-
-    #[cfg(target_os = "windows")]
-    let status = std::process::Command::new("cmd")
-        .args(
-            std::iter::once(&"/c")
-                .chain(std::iter::once(&cmd))
-                .chain(args.iter())
-                .copied(),
-        )
-        .current_dir(pkg_dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 {}: {}", cmd_str, e))?;
-    #[cfg(not(target_os = "windows"))]
-    let status = std::process::Command::new(cmd)
-        .args(args)
-        .current_dir(pkg_dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 {}: {}", cmd_str, e))?;
-
-    if !status.success() {
-        Output::error(&format!("{} 执行失败", cmd_str));
-    }
-
-    if lock_path.exists() {
-        let path_str = lock_path.to_string_lossy().replace('\\', "/");
-        GitCommandRunner::new().execute_with_success(&["add", &path_str], None)?;
-    }
-    Ok(())
-}
-
-fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
-    let dir = parent_dir(Path::new(cargo_toml_path));
-    let lock_path = dir.join("Cargo.lock");
-
-    if !lock_path.exists() {
-        return Ok(());
-    }
-
-    if is_gitignored(&lock_path) {
-        Output::skip("Cargo.lock 在 .gitignore 中，跳过更新");
-        return Ok(());
-    }
-
-    let pkg_name = read_cargo_package_name(cargo_toml_path)?;
-
-    Output::cmd(&format!("cargo update --package {}", pkg_name));
-    let status = std::process::Command::new("cargo")
-        .args(["update", "--package", &pkg_name])
-        .current_dir(dir)
-        .status()
-        .map_err(|e| anyhow::anyhow!("无法执行 cargo update: {}", e))?;
-
-    if !status.success() {
-        return Err(
-            AppError::release(format!("cargo update --package {} 执行失败", pkg_name)).into(),
-        );
-    }
-
-    let path_str = lock_path.to_string_lossy().replace('\\', "/");
-    GitCommandRunner::new().execute_with_success(&["add", &path_str], None)?;
-    Ok(())
 }
 
 fn is_gitignored(file_path: &Path) -> bool {
