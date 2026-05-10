@@ -1,3 +1,4 @@
+use crate::domain::AppError;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version, write_with_backup};
 use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::{ItemColor, Output};
@@ -118,7 +119,7 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
     let current_branch = current_branch.trim().to_string();
 
     if !args.force && current_branch != "master" {
-        anyhow::bail!("只能在 master 分支上执行 release");
+        return Err(AppError::release("只能在 master 分支上执行 release").into());
     }
 
     let previous_tag = get_current_version(&runner);
@@ -128,7 +129,7 @@ fn validate_git_state(args: &ReleaseArgs) -> Result<GitState> {
         let rev_current_tag = runner.execute(&["rev-parse", tag], None)?;
         let rev_head = runner.execute(&["rev-parse", "HEAD"], None)?;
         if rev_current_tag.trim() == rev_head.trim() {
-            anyhow::bail!("当前 HEAD 已被标记为 {}", tag);
+            return Err(AppError::release(format!("当前 HEAD 已被标记为 {}", tag)).into());
         }
     }
 
@@ -201,7 +202,7 @@ fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     }
 
     if result.is_empty() {
-        anyhow::bail!("未检测到可编辑的配置文件");
+        return Err(AppError::release("未检测到可编辑的配置文件").into());
     }
 
     Ok(result)
@@ -475,7 +476,9 @@ fn update_cargo_lock(cargo_toml_path: &str) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("无法执行 cargo update: {}", e))?;
 
     if !status.success() {
-        anyhow::bail!("cargo update --package {} 执行失败", pkg_name);
+        return Err(
+            AppError::release(format!("cargo update --package {} 执行失败", pkg_name)).into(),
+        );
     }
 
     let path_str = lock_path.to_string_lossy().replace('\\', "/");
@@ -515,7 +518,7 @@ fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
             return Ok(caps[1].to_string());
         }
     }
-    anyhow::bail!("未在 {} 中找到 [package] name", cargo_toml_path)
+    Err(AppError::release(format!("未在 {} 中找到 [package] name", cargo_toml_path)).into())
 }
 
 fn get_remotes(runner: &GitCommandRunner) -> Vec<String> {

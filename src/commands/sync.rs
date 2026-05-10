@@ -1,7 +1,7 @@
+use crate::domain::AppError;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::RepoWalker;
 use crate::utils::output::Output;
-use anyhow::Result;
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
@@ -28,7 +28,7 @@ pub struct SyncArgs {
     pub dry_run: bool,
 }
 
-pub fn run(args: SyncArgs) -> Result<()> {
+pub fn run(args: SyncArgs) -> anyhow::Result<()> {
     let effective_path = if args.path.is_empty() {
         let cwd = std::env::current_dir()?;
         find_git_repository_upwards(&cwd).unwrap_or(cwd)
@@ -58,7 +58,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
     Ok(())
 }
 
-fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> Result<()> {
+fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> anyhow::Result<()> {
     let remotes = runner.get_remote_list(repo_path)?;
     if remotes.is_empty() {
         return Ok(());
@@ -67,11 +67,13 @@ fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> Re
     let target_remote = match args.remote.as_deref() {
         Some(name) => {
             if !remotes.iter().any(|r| r == name) {
-                anyhow::bail!("远程仓库 {} 不存在", name);
+                return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)).into());
             }
             name
         }
-        None => remotes.first().unwrap(),
+        None => remotes
+            .first()
+            .expect("remotes should not be empty after check"),
     };
 
     let current_branch = runner.get_current_branch(repo_path)?;

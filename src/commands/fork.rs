@@ -1,7 +1,7 @@
+use crate::domain::AppError;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::git::repository::find_git_repository_upwards;
 use crate::utils::output::Output;
-use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
@@ -42,32 +42,38 @@ struct ForkAction {
     replace: String,
 }
 
-pub fn run(args: ForkArgs) -> Result<()> {
+pub fn run(args: ForkArgs) -> anyhow::Result<()> {
     let template_path = crate::utils::path::canonicalize_path(&args.path)
-        .with_context(|| format!("模板路径无效: {}", args.path))?;
+        .map_err(|_| AppError::not_found(format!("模板路径无效: {}", args.path)))?;
 
     if !template_path.exists() {
-        anyhow::bail!("目录不存在: {}", args.path);
+        return Err(AppError::not_found(format!("目录不存在: {}", args.path)).into());
     }
 
     let repo_dir = find_git_repository_upwards(&template_path).unwrap_or(template_path.clone());
 
     if !repo_dir.join(".git").exists() {
-        anyhow::bail!("Git 仓库目录不存在: {}", repo_dir.display());
+        return Err(
+            AppError::not_found(format!("Git 仓库目录不存在: {}", repo_dir.display())).into(),
+        );
     }
 
     let target_dir = match &args.target {
         Some(t) => PathBuf::from(t),
         None => repo_dir
             .parent()
-            .ok_or_else(|| anyhow::anyhow!("无法确定目标目录"))?
+            .ok_or_else(|| AppError::not_found("无法确定目标目录"))?
             .to_path_buf(),
     };
 
     let project_dir = target_dir.join(&args.name);
 
     if project_dir.exists() {
-        anyhow::bail!("项目目录已存在: {}", project_dir.display());
+        return Err(AppError::already_exists(format!(
+            "项目目录已存在: {}",
+            project_dir.display()
+        ))
+        .into());
     }
 
     if args.dry_run {
@@ -102,7 +108,7 @@ pub fn run(args: ForkArgs) -> Result<()> {
     Ok(())
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+fn copy_dir_recursive(src: &Path, dst: &Path) -> anyhow::Result<()> {
     fs::create_dir_all(dst)?;
 
     for entry in fs::read_dir(src)? {
@@ -127,7 +133,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
-fn clean_git_history(project_dir: &Path, runner: &GitCommandRunner) -> Result<()> {
+fn clean_git_history(project_dir: &Path, runner: &GitCommandRunner) -> anyhow::Result<()> {
     let git_dir = project_dir.join(".git");
     if git_dir.exists() {
         fs::remove_dir_all(&git_dir)?;
@@ -147,12 +153,14 @@ fn execute_fork_actions(
     project_dir: &Path,
     config_path: &Path,
     project_name: &str,
-) -> Result<()> {
-    let content = fs::read_to_string(config_path)
-        .with_context(|| format!("读取配置文件失败: {}", config_path.display()))?;
+) -> anyhow::Result<()> {
+    let content = fs::read_to_string(config_path).map_err(|e| {
+        AppError::fork(format!("读取配置文件失败 {}: {}", config_path.display(), e))
+    })?;
 
-    let config: PmaConfig = serde_json::from_str(&content)
-        .with_context(|| format!("解析配置文件失败: {}", config_path.display()))?;
+    let config: PmaConfig = serde_json::from_str(&content).map_err(|e| {
+        AppError::fork(format!("解析配置文件失败 {}: {}", config_path.display(), e))
+    })?;
 
     let mut vars = HashMap::new();
     vars.insert("project_name".to_string(), project_name.to_string());

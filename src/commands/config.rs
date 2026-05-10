@@ -1,7 +1,7 @@
+use crate::domain::AppError;
 use crate::domain::config::ConfigDir;
 use crate::domain::config::schema;
 use crate::utils::output::Output;
-use anyhow::Result;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum ConfigArgs {
@@ -13,7 +13,7 @@ pub enum ConfigArgs {
     Path,
 }
 
-pub fn run(args: ConfigArgs) -> Result<()> {
+pub fn run(args: ConfigArgs) -> anyhow::Result<()> {
     match args {
         ConfigArgs::Init => execute_init(),
         ConfigArgs::Show => execute_show(),
@@ -21,10 +21,12 @@ pub fn run(args: ConfigArgs) -> Result<()> {
     }
 }
 
-fn execute_init() -> Result<()> {
+fn execute_init() -> anyhow::Result<()> {
     let dir = ConfigDir::base_dir();
     if dir.exists() {
-        anyhow::bail!("配置目录已存在: {}", dir.display());
+        return Err(
+            AppError::already_exists(format!("配置目录已存在: {}", dir.display())).into(),
+        );
     }
 
     std::fs::create_dir_all(&dir)?;
@@ -40,7 +42,7 @@ fn execute_init() -> Result<()> {
     Ok(())
 }
 
-fn execute_show() -> Result<()> {
+fn execute_show() -> anyhow::Result<()> {
     let dir = ConfigDir::base_dir();
     let cfg = ConfigDir::load_config();
     let gitlab_cfg = ConfigDir::load_gitlab();
@@ -85,7 +87,7 @@ fn execute_show() -> Result<()> {
     Ok(())
 }
 
-fn execute_path() -> Result<()> {
+fn execute_path() -> anyhow::Result<()> {
     Output::message(&ConfigDir::base_dir().display().to_string());
     Ok(())
 }

@@ -1,190 +1,240 @@
+use crate::domain::AppError;
 use crate::domain::config::ConfigDir;
 use crate::domain::config::schema::GitLabServer;
-use crate::domain::gitlab::client::GitLabClient;
 use crate::utils::output::Output;
-use anyhow::{Context, Result};
-use std::path::Path;
+use anyhow::Context;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum GitLabArgs {
-    /// Login to a GitLab server
     Login(LoginArgs),
-    /// Clone all projects from a GitLab group
+    Whoami,
+    Groups,
+    Projects(ProjectsArgs),
     Clone(CloneArgs),
 }
 
 #[derive(Debug, clap::Args)]
 pub struct LoginArgs {
-    /// GitLab server URL (e.g. https://gitlab.com)
-    #[arg(help = "GitLab server URL (e.g. https://gitlab.com)")]
-    pub url: String,
-    /// Personal access token
-    #[arg(help = "Personal access token")]
+    #[arg(long, help = "GitLab server address")]
+    pub server: String,
+    #[arg(long, help = "GitLab access token")]
     pub token: String,
-    /// Protocol for cloning (ssh or http)
-    #[arg(
-        long,
-        default_value = "ssh",
-        help = "Protocol for cloning (ssh or http)"
-    )]
-    pub protocol: String,
+}
+
+#[derive(Debug, clap::Args)]
+pub struct ProjectsArgs {
+    #[arg(long, help = "Filter by group name")]
+    pub group: Option<String>,
+    #[arg(long, default_value = "false", help = "Include archived projects")]
+    pub archived: bool,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct CloneArgs {
-    /// Group name or path to clone from
-    #[arg(help = "Group name or path to clone from")]
+    #[arg(help = "Group name to clone projects from")]
     pub group: String,
-    /// GitLab server URL (defaults to the first configured server)
-    #[arg(long, help = "GitLab server URL")]
-    pub server: Option<String>,
-    /// Target directory for cloning
+    #[command(flatten)]
+    pub repo_path: crate::commands::RepoPathArgs,
+    #[arg(long, default_value = "false", help = "Include archived projects")]
+    pub archived: bool,
     #[arg(
         long,
-        short,
-        default_value = ".",
-        help = "Target directory for cloning"
+        default_value = "false",
+        help = "Only list projects without cloning"
     )]
-    pub target: String,
-    /// Maximum depth to search for repositories
-    #[arg(long, short, default_value = "3")]
-    pub max_depth: Option<usize>,
+    pub dry_run: bool,
 }
 
-pub fn run(args: GitLabArgs) -> Result<()> {
+pub fn run(args: GitLabArgs) -> anyhow::Result<()> {
     match args {
-        GitLabArgs::Login(args) => execute_login(args),
-        GitLabArgs::Clone(args) => execute_clone(args),
+        GitLabArgs::Login(args) => do_login(args),
+        GitLabArgs::Whoami => do_whoami(),
+        GitLabArgs::Groups => do_list_groups(),
+        GitLabArgs::Projects(args) => do_list_projects(args),
+        GitLabArgs::Clone(args) => do_clone(args),
     }
 }
 
-fn execute_login(args: LoginArgs) -> Result<()> {
-    if args.url.is_empty() {
-        anyhow::bail!("服务器地址不能为空");
+fn do_login(args: LoginArgs) -> anyhow::Result<()> {
+    if args.server.is_empty() {
+        return Err(AppError::invalid_input("服务器地址不能为空").into());
     }
 
     if args.token.is_empty() {
-        anyhow::bail!("Token 不能为空");
+        return Err(AppError::invalid_input("Token 不能为空").into());
     }
 
-    let client = GitLabClient::with_url_and_token(&args.url, &args.token);
+    let client = crate::domain::gitlab::client::GitLabClient::with_url_and_token(
+        &args.server,
+        &args.token,
+    );
 
-    Output::info(&format!("验证 {} 的认证信息...", args.url));
-
-    let _user = client.get_current_user().context("认证失败")?;
-
-    Output::success("认证成功");
-
-    let server = GitLabServer {
-        url: args.url.clone(),
-        token: args.token,
-        protocol: args.protocol,
-    };
+    let user = client
+        .get_current_user()
+        .context("认证失败")
+        .map_err(|e| AppError::config(format!("认证失败: {}", e)))?;
 
     let mut gitlab_config = ConfigDir::load_gitlab();
-    if let Some(existing) = gitlab_config.servers.iter_mut().find(|s| s.url == args.url) {
-        *existing = server;
-        Output::info("已更新现有服务器配置");
+    if let Some(existing) = gitlab_config
+        .servers
+        .iter_mut()
+        .find(|s| s.url == args.server)
+    {
+        existing.token = args.token;
+        if !args.server.starts_with("http") {
+            existing.url = format!("https://{}", args.server);
+        } else {
+            existing.url = args.server;
+        }
     } else {
-        gitlab_config.servers.push(server);
-        Output::info("已添加新服务器配置");
+        gitlab_config.servers.push(GitLabServer {
+            url: if args.server.starts_with("http") {
+                args.server
+            } else {
+                format!("https://{}", args.server)
+            },
+            token: args.token,
+            protocol: "HTTPS".to_string(),
+        });
     }
 
-    ConfigDir::save_gitlab(&gitlab_config).context("保存配置失败")?;
+    ConfigDir::save_gitlab(&gitlab_config)
+        .map_err(|e| AppError::config(format!("保存配置失败: {}", e)))?;
 
-    Output::success(&format!("已保存 GitLab 服务器配置: {}", args.url));
+    Output::success("GitLab 配置已保存");
+    Output::item("用户", &user.name);
+    Output::item("用户名", &user.username);
+
     Ok(())
 }
 
-fn execute_clone(args: CloneArgs) -> Result<()> {
-    let gitlab_config = ConfigDir::load_gitlab();
+fn do_whoami() -> anyhow::Result<()> {
+    let client = crate::domain::gitlab::client::GitLabClient::new()
+        .map_err(|e| AppError::config(format!("初始化 GitLab 客户端失败: {}", e)))?;
 
-    let server = if let Some(ref url) = args.server {
-        gitlab_config
-            .servers
-            .iter()
-            .find(|s| &s.url == url)
-            .ok_or_else(|| anyhow::anyhow!("未找到服务器配置: {}", url))?
-    } else {
-        gitlab_config
-            .servers
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("未配置 GitLab 服务器，请先使用 pma gitlab login"))?
+    let user = client.get_current_user()?;
+
+    Output::item("用户", &user.name);
+    Output::item("用户名", &user.username);
+
+    Ok(())
+}
+
+fn do_list_groups() -> anyhow::Result<()> {
+    let client = crate::domain::gitlab::client::GitLabClient::new()
+        .map_err(|e| AppError::config(format!("初始化 GitLab 客户端失败: {}", e)))?;
+
+    let groups = client.get_groups()?;
+
+    Output::section("GitLab 组列表:");
+    for group in &groups {
+        Output::message(&format!("  {} (id: {})", group.full_path, group.id));
+    }
+    Output::blank();
+    Output::item("汇总", &format!("共 {} 个组", groups.len()));
+
+    Ok(())
+}
+
+fn do_list_projects(args: ProjectsArgs) -> anyhow::Result<()> {
+    let client = crate::domain::gitlab::client::GitLabClient::new()
+        .map_err(|e| AppError::config(format!("初始化 GitLab 客户端失败: {}", e)))?;
+
+    let groups = client
+        .get_groups()
+        .map_err(|e| AppError::config(format!("获取组列表失败: {}", e)))?;
+
+    let target_groups = match &args.group {
+        Some(name) => groups
+            .into_iter()
+            .filter(|g| g.name.contains(name) || g.full_path.contains(name))
+            .collect(),
+        None => groups,
     };
 
-    let client = GitLabClient::with_url_and_token(&server.url, &server.token);
+    Output::section("GitLab 项目列表:");
+    let mut total = 0;
+    for group in target_groups {
+        let projects = client
+            .get_group_projects(group.id, true, args.archived)
+            .map_err(|e| AppError::config(format!("获取项目列表失败: {}", e)))?;
+        if !projects.is_empty() {
+            Output::message(&format!(
+                "组: {} (共 {} 个项目)",
+                group.full_path,
+                projects.len()
+            ));
+            for project in &projects {
+                let ssh = project.ssh_url.as_deref().unwrap_or("N/A");
+                let http = project.http_url.as_deref().unwrap_or("N/A");
+                Output::detail(ssh, http);
+            }
+            total += projects.len();
+        }
+    }
+    Output::blank();
+    Output::item("汇总", &format!("共 {} 个项目", total));
 
-    Output::info(&format!("获取组 {} 的项目列表...", args.group));
+    Ok(())
+}
 
-    let groups = client.get_groups().context("获取组列表失败")?;
+fn do_clone(args: CloneArgs) -> anyhow::Result<()> {
+    let client = crate::domain::gitlab::client::GitLabClient::new()
+        .map_err(|e| AppError::config(format!("初始化 GitLab 客户端失败: {}", e)))?;
 
-    let group = groups
+    let groups = client
+        .get_groups()
+        .map_err(|e| AppError::config(format!("获取组列表失败: {}", e)))?;
+
+    let target_group = groups
         .iter()
-        .find(|g| g.full_path == args.group || g.name == args.group)
-        .ok_or_else(|| anyhow::anyhow!("未找到组: {}", args.group))?;
+        .find(|g| g.name == args.group || g.full_path.contains(&args.group))
+        .ok_or_else(|| AppError::not_found(format!("未找到组: {}", args.group)))?;
 
     let projects = client
-        .get_group_projects(group.id, true, false)
-        .context("获取项目列表失败")?;
+        .get_group_projects(target_group.id, true, args.archived)
+        .map_err(|e| AppError::config(format!("获取项目列表失败: {}", e)))?;
 
-    if projects.is_empty() {
-        Output::warning(&format!("组 {} 中没有项目", args.group));
-        return Ok(());
-    }
+    let clone_dir = crate::utils::path::canonicalize_path(args.repo_path.path.as_str())?;
 
-    Output::info(&format!("找到 {} 个项目", projects.len()));
-
-    let target_path = Path::new(&args.target);
-    std::fs::create_dir_all(target_path)?;
-
-    for project in &projects {
-        let clone_url = match server.protocol.as_str() {
-            "http" | "https" => project.http_url.clone().unwrap_or_default(),
-            _ => project.ssh_url.clone().unwrap_or_default(),
-        };
-
-        let project_path = target_path.join(&project.path_with_namespace);
-
-        if project_path.exists() {
-            Output::skip(&format!("{} (已存在)", project.path_with_namespace));
+    for (idx, project) in projects.iter().enumerate() {
+        let project_path = project.path.clone();
+        let project_dir = clone_dir.join(&project_path);
+        if project_dir.exists() {
+            Output::skip(&format!("项目已存在: {}", project_path));
             continue;
         }
 
-        Output::cmd(&format!(
-            "git clone {} {}",
-            clone_url,
-            project_path.display()
-        ));
+        let ssh_url = match &project.ssh_url {
+            Some(url) => url.clone(),
+            None => {
+                Output::warning(&format!("项目 {} 缺少 SSH URL，跳过", project_path));
+                continue;
+            }
+        };
 
-        if let Some(parent) = project_path.parent() {
-            std::fs::create_dir_all(parent)?;
+        if args.dry_run {
+            Output::skip(&format!("git clone {}", ssh_url));
+            continue;
         }
 
-        let output = std::process::Command::new("git")
-            .args(["clone", &clone_url, &project_path.to_string_lossy()])
-            .output();
+        Output::section(&format!(
+            "({}/{}) 克隆项目: {}",
+            idx + 1,
+            projects.len(),
+            project_path
+        ));
+        Output::message(&format!("URL: {}", ssh_url));
+        Output::message(&format!("目标: {}", project_dir.display()));
 
-        match output {
-            Ok(o) if o.status.success() => {
-                Output::success(&format!("已克隆: {}", project.path_with_namespace));
-            }
-            Ok(o) => {
-                let stderr = String::from_utf8_lossy(&o.stderr);
-                Output::error(&format!(
-                    "克隆失败: {} - {}",
-                    project.path_with_namespace,
-                    stderr.trim()
-                ));
-            }
-            Err(e) => {
-                Output::error(&format!(
-                    "克隆失败: {} - {}",
-                    project.path_with_namespace, e
-                ));
-            }
+        let runner = crate::domain::git::command::GitCommandRunner::new();
+        match runner.execute_streaming(&["clone", &ssh_url], &clone_dir) {
+            Ok(()) => Output::success(&format!("项目已克隆: {}", project_path)),
+            Err(e) => Output::error(&format!("克隆失败: {}", e)),
         }
     }
 
-    Output::success(&format!("完成! 共处理 {} 个项目", projects.len()));
+    Output::blank();
+    Output::item("汇总", &format!("共 {} 个项目", projects.len()));
     Ok(())
 }

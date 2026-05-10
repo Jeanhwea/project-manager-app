@@ -1,7 +1,7 @@
+use crate::domain::AppError;
 use crate::domain::git::command::GitCommandRunner;
 use crate::domain::runner::DryRunContext;
 use crate::utils::output::Output;
-use anyhow::Result;
 use std::path::Path;
 
 #[derive(Debug, clap::Subcommand)]
@@ -15,13 +15,11 @@ pub enum SnapArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct CreateArgs {
-    /// Path to the project to snapshot, defaults to current directory
     #[arg(
         default_value = ".",
         help = "Path to the project to snapshot, defaults to current directory"
     )]
     pub path: String,
-    /// Dry run: show what would be changed without making any modifications
     #[arg(
         long,
         default_value = "false",
@@ -32,7 +30,6 @@ pub struct CreateArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct ListArgs {
-    /// Path to the project, defaults to current directory
     #[arg(
         default_value = ".",
         help = "Path to the project, defaults to current directory"
@@ -42,16 +39,13 @@ pub struct ListArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct RestoreArgs {
-    /// Snapshot reference (e.g. snap-000001, #0, or commit hash)
     #[arg(help = "Snapshot reference (e.g. snap-000001, #0, or commit hash)")]
     pub snapshot: String,
-    /// Path to the project, defaults to current directory
     #[arg(
         default_value = ".",
         help = "Path to the project, defaults to current directory"
     )]
     pub path: String,
-    /// Dry run: show what would be changed without making any modifications
     #[arg(
         long,
         default_value = "false",
@@ -60,7 +54,7 @@ pub struct RestoreArgs {
     pub dry_run: bool,
 }
 
-pub fn run(args: SnapArgs) -> Result<()> {
+pub fn run(args: SnapArgs) -> anyhow::Result<()> {
     match args {
         SnapArgs::Create(args) => execute_create(args),
         SnapArgs::List(args) => execute_list(args),
@@ -68,13 +62,13 @@ pub fn run(args: SnapArgs) -> Result<()> {
     }
 }
 
-fn execute_create(args: CreateArgs) -> Result<()> {
+fn execute_create(args: CreateArgs) -> anyhow::Result<()> {
     let project_path = Path::new(&args.path);
     let ctx = DryRunContext::new(args.dry_run);
     let runner = GitCommandRunner::new();
 
     if !project_path.exists() {
-        anyhow::bail!("项目路径不存在: {}", args.path);
+        return Err(AppError::not_found(format!("项目路径不存在: {}", args.path)).into());
     }
 
     if ctx.is_dry_run() {
@@ -90,12 +84,12 @@ fn execute_create(args: CreateArgs) -> Result<()> {
     Ok(())
 }
 
-fn execute_list(args: ListArgs) -> Result<()> {
+fn execute_list(args: ListArgs) -> anyhow::Result<()> {
     let project_path = Path::new(&args.path);
     let runner = GitCommandRunner::new();
 
     if !project_path.exists() {
-        anyhow::bail!("项目路径不存在: {}", args.path);
+        return Err(AppError::not_found(format!("项目路径不存在: {}", args.path)).into());
     }
 
     if !project_path.join(".git").exists() {
@@ -135,17 +129,17 @@ fn execute_list(args: ListArgs) -> Result<()> {
     Ok(())
 }
 
-fn execute_restore(args: RestoreArgs) -> Result<()> {
+fn execute_restore(args: RestoreArgs) -> anyhow::Result<()> {
     let project_path = Path::new(&args.path);
     let ctx = DryRunContext::new(args.dry_run);
     let runner = GitCommandRunner::new();
 
     if !project_path.exists() {
-        anyhow::bail!("项目路径不存在: {}", args.path);
+        return Err(AppError::not_found(format!("项目路径不存在: {}", args.path)).into());
     }
 
     if !project_path.join(".git").exists() {
-        anyhow::bail!("项目尚未初始化快照，无法恢复");
+        return Err(AppError::not_found("项目尚未初始化快照，无法恢复".to_string()).into());
     }
 
     let commit_ref = resolve_snapshot_ref(&runner, project_path, &args.snapshot)?;
@@ -174,7 +168,7 @@ fn resolve_snapshot_ref(
     runner: &GitCommandRunner,
     project_path: &Path,
     snapshot: &str,
-) -> Result<String> {
+) -> anyhow::Result<String> {
     if snapshot.starts_with("snap-") {
         let output =
             runner.execute_raw(&["log", "--oneline", "--grep", snapshot], project_path)?;
@@ -204,11 +198,12 @@ fn resolve_snapshot_ref(
                 .unwrap_or(snapshot);
             return Ok(hash.to_string());
         } else {
-            anyhow::bail!(
+            return Err(AppError::snapshot(format!(
                 "快照索引 #{} 超出范围 (共 {} 个快照)",
                 index,
                 snap_commits.len()
-            );
+            ))
+            .into());
         }
     }
 
@@ -216,7 +211,7 @@ fn resolve_snapshot_ref(
 
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if hash.is_empty() {
-        anyhow::bail!("无法解析快照引用: {}", snapshot);
+        return Err(AppError::snapshot(format!("无法解析快照引用: {}", snapshot)).into());
     }
 
     Ok(hash)
@@ -226,7 +221,7 @@ fn do_initialize_snapshot(
     ctx: &DryRunContext,
     _runner: &GitCommandRunner,
     work_dir: &Path,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     ctx.run_in_dir("git", &["init"], Some(work_dir))?;
     ctx.run_in_dir("git", &["add", "."], Some(work_dir))?;
     ctx.run_in_dir("git", &["commit", "-m", "snap-000000"], Some(work_dir))?;
@@ -238,7 +233,7 @@ fn do_incremental_snapshot(
     ctx: &DryRunContext,
     runner: &GitCommandRunner,
     work_dir: &Path,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let has_changes = check_pending_changes(runner, work_dir);
 
     if !has_changes {

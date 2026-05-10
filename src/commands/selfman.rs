@@ -1,3 +1,4 @@
+use crate::domain::AppError;
 use crate::utils::output::Output;
 use anyhow::{Context, Result};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -46,7 +47,6 @@ pub enum SelfManArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct UpdateArgs {
-    /// Force update even if already on the latest version
     #[arg(
         long,
         short,
@@ -78,7 +78,10 @@ fn show_version() {
 
 fn execute_update(args: UpdateArgs) -> Result<()> {
     if env::var("PMA_NPM_INSTALL").is_ok() {
-        anyhow::bail!("检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma");
+        return Err(AppError::SelfUpdate(
+            "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma".to_string(),
+        )
+        .into());
     }
 
     Output::info("检查最新版本...");
@@ -104,12 +107,15 @@ fn execute_update(args: UpdateArgs) -> Result<()> {
         }
     }
 
-    let asset_name = get_asset_name(&release.tag_name).context("获取资源名称失败")?;
+    let asset_name = get_asset_name(&release.tag_name)
+        .map_err(|e| AppError::self_update(format!("获取资源名称失败: {}", e)))?;
     let asset = release
         .assets
         .iter()
         .find(|a| a.name == asset_name)
-        .ok_or_else(|| anyhow::anyhow!("未找到适合当前平台的安装包: {}", asset_name))?;
+        .ok_or_else(|| {
+            AppError::self_update(format!("未找到适合当前平台的安装包: {}", asset_name))
+        })?;
 
     Output::info(&format!("下载 {}...", asset.name));
     let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
@@ -186,7 +192,7 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
     };
 
     if !valid {
-        anyhow::bail!("下载的文件格式无效");
+        return Err(AppError::self_update("下载的文件格式无效".to_string()).into());
     }
     Ok(())
 }
@@ -260,7 +266,9 @@ fn get_asset_name(tag: &str) -> Result<String> {
         ("macos", "aarch64") => ("macos", "arm64", "tar.gz"),
         ("windows", "x86_64") => ("windows", "x86_64", "zip"),
         ("windows", "aarch64") => ("windows", "arm64", "zip"),
-        (os, arch) => anyhow::bail!("不支持的平台: {}-{}", os, arch),
+        (os, arch) => {
+            return Err(AppError::not_supported(format!("{}-{}", os, arch)).into());
+        }
     };
     Ok(format!("pma-{}-{}-{}.{}", os, arch, tag, ext))
 }
@@ -273,7 +281,7 @@ fn install_binary(data: &[u8], asset_name: &str, target: &PathBuf) -> Result<()>
     } else if asset_name.ends_with(".zip") {
         install_from_zip(data, bin_name, target)
     } else {
-        anyhow::bail!("未知的安装包格式: {}", asset_name)
+        Err(AppError::self_update(format!("未知的安装包格式: {}", asset_name)).into())
     }
 }
 
@@ -290,7 +298,7 @@ fn install_from_tar_gz(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<
             return replace_binary(&buf, target);
         }
     }
-    anyhow::bail!("在 tar.gz 中未找到 {}", bin_name)
+    Err(AppError::self_update(format!("在 tar.gz 中未找到 {}", bin_name)).into())
 }
 
 fn install_from_zip(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<()> {
@@ -306,7 +314,7 @@ fn install_from_zip(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<()>
             return replace_binary(&buf, target);
         }
     }
-    anyhow::bail!("在 zip 中未找到 {}", bin_name)
+    Err(AppError::self_update(format!("在 zip 中未找到 {}", bin_name)).into())
 }
 
 fn replace_binary(new_binary: &[u8], target: &PathBuf) -> Result<()> {

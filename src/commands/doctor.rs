@@ -1,7 +1,7 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
+use crate::domain::AppError;
 use crate::domain::git::command::GitCommandRunner;
 use crate::utils::output::Output;
-use anyhow::Result;
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
@@ -23,7 +23,7 @@ pub struct DoctorArgs {
     pub dry_run: bool,
 }
 
-pub fn run(args: DoctorArgs) -> Result<()> {
+pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
     let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
     };
@@ -67,7 +67,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
     Ok(())
 }
 
-fn check_prerequisites() -> Result<()> {
+fn check_prerequisites() -> anyhow::Result<()> {
     let tools = ["git"];
     let missing: Vec<&str> = tools
         .iter()
@@ -76,7 +76,7 @@ fn check_prerequisites() -> Result<()> {
         .collect();
 
     if !missing.is_empty() {
-        anyhow::bail!("缺少必要的命令行工具: {}", missing.join(", "));
+        return Err(AppError::command_not_available(&missing.join(", ")).into());
     }
 
     Ok(())
@@ -155,7 +155,7 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
     issues
 }
 
-fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> Result<usize> {
+fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Result<usize> {
     let runner = GitCommandRunner::new();
     let mut fixed = 0;
 
