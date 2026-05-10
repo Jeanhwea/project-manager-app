@@ -1,5 +1,5 @@
 use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
 };
 use std::path::Path;
 
@@ -20,10 +20,6 @@ impl VersionTextEditor {
 }
 
 impl FileEditor for VersionTextEditor {
-    fn name(&self) -> &'static str {
-        "version_text"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["version.txt", "VERSION", "VERSION.txt"]
     }
@@ -56,12 +52,8 @@ impl FileEditor for VersionTextEditor {
         location: &VersionLocation,
         new_version: &str,
     ) -> Result<String> {
-        if let Some(version_pos) = &location.project_version {
-            let mut edited = String::with_capacity(content.len());
-            edited.push_str(&content[..version_pos.start]);
-            edited.push_str(new_version);
-            edited.push_str(&content[version_pos.end..]);
-            Ok(preserve_line_endings(content, edited))
+        if let Some(ref pos) = location.project_version {
+            Ok(replace_at_position(content, pos, new_version))
         } else {
             Err(EditorError::VersionNotFound(
                 "No version position found".to_string(),
@@ -74,7 +66,7 @@ impl FileEditor for VersionTextEditor {
             return Ok(());
         }
 
-        if edited.len() < original.len() / 2 || edited.len() > original.len() * 2 {
+        if edited.len().abs_diff(original.len()) > original.len() / 2 {
             return Err(EditorError::FormatPreservationError(
                 "Text file changed too much".to_string(),
             ));

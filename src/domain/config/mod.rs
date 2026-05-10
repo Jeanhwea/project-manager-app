@@ -1,10 +1,7 @@
-pub mod cache;
 pub mod manager;
 pub mod schema;
 
-pub use cache::ConfigCache;
 pub use manager::ConfigDir;
-pub use schema::GitLabServer;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {

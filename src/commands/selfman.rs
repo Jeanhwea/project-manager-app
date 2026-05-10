@@ -1,4 +1,3 @@
-use super::{Command, CommandResult};
 use crate::utils::output::Output;
 use anyhow::{Context, Result};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -57,18 +56,12 @@ pub struct UpdateArgs {
     pub force: bool,
 }
 
-pub struct SelfManCommand;
-
-impl Command for SelfManCommand {
-    type Args = SelfManArgs;
-
-    fn execute(args: Self::Args) -> CommandResult {
-        match args {
-            SelfManArgs::Update(update_args) => execute_update(update_args),
-            SelfManArgs::Version => {
-                show_version();
-                Ok(())
-            }
+pub fn run(args: SelfManArgs) -> Result<()> {
+    match args {
+        SelfManArgs::Update(update_args) => execute_update(update_args),
+        SelfManArgs::Version => {
+            show_version();
+            Ok(())
         }
     }
 }
@@ -83,63 +76,48 @@ fn show_version() {
     ));
 }
 
-fn execute_update(args: UpdateArgs) -> CommandResult {
+fn execute_update(args: UpdateArgs) -> Result<()> {
     if env::var("PMA_NPM_INSTALL").is_ok() {
-        return Err(super::CommandError::ExecutionFailed(
-            "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma".to_string(),
-        ));
+        anyhow::bail!("检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma");
     }
 
     Output::info("检查最新版本...");
 
-    let release = fetch_latest_release()
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("获取发布信息失败: {}", e)))?;
+    let release = fetch_latest_release().context("获取发布信息失败")?;
     let latest = release.tag_name.trim_start_matches('v');
     let current = PKG_VERSION;
 
     Output::item("当前版本", &format!("v{}", current));
     Output::item("最新版本", &format!("v{}", latest));
 
-    let latest_ver = semver::Version::parse(latest).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("无法解析最新版本号: {} - {}", latest, e))
-    })?;
-    let current_ver = semver::Version::parse(current).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("无法解析当前版本号: {} - {}", current, e))
-    })?;
+    let latest_ver = semver::Version::parse(latest)
+        .with_context(|| format!("无法解析最新版本号: {}", latest))?;
+    let current_ver = semver::Version::parse(current)
+        .with_context(|| format!("无法解析当前版本号: {}", current))?;
 
-    if !args.force && current_ver >= latest_ver {
-        Output::success("已经是最新版本，无需更新。");
-        return Ok(());
+    if current_ver >= latest_ver {
+        if args.force {
+            Output::warning("强制更新模式，继续更新...");
+        } else {
+            Output::success("已经是最新版本，无需更新。");
+            return Ok(());
+        }
     }
 
-    if args.force && current_ver >= latest_ver {
-        Output::warning("强制更新模式，继续更新...");
-    }
-
-    let asset_name = get_asset_name(&release.tag_name)
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("获取资源名称失败: {}", e)))?;
+    let asset_name = get_asset_name(&release.tag_name).context("获取资源名称失败")?;
     let asset = release
         .assets
         .iter()
         .find(|a| a.name == asset_name)
-        .ok_or_else(|| {
-            super::CommandError::ExecutionFailed(format!(
-                "未找到适合当前平台的安装包: {}",
-                asset_name
-            ))
-        })?;
+        .ok_or_else(|| anyhow::anyhow!("未找到适合当前平台的安装包: {}", asset_name))?;
 
     Output::info(&format!("下载 {}...", asset.name));
     let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
-        .map_err(|e| super::CommandError::ExecutionFailed(format!("下载资源失败: {}", e)))?;
+        .context("下载资源失败")?;
     Output::success("下载完成");
 
-    let current_exe = env::current_exe().map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("无法获取当前可执行文件路径: {}", e))
-    })?;
-    install_binary(&data, &asset.name, &current_exe).map_err(|e| {
-        super::CommandError::ExecutionFailed(format!("安装二进制文件失败: {}", e))
-    })?;
+    let current_exe = env::current_exe().context("无法获取当前可执行文件路径")?;
+    install_binary(&data, &asset.name, &current_exe).context("安装二进制文件失败")?;
 
     Output::success(&format!("更新成功! v{} -> v{}", current, latest));
     Ok(())

@@ -1,528 +1,178 @@
-use super::{Command, CommandResult};
-use crate::domain::context::AppContext;
 use crate::domain::git::command::GitCommandRunner;
-use crate::domain::git::repository::{RepoWalker, find_git_repository_upwards};
-use crate::utils::error::ErrorHandler;
-use crate::utils::output::{ItemColor, Output};
-use std::path::{Path, PathBuf};
+use crate::domain::git::repository::RepoWalker;
+use crate::utils::output::Output;
+use anyhow::Result;
+use std::path::Path;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum BranchArgs {
-    /// List branches across all repositories
     #[command(visible_alias = "ls")]
-    List(ListArgs),
-
-    /// Clean merged branches across all repositories
-    Clean(CleanArgs),
-
-    /// Switch to a branch across all repositories
+    List(BranchListArgs),
+    #[command(visible_alias = "cl")]
+    Clean(BranchCleanArgs),
     #[command(visible_alias = "sw")]
-    Switch(SwitchArgs),
-
-    /// Rename a branch across all repositories
-    #[command(visible_alias = "mv")]
-    Rename(RenameArgs),
+    Switch(BranchSwitchArgs),
+    #[command(visible_alias = "rn")]
+    Rename(BranchRenameArgs),
 }
 
 #[derive(Debug, clap::Args)]
-pub struct ListArgs {
-    /// Maximum depth to search for repositories
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
+pub struct BranchListArgs {
+    #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(
-        default_value = "",
-        help = "Path to the directory to search for repositories, defaults to current directory"
-    )]
+    #[arg(default_value = ".")]
     pub path: String,
 }
 
 #[derive(Debug, clap::Args)]
-pub struct CleanArgs {
-    /// Maximum depth to search for repositories
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
+pub struct BranchCleanArgs {
+    #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Also delete remote merged branches
-    #[arg(
-        long,
-        short,
-        default_value = "false",
-        help = "Also delete remote merged branches"
-    )]
+    #[arg(long, short)]
+    pub pattern: Option<String>,
+    #[arg(long, default_value = "false")]
     pub remote: bool,
-    /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(
-        default_value = "",
-        help = "Path to the directory to search for repositories, defaults to current directory"
-    )]
-    pub path: String,
-    /// Dry run: show what would be changed without making any modifications
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Dry run: show what would be changed without making any modifications"
-    )]
+    #[arg(long, default_value = "false")]
     pub dry_run: bool,
+    #[arg(default_value = ".")]
+    pub path: String,
 }
 
 #[derive(Debug, clap::Args)]
-pub struct SwitchArgs {
-    /// Branch name to switch to
+pub struct BranchSwitchArgs {
     #[arg(help = "Branch name to switch to")]
     pub branch: String,
-    /// Create the branch if it does not exist
-    #[arg(
-        long,
-        short = 'c',
-        default_value = "false",
-        help = "Create the branch if it does not exist"
-    )]
-    pub create: bool,
-    /// Maximum depth to search for repositories
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
+    #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(
-        default_value = "",
-        help = "Path to the directory to search for repositories, defaults to current directory"
-    )]
+    #[arg(default_value = ".")]
     pub path: String,
-    /// Dry run: show what would be changed without making any modifications
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Dry run: show what would be changed without making any modifications"
-    )]
-    pub dry_run: bool,
 }
 
 #[derive(Debug, clap::Args)]
-pub struct RenameArgs {
-    /// Old branch name
+pub struct BranchRenameArgs {
     #[arg(help = "Old branch name")]
     pub old_name: String,
-    /// New branch name
     #[arg(help = "New branch name")]
     pub new_name: String,
-    /// Maximum depth to search for repositories
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
+    #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    /// Path to the directory to search for repositories, defaults to current directory
-    #[arg(
-        default_value = ".",
-        help = "Path to the directory to search for repositories, defaults to current directory"
-    )]
+    #[arg(default_value = ".")]
     pub path: String,
-    /// Dry run: show what would be changed without making any modifications
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Dry run: show what would be changed without making any modifications"
-    )]
-    pub dry_run: bool,
 }
 
-pub struct BranchCommand;
+pub fn run(args: BranchArgs) -> Result<()> {
+    match args {
+        BranchArgs::List(args) => execute_list(args),
+        BranchArgs::Clean(args) => execute_clean(args),
+        BranchArgs::Switch(args) => execute_switch(args),
+        BranchArgs::Rename(args) => execute_rename(args),
+    }
+}
 
-impl Command for BranchCommand {
-    type Args = BranchArgs;
+fn execute_list(args: BranchListArgs) -> Result<()> {
+    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
+    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
 
-    fn execute(args: Self::Args) -> CommandResult {
-        match args {
-            BranchArgs::List(list_args) => execute_list(list_args),
-            BranchArgs::Clean(clean_args) => execute_clean(clean_args),
-            BranchArgs::Switch(switch_args) => execute_switch(switch_args),
-            BranchArgs::Rename(rename_args) => execute_rename(rename_args),
+    if walker.is_empty() {
+        Output::not_found("未找到 Git 仓库");
+        return Ok(());
+    }
+
+    let runner = GitCommandRunner::new();
+    let total = walker.total();
+
+    for (index, repo_info) in walker.repositories().iter().enumerate() {
+        let repo_path = &repo_info.path;
+        let branch_output = match runner.execute(&["branch", "--list"], Some(repo_path)) {
+            Ok(o) => o,
+            Err(_) => continue,
+        };
+
+        if branch_output.trim().is_empty() {
+            continue;
+        }
+
+        Output::repo_header(index + 1, total, repo_path);
+
+        for line in branch_output.lines() {
+            let is_current = line.starts_with("* ");
+            let branch_name = line.trim_start_matches("* ").trim();
+
+            if is_current {
+                Output::item("当前", branch_name);
+            } else {
+                Output::message(&format!("  {}", branch_name));
+            }
         }
     }
-}
-
-fn get_effective_path(path: &str) -> PathBuf {
-    let search_path = if path.is_empty() || path == "." {
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-    } else {
-        PathBuf::from(path)
-    };
-    find_git_repository_upwards(&search_path).unwrap_or_else(|| search_path.clone())
-}
-
-fn execute_list(args: ListArgs) -> CommandResult {
-    let effective_path = get_effective_path(&args.path);
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
-
-    if walker.is_empty() {
-        return Ok(());
-    }
-
-    walker.walk(|path, _index, _total| {
-        list_branches(path);
-        Ok(())
-    })?;
 
     Ok(())
 }
 
-fn execute_clean(args: CleanArgs) -> CommandResult {
-    let effective_path = get_effective_path(&args.path);
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
+fn execute_clean(args: BranchCleanArgs) -> Result<()> {
+    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
+    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
 
     if walker.is_empty() {
+        Output::not_found("未找到 Git 仓库");
         return Ok(());
     }
 
-    let runner = AppContext::global().git_runner();
-    let remote = args.remote;
-    let dry_run = args.dry_run;
+    let runner = GitCommandRunner::new();
+    let total = walker.total();
 
-    walker.walk(|path, _index, _total| {
-        clean_merged_branches(runner, path, remote, dry_run)?;
-        Ok(())
-    })?;
+    for (index, repo_info) in walker.repositories().iter().enumerate() {
+        let repo_path = &repo_info.path;
 
-    Ok(())
-}
+        let current_branch = match runner.get_current_branch(repo_path) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
 
-fn execute_switch(args: SwitchArgs) -> CommandResult {
-    let effective_path = get_effective_path(&args.path);
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
+        let branch_output = match runner.execute(&["branch", "--list"], Some(repo_path)) {
+            Ok(o) => o,
+            Err(_) => continue,
+        };
 
-    if walker.is_empty() {
-        return Ok(());
-    }
-
-    let runner = AppContext::global().git_runner();
-    let branch = args.branch.clone();
-    let create = args.create;
-    let dry_run = args.dry_run;
-
-    walker.walk(|path, _index, _total| {
-        switch_branch(runner, path, &branch, create, dry_run)?;
-        Ok(())
-    })?;
-
-    Ok(())
-}
-
-fn execute_rename(args: RenameArgs) -> CommandResult {
-    let effective_path = get_effective_path(&args.path);
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
-
-    if walker.is_empty() {
-        return Ok(());
-    }
-
-    let runner = AppContext::global().git_runner();
-    let old_name = args.old_name.clone();
-    let new_name = args.new_name.clone();
-    let dry_run = args.dry_run;
-
-    walker.walk(|path, _index, _total| {
-        rename_branch(runner, path, &old_name, &new_name, dry_run)?;
-        Ok(())
-    })?;
-
-    Ok(())
-}
-
-fn list_branches(repo_path: &Path) {
-    let runner = AppContext::global().git_runner();
-
-    let current = runner
-        .execute_in_dir(&["branch", "--show-current"], repo_path)
-        .unwrap_or_default();
-
-    let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-        Ok(output) => output
+        let branches: Vec<&str> = branch_output
             .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .map(|line| {
-                if let Some(stripped) = line.strip_prefix('*') {
-                    stripped.trim().to_string()
+            .map(|line| line.trim_start_matches("* ").trim())
+            .filter(|name| *name != current_branch)
+            .filter(|name| {
+                if let Some(ref pattern) = args.pattern {
+                    match_pattern(name, pattern)
                 } else {
-                    line.to_string()
+                    is_merged_branch(name, repo_path, &runner)
                 }
             })
-            .collect::<Vec<String>>(),
-        Err(_) => Vec::new(),
-    };
+            .collect();
 
-    if !local_branches.is_empty() {
-        Output::section("本地分支:");
-        for branch in &local_branches {
-            if Some(branch.as_str()) == Some(current.as_str()) {
-                Output::item_colored("*", branch, ItemColor::Yellow);
+        if branches.is_empty() {
+            continue;
+        }
+
+        Output::repo_header(index + 1, total, repo_path);
+
+        for branch in &branches {
+            if args.dry_run {
+                Output::skip(&format!("git branch -d {}", branch));
             } else {
-                Output::message(&format!("     {}", branch));
-            }
-        }
-    }
-
-    let remote_branches = match runner.execute_in_dir(&["branch", "-r", "--list"], repo_path) {
-        Ok(output) => output
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .map(|line| line.to_string())
-            .collect::<Vec<String>>(),
-        Err(_) => Vec::new(),
-    };
-
-    if !remote_branches.is_empty() {
-        Output::section("远程分支:");
-        for branch in &remote_branches {
-            Output::detail("", branch);
-        }
-    }
-}
-
-fn switch_branch(
-    runner: &GitCommandRunner,
-    repo_path: &Path,
-    branch_name: &str,
-    create: bool,
-    dry_run: bool,
-) -> Result<(), crate::domain::git::GitError> {
-    let current = runner
-        .execute_in_dir(&["branch", "--show-current"], repo_path)
-        .unwrap_or_default();
-
-    if current.trim() == branch_name {
-        Output::skip(&format!("已在分支 {} 上", branch_name));
-        return Ok(());
-    }
-
-    if create {
-        let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-            Ok(output) => output
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| {
-                    if let Some(stripped) = line.strip_prefix('*') {
-                        stripped.trim().to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .collect::<Vec<String>>(),
-            Err(_) => Vec::new(),
-        };
-
-        let branch_exists = local_branches.iter().any(|b| b == branch_name);
-
-        if branch_exists {
-            Output::warning(&format!("分支 {} 已存在，直接切换", branch_name));
-            if !dry_run {
-                runner.execute_with_success_in_dir(&["checkout", branch_name], repo_path)?;
-            }
-        } else {
-            if !dry_run {
-                runner
-                    .execute_with_success_in_dir(&["checkout", "-b", branch_name], repo_path)?;
-                Output::success(&format!("创建并切换到分支 {}", branch_name));
-            } else {
-                Output::info(&format!("创建并切换到分支 {}", branch_name));
-            }
-        }
-    } else {
-        let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-            Ok(output) => output
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| {
-                    if let Some(stripped) = line.strip_prefix('*') {
-                        stripped.trim().to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .collect::<Vec<String>>(),
-            Err(_) => Vec::new(),
-        };
-
-        let branch_exists = local_branches.iter().any(|b| b == branch_name);
-
-        if !branch_exists {
-            Output::error(&format!(
-                "分支 {} 不存在 (使用 --create 创建新分支)",
-                branch_name
-            ));
-            return Ok(());
-        }
-
-        if !dry_run {
-            runner.execute_with_success_in_dir(&["checkout", branch_name], repo_path)?;
-            Output::success(&format!("切换到分支 {}", branch_name));
-        } else {
-            Output::info(&format!("切换到分支 {}", branch_name));
-        }
-    }
-
-    Ok(())
-}
-
-fn rename_branch(
-    runner: &GitCommandRunner,
-    repo_path: &Path,
-    old_name: &str,
-    new_name: &str,
-    dry_run: bool,
-) -> Result<(), crate::domain::git::GitError> {
-    let local_branches = match runner.execute_in_dir(&["branch", "--list"], repo_path) {
-        Ok(output) => output
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .map(|line| {
-                if let Some(stripped) = line.strip_prefix('*') {
-                    stripped.trim().to_string()
-                } else {
-                    line.to_string()
+                match runner.execute_with_success(&["branch", "-d", branch], Some(repo_path)) {
+                    Ok(()) => Output::success(&format!("已删除分支: {}", branch)),
+                    Err(e) => Output::error(&format!("删除分支 {} 失败: {}", branch, e)),
                 }
-            })
-            .collect::<Vec<String>>(),
-        Err(_) => Vec::new(),
-    };
-
-    if !local_branches.iter().any(|b| b == old_name) {
-        Output::skip(&format!("分支 {} 不存在", old_name));
-        return Ok(());
-    }
-
-    if local_branches.iter().any(|b| b == new_name) {
-        Output::error(&format!("分支 {} 已存在", new_name));
-        return Ok(());
-    }
-
-    let current = runner
-        .execute_in_dir(&["branch", "--show-current"], repo_path)
-        .unwrap_or_default();
-    let is_current = current.trim() == old_name;
-
-    if !dry_run {
-        runner.execute_with_success_in_dir(&["branch", "-m", old_name, new_name], repo_path)?;
-
-        if is_current {
-            Output::success(&format!("当前分支 {} -> {}", old_name, new_name));
-        } else {
-            Output::success(&format!("分支 {} -> {}", old_name, new_name));
-        }
-    } else {
-        if is_current {
-            Output::info(&format!("模拟重命名 当前分支 {} -> {}", old_name, new_name));
-        } else {
-            Output::info(&format!("模拟重命名 分支 {} -> {}", old_name, new_name));
-        }
-    }
-
-    Ok(())
-}
-
-fn clean_merged_branches(
-    runner: &GitCommandRunner,
-    repo_path: &Path,
-    remote: bool,
-    dry_run: bool,
-) -> Result<(), crate::domain::git::GitError> {
-    let current = match runner.execute_in_dir(&["branch", "--show-current"], repo_path) {
-        Ok(output) => output.trim().to_string(),
-        Err(e) => {
-            ErrorHandler::print_error("无法获取当前分支", &e);
-            "master".to_string()
-        }
-    };
-
-    let merged_branches =
-        match runner.execute_in_dir(&["branch", "--merged", &current], repo_path) {
-            Ok(output) => output
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .map(|line| {
-                    if let Some(stripped) = line.strip_prefix('*') {
-                        stripped.trim().to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .filter(|branch| branch != &current && !branch.starts_with("remotes/"))
-                .collect::<Vec<String>>(),
-            Err(_) => Vec::new(),
-        };
-
-    if merged_branches.is_empty() {
-        Output::success("无已合并分支");
-        return Ok(());
-    }
-
-    for branch in &merged_branches {
-        if dry_run {
-            Output::info(&format!("删除本地分支 {}", branch));
-        } else {
-            match runner.execute_with_success_in_dir(&["branch", "-d", branch], repo_path) {
-                Ok(_) => Output::success(&format!("本地分支 {}", branch)),
-                Err(e) => ErrorHandler::print_error(&format!("删除本地分支 {}", branch), &e),
             }
-        }
-    }
 
-    if remote {
-        let remote_merged =
-            match runner.execute_in_dir(&["branch", "-r", "--merged", &current], repo_path) {
-                Ok(output) => output
-                    .lines()
-                    .map(|line| line.trim())
-                    .filter(|line| !line.is_empty())
-                    .filter(|line| !line.contains("origin/HEAD"))
-                    .map(|line| {
-                        let parts: Vec<&str> = line.split('/').collect();
-                        if parts.len() > 1 {
-                            parts[1..].join("/")
-                        } else {
-                            line.to_string()
-                        }
-                    })
-                    .collect::<Vec<String>>(),
-                Err(_) => Vec::new(),
-            };
-
-        if remote_merged.is_empty() {
-            Output::success("无已合并的远程分支");
-        } else {
-            for branch in &remote_merged {
-                if dry_run {
-                    Output::info(&format!("删除远程分支 {}", branch));
+            if args.remote {
+                if args.dry_run {
+                    Output::skip(&format!("git push origin --delete {}", branch));
                 } else {
-                    match runner.execute_with_success_in_dir(
+                    match runner.execute_with_success(
                         &["push", "origin", "--delete", branch],
-                        repo_path,
+                        Some(repo_path),
                     ) {
-                        Ok(_) => Output::success(&format!("远程分支 {}", branch)),
-                        Err(e) => {
-                            ErrorHandler::print_error(&format!("删除远程分支 {}", branch), &e)
-                        }
+                        Ok(()) => Output::success(&format!("已删除远程分支: {}", branch)),
+                        Err(e) => Output::error(&format!("删除远程分支 {} 失败: {}", branch, e)),
                     }
                 }
             }
@@ -530,4 +180,114 @@ fn clean_merged_branches(
     }
 
     Ok(())
+}
+
+fn execute_switch(args: BranchSwitchArgs) -> Result<()> {
+    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
+    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
+
+    if walker.is_empty() {
+        Output::not_found("未找到 Git 仓库");
+        return Ok(());
+    }
+
+    let runner = GitCommandRunner::new();
+
+    for repo_info in walker.repositories() {
+        let repo_path = &repo_info.path;
+
+        let has_branch = runner
+            .execute(&["rev-parse", "--verify", &args.branch], Some(repo_path))
+            .is_ok();
+
+        if !has_branch {
+            Output::skip(&format!(
+                "{}: 分支 {} 不存在",
+                repo_path.display(),
+                args.branch
+            ));
+            continue;
+        }
+
+        match runner.execute_streaming(&["checkout", &args.branch], repo_path) {
+            Ok(()) => Output::success(&format!(
+                "{}: 已切换到 {}",
+                repo_path.display(),
+                args.branch
+            )),
+            Err(e) => Output::error(&format!(
+                "{}: 切换到 {} 失败: {}",
+                repo_path.display(),
+                args.branch,
+                e
+            )),
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_rename(args: BranchRenameArgs) -> Result<()> {
+    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
+    let walker = RepoWalker::new(&search_path, args.max_depth.unwrap_or(3))?;
+
+    if walker.is_empty() {
+        Output::not_found("未找到 Git 仓库");
+        return Ok(());
+    }
+
+    let runner = GitCommandRunner::new();
+
+    for repo_info in walker.repositories() {
+        let repo_path = &repo_info.path;
+
+        let has_branch = runner
+            .execute(&["rev-parse", "--verify", &args.old_name], Some(repo_path))
+            .is_ok();
+
+        if !has_branch {
+            Output::skip(&format!(
+                "{}: 分支 {} 不存在",
+                repo_path.display(),
+                args.old_name
+            ));
+            continue;
+        }
+
+        match runner
+            .execute_streaming(&["branch", "-m", &args.old_name, &args.new_name], repo_path)
+        {
+            Ok(()) => Output::success(&format!(
+                "{}: {} -> {}",
+                repo_path.display(),
+                args.old_name,
+                args.new_name
+            )),
+            Err(e) => Output::error(&format!("{}: 重命名失败: {}", repo_path.display(), e)),
+        }
+    }
+
+    Ok(())
+}
+
+fn match_pattern(name: &str, pattern: &str) -> bool {
+    if pattern.contains('*') {
+        let regex_pattern = pattern.replace('*', ".*");
+        regex::Regex::new(&format!("^{}$", regex_pattern))
+            .map(|re| re.is_match(name))
+            .unwrap_or(false)
+    } else {
+        name == pattern
+    }
+}
+
+fn is_merged_branch(name: &str, repo_path: &Path, runner: &GitCommandRunner) -> bool {
+    runner
+        .execute(&["branch", "--merged", "master"], Some(repo_path))
+        .map(|output| {
+            output
+                .lines()
+                .any(|line| line.trim_start_matches("* ").trim() == name)
+        })
+        .unwrap_or(false)
 }

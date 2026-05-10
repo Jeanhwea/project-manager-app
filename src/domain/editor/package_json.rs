@@ -1,5 +1,6 @@
 use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition,
+    find_version_value_in_quotes, replace_at_position,
 };
 use std::path::Path;
 
@@ -7,23 +8,12 @@ pub struct PackageJsonEditor;
 
 impl PackageJsonEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
-        let version_pattern = regex::Regex::new(r#""version"\s*:\s*"[^"]*""#).ok()?;
-
-        if let Some(m) = version_pattern.find(content) {
-            let start = m.start();
-            let end = m.end();
-            return Some(VersionPosition { start, end });
-        }
-
-        None
+        let pattern = regex::Regex::new(r#""version"\s*:\s*"([^"]*)""#).ok()?;
+        find_version_value_in_quotes(content, &pattern)
     }
 }
 
 impl FileEditor for PackageJsonEditor {
-    fn name(&self) -> &'static str {
-        "package_json"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["package.json"]
     }
@@ -36,15 +26,9 @@ impl FileEditor for PackageJsonEditor {
     }
 
     fn parse(&self, content: &str) -> Result<VersionLocation> {
-        let json: serde_json::Value = serde_json::from_str(content).map_err(|e| {
+        let _: serde_json::Value = serde_json::from_str(content).map_err(|e| {
             EditorError::ParseError(format!("Failed to parse package.json: {}", e))
         })?;
-
-        if !json.is_object() {
-            return Err(EditorError::ParseError(
-                "package.json is not a JSON object".to_string(),
-            ));
-        }
 
         let project_version = Self::find_version_position(content);
 
@@ -63,33 +47,33 @@ impl FileEditor for PackageJsonEditor {
     fn edit(
         &self,
         content: &str,
-        _location: &VersionLocation,
+        location: &VersionLocation,
         new_version: &str,
     ) -> Result<String> {
-        let mut json: serde_json::Value = serde_json::from_str(content).map_err(|e| {
-            EditorError::ParseError(format!("Failed to parse package.json: {}", e))
-        })?;
-
-        if let Some(obj) = json.as_object_mut() {
-            obj.insert(
-                "version".to_string(),
-                serde_json::Value::String(new_version.to_string()),
-            );
+        if let Some(ref pos) = location.project_version {
+            Ok(replace_at_position(content, pos, new_version))
+        } else {
+            Err(EditorError::VersionNotFound(
+                "package.json does not have version field".to_string(),
+            ))
         }
-
-        let edited = serde_json::to_string_pretty(&json).map_err(|e| {
-            EditorError::ParseError(format!("Failed to serialize package.json: {}", e))
-        })?;
-
-        Ok(preserve_line_endings(content, edited))
     }
 
-    fn validate(&self, _original: &str, edited: &str) -> Result<()> {
+    fn validate(&self, original: &str, edited: &str) -> Result<()> {
         if serde_json::from_str::<serde_json::Value>(edited).is_err() {
             return Err(EditorError::FormatPreservationError(
                 "package.json format validation failed".to_string(),
             ));
         }
+
+        let original_len = original.len();
+        let edited_len = edited.len();
+        if edited_len.abs_diff(original_len) > original_len / 2 {
+            return Err(EditorError::FormatPreservationError(
+                "package.json changed too much".to_string(),
+            ));
+        }
+
         Ok(())
     }
 }

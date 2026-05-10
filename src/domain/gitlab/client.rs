@@ -1,16 +1,16 @@
-use super::{GitLabConfig, GitLabError, Result};
+use super::{GitLabConnection, GitLabError, Result};
 use crate::domain::gitlab::models::{Group, Project, User};
 use serde::de::DeserializeOwned;
 use std::time::Duration;
 
 pub struct GitLabClient {
-    config: GitLabConfig,
+    config: GitLabConnection,
     client: ureq::Agent,
     base_url: String,
 }
 
 impl GitLabClient {
-    fn new(config: GitLabConfig) -> Self {
+    fn new(config: GitLabConnection) -> Self {
         let base_url = config
             .server
             .as_ref()
@@ -29,7 +29,7 @@ impl GitLabClient {
     }
 
     pub fn with_url_and_token(base_url: &str, token: &str) -> Self {
-        let config = GitLabConfig {
+        let config = GitLabConnection {
             server: Some(base_url.trim_end_matches('/').to_string()),
             token: Some(token.to_string()),
         };

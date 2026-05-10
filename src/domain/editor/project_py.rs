@@ -1,5 +1,6 @@
 use super::{
-    EditorError, FileEditor, Result, VersionLocation, VersionPosition, preserve_line_endings,
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition,
+    find_version_value_in_quotes, replace_at_position,
 };
 use std::path::Path;
 
@@ -7,23 +8,12 @@ pub struct PythonVersionEditor;
 
 impl PythonVersionEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
-        let version_pattern = regex::Regex::new(r#"__version__\s*=\s*["']([^"']+)["']"#).ok()?;
-
-        if let Some(m) = version_pattern.find(content) {
-            let start = m.start();
-            let end = m.end();
-            return Some(VersionPosition { start, end });
-        }
-
-        None
+        let pattern = regex::Regex::new(r#"__version__\s*=\s*["']([^"']+)["']"#).ok()?;
+        find_version_value_in_quotes(content, &pattern)
     }
 }
 
 impl FileEditor for PythonVersionEditor {
-    fn name(&self) -> &'static str {
-        "project_py"
-    }
-
     fn file_patterns(&self) -> &[&str] {
         &["__init__.py", "version.py", "__version__.py"]
     }
@@ -57,11 +47,7 @@ impl FileEditor for PythonVersionEditor {
         new_version: &str,
     ) -> Result<String> {
         if let Some(ref pos) = location.project_version {
-            let mut result = String::new();
-            result.push_str(&content[..pos.start]);
-            result.push_str(&format!("__version__ = \"{}\"", new_version));
-            result.push_str(&content[pos.end..]);
-            Ok(preserve_line_endings(content, result))
+            Ok(replace_at_position(content, pos, new_version))
         } else {
             Err(EditorError::VersionNotFound(
                 "Python file does not have __version__ field".to_string(),

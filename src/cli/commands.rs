@@ -70,36 +70,17 @@ pub enum Commands {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum CommandName {
-    Release,
-    Sync,
-    Doctor,
-    Fork,
-    GitLab,
-    Snap,
-    Status,
-    Branch,
-    SelfMan,
-    Config,
-}
-
-#[derive(Debug)]
-pub struct ParsedCommand {
-    pub name: CommandName,
-    pub args: CommandArgs,
-}
-
-#[derive(Debug)]
-pub enum CommandArgs {
-    Release(ReleaseArgs),
-    Sync(SyncArgs),
-    Doctor(DoctorArgs),
-    Fork(ForkArgs),
-    GitLab(GitLabArgs),
-    Snap(SnapArgs),
-    Status(StatusArgs),
-    Branch(BranchArgs),
-    SelfMan(SelfManArgs),
-    Config(ConfigArgs),
+pub fn dispatch(cli: Cli) -> anyhow::Result<()> {
+    match cli.command {
+        Commands::Release(args) => crate::commands::release::run(args),
+        Commands::Sync(args) => crate::commands::sync::run(args),
+        Commands::Doctor(args) => crate::commands::doctor::run(args),
+        Commands::Fork(args) => crate::commands::fork::run(args),
+        Commands::Gitlab { command } => crate::commands::gitlab::run(command),
+        Commands::Snap { command } => crate::commands::snap::run(command),
+        Commands::Status(args) => crate::commands::status::run(args),
+        Commands::Branch { command } => crate::commands::branch::run(command),
+        Commands::Self_ { command } => crate::commands::selfman::run(command),
+        Commands::Config { command } => crate::commands::config::run(command),
+    }
 }

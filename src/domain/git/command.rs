@@ -1,52 +1,37 @@
 use super::{GitError, Result};
-use crate::domain::runner::{CommandRunner, DefaultCommandRunner, ExecutionContext, OutputMode};
+use crate::domain::runner::{CommandResult, CommandRunner, ExecutionContext, OutputMode};
 use crate::utils::output::Output;
-use std::fmt;
 use std::path::Path;
 use std::process::{ExitStatus, Output as ProcessOutput};
-use std::sync::Arc;
 
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 #[cfg(windows)]
 use std::os::windows::process::ExitStatusExt;
 
-pub struct GitCommandRunner {
-    runner: Arc<dyn CommandRunner>,
-}
-
-impl fmt::Debug for GitCommandRunner {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GitCommandRunner")
-            .field("runner", &"Arc<dyn CommandRunner>")
-            .finish()
-    }
-}
-
-impl Clone for GitCommandRunner {
-    fn clone(&self) -> Self {
-        Self {
-            runner: Arc::clone(&self.runner),
-        }
-    }
-}
+pub struct GitCommandRunner;
 
 impl GitCommandRunner {
     pub fn new() -> Self {
-        Self {
-            runner: Arc::new(DefaultCommandRunner),
-        }
+        Self
     }
 
-    pub fn execute(&self, args: &[&str]) -> Result<String> {
-        let ctx = ExecutionContext::new("git")
+    fn run(&self, context: &ExecutionContext) -> Result<CommandResult> {
+        CommandRunner
+            .execute(context)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))
+    }
+
+    pub fn execute(&self, args: &[&str], dir: Option<&Path>) -> Result<String> {
+        let mut ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
             .output_mode(OutputMode::Capture);
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        if let Some(dir) = dir {
+            ctx = ctx.working_dir(dir);
+        }
+
+        let result = self.run(&ctx)?;
 
         if !result.success {
             let stderr = result.stderr.unwrap_or_default();
@@ -56,35 +41,13 @@ impl GitCommandRunner {
         Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
-    pub fn execute_in_dir(&self, args: &[&str], dir: &Path) -> Result<String> {
+    pub fn execute_raw(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
         let ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
             .working_dir(dir)
             .output_mode(OutputMode::Capture);
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
-
-        if !result.success {
-            let stderr = result.stderr.unwrap_or_default();
-            return Err(GitError::CommandFailed(stderr));
-        }
-
-        Ok(result.stdout.unwrap_or_default().trim().to_string())
-    }
-
-    pub fn execute_raw_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
-        let ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .working_dir(dir)
-            .output_mode(OutputMode::Capture);
-
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        let result = self.run(&ctx)?;
 
         #[cfg(unix)]
         let status = ExitStatus::from_raw(result.exit_code);
@@ -101,43 +64,7 @@ impl GitCommandRunner {
         })
     }
 
-    pub fn execute_with_success(&self, args: &[&str]) -> Result<()> {
-        self.check_success(args, None)
-    }
-
-    pub fn execute_with_success_in_dir(&self, args: &[&str], dir: &Path) -> Result<()> {
-        self.check_success(args, Some(dir))
-    }
-
-    pub fn execute_quiet_in_dir(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
-        self.execute_raw_in_dir(args, dir)
-    }
-
-    pub fn execute_streaming_in_dir(&self, args: &[&str], dir: &Path) -> Result<()> {
-        let cmd_str = format!("git {}", args.join(" "));
-        Output::cmd(&cmd_str);
-
-        let ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .working_dir(dir)
-            .output_mode(OutputMode::Streaming);
-
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
-
-        if !result.success {
-            return Err(GitError::CommandFailed(format!(
-                "Git command exited with code {}",
-                result.exit_code
-            )));
-        }
-
-        Ok(())
-    }
-
-    fn check_success(&self, args: &[&str], dir: Option<&Path>) -> Result<()> {
+    pub fn execute_with_success(&self, args: &[&str], dir: Option<&Path>) -> Result<()> {
         let cmd_str = format!("git {}", args.join(" "));
         Output::cmd(&cmd_str);
 
@@ -149,10 +76,7 @@ impl GitCommandRunner {
             ctx = ctx.working_dir(dir);
         }
 
-        let result = self
-            .runner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        let result = self.run(&ctx)?;
 
         if !result.success {
             let stderr = result.stderr.unwrap_or_default();
@@ -164,28 +88,33 @@ impl GitCommandRunner {
         Ok(())
     }
 
-    pub fn get_current_branch(&self, repo_path: &Path) -> Result<String> {
-        self.execute_in_dir(&["branch", "--show-current"], repo_path)
+    pub fn execute_streaming(&self, args: &[&str], dir: &Path) -> Result<()> {
+        let cmd_str = format!("git {}", args.join(" "));
+        Output::cmd(&cmd_str);
+
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .working_dir(dir)
+            .output_mode(OutputMode::Streaming);
+
+        let result = self.run(&ctx)?;
+
+        if !result.success {
+            return Err(GitError::CommandFailed(format!(
+                "Git command exited with code {}",
+                result.exit_code
+            )));
+        }
+
+        Ok(())
     }
 
-    pub fn get_remote_urls(&self, repo_path: &Path) -> Result<Vec<String>> {
-        let output = self.execute_in_dir(&["remote", "-v"], repo_path)?;
-        let urls: Vec<String> = output
-            .lines()
-            .filter_map(|line| {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    Some(parts[1].to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
-        Ok(urls)
+    pub fn get_current_branch(&self, repo_path: &Path) -> Result<String> {
+        self.execute(&["branch", "--show-current"], Some(repo_path))
     }
 
     pub fn get_remote_list(&self, repo_path: &Path) -> Result<Vec<String>> {
-        let output = self.execute_in_dir(&["remote"], repo_path)?;
+        let output = self.execute(&["remote"], Some(repo_path))?;
         let remotes: Vec<String> = output
             .lines()
             .map(|line| line.trim().to_string())
@@ -195,8 +124,43 @@ impl GitCommandRunner {
     }
 
     pub fn has_uncommitted_changes(&self, repo_path: &Path) -> Result<bool> {
-        let output = self.execute_in_dir(&["status", "--porcelain"], repo_path)?;
+        let output = self.execute(&["status", "--porcelain"], Some(repo_path))?;
         Ok(!output.is_empty())
+    }
+
+    pub fn list_remotes(&self, repo_path: &Path) -> Result<Vec<super::remote::Remote>> {
+        let remote_names_result = self.execute(&["remote"], Some(repo_path));
+
+        let remote_names: Vec<String> = match remote_names_result {
+            Ok(output) => output
+                .lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
+            Err(_) => return Ok(Vec::new()),
+        };
+
+        let mut remotes = Vec::new();
+        for name in remote_names {
+            if let Ok(url) = self.get_remote_url(repo_path, &name) {
+                remotes.push(super::remote::Remote {
+                    name: name.to_string(),
+                    url,
+                });
+            }
+        }
+
+        Ok(remotes)
+    }
+
+    fn get_remote_url(&self, repo_path: &Path, name: &str) -> Result<String> {
+        let output = self.execute(&["remote", "get-url", name], Some(repo_path))?;
+
+        if output.trim().is_empty() {
+            Err(GitError::RemoteNotFound(name.to_string()))
+        } else {
+            Ok(output)
+        }
     }
 }
 
@@ -215,12 +179,6 @@ mod tests {
     fn test_execute_in_nonexistent_dir() {
         let runner = GitCommandRunner::new();
         let dir = tempdir().unwrap().path().join("nonexistent");
-        assert!(runner.execute_in_dir(&["status"], &dir).is_err());
-    }
-
-    #[test]
-    fn test_execute_with_invalid_subcommand() {
-        let runner = GitCommandRunner::new();
-        assert!(runner.execute_with_success(&["no-such-command"]).is_err());
+        assert!(runner.execute(&["status"], Some(&dir)).is_err());
     }
 }

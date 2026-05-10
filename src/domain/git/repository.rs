@@ -14,10 +14,6 @@ pub struct RepoInfo {
     pub repo_type: RepoType,
 }
 
-pub fn is_git_repo(path: &Path) -> bool {
-    path.is_dir() && path.join(".git").is_dir()
-}
-
 pub fn find_git_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
     let mut current = start_dir;
 
@@ -95,25 +91,6 @@ impl RepoWalker {
         self.repos.len()
     }
 
-    pub fn walk<F>(&self, mut callback: F) -> Result<()>
-    where
-        F: FnMut(&Path, usize, usize) -> Result<()>,
-    {
-        let total = self.repos.len();
-        for (index, repo) in self.repos.iter().enumerate() {
-            let abs_path =
-                std::fs::canonicalize(&repo.path).unwrap_or_else(|_| repo.path.clone());
-            println!(
-                "({}/{})>> {}",
-                index + 1,
-                total,
-                crate::utils::path::format_path(&abs_path)
-            );
-            callback(&repo.path, index, total)?;
-        }
-        Ok(())
-    }
-
     pub fn repositories(&self) -> &[RepoInfo] {
         &self.repos
     }
@@ -123,33 +100,6 @@ impl RepoWalker {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_remote_parsing() {
-        use crate::domain::git::GitProtocol;
-        use crate::domain::git::remote::Remote;
-
-        assert_eq!(
-            Remote::parse_url("ssh://git@example.com/repo.git").unwrap(),
-            GitProtocol::Ssh
-        );
-        assert_eq!(
-            Remote::parse_url("git@github.com:user/repo.git").unwrap(),
-            GitProtocol::Ssh
-        );
-        assert_eq!(
-            Remote::parse_url("http://example.com/repo.git").unwrap(),
-            GitProtocol::Http
-        );
-        assert_eq!(
-            Remote::parse_url("https://example.com/repo.git").unwrap(),
-            GitProtocol::Https
-        );
-        assert_eq!(
-            Remote::parse_url("git://example.com/repo.git").unwrap(),
-            GitProtocol::Git
-        );
-    }
 
     #[test]
     fn test_find_git_repositories_empty_dir() {
