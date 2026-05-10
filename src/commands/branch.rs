@@ -82,8 +82,9 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
     }
 
     let runner = GitCommandRunner::new();
+    let total = walker.total();
 
-    for repo_info in walker.repositories() {
+    for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
         let branch_output = match runner.execute(&["branch", "--list"], Some(repo_path)) {
             Ok(o) => o,
@@ -94,7 +95,7 @@ fn execute_list(args: BranchListArgs) -> Result<()> {
             continue;
         }
 
-        Output::repo_header(0, 0, repo_path);
+        Output::repo_header(index + 1, total, repo_path);
 
         for line in branch_output.lines() {
             let is_current = line.starts_with("* ");
@@ -124,8 +125,9 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
     }
 
     let runner = GitCommandRunner::new();
+    let total = walker.total();
 
-    for repo_info in walker.repositories() {
+    for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
 
         let current_branch = match runner.get_current_branch(repo_path) {
@@ -155,7 +157,7 @@ fn execute_clean(args: BranchCleanArgs) -> Result<()> {
             continue;
         }
 
-        Output::repo_header(0, 0, repo_path);
+        Output::repo_header(index + 1, total, repo_path);
 
         for branch in &branches {
             if args.dry_run {
