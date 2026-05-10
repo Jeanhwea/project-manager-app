@@ -46,10 +46,9 @@ fn execute_show() -> anyhow::Result<()> {
     let dir = ConfigDir::base_dir();
     let cfg = ConfigDir::load_config();
     let gitlab_cfg = ConfigDir::load_gitlab();
-    let dir_exists = dir.exists();
 
-    let dir_status = if dir_exists {
-        "".to_string()
+    let dir_status = if dir.exists() {
+        String::new()
     } else {
         " (未创建, 使用默认值)".to_string()
     };

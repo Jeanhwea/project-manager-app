@@ -21,8 +21,16 @@ pub struct RepositoryConfig {
 impl Default for RepositoryConfig {
     fn default() -> Self {
         Self {
-            max_depth: default_max_depth(),
-            skip_dirs: default_skip_dirs(),
+            max_depth: 3,
+            skip_dirs: vec![
+                ".venv", "venv", "env", ".env", "node_modules", "__pycache__", ".tox",
+                ".mypy_cache", ".pytest_cache", ".ruff_cache", "dist", "build", "target",
+                ".gradle", ".idea", ".vscode", ".fleet", ".cache", ".next", ".nuxt",
+                ".svelte-kit", ".angular", "bower_components", ".terraform", ".cargo",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
         }
     }
 }
@@ -32,36 +40,7 @@ fn default_max_depth() -> usize {
 }
 
 fn default_skip_dirs() -> Vec<String> {
-    vec![
-        ".venv",
-        "venv",
-        "env",
-        ".env",
-        "node_modules",
-        "__pycache__",
-        ".tox",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        "dist",
-        "build",
-        "target",
-        ".gradle",
-        ".idea",
-        ".vscode",
-        ".fleet",
-        ".cache",
-        ".next",
-        ".nuxt",
-        ".svelte-kit",
-        ".angular",
-        "bower_components",
-        ".terraform",
-        ".cargo",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect()
+    RepositoryConfig::default().skip_dirs
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,17 +111,13 @@ pub struct SyncConfig {
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            skip_push_hosts: default_skip_push_hosts(),
+            skip_push_hosts: vec!["github.com".into(), "githubfast.com".into(), "gitee.com".into()],
         }
     }
 }
 
 fn default_skip_push_hosts() -> Vec<String> {
-    vec![
-        "github.com".into(),
-        "githubfast.com".into(),
-        "gitee.com".into(),
-    ]
+    SyncConfig::default().skip_push_hosts
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -170,7 +145,7 @@ impl Default for GitLabServer {
         Self {
             url: String::new(),
             token: String::new(),
-            protocol: default_gitlab_protocol(),
+            protocol: "ssh".to_string(),
         }
     }
 }
