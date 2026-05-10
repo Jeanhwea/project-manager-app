@@ -3,7 +3,10 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-fn load_toml_config<T: Default + serde::de::DeserializeOwned>(path: &std::path::Path, label: &str) -> T {
+fn load_toml_config<T: Default + serde::de::DeserializeOwned>(
+    path: &std::path::Path,
+    label: &str,
+) -> T {
     if !path.exists() {
         return T::default();
     }

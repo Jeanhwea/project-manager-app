@@ -72,10 +72,7 @@ pub fn run(args: StatusArgs) -> Result<()> {
                     if ahead > 0 || behind > 0 {
                         ahead_count += ahead;
                         behind_count += behind;
-                        Output::item(
-                            "同步",
-                            &format!("{} 领先, {} 落后", ahead, behind),
-                        );
+                        Output::item("同步", &format!("{} 领先, {} 落后", ahead, behind));
                     }
                 }
             }

@@ -1,6 +1,4 @@
-use super::{
-    EditorError, FileEditor, Result, VersionPosition, find_version_value_in_quotes,
-};
+use super::{EditorError, FileEditor, Result, VersionPosition, find_version_value_in_quotes};
 
 pub struct PackageJsonEditor;
 

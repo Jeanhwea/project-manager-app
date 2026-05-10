@@ -8,7 +8,10 @@ use std::path::Path;
 pub struct SyncArgs {
     #[arg(long, short, default_value = "3")]
     pub max_depth: Option<usize>,
-    #[arg(default_value = "", help = "Path to search, defaults to current directory")]
+    #[arg(
+        default_value = "",
+        help = "Path to search, defaults to current directory"
+    )]
     pub path: String,
     #[arg(long, short)]
     pub remote: Option<String>,
@@ -82,10 +85,7 @@ fn sync_repo(repo_path: &Path, runner: &GitCommandRunner, args: &SyncArgs) -> Re
         if args.dry_run {
             Output::skip(&format!("git pull {} {}", target_remote, current_branch));
         } else {
-            runner.execute_streaming(
-                &["pull", target_remote, &current_branch],
-                repo_path,
-            )?;
+            runner.execute_streaming(&["pull", target_remote, &current_branch], repo_path)?;
         }
     }
 
