@@ -181,7 +181,7 @@ fn resolve_config_files(
         .iter()
         .filter(|f| registry.detect_editor(Path::new(f)).is_some())
         .cloned()
-        .map(|f| Ok(f))
+        .map(Ok)
         .collect()
 }
 

@@ -41,6 +41,7 @@ pub enum EditorError {
 pub type Result<T> = std::result::Result<T, EditorError>;
 
 pub trait FileEditor: Send + Sync {
+    #[allow(dead_code)]
     fn name(&self) -> &'static str;
     fn file_patterns(&self) -> &[&str];
     fn matches_file(&self, path: &Path) -> bool;
