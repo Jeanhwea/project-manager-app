@@ -38,32 +38,32 @@ impl Output {
     }
 
     pub fn success(msg: &str) {
-        println!("  {} {}", "<==".green().bold(), msg.green());
+        println!("{} {}", "<==".green().bold(), msg.green());
     }
 
     pub fn error(msg: &str) {
-        println!("  {} {}", "<==".red().bold(), msg.red());
+        println!("{} {}", "<==".red().bold(), msg.red());
     }
 
     pub fn warning(msg: &str) {
-        println!("  {} {}", "<==".yellow().bold(), msg.yellow());
+        println!("{} {}", "<==".yellow().bold(), msg.yellow());
     }
 
     pub fn info(msg: &str) {
-        println!("  {} {}", "<==".cyan().bold(), msg);
+        println!("{} {}", "<==".cyan().bold(), msg);
     }
 
     pub fn skip(msg: &str) {
-        println!("  {} {}", "<==".dimmed(), msg.dimmed());
+        println!("{} {}", "<==".dimmed(), msg.dimmed());
     }
 
     pub fn cmd(cmd: &str) {
-        println!("{} {}", "==>".yellow().bold(), cmd.yellow().bold());
+        println!("{} {}", "==>".blue().bold(), cmd.yellow());
     }
 
     pub fn item(label: &str, value: &str) {
         let padded = format!("{:<width$}", label, width = SYMBOL_WIDTH);
-        println!("  {} {}", padded.green().bold(), value.yellow());
+        println!("{} {}", padded.green().bold(), value.yellow());
     }
 
     pub fn item_colored(label: &str, value: &str, color: ItemColor) {
@@ -74,16 +74,16 @@ impl Output {
             ItemColor::Red => value.red(),
             ItemColor::Cyan => value.cyan(),
         };
-        println!("  {} {}", padded.green().bold(), colored_value);
+        println!("{} {}", padded.green().bold(), colored_value);
     }
 
     pub fn detail(label: &str, value: &str) {
         let padded = format!("{:<width$}", label, width = SYMBOL_WIDTH + 2);
-        println!("  {} {}", padded.dimmed(), value);
+        println!("{} {}", padded.dimmed(), value);
     }
 
     pub fn message(msg: &str) {
-        println!("  {}", msg);
+        println!("{}", msg);
     }
 
     pub fn blank() {
@@ -97,7 +97,7 @@ impl Output {
     }
 
     pub fn not_found(msg: &str) {
-        println!("  {} {}", "<==".yellow().bold(), msg.yellow());
+        println!("{} {}", "<==".yellow().bold(), msg.yellow());
     }
 }
 

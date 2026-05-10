@@ -64,17 +64,17 @@ pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
             Output::detail("问题", issue);
         }
 
-        if args.fix {
-            if let Ok(ctx) = ctx {
-                let plan = make_plan(&args, &ctx)?;
-                let fixed = plan
-                    .operations
-                    .iter()
-                    .filter(|op| !matches!(op, crate::model::plan::Operation::Message(_)))
-                    .count();
-                crate::control::plan::run_plan(&plan)?;
-                total_fixed += fixed;
-            }
+        if args.fix
+            && let Ok(ctx) = ctx
+        {
+            let plan = make_plan(&args, &ctx)?;
+            let fixed = plan
+                .operations
+                .iter()
+                .filter(|op| !matches!(op, crate::model::plan::Operation::Message(_)))
+                .count();
+            crate::control::plan::run_plan(&plan)?;
+            total_fixed += fixed;
         }
     }
 
