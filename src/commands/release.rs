@@ -1,5 +1,5 @@
 use crate::control::context::collect_context;
-use crate::control::plan::run_plan;
+use crate::control::pipeline::Pipeline;
 use crate::domain::AppError;
 use crate::domain::editor::{BumpType, EditorRegistry, FileEditor, Version};
 use crate::domain::git::GitCommandRunner;
@@ -53,6 +53,13 @@ struct ReleaseGitState {
     commit_message: String,
 }
 
+struct ReleaseContext {
+    git_ctx: GitContext,
+    state: ReleaseGitState,
+    config_files: Vec<String>,
+    registry: EditorRegistry,
+}
+
 const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
     ("Cargo.toml", false),
     ("src-tauri/Cargo.toml", false),
@@ -71,20 +78,33 @@ const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
 ];
 
 pub fn run(args: ReleaseArgs) -> anyhow::Result<()> {
+    Pipeline::run(args, get_context, make_plan)
+}
+
+fn get_context(args: &ReleaseArgs) -> anyhow::Result<ReleaseContext> {
     let resolved_files = resolve_file_paths(&args.files);
 
     if !args.no_root {
         switch_to_git_root()?;
     }
 
-    let ctx = collect_context(Path::new("."))?;
-    let state = validate_git_state(&args, &ctx)?;
+    let git_ctx = collect_context(Path::new("."))?;
+    let state = validate_git_state(args, &git_ctx)?;
     let registry = EditorRegistry::default_with_editors();
     let config_files = resolve_config_files(&registry, &resolved_files)?;
 
-    let mut plan = build_execution_plan(&args, &config_files, &state, &ctx, &registry);
+    Ok(ReleaseContext {
+        git_ctx,
+        state,
+        config_files,
+        registry,
+    })
+}
+
+fn make_plan(args: &ReleaseArgs, ctx: &ReleaseContext) -> anyhow::Result<ExecutionPlan> {
+    let mut plan = build_execution_plan(args, &ctx.config_files, &ctx.state, &ctx.git_ctx, &ctx.registry);
     plan.dry_run = args.dry_run;
-    run_plan(&plan)
+    Ok(plan)
 }
 
 fn resolve_file_paths(files: &[String]) -> Vec<String> {

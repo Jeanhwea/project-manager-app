@@ -97,10 +97,17 @@ impl EditOperation {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum MessageOperation {
+    Header {
+        title: String,
+    },
     Section {
         title: String,
     },
     Item {
+        label: String,
+        value: String,
+    },
+    Detail {
         label: String,
         value: String,
     },
@@ -110,13 +117,28 @@ pub enum MessageOperation {
         old_content: String,
         new_content: String,
     },
+    Success {
+        msg: String,
+    },
+    Warning {
+        msg: String,
+    },
+    Info {
+        msg: String,
+    },
+    Skip {
+        msg: String,
+    },
+    Blank,
 }
 
 impl MessageOperation {
     pub fn description(&self) -> String {
         match self {
+            MessageOperation::Header { title } => title.clone(),
             MessageOperation::Section { title } => title.clone(),
             MessageOperation::Item { label, value } => format!("{}: {}", label, value),
+            MessageOperation::Detail { label, value } => format!("  {}: {}", label, value),
             MessageOperation::Diff {
                 file,
                 line_num,
@@ -126,6 +148,11 @@ impl MessageOperation {
                 "{} L{} -:  {}\n{} L{} +:  {}",
                 file, line_num, old_content, file, line_num, new_content
             ),
+            MessageOperation::Success { msg } => format!("OK> {}", msg),
+            MessageOperation::Warning { msg } => format!("WARN {}", msg),
+            MessageOperation::Info { msg } => format!("INFO {}", msg),
+            MessageOperation::Skip { msg } => format!("SKIP {}", msg),
+            MessageOperation::Blank => String::new(),
         }
     }
 }

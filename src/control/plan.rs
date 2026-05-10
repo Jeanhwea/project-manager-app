@@ -39,8 +39,10 @@ pub fn display_plan(plan: &ExecutionPlan) {
 
 fn execute_message(op: &MessageOperation) {
     match op {
+        MessageOperation::Header { title } => Output::header(title),
         MessageOperation::Section { title } => Output::section(title),
-        MessageOperation::Item { label, value } => Output::detail(label, value),
+        MessageOperation::Item { label, value } => Output::item(label, value),
+        MessageOperation::Detail { label, value } => Output::detail(label, value),
         MessageOperation::Diff {
             file: _,
             line_num,
@@ -50,6 +52,11 @@ fn execute_message(op: &MessageOperation) {
             Output::detail(&format!("L{} -", line_num), old_content);
             Output::detail(&format!("L{} +", line_num), new_content);
         }
+        MessageOperation::Success { msg } => Output::success(msg),
+        MessageOperation::Warning { msg } => Output::warning(msg),
+        MessageOperation::Info { msg } => Output::info(msg),
+        MessageOperation::Skip { msg } => Output::skip(msg),
+        MessageOperation::Blank => Output::blank(),
     }
 }
 

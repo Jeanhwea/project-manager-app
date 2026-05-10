@@ -1,10 +1,10 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::control::context::collect_context;
-use crate::control::plan::run_plan;
 use crate::control::remote::diagnose_remote_names;
 use crate::domain::AppError;
 use crate::domain::git::GitCommandRunner;
-use crate::model::plan::{ExecutionPlan, GitOperation};
+use crate::model::git::GitContext;
+use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -27,6 +27,11 @@ pub struct DoctorArgs {
     pub dry_run: bool,
 }
 
+struct DoctorContext {
+    git_ctx: Option<GitContext>,
+    issues: Vec<String>,
+}
+
 pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
     let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
@@ -36,19 +41,23 @@ pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
         check_prerequisites()?;
     }
 
+    let total = walker.total();
     let mut total_issues = 0;
     let mut total_fixed = 0;
 
-    for repo_info in walker.repositories() {
+    for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
-        let issues = diagnose_repo(repo_path);
+        let ctx = get_context(&args, repo_path);
 
+        let issues = ctx.as_ref().map(|c| c.issues.clone()).unwrap_or_default();
         if issues.is_empty() {
+            Output::repo_header(index + 1, total, repo_path);
             Output::success(&format!("{}: 健康", repo_path.display()));
             continue;
         }
 
         total_issues += issues.len();
+        Output::repo_header(index + 1, total, repo_path);
         Output::warning(&format!("{}: {} 个问题", repo_path.display(), issues.len()));
 
         for issue in &issues {
@@ -56,8 +65,12 @@ pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
         }
 
         if args.fix {
-            let fixed = fix_issues(repo_path, &issues, args.dry_run)?;
-            total_fixed += fixed;
+            if let Ok(ctx) = ctx {
+                let plan = make_plan(&args, &ctx)?;
+                let fixed = plan.operations.iter().filter(|op| !matches!(op, crate::model::plan::Operation::Message(_))).count();
+                crate::control::plan::run_plan(&plan)?;
+                total_fixed += fixed;
+            }
         }
     }
 
@@ -69,6 +82,63 @@ pub fn run(args: DoctorArgs) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn get_context(args: &DoctorArgs, repo_path: &Path) -> anyhow::Result<DoctorContext> {
+    let issues = diagnose_repo(repo_path);
+    let git_ctx = if args.fix && !issues.is_empty() {
+        collect_context(repo_path).ok()
+    } else {
+        None
+    };
+
+    Ok(DoctorContext { git_ctx, issues })
+}
+
+fn make_plan(args: &DoctorArgs, ctx: &DoctorContext) -> anyhow::Result<ExecutionPlan> {
+    let Some(git_ctx) = &ctx.git_ctx else {
+        return Ok(ExecutionPlan::new());
+    };
+
+    let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
+
+    for issue in &ctx.issues {
+        if issue.contains("陈旧") {
+            plan.add(GitOperation::PruneRemote {
+                remote: "origin".to_string(),
+            });
+        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支") {
+            plan.add(GitOperation::SetUpstream {
+                remote: "origin".to_string(),
+                branch: git_ctx.current_branch.clone(),
+            });
+        } else if issue.contains("仓库大小较大") {
+            plan.add(GitOperation::Gc);
+        } else if issue.contains("stash") {
+            plan.add(MessageOperation::Warning {
+                msg: "stash 条目需要手动处理".to_string(),
+            });
+        } else if let Some(rest) = issue.strip_prefix("remote 名称不匹配: ")
+            && let Some((current, expected_with_host)) = rest.split_once(" -> ")
+        {
+            let expected = expected_with_host
+                .split(' ')
+                .next()
+                .unwrap_or(expected_with_host);
+            if git_ctx.has_remote(expected) {
+                plan.add(MessageOperation::Warning {
+                    msg: format!("目标 remote 名称 {} 已存在，跳过", expected),
+                });
+            } else {
+                plan.add(GitOperation::RenameRemote {
+                    old: current.to_string(),
+                    new: expected.to_string(),
+                });
+            }
+        }
+    }
+
+    Ok(plan)
 }
 
 fn check_prerequisites() -> anyhow::Result<()> {
@@ -164,53 +234,4 @@ fn diagnose_repo(repo_path: &Path) -> Vec<String> {
     }
 
     issues
-}
-
-fn fix_issues(repo_path: &Path, issues: &[String], dry_run: bool) -> anyhow::Result<usize> {
-    let ctx = collect_context(repo_path)?;
-    let mut plan = ExecutionPlan::new().with_dry_run(dry_run);
-    let mut fixed = 0;
-
-    for issue in issues {
-        if issue.contains("陈旧") {
-            plan.add(GitOperation::PruneRemote {
-                remote: "origin".to_string(),
-            });
-            fixed += 1;
-        } else if issue.contains("上游跟踪分支") || issue.contains("只有一个本地分支")
-        {
-            plan.add(GitOperation::SetUpstream {
-                remote: "origin".to_string(),
-                branch: ctx.current_branch.clone(),
-            });
-            fixed += 1;
-        } else if issue.contains("仓库大小较大") {
-            plan.add(GitOperation::Gc);
-            fixed += 1;
-        } else if issue.contains("stash") {
-            Output::warning("stash 条目需要手动处理");
-        } else if let Some(rest) = issue.strip_prefix("remote 名称不匹配: ")
-            && let Some((current, expected_with_host)) = rest.split_once(" -> ")
-        {
-            let expected = expected_with_host
-                .split(' ')
-                .next()
-                .unwrap_or(expected_with_host);
-            if !ctx.has_remote(expected) {
-                plan.add(GitOperation::RenameRemote {
-                    old: current.to_string(),
-                    new: expected.to_string(),
-                });
-                fixed += 1;
-            } else {
-                Output::warning(&format!("目标 remote 名称 {} 已存在，跳过", expected));
-            }
-        }
-    }
-
-    if !plan.is_empty() {
-        run_plan(&plan)?;
-    }
-
-    Ok(fixed)
 }

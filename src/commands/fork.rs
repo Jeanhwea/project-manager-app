@@ -1,8 +1,7 @@
-use crate::control::plan::run_plan;
+use crate::control::pipeline::Pipeline;
 use crate::domain::AppError;
-use crate::model::plan::{ExecutionPlan, GitOperation, ShellOperation};
-use crate::utils::output::Output;
-use std::path::Path;
+use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation, ShellOperation};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Args)]
 pub struct ForkArgs {
@@ -18,7 +17,16 @@ pub struct ForkArgs {
     pub dry_run: bool,
 }
 
+struct ForkContext {
+    source: PathBuf,
+    target: PathBuf,
+}
+
 pub fn run(args: ForkArgs) -> anyhow::Result<()> {
+    Pipeline::run(args, get_context, make_plan)
+}
+
+fn get_context(args: &ForkArgs) -> anyhow::Result<ForkContext> {
     let source = Path::new(&args.source);
     let target = Path::new(&args.target);
 
@@ -30,18 +38,33 @@ pub fn run(args: ForkArgs) -> anyhow::Result<()> {
         return Err(AppError::already_exists(format!("目标路径已存在: {}", args.target)).into());
     }
 
-    Output::header("项目分叉");
-    Output::item("源", &args.source);
-    Output::item("目标", &args.target);
+    Ok(ForkContext {
+        source: source.to_path_buf(),
+        target: target.to_path_buf(),
+    })
+}
 
+fn make_plan(args: &ForkArgs, ctx: &ForkContext) -> anyhow::Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new().with_dry_run(args.dry_run);
+
+    plan.add(MessageOperation::Header {
+        title: "项目分叉".to_string(),
+    });
+    plan.add(MessageOperation::Item {
+        label: "源".to_string(),
+        value: args.source.clone(),
+    });
+    plan.add(MessageOperation::Item {
+        label: "目标".to_string(),
+        value: args.target.clone(),
+    });
 
     #[cfg(target_os = "windows")]
     plan.add(ShellOperation::Run {
         program: "xcopy".to_string(),
         args: vec![
-            source.to_string_lossy().to_string(),
-            target.to_string_lossy().to_string(),
+            ctx.source.to_string_lossy().to_string(),
+            ctx.target.to_string_lossy().to_string(),
             "/E".to_string(),
             "/I".to_string(),
         ],
@@ -53,15 +76,15 @@ pub fn run(args: ForkArgs) -> anyhow::Result<()> {
         program: "cp".to_string(),
         args: vec![
             "-r".to_string(),
-            source.to_string_lossy().to_string(),
-            target.to_string_lossy().to_string(),
+            ctx.source.to_string_lossy().to_string(),
+            ctx.target.to_string_lossy().to_string(),
         ],
         dir: None,
         description: format!("cp -r {} {}", args.source, args.target),
     });
 
     plan.add(GitOperation::Init {
-        dir: target.to_path_buf(),
+        dir: ctx.target.clone(),
     });
     plan.add(GitOperation::Add {
         path: ".".to_string(),
@@ -70,5 +93,5 @@ pub fn run(args: ForkArgs) -> anyhow::Result<()> {
         message: "fork: initial commit".to_string(),
     });
 
-    run_plan(&plan)
+    Ok(plan)
 }

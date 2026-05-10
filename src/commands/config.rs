@@ -1,7 +1,9 @@
+use crate::control::pipeline::Pipeline;
 use crate::domain::AppError;
 use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
-use crate::utils::output::Output;
+use crate::model::plan::{EditOperation, ExecutionPlan, MessageOperation};
+use std::path::PathBuf;
 
 #[derive(Debug, clap::Subcommand)]
 pub enum ConfigArgs {
@@ -13,89 +15,178 @@ pub enum ConfigArgs {
     Path,
 }
 
+struct ConfigInitContext {
+    base_dir: PathBuf,
+    config_path: PathBuf,
+    gitlab_path: PathBuf,
+}
+
+struct ConfigShowContext {
+    base_dir: PathBuf,
+    dir_exists: bool,
+    config: schema::AppConfig,
+    gitlab_config: schema::GitLabConfig,
+}
+
+struct ConfigPathContext {
+    base_dir: PathBuf,
+}
+
 pub fn run(args: ConfigArgs) -> anyhow::Result<()> {
     match args {
-        ConfigArgs::Init => execute_init(),
-        ConfigArgs::Show => execute_show(),
-        ConfigArgs::Path => execute_path(),
+        ConfigArgs::Init => Pipeline::run(InitArgs, get_init_context, make_init_plan),
+        ConfigArgs::Show => Pipeline::run(ShowArgs, get_show_context, make_show_plan),
+        ConfigArgs::Path => Pipeline::run(PathArgs, get_path_context, make_path_plan),
     }
 }
 
-fn execute_init() -> anyhow::Result<()> {
-    let dir = ConfigManager::base_dir();
-    if dir.exists() {
+struct InitArgs;
+struct ShowArgs;
+struct PathArgs;
+
+fn get_init_context(_args: &InitArgs) -> anyhow::Result<ConfigInitContext> {
+    let base_dir = ConfigManager::base_dir();
+    if base_dir.exists() {
         return Err(
-            AppError::already_exists(format!("配置目录已存在: {}", dir.display())).into(),
+            AppError::already_exists(format!("配置目录已存在: {}", base_dir.display())).into(),
         );
     }
 
-    std::fs::create_dir_all(&dir)?;
-    std::fs::write(
-        ConfigManager::config_path(),
-        schema::default_config_content(),
-    )?;
-    std::fs::write(
-        ConfigManager::gitlab_path(),
-        schema::default_gitlab_config_content(),
-    )?;
-
-    Output::item("已创建配置目录", &dir.display().to_string());
-    Output::detail(
-        "主配置",
-        &ConfigManager::config_path().display().to_string(),
-    );
-    Output::detail(
-        "GitLab",
-        &ConfigManager::gitlab_path().display().to_string(),
-    );
-    Ok(())
+    Ok(ConfigInitContext {
+        base_dir: base_dir.clone(),
+        config_path: ConfigManager::config_path(),
+        gitlab_path: ConfigManager::gitlab_path(),
+    })
 }
 
-fn execute_show() -> anyhow::Result<()> {
-    let dir = ConfigManager::base_dir();
-    let cfg = ConfigManager::load_config();
-    let gitlab_cfg = ConfigManager::load_gitlab();
+fn make_init_plan(_args: &InitArgs, ctx: &ConfigInitContext) -> anyhow::Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
 
-    let dir_status = if dir.exists() {
+    plan.add(EditOperation::WriteFile {
+        path: ctx.config_path.to_string_lossy().to_string(),
+        content: schema::default_config_content().to_string(),
+        description: "create main config".to_string(),
+    });
+
+    plan.add(EditOperation::WriteFile {
+        path: ctx.gitlab_path.to_string_lossy().to_string(),
+        content: schema::default_gitlab_config_content().to_string(),
+        description: "create gitlab config".to_string(),
+    });
+
+    plan.add(MessageOperation::Item {
+        label: "已创建配置目录".to_string(),
+        value: ctx.base_dir.display().to_string(),
+    });
+    plan.add(MessageOperation::Detail {
+        label: "主配置".to_string(),
+        value: ctx.config_path.display().to_string(),
+    });
+    plan.add(MessageOperation::Detail {
+        label: "GitLab".to_string(),
+        value: ctx.gitlab_path.display().to_string(),
+    });
+
+    Ok(plan)
+}
+
+fn get_show_context(_args: &ShowArgs) -> anyhow::Result<ConfigShowContext> {
+    let base_dir = ConfigManager::base_dir();
+    let dir_exists = base_dir.exists();
+    let config = ConfigManager::load_config();
+    let gitlab_config = ConfigManager::load_gitlab();
+
+    Ok(ConfigShowContext {
+        base_dir,
+        dir_exists,
+        config,
+        gitlab_config,
+    })
+}
+
+fn make_show_plan(_args: &ShowArgs, ctx: &ConfigShowContext) -> anyhow::Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
+
+    let dir_status = if ctx.dir_exists {
         String::new()
     } else {
         " (未创建, 使用默认值)".to_string()
     };
-    Output::item("配置目录", &format!("{}{}", dir.display(), dir_status));
+    plan.add(MessageOperation::Item {
+        label: "配置目录".to_string(),
+        value: format!("{}{}", ctx.base_dir.display(), dir_status),
+    });
 
-    Output::section("[repository]");
-    Output::message(&format!("max_depth  = {}", cfg.repository.max_depth));
-    Output::message(&format!("skip_dirs  = {:?}", cfg.repository.skip_dirs));
+    plan.add(MessageOperation::Section {
+        title: "[repository]".to_string(),
+    });
+    plan.add(MessageOperation::Skip {
+        msg: format!("max_depth  = {}", ctx.config.repository.max_depth),
+    });
+    plan.add(MessageOperation::Skip {
+        msg: format!("skip_dirs  = {:?}", ctx.config.repository.skip_dirs),
+    });
 
-    Output::section("[remote]");
-    for rule in &cfg.remote.rules {
-        Output::item(&rule.name, &format!("{:?}", rule.hosts));
+    plan.add(MessageOperation::Section {
+        title: "[remote]".to_string(),
+    });
+    for rule in &ctx.config.remote.rules {
+        plan.add(MessageOperation::Item {
+            label: rule.name.clone(),
+            value: format!("{:?}", rule.hosts),
+        });
         if let Some(ref url_prefix) = rule.url_prefix {
-            Output::detail("url_prefix", url_prefix);
+            plan.add(MessageOperation::Detail {
+                label: "url_prefix".to_string(),
+                value: url_prefix.clone(),
+            });
         }
         if !rule.path_prefixes.is_empty()
             && let Some(ref prefix_name) = rule.path_prefix_name
         {
-            Output::detail(prefix_name, &format!("{:?}", rule.path_prefixes));
+            plan.add(MessageOperation::Detail {
+                label: prefix_name.clone(),
+                value: format!("{:?}", rule.path_prefixes),
+            });
         }
     }
 
-    Output::section("[sync]");
-    Output::message(&format!("skip_push_hosts = {:?}", cfg.sync.skip_push_hosts));
+    plan.add(MessageOperation::Section {
+        title: "[sync]".to_string(),
+    });
+    plan.add(MessageOperation::Skip {
+        msg: format!("skip_push_hosts = {:?}", ctx.config.sync.skip_push_hosts),
+    });
 
-    Output::section("[gitlab]");
-    if gitlab_cfg.servers.is_empty() {
-        Output::skip("未配置 GitLab 服务器 (使用 pma gitlab login 添加)");
+    plan.add(MessageOperation::Section {
+        title: "[gitlab]".to_string(),
+    });
+    if ctx.gitlab_config.servers.is_empty() {
+        plan.add(MessageOperation::Skip {
+            msg: "未配置 GitLab 服务器 (使用 pma gitlab login 添加)".to_string(),
+        });
     } else {
-        for srv in &gitlab_cfg.servers {
-            Output::detail(&srv.url, &srv.protocol);
+        for srv in &ctx.gitlab_config.servers {
+            plan.add(MessageOperation::Detail {
+                label: srv.url.clone(),
+                value: srv.protocol.clone(),
+            });
         }
     }
 
-    Ok(())
+    Ok(plan)
 }
 
-fn execute_path() -> anyhow::Result<()> {
-    Output::message(&ConfigManager::base_dir().display().to_string());
-    Ok(())
+fn get_path_context(_args: &PathArgs) -> anyhow::Result<ConfigPathContext> {
+    Ok(ConfigPathContext {
+        base_dir: ConfigManager::base_dir(),
+    })
+}
+
+fn make_path_plan(_args: &PathArgs, ctx: &ConfigPathContext) -> anyhow::Result<ExecutionPlan> {
+    let mut plan = ExecutionPlan::new();
+    plan.add(MessageOperation::Skip {
+        msg: ctx.base_dir.display().to_string(),
+    });
+    Ok(plan)
 }
