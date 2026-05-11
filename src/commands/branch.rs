@@ -33,10 +33,17 @@ pub struct BranchCleanArgs {
     pub pattern: Option<String>,
     #[arg(
         long,
+        short,
+        default_value = "origin",
+        help = "Remote name for deleting remote branches"
+    )]
+    pub remote: String,
+    #[arg(
+        long,
         default_value = "false",
         help = "Also delete matching remote branches"
     )]
-    pub remote: bool,
+    pub delete_remote: bool,
     #[arg(
         long,
         default_value = "false",
@@ -71,6 +78,8 @@ pub(crate) struct BranchListContext {
 #[derive(Debug)]
 pub(crate) struct BranchCleanContext {
     branches_to_delete: Vec<String>,
+    remote_name: String,
+    delete_remote: bool,
 }
 
 #[derive(Debug)]
@@ -120,6 +129,15 @@ impl MultiRepoCommand for BranchCleanArgs {
     fn context(&self, repo_path: &Path) -> Result<BranchCleanContext> {
         let git_ctx = collect_context(repo_path)?;
 
+        let remote_name = if git_ctx.has_remote(&self.remote) {
+            self.remote.clone()
+        } else {
+            git_ctx
+                .preferred_remote()
+                .or_else(|| git_ctx.first_remote_name())
+                .unwrap_or_else(|| self.remote.clone())
+        };
+
         let branches_to_delete: Vec<String> = git_ctx
             .local_branches()
             .iter()
@@ -135,7 +153,11 @@ impl MultiRepoCommand for BranchCleanArgs {
             .map(|s| s.to_string())
             .collect();
 
-        Ok(BranchCleanContext { branches_to_delete })
+        Ok(BranchCleanContext {
+            branches_to_delete,
+            remote_name,
+            delete_remote: self.delete_remote,
+        })
     }
 
     fn plan(&self, ctx: &BranchCleanContext) -> Result<ExecutionPlan> {
@@ -144,9 +166,9 @@ impl MultiRepoCommand for BranchCleanArgs {
             plan.add(GitOperation::DeleteBranch {
                 branch: branch.clone(),
             });
-            if self.remote {
+            if ctx.delete_remote {
                 plan.add(GitOperation::DeleteRemoteBranch {
-                    remote: "origin".to_string(),
+                    remote: ctx.remote_name.clone(),
                     branch: branch.clone(),
                 });
             }

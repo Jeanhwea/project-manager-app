@@ -37,7 +37,9 @@ impl MultiRepoCommand for DoctorArgs {
     type Context = DoctorContext;
 
     fn context(&self, repo_path: &Path) -> Result<DoctorContext> {
-        let issues = diagnose_repo(repo_path);
+        let issues = diagnose_repo(repo_path).map_err(|e| {
+            AppError::Release(format!("诊断仓库 {} 失败: {}", repo_path.display(), e))
+        })?;
         let git_ctx = if self.fix && !issues.is_empty() {
             collect_context(repo_path).ok()
         } else {
@@ -63,7 +65,10 @@ impl MultiRepoCommand for DoctorArgs {
                 }
                 Diagnosis::NoRemoteTrackingBranch | Diagnosis::SingleLocalBranch => {
                     plan.add(GitOperation::SetUpstream {
-                        remote: "origin".to_string(),
+                        remote: git_ctx
+                            .preferred_remote()
+                            .or_else(|| git_ctx.first_remote_name())
+                            .unwrap_or_else(|| "origin".to_string()),
                         branch: git_ctx.current_branch.clone(),
                     });
                 }
@@ -112,7 +117,12 @@ impl MultiRepoCommand for DoctorArgs {
             let issues = ctx.as_ref().map(|c| c.issues.clone()).unwrap_or_default();
             if issues.is_empty() {
                 Output::repo_header(index + 1, total, repo_path);
-                Output::success(&format!("{}: 健康", repo_path.display()));
+                match &ctx {
+                    Ok(_) => Output::success(&format!("{}: 健康", repo_path.display())),
+                    Err(e) => {
+                        Output::warning(&format!("{}: 诊断失败 - {}", repo_path.display(), e))
+                    }
+                }
                 continue;
             }
 

@@ -1,5 +1,6 @@
 use crate::commands::RepoPathArgs;
 use crate::control::command::MultiRepoCommand;
+use crate::domain::config::ConfigManager;
 use crate::domain::git::collect_context;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::{AppError, Result};
@@ -26,6 +27,7 @@ pub struct SyncArgs {
 pub(crate) struct SyncContext {
     git_ctx: GitContext,
     target_remote: String,
+    should_push: bool,
 }
 
 impl MultiRepoCommand for SyncArgs {
@@ -38,14 +40,18 @@ impl MultiRepoCommand for SyncArgs {
             return Ok(SyncContext {
                 git_ctx,
                 target_remote: String::new(),
+                should_push: false,
             });
         }
 
         let target_remote = resolve_target_remote(&git_ctx, self.remote.as_deref())?;
 
+        let should_push = should_push_to_remote(&git_ctx, &target_remote);
+
         Ok(SyncContext {
             git_ctx,
             target_remote,
+            should_push,
         })
     }
 
@@ -62,10 +68,17 @@ impl MultiRepoCommand for SyncArgs {
             remote: remote.clone(),
             branch,
         });
-        plan.add(GitOperation::PushAll {
-            remote: remote.clone(),
-        });
-        plan.add(GitOperation::PushTags { remote });
+
+        if ctx.should_push {
+            plan.add(GitOperation::PushAll {
+                remote: remote.clone(),
+            });
+            plan.add(GitOperation::PushTags { remote });
+        } else {
+            plan.add(MessageOperation::Skip {
+                msg: format!("跳过推送到 {} (配置 skip_push_hosts)", ctx.target_remote),
+            });
+        }
 
         Ok(plan)
     }
@@ -104,6 +117,19 @@ fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) ->
         .preferred_remote()
         .or_else(|| git_ctx.first_remote_name())
         .ok_or_else(|| AppError::not_found("无可用远程仓库"))
+}
+
+fn should_push_to_remote(git_ctx: &GitContext, remote_name: &str) -> bool {
+    let config = ConfigManager::load_config();
+    let remote = git_ctx.remotes.iter().find(|r| r.name == remote_name);
+
+    if let Some(remote) = remote {
+        if let Some(host) = remote.extract_host() {
+            return !config.sync.skip_push_hosts.iter().any(|h| h == &host);
+        }
+    }
+
+    true
 }
 
 fn skip_plan(msg: &str) -> Result<ExecutionPlan> {

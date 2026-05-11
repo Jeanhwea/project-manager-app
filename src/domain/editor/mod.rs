@@ -48,6 +48,10 @@ pub trait FileEditor: Send + Sync {
     fn file_patterns(&self) -> &[&str];
     fn find_version(&self, content: &str) -> Option<VersionPosition>;
 
+    fn candidate_files(&self) -> Vec<&str> {
+        self.file_patterns().to_vec()
+    }
+
     fn matches_file(&self, path: &Path) -> bool {
         let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
         self.file_patterns().iter().any(|pattern| {
@@ -153,6 +157,13 @@ impl EditorRegistry {
             .iter()
             .find(|editor| editor.matches_file(path))
             .map(|e| e.as_ref())
+    }
+
+    pub fn candidate_files(&self) -> Vec<&str> {
+        self.editors
+            .iter()
+            .flat_map(|editor| editor.candidate_files())
+            .collect()
     }
 }
 

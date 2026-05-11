@@ -1,5 +1,6 @@
 use super::GitCommandRunner;
 use super::remote::diagnose_remote_names;
+use crate::domain::git::GitError;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -65,19 +66,17 @@ fn format_bytes(bytes: u64) -> String {
 
 const LARGE_REPO_THRESHOLD_BYTES: u64 = 100 * 1024 * 1024;
 
-pub fn diagnose_repo(repo_path: &Path) -> Vec<Diagnosis> {
+pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
     let mut issues = Vec::new();
     let runner = GitCommandRunner::new();
 
-    if let Ok(output) = runner.execute(&["symbolic-ref", "HEAD"], Some(repo_path))
-        && output.trim().is_empty()
-    {
+    let output = runner.execute(&["symbolic-ref", "HEAD"], Some(repo_path))?;
+    if output.trim().is_empty() {
         issues.push(Diagnosis::DetachedHead);
     }
 
-    if let Ok(output) = runner.execute(&["remote"], Some(repo_path))
-        && output.trim().is_empty()
-    {
+    let output = runner.execute(&["remote"], Some(repo_path))?;
+    if output.trim().is_empty() {
         issues.push(Diagnosis::NoRemote);
     }
 
@@ -147,5 +146,5 @@ pub fn diagnose_repo(repo_path: &Path) -> Vec<Diagnosis> {
         });
     }
 
-    issues
+    Ok(issues)
 }

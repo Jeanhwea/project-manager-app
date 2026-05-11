@@ -1,10 +1,8 @@
 use crate::control::command::Command;
-use crate::domain::selfupdate::{
-    DownloadContext as SelfUpdateContext, download_asset, fetch_latest_release, get_asset_name,
-    install_binary,
-};
+use crate::domain::selfupdate::DownloadContext as SelfUpdateContext;
+use crate::domain::selfupdate::{fetch_latest_release, get_asset_name};
 use crate::error::{AppError, Result};
-use crate::model::plan::{ExecutionPlan, MessageOperation};
+use crate::model::plan::{ExecutionPlan, MessageOperation, SelfUpdateOperation};
 use crate::utils::output::Output;
 use std::env;
 
@@ -30,6 +28,12 @@ pub struct UpdateArgs {
         help = "Force update even if already on the latest version"
     )]
     pub force: bool,
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be updated without downloading"
+    )]
+    pub dry_run: bool,
 }
 
 #[derive(Debug)]
@@ -119,17 +123,16 @@ impl Command for UpdateArgs {
                 AppError::SelfUpdate(format!("未找到适合当前平台的安装包: {}", asset_name))
             })?;
 
-        Output::info(&format!("下载 {}...", asset.name));
-        let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
-            .map_err(|e| AppError::SelfUpdate(format!("下载资源失败: {}", e)))?;
-        Output::success("下载完成");
+        let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        let current_exe = env::current_exe()
-            .map_err(|e| AppError::SelfUpdate(format!("无法获取当前可执行文件路径: {}", e)))?;
-        install_binary(&data, &asset.name, &current_exe)
-            .map_err(|e| AppError::SelfUpdate(format!("安装二进制文件失败: {}", e)))?;
+        plan.add(SelfUpdateOperation::DownloadAndInstall {
+            api_url: asset.url.clone(),
+            browser_url: asset.browser_download_url.clone(),
+            asset_name: asset.name.clone(),
+            current_version: ctx.current.to_string(),
+            target_version: ctx.latest.clone(),
+        });
 
-        let mut plan = ExecutionPlan::new();
         plan.add(MessageOperation::Success {
             msg: format!("更新成功! v{} -> v{}", ctx.current, ctx.latest),
         });

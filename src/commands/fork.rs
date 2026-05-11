@@ -1,6 +1,6 @@
 use crate::control::command::Command;
 use crate::error::{AppError, Result};
-use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation, ShellOperation};
+use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Args)]
@@ -65,28 +65,10 @@ impl Command for ForkArgs {
             value: self.target.clone(),
         });
 
-        #[cfg(target_os = "windows")]
-        plan.add(ShellOperation::Run {
-            program: "xcopy".to_string(),
-            args: vec![
-                ctx.source.to_string_lossy().to_string(),
-                ctx.target.to_string_lossy().to_string(),
-                "/E".to_string(),
-                "/I".to_string(),
-            ],
-            dir: None,
-            description: format!("xcopy {} {} /E /I", self.source, self.target),
-        });
-        #[cfg(not(target_os = "windows"))]
-        plan.add(ShellOperation::Run {
-            program: "cp".to_string(),
-            args: vec![
-                "-r".to_string(),
-                ctx.source.to_string_lossy().to_string(),
-                ctx.target.to_string_lossy().to_string(),
-            ],
-            dir: None,
-            description: format!("cp -r {} {}", self.source, self.target),
+        plan.add(EditOperation::CopyDir {
+            source: ctx.source.to_string_lossy().to_string(),
+            target: ctx.target.to_string_lossy().to_string(),
+            description: format!("copy {} -> {}", self.source, self.target),
         });
 
         plan.add(GitOperation::Init {

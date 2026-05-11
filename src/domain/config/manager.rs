@@ -75,7 +75,10 @@ impl ConfigManager {
     }
 
     pub fn load_gitlab() -> GitLabConfig {
-        load_toml_config::<GitLabConfig>(&Self::gitlab_path(), " GitLab")
+        static GITLAB_CONFIG: OnceLock<GitLabConfig> = OnceLock::new();
+        GITLAB_CONFIG
+            .get_or_init(|| load_toml_config::<GitLabConfig>(&Self::gitlab_path(), " GitLab"))
+            .clone()
     }
 
     fn migrate_legacy_config() {

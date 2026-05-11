@@ -1,4 +1,5 @@
 use super::{GitError, Result};
+use crate::domain::config::ConfigManager;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -7,7 +8,11 @@ pub struct RepoInfo {
     pub path: PathBuf,
 }
 
-fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoInfo>> {
+fn find_git_repositories(
+    root_dir: &Path,
+    max_depth: usize,
+    skip_dirs: &[String],
+) -> Result<Vec<RepoInfo>> {
     let mut repos = Vec::new();
 
     if max_depth == 0 {
@@ -36,7 +41,11 @@ fn find_git_repositories(root_dir: &Path, max_depth: usize) -> Result<Vec<RepoIn
                 continue;
             }
 
-            repos.extend(find_git_repositories(&path, max_depth - 1)?);
+            if skip_dirs.iter().any(|skip| file_name_str == skip.as_str()) {
+                continue;
+            }
+
+            repos.extend(find_git_repositories(&path, max_depth - 1, skip_dirs)?);
         }
     }
 
@@ -49,7 +58,8 @@ pub struct RepoWalker {
 
 impl RepoWalker {
     pub fn new(path: &Path, max_depth: usize) -> Result<Self> {
-        let repos = find_git_repositories(path, max_depth)?;
+        let config = ConfigManager::load_config();
+        let repos = find_git_repositories(path, max_depth, &config.repository.skip_dirs)?;
         Ok(Self { repos })
     }
 
@@ -74,13 +84,27 @@ mod tests {
     #[test]
     fn test_find_git_repositories_empty_dir() {
         let temp_dir = tempdir().unwrap();
-        let repos = find_git_repositories(temp_dir.path(), 3).unwrap();
+        let repos = find_git_repositories(temp_dir.path(), 3, &[]).unwrap();
         assert!(repos.is_empty());
+    }
+
+    #[test]
+    fn test_find_git_repositories_skips_dirs() {
+        let temp_dir = tempdir().unwrap();
+        let node_modules = temp_dir.path().join("node_modules");
+        let project = temp_dir.path().join("my-project");
+        std::fs::create_dir_all(node_modules.join("pkg").join(".git")).unwrap();
+        std::fs::create_dir_all(project.join(".git")).unwrap();
+
+        let skip_dirs = vec!["node_modules".to_string()];
+        let repos = find_git_repositories(temp_dir.path(), 3, &skip_dirs).unwrap();
+        assert_eq!(repos.len(), 1);
+        assert!(repos[0].path.ends_with("my-project"));
     }
 
     #[test]
     fn test_find_git_repositories_nested() {
         let temp_dir = tempdir().unwrap();
-        let _ = find_git_repositories(temp_dir.path(), 1);
+        let _ = find_git_repositories(temp_dir.path(), 1, &[]);
     }
 }
