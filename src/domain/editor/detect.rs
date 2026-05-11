@@ -159,6 +159,10 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
                 description: "pnpm install --lockfile-only".to_string(),
             });
         }
+    } else {
+        plan.add(crate::model::plan::MessageOperation::Warning {
+            msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新".to_string(),
+        });
     }
 }
 
