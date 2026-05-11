@@ -88,6 +88,10 @@ impl CommandRunner {
             if let Ok(path) = std::env::var("PATH") {
                 cmd.env("PATH", path);
             }
+
+            // Also ensure we're using the full path if the command is not found
+            // This handles cases where PATH is not properly inherited
+            cmd.env("COMSPEC", "cmd.exe");
         }
 
         Ok(cmd)
