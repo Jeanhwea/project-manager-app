@@ -17,7 +17,7 @@ pub struct SyncArgs {
     pub remote: Option<String>,
     #[arg(
         long,
-        default_value = "false",
+        default_value = "true",
         help = "Push to all remotes when no remote is specified"
     )]
     pub all_remotes: bool,
@@ -135,12 +135,7 @@ fn resolve_target_remotes(
         return Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect());
     }
 
-    let preferred = git_ctx
-        .preferred_remote()
-        .or_else(|| git_ctx.first_remote_name())
-        .ok_or_else(|| AppError::not_found("无可用远程仓库"))?;
-
-    Ok(vec![preferred])
+    Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect())
 }
 
 fn should_push_to_remote(remote_name: &str) -> bool {
