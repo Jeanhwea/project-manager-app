@@ -1,10 +1,8 @@
 use crate::control::command::Command;
-use crate::domain::selfupdate::{
-    DownloadContext as SelfUpdateContext, download_asset, fetch_latest_release, get_asset_name,
-    install_binary,
-};
+use crate::domain::selfupdate::DownloadContext as SelfUpdateContext;
+use crate::domain::selfupdate::{fetch_latest_release, get_asset_name};
 use crate::error::{AppError, Result};
-use crate::model::plan::{ExecutionPlan, MessageOperation};
+use crate::model::plan::{ExecutionPlan, MessageOperation, SelfUpdateOperation};
 use crate::utils::output::Output;
 use std::env;
 
@@ -30,8 +28,15 @@ pub struct UpdateArgs {
         help = "Force update even if already on the latest version"
     )]
     pub force: bool,
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be updated without downloading"
+    )]
+    pub dry_run: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct VersionContext {
     pkg_name: &'static str,
     pkg_version: &'static str,
@@ -70,30 +75,27 @@ impl Command for UpdateArgs {
 
     fn context(&self) -> Result<SelfUpdateContext> {
         if env::var("PMA_NPM_INSTALL").is_ok() {
-            return Err(AppError::SelfUpdate(
-                "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma"
-                    .to_string(),
+            return Err(AppError::self_update(
+                "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma",
             ));
         }
 
         Output::info("检查最新版本...");
 
         let release = fetch_latest_release()
-            .map_err(|e| AppError::SelfUpdate(format!("获取发布信息失败: {}", e)))?;
+            .map_err(|e| AppError::self_update(format!("获取发布信息失败: {}", e)))?;
         let latest = release.tag_name.trim_start_matches('v').to_string();
 
         Output::item("当前版本", &format!("v{}", PKG_VERSION));
         Output::item("最新版本", &format!("v{}", latest));
 
         let latest_ver = semver::Version::parse(&latest)
-            .map_err(|_| AppError::SelfUpdate(format!("无法解析最新版本号: {}", latest)))?;
+            .map_err(|_| AppError::self_update(format!("无法解析最新版本号: {}", latest)))?;
         let current_ver = semver::Version::parse(PKG_VERSION)
-            .map_err(|_| AppError::SelfUpdate(format!("无法解析当前版本号: {}", PKG_VERSION)))?;
+            .map_err(|_| AppError::self_update(format!("无法解析当前版本号: {}", PKG_VERSION)))?;
 
         if current_ver >= latest_ver && !self.force {
-            return Err(AppError::SelfUpdate(
-                "已经是最新版本，无需更新。".to_string(),
-            ));
+            return Err(AppError::self_update("已经是最新版本，无需更新。"));
         }
 
         if current_ver >= latest_ver && self.force {
@@ -115,20 +117,19 @@ impl Command for UpdateArgs {
             .iter()
             .find(|a| a.name == asset_name)
             .ok_or_else(|| {
-                AppError::SelfUpdate(format!("未找到适合当前平台的安装包: {}", asset_name))
+                AppError::self_update(format!("未找到适合当前平台的安装包: {}", asset_name))
             })?;
 
-        Output::info(&format!("下载 {}...", asset.name));
-        let data = download_asset(&asset.url, &asset.browser_download_url, &asset.name)
-            .map_err(|e| AppError::SelfUpdate(format!("下载资源失败: {}", e)))?;
-        Output::success("下载完成");
+        let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        let current_exe = env::current_exe()
-            .map_err(|e| AppError::SelfUpdate(format!("无法获取当前可执行文件路径: {}", e)))?;
-        install_binary(&data, &asset.name, &current_exe)
-            .map_err(|e| AppError::SelfUpdate(format!("安装二进制文件失败: {}", e)))?;
+        plan.add(SelfUpdateOperation::DownloadAndInstall {
+            api_url: asset.url.clone(),
+            browser_url: asset.browser_download_url.clone(),
+            asset_name: asset.name.clone(),
+            current_version: ctx.current.to_string(),
+            target_version: ctx.latest.clone(),
+        });
 
-        let mut plan = ExecutionPlan::new();
         plan.add(MessageOperation::Success {
             msg: format!("更新成功! v{} -> v{}", ctx.current, ctx.latest),
         });

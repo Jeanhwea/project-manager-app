@@ -15,12 +15,14 @@ pub enum ConfigArgs {
     Path,
 }
 
+#[derive(Debug)]
 pub(crate) struct ConfigInitContext {
     base_dir: PathBuf,
     config_path: PathBuf,
     gitlab_path: PathBuf,
 }
 
+#[derive(Debug)]
 pub(crate) struct ConfigShowContext {
     base_dir: PathBuf,
     dir_exists: bool,
@@ -28,6 +30,7 @@ pub(crate) struct ConfigShowContext {
     gitlab_config: schema::GitLabConfig,
 }
 
+#[derive(Debug)]
 pub(crate) struct ConfigPathContext {
     base_dir: PathBuf,
 }
@@ -155,7 +158,10 @@ impl Command for ShowArgs {
             title: "[sync]".to_string(),
         });
         plan.add(MessageOperation::Skip {
-            msg: format!("skip_push_hosts = {:?}", ctx.config.sync.skip_push_hosts),
+            msg: format!(
+                "skip_push_remotes = {:?}",
+                ctx.config.sync.skip_push_remotes
+            ),
         });
 
         plan.add(MessageOperation::Section {

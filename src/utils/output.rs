@@ -7,85 +7,112 @@ fn tag_box(label: &str, color: colored::Color) -> String {
     format!("[{}]", label).color(color).bold().to_string()
 }
 
+pub trait OutputBackend {
+    fn print(&self, msg: &str);
+}
+
+pub struct TerminalBackend;
+
+impl OutputBackend for TerminalBackend {
+    fn print(&self, msg: &str) {
+        println!("{}", msg);
+    }
+}
+
 pub struct Output;
 
 impl Output {
     pub fn header(title: &str) {
-        println!();
+        let backend = TerminalBackend;
+        backend.print("");
         let line = format!("== {} ", title);
         let padding = 60usize.saturating_sub(line.len());
-        println!(
+        backend.print(&format!(
             "{}{}",
             line.green().bold(),
             "=".repeat(padding).green().bold()
-        );
+        ));
     }
 
     pub fn section(title: &str) {
-        println!();
-        println!("{}", format!("--- {} ---", title).cyan().bold());
+        let backend = TerminalBackend;
+        backend.print("");
+        backend.print(&format!("--- {} ---", title).cyan().bold().to_string());
     }
 
     pub fn repo_header(index: usize, total: usize, path: &Path) {
-        println!();
+        let backend = TerminalBackend;
+        backend.print("");
         let progress = format!("[{}/{}]", index, total);
         let path_str = crate::utils::path::format_path(path);
-        println!(
+        backend.print(&format!(
             "{} {}",
             progress.white().bold(),
             path_str.cyan().underline()
-        );
+        ));
     }
 
     pub fn success(msg: &str) {
-        println!("{} {}", "<==".green().bold(), msg.green());
+        let backend = TerminalBackend;
+        backend.print(&format!("{} {}", "<==".green().bold(), msg.green()));
     }
 
     pub fn error(msg: &str) {
-        println!("{} {}", "<==".red().bold(), msg.red());
+        let backend = TerminalBackend;
+        backend.print(&format!("{} {}", "<==".red().bold(), msg.red()));
     }
 
     pub fn warning(msg: &str) {
-        println!("{} {}", "<==".yellow().bold(), msg.yellow());
+        let backend = TerminalBackend;
+        backend.print(&format!("{} {}", "<==".yellow().bold(), msg.yellow()));
     }
 
     pub fn info(msg: &str) {
-        println!("{} {}", "<==".cyan().bold(), msg);
+        let backend = TerminalBackend;
+        backend.print(&format!("{} {}", "<==".cyan().bold(), msg));
     }
 
     pub fn skip(msg: &str) {
-        println!("{} {}", "<==".dimmed(), msg.dimmed());
+        let backend = TerminalBackend;
+        backend.print(&format!("{} {}", "<==".dimmed(), msg.dimmed()));
     }
 
     pub fn cmd(cmd: &str) {
-        println!("{} {}", "==>".blue().bold(), cmd.yellow());
+        let backend = TerminalBackend;
+        backend.print(&format!("{} {}", "==>".blue().bold(), cmd.yellow()));
     }
 
     pub fn item(label: &str, value: &str) {
+        let backend = TerminalBackend;
         let padded = format!("{:<width$}", label, width = SYMBOL_WIDTH);
-        println!("{} {}", padded.green().bold(), value.yellow());
+        backend.print(&format!("{} {}", padded.green().bold(), value.yellow()));
     }
 
     pub fn detail(label: &str, value: &str) {
+        let backend = TerminalBackend;
         let padded = format!("{:<width$}", label, width = SYMBOL_WIDTH + 2);
-        println!("{} {}", padded.dimmed(), value);
+        backend.print(&format!("{} {}", padded.dimmed(), value));
     }
 
     pub fn message(msg: &str) {
-        println!("{}", msg);
+        let backend = TerminalBackend;
+        backend.print(msg);
     }
 
     pub fn blank() {
-        println!();
+        let backend = TerminalBackend;
+        backend.print("");
     }
 
     pub fn dry_run_header(msg: &str) {
-        println!();
+        let backend = TerminalBackend;
+        backend.print("");
         let tag = tag_box("DRY", colored::Color::Magenta);
-        println!("{} {}", tag, msg.cyan().bold());
+        backend.print(&format!("{} {}", tag, msg.cyan().bold()));
     }
 
     pub fn not_found(msg: &str) {
-        println!("{} {}", "<==".yellow().bold(), msg.yellow());
+        let backend = TerminalBackend;
+        backend.print(&format!("{} {}", "<==".yellow().bold(), msg.yellow()));
     }
 }

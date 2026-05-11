@@ -1,4 +1,5 @@
 use clap::ValueEnum;
+use semver::Version as SemVersion;
 
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum BumpType {
@@ -19,28 +20,13 @@ pub struct Version {
 
 impl Version {
     pub fn parse(s: &str) -> super::Result<Self> {
-        let parts: Vec<&str> = s.trim().split('.').collect();
-        if parts.len() != 3 {
-            return Err(super::EditorError::VersionFormatError(format!(
-                "Invalid version format: {}",
-                s
-            )));
-        }
-
-        let major = parts[0].parse::<u32>().map_err(|_| {
-            super::EditorError::VersionFormatError(format!("Invalid major version: {}", parts[0]))
+        let ver = SemVersion::parse(s.trim()).map_err(|e| {
+            super::EditorError::VersionFormatError(format!("Invalid version format: {}", e))
         })?;
-        let minor = parts[1].parse::<u32>().map_err(|_| {
-            super::EditorError::VersionFormatError(format!("Invalid minor version: {}", parts[1]))
-        })?;
-        let patch = parts[2].parse::<u32>().map_err(|_| {
-            super::EditorError::VersionFormatError(format!("Invalid patch version: {}", parts[2]))
-        })?;
-
         Ok(Version {
-            major,
-            minor,
-            patch,
+            major: ver.major as u32,
+            minor: ver.minor as u32,
+            patch: ver.patch as u32,
         })
     }
 
@@ -78,6 +64,22 @@ impl Version {
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl From<SemVersion> for Version {
+    fn from(v: SemVersion) -> Self {
+        Version {
+            major: v.major as u32,
+            minor: v.minor as u32,
+            patch: v.patch as u32,
+        }
+    }
+}
+
+impl From<&Version> for SemVersion {
+    fn from(v: &Version) -> Self {
+        SemVersion::new(v.major as u64, v.minor as u64, v.patch as u64)
     }
 }
 
@@ -157,5 +159,25 @@ mod tests {
             patch: 3,
         };
         assert_eq!(format!("{}", v), "1.2.3");
+    }
+
+    #[test]
+    fn test_version_from_semver() {
+        let sem = SemVersion::parse("1.2.3").unwrap();
+        let v: Version = sem.into();
+        assert_eq!(v.major, 1);
+        assert_eq!(v.minor, 2);
+        assert_eq!(v.patch, 3);
+    }
+
+    #[test]
+    fn test_version_to_semver() {
+        let v = Version {
+            major: 1,
+            minor: 2,
+            patch: 3,
+        };
+        let sem: SemVersion = (&v).into();
+        assert_eq!(sem, SemVersion::new(1, 2, 3));
     }
 }

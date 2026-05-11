@@ -1,6 +1,6 @@
-use crate::commands::{RepoPathArgs, init_repo_walker};
+use crate::commands::RepoPathArgs;
 use crate::control::command::MultiRepoCommand;
-use crate::control::context::collect_context;
+use crate::domain::git::collect_context;
 use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{ExecutionPlan, MessageOperation};
@@ -12,6 +12,7 @@ pub struct StatusArgs {
     pub repo_path: RepoPathArgs,
 }
 
+#[derive(Debug)]
 pub(crate) struct StatusContext {
     git_ctx: GitContext,
 }
@@ -64,9 +65,5 @@ impl MultiRepoCommand for StatusArgs {
 }
 
 pub fn run(args: StatusArgs) -> Result<()> {
-    let Some(walker) = init_repo_walker(&args.repo_path)? else {
-        return Ok(());
-    };
-
-    MultiRepoCommand::run(&args, &walker)
+    crate::commands::run_multi_repo(&args, &args.repo_path)
 }

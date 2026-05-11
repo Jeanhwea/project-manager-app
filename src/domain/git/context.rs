@@ -4,14 +4,20 @@ use std::path::Path;
 
 pub fn collect_context(repo_path: &Path) -> Result<GitContext> {
     let runner = GitCommandRunner::new();
+    collect_context_with_runner(&runner, repo_path)
+}
 
+pub fn collect_context_with_runner(
+    runner: &GitCommandRunner,
+    repo_path: &Path,
+) -> Result<GitContext> {
     let root = runner.execute(&["rev-parse", "--show-toplevel"], Some(repo_path))?;
     let root = std::path::PathBuf::from(root);
 
     let current_branch = runner.get_current_branch(&root)?;
-    let remotes = collect_remotes(&runner, &root)?;
-    let branches = collect_branches(&runner, &root)?;
-    let tags = collect_tags(&runner, &root)?;
+    let remotes = collect_remotes(runner, &root)?;
+    let branches = collect_branches(runner, &root)?;
+    let tags = collect_tags(runner, &root)?;
     let has_uncommitted_changes = runner.has_uncommitted_changes(&root)?;
 
     Ok(GitContext {
@@ -61,7 +67,7 @@ fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch
             name,
             is_current: is_current && !is_remote,
             is_remote,
-            tracking_branch: extract_tracking_branch(info),
+            tracking_branch: extract_tracking_branch(runner, root, is_current, info),
         });
     }
 
@@ -88,17 +94,18 @@ fn collect_tags(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Tag>> {
     Ok(tags)
 }
 
-fn extract_tracking_branch(info: &str) -> Option<String> {
-    if let Some(start) = info.find('[')
-        && let Some(end) = info.find(']')
-    {
-        let inner = &info[start + 1..end];
-        if inner.contains(':') {
-            Some(inner.to_string())
-        } else {
-            None
-        }
-    } else {
-        None
+fn extract_tracking_branch(
+    runner: &GitCommandRunner,
+    root: &Path,
+    is_current: bool,
+    _info: &str,
+) -> Option<String> {
+    if !is_current {
+        return None;
     }
+    runner
+        .execute(&["rev-parse", "--abbrev-ref", "@{upstream}"], Some(root))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }

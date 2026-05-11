@@ -4,23 +4,6 @@ use crate::model::plan::{ExecutionPlan, GitOperation};
 use regex::Regex;
 use std::path::Path;
 
-const CONFIG_FILE_CANDIDATES: &[(&str, bool)] = &[
-    ("Cargo.toml", false),
-    ("src-tauri/Cargo.toml", false),
-    ("pom.xml", false),
-    ("pyproject.toml", false),
-    ("{}/__version__.py", true),
-    ("version", false),
-    ("version.txt", false),
-    ("package.json", false),
-    ("apps/{}/package.json", true),
-    ("ui/package.json", false),
-    ("src-tauri/tauri.conf.json", false),
-    ("npm/{}/package.json", true),
-    ("CMakeLists.txt", false),
-    ("Formula/pma.rb", false),
-];
-
 pub fn resolve_config_files(
     registry: &EditorRegistry,
     files: &[String],
@@ -40,18 +23,18 @@ pub fn resolve_config_files(
 pub fn detect_config_files(registry: &EditorRegistry) -> crate::error::Result<Vec<String>> {
     let mut result = Vec::new();
 
-    for (pattern, is_dynamic) in CONFIG_FILE_CANDIDATES {
-        if *is_dynamic && pattern.contains("{}") {
-            for path in expand_glob_pattern(pattern) {
+    for candidate in registry.candidate_files() {
+        if candidate.contains("{}") {
+            for path in expand_glob_pattern(candidate) {
                 if Path::new(&path).exists() && registry.detect_editor(Path::new(&path)).is_some()
                 {
                     result.push(path);
                 }
             }
-        } else if Path::new(pattern).exists()
-            && registry.detect_editor(Path::new(pattern)).is_some()
+        } else if Path::new(candidate).exists()
+            && registry.detect_editor(Path::new(candidate)).is_some()
         {
-            result.push(pattern.to_string());
+            result.push(candidate.to_string());
         }
     }
 
@@ -186,7 +169,7 @@ pub fn compute_edited_content(
 ) -> crate::error::Result<(String, String)> {
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file)
-        .map_err(|e| AppError::Release(format!("无法读取 {}: {}", config_file, e)))?;
+        .map_err(|e| AppError::release(format!("无法读取 {}: {}", config_file, e)))?;
 
     let location = editor.parse(&content)?;
     let edited = editor.edit(&content, &location, version)?;
@@ -197,7 +180,7 @@ pub fn compute_edited_content(
 
 pub fn read_cargo_package_name(cargo_toml_path: &str) -> crate::error::Result<String> {
     let content = std::fs::read_to_string(cargo_toml_path)
-        .map_err(|e| AppError::Release(format!("无法读取 {}: {}", cargo_toml_path, e)))?;
+        .map_err(|e| AppError::release(format!("无法读取 {}: {}", cargo_toml_path, e)))?;
     let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)?;
     let mut in_package = false;
     for line in content.lines() {

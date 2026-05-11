@@ -48,10 +48,10 @@ pub fn fetch_latest_release() -> Result<Release> {
 
     let resp = req
         .call()
-        .map_err(|e| AppError::SelfUpdate(format!("请求 GitHub API 失败: {}", e)))?;
+        .map_err(|e| AppError::self_update(format!("请求 GitHub API 失败: {}", e)))?;
     let release: Release = resp
         .into_json()
-        .map_err(|e| AppError::SelfUpdate(format!("解析 release 信息失败: {}", e)))?;
+        .map_err(|e| AppError::self_update(format!("解析 release 信息失败: {}", e)))?;
     Ok(release)
 }
 
@@ -86,7 +86,7 @@ pub fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Res
         }
     }
 
-    Err(AppError::SelfUpdate(format!(
+    Err(AppError::self_update(format!(
         "所有下载方式均失败，请手动下载: {}\n\
              提示: 可设置 PMA_DOWNLOAD_URL 环境变量指定下载地址，\n\
              或设置 GITHUB_TOKEN 环境变量提高 API 下载成功率",
@@ -104,7 +104,7 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
     };
 
     if !valid {
-        return Err(AppError::SelfUpdate("下载的文件格式无效".to_string()));
+        return Err(AppError::self_update("下载的文件格式无效"));
     }
     Ok(())
 }
@@ -140,7 +140,7 @@ fn read_response_with_progress(resp: ureq::Response) -> Result<Vec<u8>> {
     loop {
         let n = reader
             .read(&mut buf)
-            .map_err(|e| AppError::SelfUpdate(format!("读取下载内容失败: {}", e)))?;
+            .map_err(|e| AppError::self_update(format!("读取下载内容失败: {}", e)))?;
         if n == 0 {
             break;
         }
@@ -162,7 +162,7 @@ fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
 
     let resp = req
         .call()
-        .map_err(|e| AppError::SelfUpdate(format!("API 下载失败: {}", e)))?;
+        .map_err(|e| AppError::self_update(format!("API 下载失败: {}", e)))?;
     read_response_with_progress(resp)
 }
 
@@ -170,7 +170,7 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
     let resp = ureq::get(url)
         .set("User-Agent", "pma-self-update")
         .call()
-        .map_err(|e| AppError::SelfUpdate(format!("下载安装包失败: {}", e)))?;
+        .map_err(|e| AppError::self_update(format!("下载安装包失败: {}", e)))?;
 
     read_response_with_progress(resp)
 }
@@ -197,7 +197,7 @@ pub fn install_binary(data: &[u8], asset_name: &str, target: &PathBuf) -> Result
     } else if asset_name.ends_with(".zip") {
         install_from_zip(data, bin_name, target)
     } else {
-        Err(AppError::SelfUpdate(format!(
+        Err(AppError::self_update(format!(
             "未知的安装包格式: {}",
             asset_name
         )))
@@ -210,20 +210,20 @@ fn install_from_tar_gz(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<
 
     for entry in archive
         .entries()
-        .map_err(|e| AppError::SelfUpdate(format!("读取 tar.gz 失败: {}", e)))?
+        .map_err(|e| AppError::self_update(format!("读取 tar.gz 失败: {}", e)))?
     {
         let mut entry =
-            entry.map_err(|e| AppError::SelfUpdate(format!("读取 tar entry 失败: {}", e)))?;
+            entry.map_err(|e| AppError::self_update(format!("读取 tar entry 失败: {}", e)))?;
         let path = entry
             .path()
-            .map_err(|e| AppError::SelfUpdate(format!("读取 entry 路径失败: {}", e)))?;
+            .map_err(|e| AppError::self_update(format!("读取 entry 路径失败: {}", e)))?;
         if path.file_name().and_then(|n| n.to_str()) == Some(bin_name) {
             let mut buf = Vec::new();
             entry.read_to_end(&mut buf)?;
             return replace_binary(&buf, target);
         }
     }
-    Err(AppError::SelfUpdate(format!(
+    Err(AppError::self_update(format!(
         "在 tar.gz 中未找到 {}",
         bin_name
     )))
@@ -232,12 +232,12 @@ fn install_from_tar_gz(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<
 fn install_from_zip(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<()> {
     let cursor = io::Cursor::new(data);
     let mut archive = zip::ZipArchive::new(cursor)
-        .map_err(|e| AppError::SelfUpdate(format!("读取 zip 失败: {}", e)))?;
+        .map_err(|e| AppError::self_update(format!("读取 zip 失败: {}", e)))?;
 
     for i in 0..archive.len() {
         let mut file = archive
             .by_index(i)
-            .map_err(|e| AppError::SelfUpdate(format!("读取 zip entry 失败: {}", e)))?;
+            .map_err(|e| AppError::self_update(format!("读取 zip entry 失败: {}", e)))?;
         let name = file.name().to_string();
         if name.ends_with(bin_name) {
             let mut buf = Vec::new();
@@ -245,7 +245,7 @@ fn install_from_zip(data: &[u8], bin_name: &str, target: &PathBuf) -> Result<()>
             return replace_binary(&buf, target);
         }
     }
-    Err(AppError::SelfUpdate(format!(
+    Err(AppError::self_update(format!(
         "在 zip 中未找到 {}",
         bin_name
     )))
@@ -257,9 +257,9 @@ fn replace_binary(new_binary: &[u8], target: &PathBuf) -> Result<()> {
         let _ = fs::remove_file(&backup);
     }
     fs::rename(target, &backup)
-        .map_err(|e| AppError::SelfUpdate(format!("备份旧版本失败: {}", e)))?;
+        .map_err(|e| AppError::self_update(format!("备份旧版本失败: {}", e)))?;
     fs::write(target, new_binary)
-        .map_err(|e| AppError::SelfUpdate(format!("写入新版本失败: {}", e)))?;
+        .map_err(|e| AppError::self_update(format!("写入新版本失败: {}", e)))?;
 
     #[cfg(unix)]
     {

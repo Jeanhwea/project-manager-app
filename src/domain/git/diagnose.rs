@@ -1,34 +1,96 @@
 use super::GitCommandRunner;
 use super::remote::diagnose_remote_names;
+use crate::domain::git::GitError;
 use std::path::Path;
 
-pub fn diagnose_repo(repo_path: &Path) -> Vec<String> {
+#[derive(Debug, Clone)]
+pub enum Diagnosis {
+    DetachedHead,
+    NoRemote,
+    NoRemoteTrackingBranch,
+    SingleLocalBranch,
+    StashExists,
+    StaleRefs {
+        remote: String,
+    },
+    LargeRepo {
+        size_bytes: u64,
+    },
+    RemoteNameMismatch {
+        current: String,
+        expected: String,
+        host: String,
+    },
+}
+
+impl Diagnosis {
+    pub fn display_message(&self) -> String {
+        match self {
+            Diagnosis::DetachedHead => "HEAD 处于 detached 状态".to_string(),
+            Diagnosis::NoRemote => "没有配置远程仓库".to_string(),
+            Diagnosis::NoRemoteTrackingBranch => "没有远程跟踪分支".to_string(),
+            Diagnosis::SingleLocalBranch => "只有一个本地分支".to_string(),
+            Diagnosis::StashExists => "存在 stash 条目".to_string(),
+            Diagnosis::StaleRefs { remote } => format!("远程仓库 {} 的引用已陈旧", remote),
+            Diagnosis::LargeRepo { size_bytes } => {
+                format!("仓库大小较大: {}", format_bytes(*size_bytes))
+            }
+            Diagnosis::RemoteNameMismatch {
+                current,
+                expected,
+                host,
+            } => {
+                format!(
+                    "remote 名称不匹配: {} -> {} (主机: {})",
+                    current, expected, host
+                )
+            }
+        }
+    }
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+    if bytes >= GB {
+        format!("{:.2} GiB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MiB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KiB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
+
+const LARGE_REPO_THRESHOLD_BYTES: u64 = 100 * 1024 * 1024;
+
+pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
     let mut issues = Vec::new();
     let runner = GitCommandRunner::new();
 
-    if let Ok(output) = runner.execute(&["symbolic-ref", "HEAD"], Some(repo_path))
-        && output.trim().is_empty()
-    {
-        issues.push("HEAD 处于 detached 状态".to_string());
+    let output = runner.execute(&["symbolic-ref", "HEAD"], Some(repo_path))?;
+    if output.trim().is_empty() {
+        issues.push(Diagnosis::DetachedHead);
     }
 
-    if let Ok(output) = runner.execute(&["remote"], Some(repo_path))
-        && output.trim().is_empty()
-    {
-        issues.push("没有配置远程仓库".to_string());
+    let output = runner.execute(&["remote"], Some(repo_path))?;
+    if output.trim().is_empty() {
+        issues.push(Diagnosis::NoRemote);
     }
 
     if let Ok(output) = runner.execute(&["branch", "-r"], Some(repo_path)) {
         let remote_branches: Vec<&str> = output.lines().collect();
         if remote_branches.is_empty() {
-            issues.push("没有远程跟踪分支".to_string());
+            issues.push(Diagnosis::NoRemoteTrackingBranch);
         }
     }
 
     if let Ok(output) = runner.execute(&["branch", "--list"], Some(repo_path)) {
         let local_branches: Vec<&str> = output.lines().collect();
         if local_branches.len() == 1 {
-            issues.push("只有一个本地分支".to_string());
+            issues.push(Diagnosis::SingleLocalBranch);
         }
     }
 
@@ -42,7 +104,7 @@ pub fn diagnose_repo(repo_path: &Path) -> Vec<String> {
         Some(repo_path),
     ) && !output.trim().is_empty()
     {
-        issues.push("存在 stash 条目".to_string());
+        issues.push(Diagnosis::StashExists);
     }
 
     if let Ok(output) = runner.execute(&["remote", "show"], Some(repo_path)) {
@@ -55,29 +117,32 @@ pub fn diagnose_repo(repo_path: &Path) -> Vec<String> {
                 runner.execute(&["remote", "show", remote], Some(repo_path))
                 && remote_output.contains("(stale)")
             {
-                issues.push(format!("远程仓库 {} 的引用已陈旧", remote));
+                issues.push(Diagnosis::StaleRefs {
+                    remote: remote.to_string(),
+                });
             }
         }
     }
 
-    if let Ok(output) = runner.execute(&["count-objects", "-vH"], Some(repo_path)) {
+    if let Ok(output) = runner.execute(&["count-objects", "-v"], Some(repo_path)) {
         for line in output.lines() {
             if let Some(size_str) = line.strip_prefix("size-pack:")
                 && let Some(size_num) = size_str.split_whitespace().next()
-                && let Ok(size) = size_num.parse::<f64>()
-                && size > 100.0
+                && let Ok(size_bytes) = size_num.parse::<u64>()
+                && size_bytes > LARGE_REPO_THRESHOLD_BYTES
             {
-                issues.push(format!("仓库大小较大: {}", size_str.trim()));
+                issues.push(Diagnosis::LargeRepo { size_bytes });
             }
         }
     }
 
     for remote_issue in diagnose_remote_names(repo_path) {
-        issues.push(format!(
-            "remote 名称不匹配: {} -> {} (主机: {})",
-            remote_issue.current_name, remote_issue.expected_name, remote_issue.host
-        ));
+        issues.push(Diagnosis::RemoteNameMismatch {
+            current: remote_issue.current_name,
+            expected: remote_issue.expected_name,
+            host: remote_issue.host,
+        });
     }
 
-    issues
+    Ok(issues)
 }

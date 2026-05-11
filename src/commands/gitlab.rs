@@ -3,6 +3,7 @@ use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
 use crate::error::{AppError, Result};
 use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
+use serde::Deserialize;
 use std::path::PathBuf;
 
 #[derive(Debug, clap::Subcommand)]
@@ -27,9 +28,9 @@ pub struct LoginArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct CloneArgs {
-    #[arg(help = "Project path on GitLab (e.g. group/project)")]
-    pub project: String,
-    #[arg(long, short, help = "GitLab server URL (overrides configured server)")]
+    #[arg(help = "Group path or full URL (e.g. mygroup or https://gitlab.example.com/mygroup)")]
+    pub group: String,
+    #[arg(long, short, help = "Server URL override")]
     pub server: Option<String>,
     #[arg(
         long,
@@ -39,17 +40,24 @@ pub struct CloneArgs {
     pub dry_run: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct LoginContext {
     config: schema::GitLabConfig,
     is_update: bool,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct CloneProject {
+    pub path_with_namespace: String,
+    pub ssh_url_to_repo: String,
+    pub http_url_to_repo: String,
+}
+
+#[derive(Debug)]
 pub(crate) struct CloneContext {
-    clone_url: String,
-    target_dir: String,
     server_url: String,
-    project: String,
     protocol: String,
+    projects: Vec<CloneProject>,
 }
 
 impl Command for LoginArgs {
@@ -57,19 +65,19 @@ impl Command for LoginArgs {
 
     fn context(&self) -> Result<LoginContext> {
         let mut config = ConfigManager::load_gitlab();
-        let is_update = config.servers.iter().any(|s| s.url == self.url);
+        let trimmed_url = self.url.trim().to_string();
+        let is_update = config.servers.iter().any(|s| s.url == trimmed_url);
 
         if !is_update {
             config.servers.push(schema::GitLabServer {
-                url: self.url.clone(),
+                url: trimmed_url,
                 token: self.token.clone(),
                 protocol: self.protocol.clone(),
+                prefix: String::new(),
             });
-        } else {
-            if let Some(existing) = config.servers.iter_mut().find(|s| s.url == self.url) {
-                existing.token = self.token.clone();
-                existing.protocol = self.protocol.clone();
-            }
+        } else if let Some(existing) = config.servers.iter_mut().find(|s| s.url == trimmed_url) {
+            existing.token = self.token.clone();
+            existing.protocol = self.protocol.clone();
         }
 
         Ok(LoginContext { config, is_update })
@@ -85,7 +93,7 @@ impl Command for LoginArgs {
         }
 
         let config_content = toml::to_string_pretty(&ctx.config)
-            .map_err(|e| AppError::InvalidInput(format!("序列化配置失败: {}", e)))?;
+            .map_err(|e| AppError::Io(std::io::Error::other(format!("序列化配置失败: {}", e))))?;
 
         plan.add(EditOperation::WriteFile {
             path: ConfigManager::gitlab_path().to_string_lossy().to_string(),
@@ -106,42 +114,27 @@ impl Command for CloneArgs {
 
     fn context(&self) -> Result<CloneContext> {
         let config = ConfigManager::load_gitlab();
-
-        let server = if let Some(url) = &self.server {
-            config
-                .servers
-                .iter()
-                .find(|s| &s.url == url)
-                .ok_or_else(|| AppError::not_found(format!("GitLab 服务器 {} 未配置", url)))?
-        } else {
-            config.servers.first().ok_or_else(|| {
-                AppError::not_found("未配置 GitLab 服务器，请先执行 pma gitlab login")
-            })?
-        };
-
-        let clone_url = match server.protocol.as_str() {
-            "ssh" => format!("git@{}:{}.git", extract_host(&server.url)?, self.project),
-            _ => format!("{}/{}.git", server.url.trim_end_matches('/'), self.project),
-        };
-
-        let target_dir = self
-            .project
-            .split('/')
-            .next_back()
-            .unwrap_or(&self.project)
-            .to_string();
+        let (server, group_path) =
+            resolve_server_and_group(&config, &self.group, self.server.as_deref())?;
+        let api_base = api_base_url(server);
+        let projects = fetch_group_projects(&api_base, &server.token, &group_path)?;
 
         Ok(CloneContext {
-            clone_url,
-            target_dir,
             server_url: server.url.clone(),
-            project: self.project.clone(),
             protocol: server.protocol.clone(),
+            projects,
         })
     }
 
     fn plan(&self, ctx: &CloneContext) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+
+        if ctx.projects.is_empty() {
+            plan.add(MessageOperation::Warning {
+                msg: "未找到项目".to_string(),
+            });
+            return Ok(plan);
+        }
 
         plan.add(MessageOperation::Header {
             title: "克隆项目".to_string(),
@@ -151,22 +144,36 @@ impl Command for CloneArgs {
             value: ctx.server_url.clone(),
         });
         plan.add(MessageOperation::Item {
-            label: "项目".to_string(),
-            value: ctx.project.clone(),
-        });
-        plan.add(MessageOperation::Item {
             label: "协议".to_string(),
             value: ctx.protocol.clone(),
         });
         plan.add(MessageOperation::Item {
-            label: "URL".to_string(),
-            value: ctx.clone_url.clone(),
+            label: "数量".to_string(),
+            value: ctx.projects.len().to_string(),
         });
 
-        plan.add(GitOperation::Clone {
-            url: ctx.clone_url.clone(),
-            dir: PathBuf::from(&ctx.target_dir),
-        });
+        for proj in &ctx.projects {
+            let url = match ctx.protocol.as_str() {
+                "ssh" => &proj.ssh_url_to_repo,
+                _ => &proj.http_url_to_repo,
+            };
+            let target_dir = proj
+                .path_with_namespace
+                .split('/')
+                .next_back()
+                .unwrap_or(&proj.path_with_namespace)
+                .to_string();
+
+            plan.add(MessageOperation::Item {
+                label: "项目".to_string(),
+                value: proj.path_with_namespace.clone(),
+            });
+
+            plan.add(GitOperation::Clone {
+                url: url.clone(),
+                dir: PathBuf::from(&target_dir),
+            });
+        }
 
         Ok(plan)
     }
@@ -179,11 +186,141 @@ pub fn run(args: GitLabArgs) -> Result<()> {
     }
 }
 
-fn extract_host(url: &str) -> Result<String> {
-    let parsed = url::Url::parse(url)
-        .map_err(|_| AppError::invalid_input(format!("无效的 URL: {}", url)))?;
-    parsed
-        .host_str()
-        .map(String::from)
-        .ok_or_else(|| AppError::invalid_input(format!("URL 中缺少主机名: {}", url)))
+fn resolve_server_and_group<'a>(
+    config: &'a schema::GitLabConfig,
+    group_input: &str,
+    server_override: Option<&str>,
+) -> Result<(&'a schema::GitLabServer, String)> {
+    let input = group_input.trim();
+
+    if input.starts_with("http://") || input.starts_with("https://") {
+        return resolve_from_full_url(config, input);
+    }
+
+    if let Some(server_url) = server_override {
+        let trimmed = server_url.trim();
+        let server = config
+            .servers
+            .iter()
+            .find(|s| s.url.trim() == trimmed)
+            .ok_or_else(|| AppError::not_found(format!("GitLab 服务器 {} 未配置", server_url)))?;
+        return Ok((server, input.to_string()));
+    }
+
+    let server = config
+        .servers
+        .first()
+        .ok_or_else(|| AppError::not_found("未配置 GitLab 服务器，请先执行 pma gitlab login"))?;
+    Ok((server, input.to_string()))
+}
+
+fn resolve_from_full_url<'a>(
+    config: &'a schema::GitLabConfig,
+    full_url: &str,
+) -> Result<(&'a schema::GitLabServer, String)> {
+    let best_match = config
+        .servers
+        .iter()
+        .filter(|s| {
+            let base = api_base_url(s);
+            let base_with_slash = format!("{}/", base.trim_end_matches('/'));
+            full_url.starts_with(base_with_slash.as_str()) || full_url == base
+        })
+        .max_by_key(|s| api_base_url(s).len());
+
+    match best_match {
+        Some(server) => {
+            let base = api_base_url(server);
+            let group_path = full_url[base.len()..].trim_start_matches('/').to_string();
+            if group_path.is_empty() {
+                return Err(AppError::not_found(format!(
+                    "URL '{}' 中未包含 group 路径",
+                    full_url
+                )));
+            }
+            Ok((server, group_path))
+        }
+        None => Err(AppError::not_found(format!(
+            "未找到匹配 URL '{}' 的 GitLab 服务器配置",
+            full_url
+        ))),
+    }
+}
+
+fn api_base_url(server: &schema::GitLabServer) -> String {
+    let url = server.url.trim_end_matches('/');
+    let prefix = server.prefix.trim_matches('/');
+    if prefix.is_empty() {
+        return url.to_string();
+    }
+    if let Ok(parsed) = url::Url::parse(url) {
+        let path = parsed.path().trim_end_matches('/');
+        if path.ends_with(&format!("/{}", prefix)) || path == format!("/{}", prefix) {
+            return url.to_string();
+        }
+    }
+    format!("{}/{}", url, prefix)
+}
+
+#[derive(Debug, Deserialize)]
+struct GitLabGroup {
+    id: u64,
+    full_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitLabProject {
+    path_with_namespace: String,
+    ssh_url_to_repo: String,
+    http_url_to_repo: String,
+}
+
+fn gitlab_get(base_url: &str, token: &str, path: &str) -> Result<ureq::Response> {
+    let url = format!("{}/api/v4{}", base_url, path);
+    ureq::get(&url)
+        .set("PRIVATE-TOKEN", token)
+        .call()
+        .map_err(|e| match e {
+            ureq::Error::Status(code, _) => {
+                AppError::gitlab_api(format!("HTTP {}，请求路径: {}", code, path))
+            }
+            _ => AppError::gitlab_api(format!("请求失败: {}", e)),
+        })
+}
+
+fn find_group_id(base_url: &str, token: &str, group_path: &str) -> Result<u64> {
+    let search_path = format!("/groups?search={}", group_path.replace('/', "%2F"));
+    let response = gitlab_get(base_url, token, &search_path)?;
+    let groups: Vec<GitLabGroup> = response
+        .into_json()
+        .map_err(|e| AppError::gitlab_api(format!("解析 group 列表失败: {}", e)))?;
+
+    groups
+        .iter()
+        .find(|g| g.full_path == group_path)
+        .map(|g| g.id)
+        .ok_or_else(|| AppError::not_found(format!("未找到 group '{}'", group_path)))
+}
+
+fn fetch_group_projects(
+    base_url: &str,
+    token: &str,
+    group_path: &str,
+) -> Result<Vec<CloneProject>> {
+    let group_id = find_group_id(base_url, token, group_path)?;
+    let projects_path = format!("/groups/{}/projects?per_page=100", group_id);
+    let response = gitlab_get(base_url, token, &projects_path)?;
+
+    let projects: Vec<GitLabProject> = response
+        .into_json()
+        .map_err(|e| AppError::gitlab_api(format!("解析项目列表失败: {}", e)))?;
+
+    Ok(projects
+        .into_iter()
+        .map(|p| CloneProject {
+            path_with_namespace: p.path_with_namespace,
+            ssh_url_to_repo: p.ssh_url_to_repo,
+            http_url_to_repo: p.http_url_to_repo,
+        })
+        .collect())
 }

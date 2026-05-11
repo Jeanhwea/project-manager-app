@@ -1,5 +1,7 @@
+use crate::commands::RepoPathArgs;
 use crate::control::command::MultiRepoCommand;
-use crate::control::context::collect_context;
+use crate::domain::config::ConfigManager;
+use crate::domain::git::collect_context;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
@@ -9,18 +11,8 @@ use std::path::Path;
 
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
-    pub max_depth: Option<usize>,
-    #[arg(
-        default_value = "",
-        help = "Path to search, defaults to current directory"
-    )]
-    pub path: String,
+    #[command(flatten)]
+    pub repo_path: RepoPathArgs,
     #[arg(long, short, help = "Target remote name (e.g. origin, upstream)")]
     pub remote: Option<String>,
     #[arg(
@@ -31,9 +23,11 @@ pub struct SyncArgs {
     pub dry_run: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct SyncContext {
     git_ctx: GitContext,
     target_remote: String,
+    should_push: bool,
 }
 
 impl MultiRepoCommand for SyncArgs {
@@ -46,14 +40,18 @@ impl MultiRepoCommand for SyncArgs {
             return Ok(SyncContext {
                 git_ctx,
                 target_remote: String::new(),
+                should_push: false,
             });
         }
 
         let target_remote = resolve_target_remote(&git_ctx, self.remote.as_deref())?;
 
+        let should_push = should_push_to_remote(&target_remote);
+
         Ok(SyncContext {
             git_ctx,
             target_remote,
+            should_push,
         })
     }
 
@@ -70,18 +68,25 @@ impl MultiRepoCommand for SyncArgs {
             remote: remote.clone(),
             branch,
         });
-        plan.add(GitOperation::PushAll {
-            remote: remote.clone(),
-        });
-        plan.add(GitOperation::PushTags { remote });
+
+        if ctx.should_push {
+            plan.add(GitOperation::PushAll {
+                remote: remote.clone(),
+            });
+            plan.add(GitOperation::PushTags { remote });
+        } else {
+            plan.add(MessageOperation::Skip {
+                msg: format!("跳过推送到 {} (配置 skip_push_remotes)", ctx.target_remote),
+            });
+        }
 
         Ok(plan)
     }
 }
 
 pub fn run(args: SyncArgs) -> Result<()> {
-    let effective_path = resolve_effective_path(&args.path)?;
-    let walker = RepoWalker::new(&effective_path, args.max_depth.unwrap_or(3))?;
+    let effective_path = resolve_effective_path(&args.repo_path.path)?;
+    let walker = RepoWalker::new(&effective_path, args.repo_path.max_depth)?;
 
     if walker.is_empty() {
         Output::not_found("未找到 Git 仓库");
@@ -92,7 +97,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
 }
 
 fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {
-    if path.is_empty() {
+    if path == "." {
         let cwd = std::env::current_dir()?;
         Ok(find_git_repository_upwards(&cwd).unwrap_or(cwd))
     } else {
@@ -112,6 +117,16 @@ fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) ->
         .preferred_remote()
         .or_else(|| git_ctx.first_remote_name())
         .ok_or_else(|| AppError::not_found("无可用远程仓库"))
+}
+
+fn should_push_to_remote(remote_name: &str) -> bool {
+    let config = ConfigManager::load_config();
+
+    !config
+        .sync
+        .skip_push_remotes
+        .iter()
+        .any(|r| r == remote_name)
 }
 
 fn skip_plan(msg: &str) -> Result<ExecutionPlan> {

@@ -1,7 +1,7 @@
-use crate::commands::{RepoPathArgs, init_repo_walker};
+use crate::commands::RepoPathArgs;
 use crate::control::command::MultiRepoCommand;
-use crate::control::context::collect_context;
 use crate::domain::git::GitCommandRunner;
+use crate::domain::git::collect_context;
 use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
@@ -33,10 +33,17 @@ pub struct BranchCleanArgs {
     pub pattern: Option<String>,
     #[arg(
         long,
+        short,
+        default_value = "origin",
+        help = "Remote name for deleting remote branches"
+    )]
+    pub remote: String,
+    #[arg(
+        long,
         default_value = "false",
         help = "Also delete matching remote branches"
     )]
-    pub remote: bool,
+    pub delete_remote: bool,
     #[arg(
         long,
         default_value = "false",
@@ -63,18 +70,24 @@ pub struct BranchRenameArgs {
     pub repo_path: RepoPathArgs,
 }
 
+#[derive(Debug)]
 pub(crate) struct BranchListContext {
     git_ctx: GitContext,
 }
 
+#[derive(Debug)]
 pub(crate) struct BranchCleanContext {
     branches_to_delete: Vec<String>,
+    remote_name: String,
+    delete_remote: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct BranchSwitchContext {
     exists: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct BranchRenameContext {
     exists: bool,
 }
@@ -116,6 +129,15 @@ impl MultiRepoCommand for BranchCleanArgs {
     fn context(&self, repo_path: &Path) -> Result<BranchCleanContext> {
         let git_ctx = collect_context(repo_path)?;
 
+        let remote_name = if git_ctx.has_remote(&self.remote) {
+            self.remote.clone()
+        } else {
+            git_ctx
+                .preferred_remote()
+                .or_else(|| git_ctx.first_remote_name())
+                .unwrap_or_else(|| self.remote.clone())
+        };
+
         let branches_to_delete: Vec<String> = git_ctx
             .local_branches()
             .iter()
@@ -131,7 +153,11 @@ impl MultiRepoCommand for BranchCleanArgs {
             .map(|s| s.to_string())
             .collect();
 
-        Ok(BranchCleanContext { branches_to_delete })
+        Ok(BranchCleanContext {
+            branches_to_delete,
+            remote_name,
+            delete_remote: self.delete_remote,
+        })
     }
 
     fn plan(&self, ctx: &BranchCleanContext) -> Result<ExecutionPlan> {
@@ -140,9 +166,9 @@ impl MultiRepoCommand for BranchCleanArgs {
             plan.add(GitOperation::DeleteBranch {
                 branch: branch.clone(),
             });
-            if self.remote {
+            if ctx.delete_remote {
                 plan.add(GitOperation::DeleteRemoteBranch {
-                    remote: "origin".to_string(),
+                    remote: ctx.remote_name.clone(),
                     branch: branch.clone(),
                 });
             }
@@ -216,30 +242,10 @@ impl MultiRepoCommand for BranchRenameArgs {
 
 pub fn run(args: BranchArgs) -> Result<()> {
     match args {
-        BranchArgs::List(args) => {
-            let Some(walker) = init_repo_walker(&args.repo_path)? else {
-                return Ok(());
-            };
-            MultiRepoCommand::run(&args, &walker)
-        }
-        BranchArgs::Clean(args) => {
-            let Some(walker) = init_repo_walker(&args.repo_path)? else {
-                return Ok(());
-            };
-            MultiRepoCommand::run(&args, &walker)
-        }
-        BranchArgs::Switch(args) => {
-            let Some(walker) = init_repo_walker(&args.repo_path)? else {
-                return Ok(());
-            };
-            MultiRepoCommand::run(&args, &walker)
-        }
-        BranchArgs::Rename(args) => {
-            let Some(walker) = init_repo_walker(&args.repo_path)? else {
-                return Ok(());
-            };
-            MultiRepoCommand::run(&args, &walker)
-        }
+        BranchArgs::List(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
+        BranchArgs::Clean(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
+        BranchArgs::Switch(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
+        BranchArgs::Rename(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
     }
 }
 

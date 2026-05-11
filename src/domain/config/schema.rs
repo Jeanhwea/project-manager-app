@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Visitor};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
@@ -119,26 +119,14 @@ fn default_remote_rules() -> Vec<RemoteRule> {
     ]
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SyncConfig {
-    #[serde(default = "default_skip_push_hosts")]
-    pub skip_push_hosts: Vec<String>,
+    #[serde(default = "default_skip_push_remotes")]
+    pub skip_push_remotes: Vec<String>,
 }
 
-impl Default for SyncConfig {
-    fn default() -> Self {
-        Self {
-            skip_push_hosts: vec![
-                "github.com".into(),
-                "githubfast.com".into(),
-                "gitee.com".into(),
-            ],
-        }
-    }
-}
-
-fn default_skip_push_hosts() -> Vec<String> {
-    SyncConfig::default().skip_push_hosts
+fn default_skip_push_remotes() -> Vec<String> {
+    SyncConfig::default().skip_push_remotes
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -147,18 +135,51 @@ pub struct GitLabConfig {
     pub servers: Vec<GitLabServer>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GitLabServer {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_trimmed_string")]
     pub url: String,
     #[serde(default)]
     pub token: String,
     #[serde(default = "default_gitlab_protocol")]
     pub protocol: String,
+    #[serde(default)]
+    pub prefix: String,
 }
 
 fn default_gitlab_protocol() -> String {
     "ssh".to_string()
+}
+
+fn deserialize_trimmed_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct TrimmedStringVisitor;
+
+    impl<'de> Visitor<'de> for TrimmedStringVisitor {
+        type Value = String;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.trim().to_string())
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.trim().to_string())
+        }
+    }
+
+    deserializer.deserialize_string(TrimmedStringVisitor)
 }
 
 impl Default for GitLabServer {
@@ -167,6 +188,7 @@ impl Default for GitLabServer {
             url: String::new(),
             token: String::new(),
             protocol: "ssh".to_string(),
+            prefix: String::new(),
         }
     }
 }
@@ -195,8 +217,8 @@ path_prefixes = ["red_8/", "redtool/", "red_base/", "teampuzzle/"]
 path_prefix_name = "redinf"
 
 [sync]
-# Skip pushing to these hosts when using HTTPS protocol
-skip_push_hosts = ["github.com", "githubfast.com", "gitee.com"]
+# Skip pushing to these remote names
+skip_push_remotes = []
 "#
 }
 
@@ -206,7 +228,8 @@ pub fn default_gitlab_config_content() -> &'static str {
 #
 # [[servers]]
 # url = "https://gitlab.com"
-# token = "glpat-xxxx"
+# token = "glpat-XXXXXXXXXXXXXXXXXXX"
 # protocol = "ssh"
+# prefix = "gitlab"
 "#
 }
