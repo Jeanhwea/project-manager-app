@@ -160,7 +160,6 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
             });
         }
     } else {
-        // 在 Windows 上，尝试使用 npm 或其他方式来处理 pnpm 依赖
         #[cfg(target_os = "windows")]
         {
             plan.add(crate::model::plan::MessageOperation::Warning {
