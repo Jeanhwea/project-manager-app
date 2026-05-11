@@ -47,7 +47,10 @@ fn parse_server_and_group(input: &str) -> (Option<String>, String) {
             let host_part = &rest[..idx];
             let path_part = &rest[idx + 1..];
             let prefix = path_part.split('/').next().unwrap_or("");
-            let group = path_part.strip_prefix(prefix).unwrap_or(path_part).trim_start_matches('/');
+            let group = path_part
+                .strip_prefix(prefix)
+                .unwrap_or(path_part)
+                .trim_start_matches('/');
             return (
                 Some(format!("http://{}/{}", host_part, prefix)),
                 group.to_string(),
@@ -60,7 +63,10 @@ fn parse_server_and_group(input: &str) -> (Option<String>, String) {
             let host_part = &rest[..idx];
             let path_part = &rest[idx + 1..];
             let prefix = path_part.split('/').next().unwrap_or("");
-            let group = path_part.strip_prefix(prefix).unwrap_or(path_part).trim_start_matches('/');
+            let group = path_part
+                .strip_prefix(prefix)
+                .unwrap_or(path_part)
+                .trim_start_matches('/');
             return (
                 Some(format!("https://{}/{}", host_part, prefix)),
                 group.to_string(),
@@ -144,8 +150,12 @@ impl Command for LoginArgs {
             });
         }
 
-        let config_content = toml::to_string_pretty(&ctx.config)
-            .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, format!("序列化配置失败: {}", e))))?;
+        let config_content = toml::to_string_pretty(&ctx.config).map_err(|e| {
+            AppError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("序列化配置失败: {}", e),
+            ))
+        })?;
 
         plan.add(EditOperation::WriteFile {
             path: ConfigManager::gitlab_path().to_string_lossy().to_string(),
