@@ -160,9 +160,19 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
             });
         }
     } else {
-        plan.add(crate::model::plan::MessageOperation::Warning {
-            msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新".to_string(),
-        });
+        // 在 Windows 上，尝试使用 npm 或其他方式来处理 pnpm 依赖
+        #[cfg(target_os = "windows")]
+        {
+            plan.add(crate::model::plan::MessageOperation::Warning {
+                msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm".to_string(),
+            });
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            plan.add(crate::model::plan::MessageOperation::Warning {
+                msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新".to_string(),
+            });
+        }
     }
 }
 

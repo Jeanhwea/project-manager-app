@@ -83,14 +83,23 @@ impl CommandRunner {
 
         #[cfg(target_os = "windows")]
         {
-            // On Windows, ensure we have the system PATH
+            // On Windows, ensure we have the system PATH and handle pnpm specifically
             // First try to get PATH from environment
             if let Ok(path) = std::env::var("PATH") {
                 cmd.env("PATH", path);
-            } else {
+            }
 
-                // If we can't get PATH, don't set it explicitly to avoid overriding
-                // the default inheritance behavior
+            // For pnpm specifically on Windows, we might need to use cmd /c
+            // to properly execute the command
+            if context.program == "pnpm" {
+                // On Windows, we need to execute pnpm through cmd to ensure it works properly
+                // We'll rebuild the command to use cmd /c
+                let mut new_cmd = StdCommand::new("cmd");
+                new_cmd.arg("/c").arg("pnpm").args(&context.args);
+                if let Some(dir) = &context.working_dir {
+                    new_cmd.current_dir(dir);
+                }
+                return Ok(new_cmd);
             }
         }
 
