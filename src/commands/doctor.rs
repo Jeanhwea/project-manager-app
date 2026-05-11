@@ -1,7 +1,7 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
 use crate::control::command::MultiRepoCommand;
-use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::domain::git::repository::RepoWalker;
+use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation, Operation};
@@ -75,7 +75,9 @@ impl MultiRepoCommand for DoctorArgs {
                         msg: "stash 条目需要手动处理".to_string(),
                     });
                 }
-                Diagnosis::RemoteNameMismatch { current, expected, .. } => {
+                Diagnosis::RemoteNameMismatch {
+                    current, expected, ..
+                } => {
                     if git_ctx.has_remote(expected) {
                         plan.add(MessageOperation::Warning {
                             msg: format!("目标 remote 名称 {} 已存在，跳过", expected),

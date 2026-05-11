@@ -1,7 +1,7 @@
 use crate::commands::RepoPathArgs;
 use crate::control::command::MultiRepoCommand;
-use crate::domain::git::collect_context;
 use crate::domain::git::GitCommandRunner;
+use crate::domain::git::collect_context;
 use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};

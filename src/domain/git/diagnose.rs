@@ -9,9 +9,17 @@ pub enum Diagnosis {
     NoRemoteTrackingBranch,
     SingleLocalBranch,
     StashExists,
-    StaleRefs { remote: String },
-    LargeRepo { size_bytes: u64 },
-    RemoteNameMismatch { current: String, expected: String, host: String },
+    StaleRefs {
+        remote: String,
+    },
+    LargeRepo {
+        size_bytes: u64,
+    },
+    RemoteNameMismatch {
+        current: String,
+        expected: String,
+        host: String,
+    },
 }
 
 impl Diagnosis {
@@ -26,8 +34,15 @@ impl Diagnosis {
             Diagnosis::LargeRepo { size_bytes } => {
                 format!("仓库大小较大: {}", format_bytes(*size_bytes))
             }
-            Diagnosis::RemoteNameMismatch { current, expected, host } => {
-                format!("remote 名称不匹配: {} -> {} (主机: {})", current, expected, host)
+            Diagnosis::RemoteNameMismatch {
+                current,
+                expected,
+                host,
+            } => {
+                format!(
+                    "remote 名称不匹配: {} -> {} (主机: {})",
+                    current, expected, host
+                )
             }
         }
     }
@@ -103,7 +118,9 @@ pub fn diagnose_repo(repo_path: &Path) -> Vec<Diagnosis> {
                 runner.execute(&["remote", "show", remote], Some(repo_path))
                 && remote_output.contains("(stale)")
             {
-                issues.push(Diagnosis::StaleRefs { remote: remote.to_string() });
+                issues.push(Diagnosis::StaleRefs {
+                    remote: remote.to_string(),
+                });
             }
         }
     }
