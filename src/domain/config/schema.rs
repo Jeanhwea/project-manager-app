@@ -128,11 +128,7 @@ pub struct SyncConfig {
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            skip_push_hosts: vec![
-                "github.com".into(),
-                "githubfast.com".into(),
-                "gitee.com".into(),
-            ],
+            skip_push_hosts: vec![],
         }
     }
 }
@@ -230,7 +226,7 @@ path_prefix_name = "redinf"
 
 [sync]
 # Skip pushing to these hosts when using HTTPS protocol
-skip_push_hosts = ["github.com", "githubfast.com", "gitee.com"]
+skip_push_hosts = []
 "#
 }
 
