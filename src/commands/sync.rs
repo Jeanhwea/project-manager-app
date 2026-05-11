@@ -123,10 +123,10 @@ fn should_push_to_remote(git_ctx: &GitContext, remote_name: &str) -> bool {
     let config = ConfigManager::load_config();
     let remote = git_ctx.remotes.iter().find(|r| r.name == remote_name);
 
-    if let Some(remote) = remote {
-        if let Some(host) = remote.extract_host() {
-            return !config.sync.skip_push_hosts.iter().any(|h| h == &host);
-        }
+    if let Some(remote) = remote
+        && let Some(host) = remote.extract_host()
+    {
+        return !config.sync.skip_push_hosts.iter().any(|h| h == &host);
     }
 
     true

@@ -126,14 +126,12 @@ pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
 
     if let Ok(output) = runner.execute(&["count-objects", "-v"], Some(repo_path)) {
         for line in output.lines() {
-            if let Some(size_str) = line.strip_prefix("size-pack:") {
-                if let Some(size_num) = size_str.trim().split_whitespace().next() {
-                    if let Ok(size_bytes) = size_num.parse::<u64>() {
-                        if size_bytes > LARGE_REPO_THRESHOLD_BYTES {
-                            issues.push(Diagnosis::LargeRepo { size_bytes });
-                        }
-                    }
-                }
+            if let Some(size_str) = line.strip_prefix("size-pack:")
+                && let Some(size_num) = size_str.split_whitespace().next()
+                && let Ok(size_bytes) = size_num.parse::<u64>()
+                && size_bytes > LARGE_REPO_THRESHOLD_BYTES
+            {
+                issues.push(Diagnosis::LargeRepo { size_bytes });
             }
         }
     }
