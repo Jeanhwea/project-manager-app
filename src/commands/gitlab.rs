@@ -28,7 +28,9 @@ pub struct LoginArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct CloneArgs {
-    #[arg(help = "Group path on GitLab (e.g. group or group/subgroup)")]
+    #[arg(
+        help = "Group path (e.g. group/subgroup) or full URL (e.g. https://gitlab.example.com/group/subgroup)"
+    )]
     pub group: String,
     #[arg(long, short, help = "GitLab server URL (overrides configured server)")]
     pub server: Option<String>,
@@ -38,58 +40,6 @@ pub struct CloneArgs {
         help = "Dry run: show what would be changed without making any modifications"
     )]
     pub dry_run: bool,
-}
-
-fn parse_server_and_group(input: &str) -> (Option<String>, String) {
-    let trimmed = input.trim();
-    if let Some(rest) = trimmed.strip_prefix("http://") {
-        if let Some(idx) = rest.find('/') {
-            let host_part = &rest[..idx];
-            let path_part = &rest[idx + 1..];
-            let prefix = path_part.split('/').next().unwrap_or("");
-            let group = path_part
-                .strip_prefix(prefix)
-                .unwrap_or(path_part)
-                .trim_start_matches('/');
-            return (
-                Some(format!("http://{}/{}", host_part, prefix)),
-                group.to_string(),
-            );
-        }
-        return (Some(format!("http://{}", rest)), String::new());
-    }
-    if let Some(rest) = trimmed.strip_prefix("https://") {
-        if let Some(idx) = rest.find('/') {
-            let host_part = &rest[..idx];
-            let path_part = &rest[idx + 1..];
-            let prefix = path_part.split('/').next().unwrap_or("");
-            let group = path_part
-                .strip_prefix(prefix)
-                .unwrap_or(path_part)
-                .trim_start_matches('/');
-            return (
-                Some(format!("https://{}/{}", host_part, prefix)),
-                group.to_string(),
-            );
-        }
-        return (Some(format!("https://{}", rest)), String::new());
-    }
-    (None, trimmed.to_string())
-}
-
-fn extract_prefix(url: &str) -> String {
-    let trimmed = url.trim();
-    if let Some(rest) = trimmed.strip_prefix("http://") {
-        if let Some(idx) = rest.find('/') {
-            return rest[idx + 1..].trim_end_matches('/').to_string();
-        }
-    }
-    if let Some(rest) = trimmed.strip_prefix("https://") {
-        if let Some(idx) = rest.find('/') {
-            return rest[idx + 1..].trim_end_matches('/').to_string();
-        }
-    }
-    String::new()
 }
 
 #[derive(Debug)]
@@ -108,7 +58,6 @@ pub(crate) struct CloneProject {
 #[derive(Debug)]
 pub(crate) struct CloneContext {
     server_url: String,
-    token: String,
     protocol: String,
     projects: Vec<CloneProject>,
 }
@@ -121,21 +70,16 @@ impl Command for LoginArgs {
         let trimmed_url = self.url.trim().to_string();
         let is_update = config.servers.iter().any(|s| s.url == trimmed_url);
 
-        let prefix = extract_prefix(&self.url);
-
         if !is_update {
             config.servers.push(schema::GitLabServer {
                 url: trimmed_url,
                 token: self.token.clone(),
                 protocol: self.protocol.clone(),
-                prefix,
+                prefix: String::new(),
             });
-        } else {
-            if let Some(existing) = config.servers.iter_mut().find(|s| s.url == trimmed_url) {
-                existing.token = self.token.clone();
-                existing.protocol = self.protocol.clone();
-                existing.prefix = prefix;
-            }
+        } else if let Some(existing) = config.servers.iter_mut().find(|s| s.url == trimmed_url) {
+            existing.token = self.token.clone();
+            existing.protocol = self.protocol.clone();
         }
 
         Ok(LoginContext { config, is_update })
@@ -176,28 +120,13 @@ impl Command for CloneArgs {
 
     fn context(&self) -> Result<CloneContext> {
         let config = ConfigManager::load_gitlab();
-
-        let (server_override, group_path) = parse_server_and_group(&self.group);
-
-        let server = if let Some(url) = server_override.as_ref().or(self.server.as_ref()) {
-            let trimmed = url.trim();
-            config
-                .servers
-                .iter()
-                .find(|s| s.url.trim() == trimmed)
-                .ok_or_else(|| AppError::not_found(format!("GitLab 服务器 {} 未配置", url)))?
-        } else {
-            config.servers.first().ok_or_else(|| {
-                AppError::not_found("未配置 GitLab 服务器，请先执行 pma gitlab login")
-            })?
-        };
-
-        let projects =
-            fetch_group_projects(&server.url, &server.token, &server.prefix, &group_path)?;
+        let (server, group_path) =
+            resolve_server_and_group(&config, &self.group, self.server.as_deref())?;
+        let base_url = server_base_url(server);
+        let projects = fetch_group_projects(&base_url, &server.token, &group_path)?;
 
         Ok(CloneContext {
             server_url: server.url.clone(),
-            token: server.token.clone(),
             protocol: server.protocol.clone(),
             projects,
         })
@@ -263,13 +192,80 @@ pub fn run(args: GitLabArgs) -> Result<()> {
     }
 }
 
-fn extract_host(url: &str) -> Result<String> {
-    let parsed = url::Url::parse(url)
-        .map_err(|_| AppError::not_supported(format!("无效的 URL: {}", url)))?;
-    parsed
-        .host_str()
-        .map(String::from)
-        .ok_or_else(|| AppError::not_supported(format!("URL 中缺少主机名: {}", url)))
+fn resolve_server_and_group<'a>(
+    config: &'a schema::GitLabConfig,
+    group_input: &str,
+    server_override: Option<&str>,
+) -> Result<(&'a schema::GitLabServer, String)> {
+    let input = group_input.trim();
+
+    if input.starts_with("http://") || input.starts_with("https://") {
+        return resolve_from_full_url(config, input);
+    }
+
+    if let Some(server_url) = server_override {
+        let trimmed = server_url.trim();
+        let server = config
+            .servers
+            .iter()
+            .find(|s| s.url.trim() == trimmed)
+            .ok_or_else(|| AppError::not_found(format!("GitLab 服务器 {} 未配置", server_url)))?;
+        return Ok((server, input.to_string()));
+    }
+
+    let server = config
+        .servers
+        .first()
+        .ok_or_else(|| AppError::not_found("未配置 GitLab 服务器，请先执行 pma gitlab login"))?;
+    Ok((server, input.to_string()))
+}
+
+fn resolve_from_full_url<'a>(
+    config: &'a schema::GitLabConfig,
+    full_url: &str,
+) -> Result<(&'a schema::GitLabServer, String)> {
+    let best_match = config
+        .servers
+        .iter()
+        .filter(|s| {
+            let base = server_base_url(s);
+            let base_with_slash = format!("{}/", base.trim_end_matches('/'));
+            full_url.starts_with(base_with_slash.as_str()) || full_url == base
+        })
+        .max_by_key(|s| server_base_url(s).len());
+
+    match best_match {
+        Some(server) => {
+            let base = server_base_url(server);
+            let group_path = full_url[base.len()..].trim_start_matches('/').to_string();
+            if group_path.is_empty() {
+                return Err(AppError::not_found(format!(
+                    "URL '{}' 中未包含 group 路径",
+                    full_url
+                )));
+            }
+            Ok((server, group_path))
+        }
+        None => Err(AppError::not_found(format!(
+            "未找到匹配 URL '{}' 的 GitLab 服务器配置",
+            full_url
+        ))),
+    }
+}
+
+fn server_base_url(server: &schema::GitLabServer) -> String {
+    let base = server.url.trim_end_matches('/').to_string();
+    let prefix = server.prefix.trim_matches('/');
+    if prefix.is_empty() {
+        return base;
+    }
+    if let Ok(parsed) = url::Url::parse(&base) {
+        let path = parsed.path().trim_end_matches('/');
+        if path == format!("/{}", prefix) || path.ends_with(&format!("/{}", prefix)) {
+            return base;
+        }
+    }
+    format!("{}/{}", base, prefix)
 }
 
 #[derive(Debug, Deserialize)]
@@ -282,18 +278,12 @@ struct GitLabProject {
 fn fetch_group_projects(
     base_url: &str,
     token: &str,
-    prefix: &str,
     group_path: &str,
 ) -> Result<Vec<CloneProject>> {
-    let mut url_base = base_url.trim_end_matches('/').to_string();
-    if !prefix.is_empty() {
-        url_base.push('/');
-        url_base.push_str(prefix.trim_matches('/'));
-    }
     let api_url = format!(
         "{}/api/v4/groups/{}/projects?per_page=100",
-        url_base,
-        percent_encode(group_path)
+        base_url,
+        url::form_urlencoded::byte_serialize(group_path.as_bytes()).collect::<String>()
     );
 
     let response = ureq::get(&api_url)
@@ -319,8 +309,4 @@ fn fetch_group_projects(
             http_url_to_repo: p.http_url_to_repo,
         })
         .collect())
-}
-
-fn percent_encode(s: &str) -> String {
-    url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
 }
