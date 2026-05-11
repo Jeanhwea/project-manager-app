@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Visitor};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
@@ -147,18 +147,51 @@ pub struct GitLabConfig {
     pub servers: Vec<GitLabServer>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GitLabServer {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_trimmed_string")]
     pub url: String,
     #[serde(default)]
     pub token: String,
     #[serde(default = "default_gitlab_protocol")]
     pub protocol: String,
+    #[serde(default)]
+    pub prefix: String,
 }
 
 fn default_gitlab_protocol() -> String {
     "ssh".to_string()
+}
+
+fn deserialize_trimmed_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct TrimmedStringVisitor;
+
+    impl<'de> Visitor<'de> for TrimmedStringVisitor {
+        type Value = String;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.trim().to_string())
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.trim().to_string())
+        }
+    }
+
+    deserializer.deserialize_string(TrimmedStringVisitor)
 }
 
 impl Default for GitLabServer {
@@ -167,6 +200,7 @@ impl Default for GitLabServer {
             url: String::new(),
             token: String::new(),
             protocol: "ssh".to_string(),
+            prefix: String::new(),
         }
     }
 }
@@ -206,7 +240,8 @@ pub fn default_gitlab_config_content() -> &'static str {
 #
 # [[servers]]
 # url = "https://gitlab.com"
-# token = "glpat-xxxx"
+# token = "glpat-XXXXXXXXXXXXXXXXXXX"
 # protocol = "ssh"
+# prefix = "gitlab"
 "#
 }
