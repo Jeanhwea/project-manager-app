@@ -81,17 +81,17 @@ impl CommandRunner {
             cmd.current_dir(dir);
         }
 
-        // On Windows, explicitly set the PATH to ensure commands are found
         #[cfg(target_os = "windows")]
         {
-            // Try to get the current PATH environment variable
+            // On Windows, ensure we have the system PATH
+            // First try to get PATH from environment
             if let Ok(path) = std::env::var("PATH") {
                 cmd.env("PATH", path);
-            }
+            } else {
 
-            // Also ensure we're using the full path if the command is not found
-            // This handles cases where PATH is not properly inherited
-            cmd.env("COMSPEC", "cmd.exe");
+                // If we can't get PATH, don't set it explicitly to avoid overriding
+                // the default inheritance behavior
+            }
         }
 
         Ok(cmd)
