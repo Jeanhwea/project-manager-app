@@ -136,8 +136,14 @@ fn execute_git(op: &GitOperation) -> Result<()> {
     let runner = GitCommandRunner::new();
     match op {
         GitOperation::Init { dir } => runner.execute_with_success(&["init"], Some(dir))?,
-        GitOperation::Clone { url, dir } => runner
-            .execute_streaming(&["clone", url, dir.to_str().unwrap_or(".")], Path::new("."))?,
+        GitOperation::Clone { url, dir } => {
+            if dir.exists() {
+                Output::skip(&format!("目录 {} 已存在，跳过克隆", dir.display()));
+                return Ok(());
+            }
+            runner
+                .execute_streaming(&["clone", url, dir.to_str().unwrap_or(".")], Path::new("."))?
+        }
         GitOperation::Add { path } => runner.execute_with_success(&["add", path], None)?,
         GitOperation::Commit { message } => {
             runner.execute_with_success(&["commit", "-m", message], None)?

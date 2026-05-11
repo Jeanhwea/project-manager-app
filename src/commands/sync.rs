@@ -122,7 +122,11 @@ fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) ->
 fn should_push_to_remote(remote_name: &str) -> bool {
     let config = ConfigManager::load_config();
 
-    !config.sync.skip_push_remotes.iter().any(|r| r == remote_name)
+    !config
+        .sync
+        .skip_push_remotes
+        .iter()
+        .any(|r| r == remote_name)
 }
 
 fn skip_plan(msg: &str) -> Result<ExecutionPlan> {
