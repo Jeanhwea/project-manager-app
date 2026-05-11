@@ -28,11 +28,9 @@ pub struct LoginArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct CloneArgs {
-    #[arg(
-        help = "Group path (e.g. group/subgroup) or full URL (e.g. https://gitlab.example.com/group/subgroup)"
-    )]
+    #[arg(help = "Group path or full URL (e.g. mygroup or https://gitlab.example.com/mygroup)")]
     pub group: String,
-    #[arg(long, short, help = "GitLab server URL (overrides configured server)")]
+    #[arg(long, short, help = "Server URL override")]
     pub server: Option<String>,
     #[arg(
         long,
@@ -122,8 +120,8 @@ impl Command for CloneArgs {
         let config = ConfigManager::load_gitlab();
         let (server, group_path) =
             resolve_server_and_group(&config, &self.group, self.server.as_deref())?;
-        let base_url = server_base_url(server);
-        let projects = fetch_group_projects(&base_url, &server.token, &group_path)?;
+        let api_base = api_base_url(server);
+        let projects = fetch_group_projects(&api_base, &server.token, &group_path)?;
 
         Ok(CloneContext {
             server_url: server.url.clone(),
@@ -228,15 +226,15 @@ fn resolve_from_full_url<'a>(
         .servers
         .iter()
         .filter(|s| {
-            let base = server_base_url(s);
+            let base = api_base_url(s);
             let base_with_slash = format!("{}/", base.trim_end_matches('/'));
             full_url.starts_with(base_with_slash.as_str()) || full_url == base
         })
-        .max_by_key(|s| server_base_url(s).len());
+        .max_by_key(|s| api_base_url(s).len());
 
     match best_match {
         Some(server) => {
-            let base = server_base_url(server);
+            let base = api_base_url(server);
             let group_path = full_url[base.len()..].trim_start_matches('/').to_string();
             if group_path.is_empty() {
                 return Err(AppError::not_found(format!(
@@ -253,19 +251,25 @@ fn resolve_from_full_url<'a>(
     }
 }
 
-fn server_base_url(server: &schema::GitLabServer) -> String {
-    let base = server.url.trim_end_matches('/').to_string();
+fn api_base_url(server: &schema::GitLabServer) -> String {
+    let url = server.url.trim_end_matches('/');
     let prefix = server.prefix.trim_matches('/');
     if prefix.is_empty() {
-        return base;
+        return url.to_string();
     }
-    if let Ok(parsed) = url::Url::parse(&base) {
+    if let Ok(parsed) = url::Url::parse(url) {
         let path = parsed.path().trim_end_matches('/');
-        if path == format!("/{}", prefix) || path.ends_with(&format!("/{}", prefix)) {
-            return base;
+        if path.ends_with(&format!("/{}", prefix)) || path == format!("/{}", prefix) {
+            return url.to_string();
         }
     }
-    format!("{}/{}", base, prefix)
+    format!("{}/{}", url, prefix)
+}
+
+#[derive(Debug, Deserialize)]
+struct GitLabGroup {
+    id: u64,
+    full_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -275,31 +279,45 @@ struct GitLabProject {
     http_url_to_repo: String,
 }
 
+fn gitlab_get(base_url: &str, token: &str, path: &str) -> Result<ureq::Response> {
+    let url = format!("{}/api/v4{}", base_url, path);
+    ureq::get(&url)
+        .set("PRIVATE-TOKEN", token)
+        .call()
+        .map_err(|e| match e {
+            ureq::Error::Status(code, _) => {
+                AppError::gitlab_api(format!("HTTP {}，请求路径: {}", code, path))
+            }
+            _ => AppError::gitlab_api(format!("请求失败: {}", e)),
+        })
+}
+
+fn find_group_id(base_url: &str, token: &str, group_path: &str) -> Result<u64> {
+    let search_path = format!("/groups?search={}", group_path.replace('/', "%2F"));
+    let response = gitlab_get(base_url, token, &search_path)?;
+    let groups: Vec<GitLabGroup> = response
+        .into_json()
+        .map_err(|e| AppError::gitlab_api(format!("解析 group 列表失败: {}", e)))?;
+
+    groups
+        .iter()
+        .find(|g| g.full_path == group_path)
+        .map(|g| g.id)
+        .ok_or_else(|| AppError::not_found(format!("未找到 group '{}'", group_path)))
+}
+
 fn fetch_group_projects(
     base_url: &str,
     token: &str,
     group_path: &str,
 ) -> Result<Vec<CloneProject>> {
-    let api_url = format!(
-        "{}/api/v4/groups/{}/projects?per_page=100",
-        base_url,
-        url::form_urlencoded::byte_serialize(group_path.as_bytes()).collect::<String>()
-    );
-
-    let response = ureq::get(&api_url)
-        .set("PRIVATE-TOKEN", token)
-        .call()
-        .map_err(|e| match e {
-            ureq::Error::Status(code, _) => AppError::gitlab_api(format!(
-                "HTTP {}，请检查 group 路径 '{}' 和 token 是否正确",
-                code, group_path
-            )),
-            _ => AppError::gitlab_api(format!("请求失败: {}", e)),
-        })?;
+    let group_id = find_group_id(base_url, token, group_path)?;
+    let projects_path = format!("/groups/{}/projects?per_page=100", group_id);
+    let response = gitlab_get(base_url, token, &projects_path)?;
 
     let projects: Vec<GitLabProject> = response
         .into_json()
-        .map_err(|e| AppError::gitlab_api(format!("响应解析失败: {}", e)))?;
+        .map_err(|e| AppError::gitlab_api(format!("解析项目列表失败: {}", e)))?;
 
     Ok(projects
         .into_iter()
