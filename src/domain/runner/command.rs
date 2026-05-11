@@ -81,6 +81,15 @@ impl CommandRunner {
             cmd.current_dir(dir);
         }
 
+        // On Windows, explicitly set the PATH to ensure commands are found
+        #[cfg(target_os = "windows")]
+        {
+            // Try to get the current PATH environment variable
+            if let Ok(path) = std::env::var("PATH") {
+                cmd.env("PATH", path);
+            }
+        }
+
         Ok(cmd)
     }
 }

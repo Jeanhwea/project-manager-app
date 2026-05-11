@@ -4,8 +4,8 @@ pub mod path;
 pub fn is_command_available(name: &str) -> bool {
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/c", name, "--version"])
+        std::process::Command::new(name)
+            .arg("--version")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
