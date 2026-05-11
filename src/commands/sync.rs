@@ -18,6 +18,12 @@ pub struct SyncArgs {
     #[arg(
         long,
         default_value = "false",
+        help = "Push to all remotes when no remote is specified"
+    )]
+    pub all_remotes: bool,
+    #[arg(
+        long,
+        default_value = "false",
         help = "Dry run: show commands without executing"
     )]
     pub dry_run: bool,
@@ -26,7 +32,7 @@ pub struct SyncArgs {
 #[derive(Debug)]
 pub(crate) struct SyncContext {
     git_ctx: GitContext,
-    target_remote: String,
+    target_remotes: Vec<String>,
     should_push: bool,
 }
 
@@ -39,45 +45,53 @@ impl MultiRepoCommand for SyncArgs {
         if git_ctx.remotes.is_empty() {
             return Ok(SyncContext {
                 git_ctx,
-                target_remote: String::new(),
+                target_remotes: vec![],
                 should_push: false,
             });
         }
 
-        let target_remote = resolve_target_remote(&git_ctx, self.remote.as_deref())?;
+        let target_remotes =
+            resolve_target_remotes(&git_ctx, self.remote.as_deref(), self.all_remotes)?;
 
-        let should_push = should_push_to_remote(&target_remote);
+        let should_push = !target_remotes.is_empty()
+            && target_remotes
+                .iter()
+                .any(|remote| should_push_to_remote(remote));
 
         Ok(SyncContext {
             git_ctx,
-            target_remote,
+            target_remotes,
             should_push,
         })
     }
 
     fn plan(&self, ctx: &SyncContext) -> Result<ExecutionPlan> {
-        if ctx.git_ctx.remotes.is_empty() || ctx.target_remote.is_empty() {
+        if ctx.git_ctx.remotes.is_empty() || ctx.target_remotes.is_empty() {
             return skip_plan("无远程仓库");
         }
 
-        let remote = ctx.target_remote.clone();
-        let branch = ctx.git_ctx.current_branch.clone();
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        plan.add(GitOperation::Pull {
-            remote: remote.clone(),
-            branch,
-        });
+        for remote in &ctx.target_remotes {
+            let branch = ctx.git_ctx.current_branch.clone();
 
-        if ctx.should_push {
-            plan.add(GitOperation::PushAll {
+            plan.add(GitOperation::Pull {
                 remote: remote.clone(),
+                branch,
             });
-            plan.add(GitOperation::PushTags { remote });
-        } else {
-            plan.add(MessageOperation::Skip {
-                msg: format!("跳过推送到 {} (配置 skip_push_remotes)", ctx.target_remote),
-            });
+
+            if ctx.should_push {
+                plan.add(GitOperation::PushAll {
+                    remote: remote.clone(),
+                });
+                plan.add(GitOperation::PushTags {
+                    remote: remote.clone(),
+                });
+            } else {
+                plan.add(MessageOperation::Skip {
+                    msg: format!("跳过推送到 {} (配置 skip_push_remotes)", remote),
+                });
+            }
         }
 
         Ok(plan)
@@ -105,18 +119,28 @@ fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {
     }
 }
 
-fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) -> Result<String> {
+fn resolve_target_remotes(
+    git_ctx: &GitContext,
+    explicit_remote: Option<&str>,
+    all_remotes: bool,
+) -> Result<Vec<String>> {
     if let Some(name) = explicit_remote {
         if !git_ctx.has_remote(name) {
             return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)));
         }
-        return Ok(name.to_string());
+        return Ok(vec![name.to_string()]);
     }
 
-    git_ctx
+    if all_remotes {
+        return Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect());
+    }
+
+    let preferred = git_ctx
         .preferred_remote()
         .or_else(|| git_ctx.first_remote_name())
-        .ok_or_else(|| AppError::not_found("无可用远程仓库"))
+        .ok_or_else(|| AppError::not_found("无可用远程仓库"))?;
+
+    Ok(vec![preferred])
 }
 
 fn should_push_to_remote(remote_name: &str) -> bool {
