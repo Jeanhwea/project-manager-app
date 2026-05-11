@@ -46,7 +46,7 @@ impl MultiRepoCommand for SyncArgs {
 
         let target_remote = resolve_target_remote(&git_ctx, self.remote.as_deref())?;
 
-        let should_push = should_push_to_remote(&git_ctx, &target_remote);
+        let should_push = should_push_to_remote(&target_remote);
 
         Ok(SyncContext {
             git_ctx,
@@ -76,7 +76,7 @@ impl MultiRepoCommand for SyncArgs {
             plan.add(GitOperation::PushTags { remote });
         } else {
             plan.add(MessageOperation::Skip {
-                msg: format!("跳过推送到 {} (配置 skip_push_hosts)", ctx.target_remote),
+                msg: format!("跳过推送到 {} (配置 skip_push_remotes)", ctx.target_remote),
             });
         }
 
@@ -119,17 +119,10 @@ fn resolve_target_remote(git_ctx: &GitContext, explicit_remote: Option<&str>) ->
         .ok_or_else(|| AppError::not_found("无可用远程仓库"))
 }
 
-fn should_push_to_remote(git_ctx: &GitContext, remote_name: &str) -> bool {
+fn should_push_to_remote(remote_name: &str) -> bool {
     let config = ConfigManager::load_config();
-    let remote = git_ctx.remotes.iter().find(|r| r.name == remote_name);
 
-    if let Some(remote) = remote
-        && let Some(host) = remote.extract_host()
-    {
-        return !config.sync.skip_push_hosts.iter().any(|h| h == &host);
-    }
-
-    true
+    !config.sync.skip_push_remotes.iter().any(|r| r == remote_name)
 }
 
 fn skip_plan(msg: &str) -> Result<ExecutionPlan> {

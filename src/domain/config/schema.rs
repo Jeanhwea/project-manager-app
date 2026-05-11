@@ -121,20 +121,20 @@ fn default_remote_rules() -> Vec<RemoteRule> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncConfig {
-    #[serde(default = "default_skip_push_hosts")]
-    pub skip_push_hosts: Vec<String>,
+    #[serde(default = "default_skip_push_remotes")]
+    pub skip_push_remotes: Vec<String>,
 }
 
 impl Default for SyncConfig {
     fn default() -> Self {
         Self {
-            skip_push_hosts: vec![],
+            skip_push_remotes: vec![],
         }
     }
 }
 
-fn default_skip_push_hosts() -> Vec<String> {
-    SyncConfig::default().skip_push_hosts
+fn default_skip_push_remotes() -> Vec<String> {
+    SyncConfig::default().skip_push_remotes
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -225,8 +225,8 @@ path_prefixes = ["red_8/", "redtool/", "red_base/", "teampuzzle/"]
 path_prefix_name = "redinf"
 
 [sync]
-# Skip pushing to these hosts when using HTTPS protocol
-skip_push_hosts = []
+# Skip pushing to these remote names
+skip_push_remotes = []
 "#
 }
 

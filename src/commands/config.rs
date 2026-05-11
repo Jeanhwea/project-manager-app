@@ -158,7 +158,7 @@ impl Command for ShowArgs {
             title: "[sync]".to_string(),
         });
         plan.add(MessageOperation::Skip {
-            msg: format!("skip_push_hosts = {:?}", ctx.config.sync.skip_push_hosts),
+            msg: format!("skip_push_remotes = {:?}", ctx.config.sync.skip_push_remotes),
         });
 
         plan.add(MessageOperation::Section {

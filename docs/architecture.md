@@ -154,7 +154,7 @@ Git 操作的核心领域模块:
 skip_dirs = ["node_modules", ".venv", "target", "__pycache__"]
 
 [sync]
-skip_push_hosts = ["internal.company.com"]
+skip_push_remotes = ["internal"]
 ```
 
 ### GitLab 配置 (~/.config/pma/gitlab.toml)
