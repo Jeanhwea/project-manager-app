@@ -119,18 +119,10 @@ fn default_remote_rules() -> Vec<RemoteRule> {
     ]
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SyncConfig {
     #[serde(default = "default_skip_push_remotes")]
     pub skip_push_remotes: Vec<String>,
-}
-
-impl Default for SyncConfig {
-    fn default() -> Self {
-        Self {
-            skip_push_remotes: vec![],
-        }
-    }
 }
 
 fn default_skip_push_remotes() -> Vec<String> {

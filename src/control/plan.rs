@@ -207,10 +207,10 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
             let runner = CommandRunner;
             let result = runner
                 .execute(&ctx)
-                .map_err(|e| AppError::InvalidInput(format!("无法执行 {}: {}", program, e)))?;
+                .map_err(|e| AppError::invalid_input(format!("无法执行 {}: {}", program, e)))?;
 
             if !result.success {
-                return Err(AppError::InvalidInput(format!(
+                return Err(AppError::invalid_input(format!(
                     "{} 执行失败 (exit code {})",
                     program, result.exit_code
                 )));

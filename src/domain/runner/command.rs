@@ -40,11 +40,11 @@ impl CommandRunner {
         let stdout = child
             .stdout
             .take()
-            .ok_or_else(|| AppError::InvalidInput("Failed to capture stdout".to_string()))?;
+            .ok_or_else(|| AppError::invalid_input("Failed to capture stdout"))?;
         let stderr = child
             .stderr
             .take()
-            .ok_or_else(|| AppError::InvalidInput("Failed to capture stderr".to_string()))?;
+            .ok_or_else(|| AppError::invalid_input("Failed to capture stderr"))?;
 
         let stdout_thread = thread::spawn(move || {
             let reader = BufReader::new(stdout);
