@@ -68,6 +68,7 @@ impl AppError {
         AppError::NotSupported(msg.into())
     }
 
+    #[allow(dead_code)]
     pub fn invalid_input(msg: impl Into<String>) -> Self {
         AppError::InvalidInput(msg.into())
     }

@@ -92,12 +92,8 @@ impl Command for LoginArgs {
             });
         }
 
-        let config_content = toml::to_string_pretty(&ctx.config).map_err(|e| {
-            AppError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("序列化配置失败: {}", e),
-            ))
-        })?;
+        let config_content = toml::to_string_pretty(&ctx.config)
+            .map_err(|e| AppError::Io(std::io::Error::other(format!("序列化配置失败: {}", e))))?;
 
         plan.add(EditOperation::WriteFile {
             path: ConfigManager::gitlab_path().to_string_lossy().to_string(),
