@@ -145,7 +145,7 @@ impl Command for LoginArgs {
         }
 
         let config_content = toml::to_string_pretty(&ctx.config)
-            .map_err(|e| AppError::InvalidInput(format!("序列化配置失败: {}", e)))?;
+            .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, format!("序列化配置失败: {}", e))))?;
 
         plan.add(EditOperation::WriteFile {
             path: ConfigManager::gitlab_path().to_string_lossy().to_string(),
@@ -255,11 +255,11 @@ pub fn run(args: GitLabArgs) -> Result<()> {
 
 fn extract_host(url: &str) -> Result<String> {
     let parsed = url::Url::parse(url)
-        .map_err(|_| AppError::invalid_input(format!("无效的 URL: {}", url)))?;
+        .map_err(|_| AppError::not_supported(format!("无效的 URL: {}", url)))?;
     parsed
         .host_str()
         .map(String::from)
-        .ok_or_else(|| AppError::invalid_input(format!("URL 中缺少主机名: {}", url)))
+        .ok_or_else(|| AppError::not_supported(format!("URL 中缺少主机名: {}", url)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -289,11 +289,17 @@ fn fetch_group_projects(
     let response = ureq::get(&api_url)
         .set("PRIVATE-TOKEN", token)
         .call()
-        .map_err(|e| AppError::InvalidInput(format!("GitLab API 请求失败: {}", e)))?;
+        .map_err(|e| match e {
+            ureq::Error::Status(code, _) => AppError::gitlab_api(format!(
+                "HTTP {}，请检查 group 路径 '{}' 和 token 是否正确",
+                code, group_path
+            )),
+            _ => AppError::gitlab_api(format!("请求失败: {}", e)),
+        })?;
 
     let projects: Vec<GitLabProject> = response
         .into_json()
-        .map_err(|e| AppError::InvalidInput(format!("GitLab API 响应解析失败: {}", e)))?;
+        .map_err(|e| AppError::gitlab_api(format!("响应解析失败: {}", e)))?;
 
     Ok(projects
         .into_iter()
@@ -306,5 +312,5 @@ fn fetch_group_projects(
 }
 
 fn percent_encode(s: &str) -> String {
-    s.replace("/", "%2F")
+    url::form_urlencoded::byte_serialize(s.as_bytes()).collect()
 }
