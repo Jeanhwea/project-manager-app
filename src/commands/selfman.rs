@@ -75,30 +75,27 @@ impl Command for UpdateArgs {
 
     fn context(&self) -> Result<SelfUpdateContext> {
         if env::var("PMA_NPM_INSTALL").is_ok() {
-            return Err(AppError::SelfUpdate(
-                "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma"
-                    .to_string(),
+            return Err(AppError::self_update(
+                "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma",
             ));
         }
 
         Output::info("检查最新版本...");
 
         let release = fetch_latest_release()
-            .map_err(|e| AppError::SelfUpdate(format!("获取发布信息失败: {}", e)))?;
+            .map_err(|e| AppError::self_update(format!("获取发布信息失败: {}", e)))?;
         let latest = release.tag_name.trim_start_matches('v').to_string();
 
         Output::item("当前版本", &format!("v{}", PKG_VERSION));
         Output::item("最新版本", &format!("v{}", latest));
 
         let latest_ver = semver::Version::parse(&latest)
-            .map_err(|_| AppError::SelfUpdate(format!("无法解析最新版本号: {}", latest)))?;
+            .map_err(|_| AppError::self_update(format!("无法解析最新版本号: {}", latest)))?;
         let current_ver = semver::Version::parse(PKG_VERSION)
-            .map_err(|_| AppError::SelfUpdate(format!("无法解析当前版本号: {}", PKG_VERSION)))?;
+            .map_err(|_| AppError::self_update(format!("无法解析当前版本号: {}", PKG_VERSION)))?;
 
         if current_ver >= latest_ver && !self.force {
-            return Err(AppError::SelfUpdate(
-                "已经是最新版本，无需更新。".to_string(),
-            ));
+            return Err(AppError::self_update("已经是最新版本，无需更新。"));
         }
 
         if current_ver >= latest_ver && self.force {
@@ -120,7 +117,7 @@ impl Command for UpdateArgs {
             .iter()
             .find(|a| a.name == asset_name)
             .ok_or_else(|| {
-                AppError::SelfUpdate(format!("未找到适合当前平台的安装包: {}", asset_name))
+                AppError::self_update(format!("未找到适合当前平台的安装包: {}", asset_name))
             })?;
 
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);

@@ -268,14 +268,14 @@ fn execute_self_update(op: &SelfUpdateOperation) -> Result<()> {
         } => {
             Output::info(&format!("下载 {}...", asset_name));
             let data = download_asset(api_url, browser_url, asset_name)
-                .map_err(|e| AppError::SelfUpdate(format!("下载资源失败: {}", e)))?;
+                .map_err(|e| AppError::self_update(format!("下载资源失败: {}", e)))?;
             Output::success("下载完成");
 
             let current_exe = std::env::current_exe().map_err(|e| {
-                AppError::SelfUpdate(format!("无法获取当前可执行文件路径: {}", e))
+                AppError::self_update(format!("无法获取当前可执行文件路径: {}", e))
             })?;
             install_binary(&data, asset_name, &current_exe)
-                .map_err(|e| AppError::SelfUpdate(format!("安装二进制文件失败: {}", e)))?;
+                .map_err(|e| AppError::self_update(format!("安装二进制文件失败: {}", e)))?;
         }
     }
     Ok(())

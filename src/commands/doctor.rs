@@ -38,7 +38,7 @@ impl MultiRepoCommand for DoctorArgs {
 
     fn context(&self, repo_path: &Path) -> Result<DoctorContext> {
         let issues = diagnose_repo(repo_path).map_err(|e| {
-            AppError::Release(format!("诊断仓库 {} 失败: {}", repo_path.display(), e))
+            AppError::release(format!("诊断仓库 {} 失败: {}", repo_path.display(), e))
         })?;
         let git_ctx = if self.fix && !issues.is_empty() {
             collect_context(repo_path).ok()

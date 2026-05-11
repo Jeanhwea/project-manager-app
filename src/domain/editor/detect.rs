@@ -169,7 +169,7 @@ pub fn compute_edited_content(
 ) -> crate::error::Result<(String, String)> {
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file)
-        .map_err(|e| AppError::Release(format!("无法读取 {}: {}", config_file, e)))?;
+        .map_err(|e| AppError::release(format!("无法读取 {}: {}", config_file, e)))?;
 
     let location = editor.parse(&content)?;
     let edited = editor.edit(&content, &location, version)?;
@@ -180,7 +180,7 @@ pub fn compute_edited_content(
 
 pub fn read_cargo_package_name(cargo_toml_path: &str) -> crate::error::Result<String> {
     let content = std::fs::read_to_string(cargo_toml_path)
-        .map_err(|e| AppError::Release(format!("无法读取 {}: {}", cargo_toml_path, e)))?;
+        .map_err(|e| AppError::release(format!("无法读取 {}: {}", cargo_toml_path, e)))?;
     let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)?;
     let mut in_package = false;
     for line in content.lines() {

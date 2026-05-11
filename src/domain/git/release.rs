@@ -16,7 +16,7 @@ pub fn resolve_git_root() -> crate::error::Result<PathBuf> {
     let runner = GitCommandRunner::new();
     let root = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
     if root.is_empty() {
-        return Err(AppError::Release("无法确定 git 根目录".to_string()));
+        return Err(AppError::release("无法确定 git 根目录"));
     }
     Ok(PathBuf::from(root))
 }

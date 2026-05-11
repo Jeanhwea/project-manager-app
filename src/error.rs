@@ -80,6 +80,10 @@ impl AppError {
         AppError::Release(msg.into())
     }
 
+    pub fn self_update(msg: impl Into<String>) -> Self {
+        AppError::SelfUpdate(msg.into())
+    }
+
     pub fn snapshot(msg: impl Into<String>) -> Self {
         AppError::Snapshot(msg.into())
     }
