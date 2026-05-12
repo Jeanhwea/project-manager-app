@@ -72,13 +72,15 @@ impl Command for ForkArgs {
         });
 
         plan.add(GitOperation::Init {
-            dir: ctx.target.clone(),
+            working_dir: ctx.target.clone(),
         });
         plan.add(GitOperation::Add {
             path: ".".to_string(),
+            working_dir: ctx.target.clone(),
         });
         plan.add(GitOperation::Commit {
             message: "fork: initial commit".to_string(),
+            working_dir: ctx.target.clone(),
         });
 
         Ok(plan)

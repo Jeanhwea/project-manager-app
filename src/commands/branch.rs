@@ -100,7 +100,8 @@ impl MultiRepoCommand for BranchListArgs {
         Ok(BranchListContext { git_ctx })
     }
 
-    fn plan(&self, ctx: &BranchListContext) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &BranchListContext, repo_path: &Path) -> Result<ExecutionPlan> {
+        let _ = repo_path;
         let mut plan = ExecutionPlan::new();
         if ctx.git_ctx.branches.is_empty() {
             return Ok(plan);
@@ -160,16 +161,18 @@ impl MultiRepoCommand for BranchCleanArgs {
         })
     }
 
-    fn plan(&self, ctx: &BranchCleanContext) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &BranchCleanContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
         for branch in &ctx.branches_to_delete {
             plan.add(GitOperation::DeleteBranch {
                 branch: branch.clone(),
+                working_dir: repo_path.to_path_buf(),
             });
             if ctx.delete_remote {
                 plan.add(GitOperation::DeleteRemoteBranch {
                     remote: ctx.remote_name.clone(),
                     branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
                 });
             }
         }
@@ -189,7 +192,7 @@ impl MultiRepoCommand for BranchSwitchArgs {
         Ok(BranchSwitchContext { exists })
     }
 
-    fn plan(&self, ctx: &BranchSwitchContext) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &BranchSwitchContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
         if !ctx.exists {
             plan.add(MessageOperation::Skip {
@@ -200,6 +203,7 @@ impl MultiRepoCommand for BranchSwitchArgs {
 
         plan.add(GitOperation::Checkout {
             ref_name: self.branch.clone(),
+            working_dir: repo_path.to_path_buf(),
         });
         plan.add(MessageOperation::Success {
             msg: format!("已切换到 {}", self.branch),
@@ -220,7 +224,7 @@ impl MultiRepoCommand for BranchRenameArgs {
         Ok(BranchRenameContext { exists })
     }
 
-    fn plan(&self, ctx: &BranchRenameContext) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &BranchRenameContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
         if !ctx.exists {
             plan.add(MessageOperation::Skip {
@@ -232,6 +236,7 @@ impl MultiRepoCommand for BranchRenameArgs {
         plan.add(GitOperation::RenameBranch {
             old: self.old_name.clone(),
             new: self.new_name.clone(),
+            working_dir: repo_path.to_path_buf(),
         });
         plan.add(MessageOperation::Success {
             msg: format!("{} -> {}", self.old_name, self.new_name),

@@ -49,7 +49,7 @@ impl MultiRepoCommand for DoctorArgs {
         Ok(DoctorContext { git_ctx, issues })
     }
 
-    fn plan(&self, ctx: &DoctorContext) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &DoctorContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let Some(git_ctx) = &ctx.git_ctx else {
             return Ok(ExecutionPlan::new());
         };
@@ -61,6 +61,7 @@ impl MultiRepoCommand for DoctorArgs {
                 Diagnosis::StaleRefs { remote } => {
                     plan.add(GitOperation::PruneRemote {
                         remote: remote.clone(),
+                        working_dir: repo_path.to_path_buf(),
                     });
                 }
                 Diagnosis::NoRemoteTrackingBranch | Diagnosis::SingleLocalBranch => {
@@ -70,10 +71,13 @@ impl MultiRepoCommand for DoctorArgs {
                             .or_else(|| git_ctx.first_remote_name())
                             .unwrap_or_else(|| "origin".to_string()),
                         branch: git_ctx.current_branch.clone(),
+                        working_dir: repo_path.to_path_buf(),
                     });
                 }
                 Diagnosis::LargeRepo { .. } => {
-                    plan.add(GitOperation::Gc);
+                    plan.add(GitOperation::Gc {
+                        working_dir: repo_path.to_path_buf(),
+                    });
                 }
                 Diagnosis::StashExists => {
                     plan.add(MessageOperation::Warning {
@@ -91,6 +95,7 @@ impl MultiRepoCommand for DoctorArgs {
                         plan.add(GitOperation::RenameRemote {
                             old: current.clone(),
                             new: expected.clone(),
+                            working_dir: repo_path.to_path_buf(),
                         });
                     }
                 }
@@ -137,7 +142,7 @@ impl MultiRepoCommand for DoctorArgs {
             if self.fix
                 && let Ok(ctx) = ctx
             {
-                let plan = self.plan(&ctx)?;
+                let plan = self.plan(&ctx, repo_path)?;
                 let fixed = plan
                     .operations
                     .iter()

@@ -11,6 +11,7 @@ use crate::model::git::GitContext;
 use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
 use crate::utils::path::canonicalize_path;
 use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug, clap::Args)]
 pub struct ReleaseArgs {
@@ -165,17 +166,20 @@ fn build_execution_plan(
 
             plan.add(GitOperation::Add {
                 path: file_path.clone(),
+                working_dir: PathBuf::from("."),
             });
         }
     }
 
     plan.add(GitOperation::Commit {
         message: state.commit_message.clone(),
+        working_dir: PathBuf::from("."),
     });
 
     // Handle the case where tag already exists
     plan.add(GitOperation::CreateTag {
         tag: state.new_tag.clone(),
+        working_dir: PathBuf::from("."),
     });
 
     if !args.skip_push {
@@ -183,10 +187,12 @@ fn build_execution_plan(
             plan.add(GitOperation::PushTag {
                 remote: remote.to_string(),
                 tag: state.new_tag.clone(),
+                working_dir: PathBuf::from("."),
             });
             plan.add(GitOperation::PushBranch {
                 remote: remote.to_string(),
                 branch: state.current_branch.clone(),
+                working_dir: PathBuf::from("."),
             });
         }
     }
