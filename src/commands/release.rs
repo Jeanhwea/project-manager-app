@@ -172,6 +172,8 @@ fn build_execution_plan(
     plan.add(GitOperation::Commit {
         message: state.commit_message.clone(),
     });
+
+    // Handle the case where tag already exists
     plan.add(GitOperation::CreateTag {
         tag: state.new_tag.clone(),
     });
