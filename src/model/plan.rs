@@ -241,6 +241,7 @@ impl From<MessageOperation> for Operation {
 pub struct ExecutionPlan {
     pub operations: Vec<Operation>,
     pub dry_run: bool,
+    pub repo_path: Option<PathBuf>,
 }
 
 impl ExecutionPlan {
@@ -248,6 +249,7 @@ impl ExecutionPlan {
         Self {
             operations: Vec::new(),
             dry_run: false,
+            repo_path: None,
         }
     }
 

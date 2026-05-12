@@ -71,14 +71,19 @@ impl MultiRepoCommand for SyncArgs {
         }
 
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+        let branch = ctx.git_ctx.current_branch.clone();
 
         for remote in &ctx.target_remotes {
-            let branch = ctx.git_ctx.current_branch.clone();
-
-            plan.add(GitOperation::Pull {
-                remote: remote.clone(),
-                branch,
-            });
+            if ctx.git_ctx.has_remote_branch(remote, &branch) {
+                plan.add(GitOperation::Pull {
+                    remote: remote.clone(),
+                    branch: branch.clone(),
+                });
+            } else {
+                plan.add(MessageOperation::Skip {
+                    msg: format!("跳过拉取 {}/{} (远程无此分支)", remote, branch),
+                });
+            }
 
             if ctx.should_push {
                 plan.add(GitOperation::PushAll {
