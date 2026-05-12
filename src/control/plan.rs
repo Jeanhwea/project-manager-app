@@ -15,13 +15,15 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
         return Ok(());
     }
 
+    let repo_path = plan.repo_path.as_deref().unwrap_or(Path::new("."));
+
     let mut executed = Vec::new();
     for op in &plan.operations {
         match op {
             Operation::Message(msg_op) => execute_message(msg_op),
             _ => {
                 Output::cmd(&op.description());
-                if let Err(e) = execute_operation(op) {
+                if let Err(e) = execute_operation(op, repo_path) {
                     Output::error(&format!("执行失败: {}", e));
                     emit_recovery_hints(&executed, op);
                     return Err(e);
@@ -122,9 +124,9 @@ fn execute_message(op: &MessageOperation) {
     }
 }
 
-fn execute_operation(op: &Operation) -> Result<()> {
+fn execute_operation(op: &Operation, repo_path: &Path) -> Result<()> {
     match op {
-        Operation::Git(git_op) => execute_git(git_op),
+        Operation::Git(git_op) => execute_git(git_op, repo_path),
         Operation::Shell(shell_op) => execute_shell(shell_op),
         Operation::Edit(edit_op) => execute_edit(edit_op),
         Operation::SelfUpdate(update_op) => execute_self_update(update_op),
@@ -132,7 +134,7 @@ fn execute_operation(op: &Operation) -> Result<()> {
     }
 }
 
-fn execute_git(op: &GitOperation) -> Result<()> {
+fn execute_git(op: &GitOperation, repo_path: &Path) -> Result<()> {
     let runner = GitCommandRunner::new();
     match op {
         GitOperation::Init { dir } => runner.execute_with_success(&["init"], Some(dir))?,
@@ -144,43 +146,47 @@ fn execute_git(op: &GitOperation) -> Result<()> {
             runner
                 .execute_streaming(&["clone", url, dir.to_str().unwrap_or(".")], Path::new("."))?
         }
-        GitOperation::Add { path } => runner.execute_with_success(&["add", path], None)?,
-        GitOperation::Commit { message } => {
-            runner.execute_with_success(&["commit", "-m", message], None)?
+        GitOperation::Add { path } => {
+            runner.execute_with_success(&["add", path], Some(repo_path))?
         }
-        GitOperation::CreateTag { tag } => runner.execute_with_success(&["tag", tag], None)?,
+        GitOperation::Commit { message } => {
+            runner.execute_with_success(&["commit", "-m", message], Some(repo_path))?
+        }
+        GitOperation::CreateTag { tag } => {
+            runner.execute_with_success(&["tag", tag], Some(repo_path))?
+        }
         GitOperation::PushTag { remote, tag } => {
-            runner.execute_streaming(&["push", remote, tag], Path::new("."))?
+            runner.execute_streaming(&["push", remote, tag], repo_path)?
         }
         GitOperation::PushBranch { remote, branch } => {
-            runner.execute_streaming(&["push", remote, branch], Path::new("."))?
+            runner.execute_streaming(&["push", remote, branch], repo_path)?
         }
         GitOperation::PushAll { remote } => {
-            runner.execute_streaming(&["push", "--all", remote], Path::new("."))?
+            runner.execute_streaming(&["push", "--all", remote], repo_path)?
         }
         GitOperation::PushTags { remote } => {
-            runner.execute_streaming(&["push", "--tags", remote], Path::new("."))?
+            runner.execute_streaming(&["push", "--tags", remote], repo_path)?
         }
         GitOperation::Pull { remote, branch } => {
-            runner.execute_streaming(&["pull", remote, branch], Path::new("."))?
+            runner.execute_streaming(&["pull", remote, branch], repo_path)?
         }
         GitOperation::Checkout { ref_name } => {
-            runner.execute_streaming(&["checkout", ref_name], Path::new("."))?
+            runner.execute_streaming(&["checkout", ref_name], repo_path)?
         }
         GitOperation::DeleteBranch { branch } => {
-            runner.execute_with_success(&["branch", "-d", branch], None)?
+            runner.execute_with_success(&["branch", "-d", branch], Some(repo_path))?
         }
         GitOperation::RenameBranch { old, new } => {
-            runner.execute_streaming(&["branch", "-m", old, new], Path::new("."))?
+            runner.execute_streaming(&["branch", "-m", old, new], repo_path)?
         }
         GitOperation::DeleteRemoteBranch { remote, branch } => {
-            runner.execute_streaming(&["push", remote, "--delete", branch], Path::new("."))?
+            runner.execute_streaming(&["push", remote, "--delete", branch], repo_path)?
         }
         GitOperation::RenameRemote { old, new } => {
-            runner.execute_with_success(&["remote", "rename", old, new], Some(Path::new(".")))?
+            runner.execute_with_success(&["remote", "rename", old, new], Some(repo_path))?
         }
         GitOperation::PruneRemote { remote } => {
-            runner.execute_with_success(&["remote", "prune", remote], Some(Path::new(".")))?
+            runner.execute_with_success(&["remote", "prune", remote], Some(repo_path))?
         }
         GitOperation::SetUpstream { remote, branch } => runner.execute_with_success(
             &[
@@ -188,9 +194,9 @@ fn execute_git(op: &GitOperation) -> Result<()> {
                 "--set-upstream-to",
                 &format!("{}/{}", remote, branch),
             ],
-            Some(Path::new(".")),
+            Some(repo_path),
         )?,
-        GitOperation::Gc => runner.execute_streaming(&["gc", "--aggressive"], Path::new("."))?,
+        GitOperation::Gc => runner.execute_streaming(&["gc", "--aggressive"], repo_path)?,
     }
     Ok(())
 }

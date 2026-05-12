@@ -40,7 +40,8 @@ pub(crate) trait MultiRepoCommand {
 
             match self.context(repo_path) {
                 Ok(ctx) => match self.plan(&ctx) {
-                    Ok(plan) => {
+                    Ok(mut plan) => {
+                        plan.repo_path = Some(repo_path.clone());
                         if let Err(e) = Self::execute(&plan) {
                             Output::error(&format!("{}", e));
                         }
