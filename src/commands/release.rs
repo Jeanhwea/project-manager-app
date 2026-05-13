@@ -141,37 +141,36 @@ fn build_execution_plan(
     for file_path in config_files {
         let editor = registry.detect_editor(Path::new(file_path)).unwrap();
         if let Ok((original, edited)) = compute_edited_content(editor, &state.new_tag, file_path)
+            && original != edited
         {
-            if original != edited {
-                has_changes = true;
-                let old_lines: Vec<&str> = original.lines().collect();
-                let new_lines: Vec<&str> = edited.lines().collect();
-                plan.add(EditOperation::WriteFile {
-                    path: file_path.clone(),
-                    content: edited.clone(),
-                    description: format!("edit {}", file_path),
-                });
+            has_changes = true;
+            let old_lines: Vec<&str> = original.lines().collect();
+            let new_lines: Vec<&str> = edited.lines().collect();
+            plan.add(EditOperation::WriteFile {
+                path: file_path.clone(),
+                content: edited.clone(),
+                description: format!("edit {}", file_path),
+            });
 
-                for (line_num, (old_line, new_line)) in
-                    (1..).zip(old_lines.iter().zip(new_lines.iter()))
-                {
-                    if old_line != new_line {
-                        plan.add(MessageOperation::Diff {
-                            file: file_path.clone(),
-                            line_num,
-                            old_content: old_line.to_string(),
-                            new_content: new_line.to_string(),
-                        });
-                    }
+            for (line_num, (old_line, new_line)) in
+                (1..).zip(old_lines.iter().zip(new_lines.iter()))
+            {
+                if old_line != new_line {
+                    plan.add(MessageOperation::Diff {
+                        file: file_path.clone(),
+                        line_num,
+                        old_content: old_line.to_string(),
+                        new_content: new_line.to_string(),
+                    });
                 }
-
-                add_lockfile_operations(&mut plan, file_path);
-
-                plan.add(GitOperation::Add {
-                    path: file_path.clone(),
-                    working_dir: PathBuf::from("."),
-                });
             }
+
+            add_lockfile_operations(&mut plan, file_path);
+
+            plan.add(GitOperation::Add {
+                path: file_path.clone(),
+                working_dir: PathBuf::from("."),
+            });
         }
     }
 
