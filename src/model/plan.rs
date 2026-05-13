@@ -459,3 +459,42 @@ impl Default for ExecutionPlan {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn git_description_omits_current_working_dir() {
+        let op = GitOperation::Add {
+            path: "src/main.rs".to_string(),
+            working_dir: PathBuf::from("."),
+        };
+
+        assert_eq!(op.description(), "git add src/main.rs");
+    }
+
+    #[test]
+    fn git_description_includes_non_current_working_dir() {
+        let op = GitOperation::Add {
+            path: "src/main.rs".to_string(),
+            working_dir: PathBuf::from("repo"),
+        };
+
+        assert_eq!(op.description(), "git add src/main.rs in repo");
+    }
+
+    #[test]
+    fn message_diff_description_includes_file_and_line_numbers() {
+        let diff = MessageOperation::Diff {
+            file: "pyproject.toml".to_string(),
+            line_num: 3,
+            old_content: "version = \"1.4.10\"".to_string(),
+            new_content: "version = \"1.5.0\"".to_string(),
+        };
+
+        let expected = "pyproject.toml L3 -:  version = \"1.4.10\"\npyproject.toml L3 +:  version = \"1.5.0\"";
+        assert_eq!(diff.description(), expected);
+    }
+}
