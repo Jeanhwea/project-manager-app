@@ -4,7 +4,7 @@ use crate::domain::git::repository::RepoWalker;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation, Operation};
+use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -146,7 +146,7 @@ impl MultiRepoCommand for DoctorArgs {
                 let fixed = plan
                     .operations
                     .iter()
-                    .filter(|op| !matches!(op, Operation::Message(_)))
+                    .filter(|op| !matches!(op, crate::model::plan::Operation::Message(_)))
                     .count();
                 Self::execute(&plan)?;
                 total_fixed += fixed;
