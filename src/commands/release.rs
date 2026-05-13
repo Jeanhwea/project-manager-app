@@ -143,6 +143,12 @@ fn build_execution_plan(
         {
             let old_lines: Vec<&str> = original.lines().collect();
             let new_lines: Vec<&str> = edited.lines().collect();
+            plan.add(EditOperation::WriteFile {
+                path: file_path.clone(),
+                content: edited,
+                description: format!("edit {}", file_path),
+            });
+
             for (line_num, (old_line, new_line)) in
                 (1..).zip(old_lines.iter().zip(new_lines.iter()))
             {
@@ -155,12 +161,6 @@ fn build_execution_plan(
                     });
                 }
             }
-
-            plan.add(EditOperation::WriteFile {
-                path: file_path.clone(),
-                content: edited,
-                description: format!("edit {}", file_path),
-            });
 
             add_lockfile_operations(&mut plan, file_path);
 
