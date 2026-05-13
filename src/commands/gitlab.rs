@@ -171,7 +171,8 @@ impl Command for CloneArgs {
 
             plan.add(GitOperation::Clone {
                 url: url.clone(),
-                dir: PathBuf::from(&target_dir),
+                target_dir: PathBuf::from(&target_dir),
+                working_dir: PathBuf::from("."),
             });
         }
 

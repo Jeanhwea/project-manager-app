@@ -2,7 +2,7 @@ use super::{EditorRegistry, FileEditor};
 use crate::error::AppError;
 use crate::model::plan::{ExecutionPlan, GitOperation};
 use regex::Regex;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub fn resolve_config_files(
     registry: &EditorRegistry,
@@ -110,7 +110,10 @@ fn add_cargo_lock_operations(plan: &mut ExecutionPlan, cargo_toml_path: &str) {
     });
 
     let path_str = lock_path.to_string_lossy().replace('\\', "/");
-    plan.add(GitOperation::Add { path: path_str });
+    plan.add(GitOperation::Add {
+        path: path_str,
+        working_dir: PathBuf::from("."),
+    });
 }
 
 fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str) {
@@ -144,7 +147,10 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
             });
 
             let path_str = lock_path.to_string_lossy().replace('\\', "/");
-            plan.add(GitOperation::Add { path: path_str });
+            plan.add(GitOperation::Add {
+                path: path_str,
+                working_dir: PathBuf::from("."),
+            });
             return;
         }
     }

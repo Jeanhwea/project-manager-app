@@ -25,7 +25,8 @@ impl MultiRepoCommand for StatusArgs {
         Ok(StatusContext { git_ctx })
     }
 
-    fn plan(&self, ctx: &StatusContext) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &StatusContext, repo_path: &Path) -> Result<ExecutionPlan> {
+        let _ = repo_path;
         let mut plan = ExecutionPlan::new();
 
         plan.add(MessageOperation::Item {

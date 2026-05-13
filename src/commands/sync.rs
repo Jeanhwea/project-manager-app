@@ -65,7 +65,7 @@ impl MultiRepoCommand for SyncArgs {
         })
     }
 
-    fn plan(&self, ctx: &SyncContext) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &SyncContext, repo_path: &Path) -> Result<ExecutionPlan> {
         if ctx.git_ctx.remotes.is_empty() || ctx.target_remotes.is_empty() {
             return skip_plan("无远程仓库");
         }
@@ -78,6 +78,7 @@ impl MultiRepoCommand for SyncArgs {
                 plan.add(GitOperation::Pull {
                     remote: remote.clone(),
                     branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
                 });
             } else {
                 plan.add(MessageOperation::Skip {
@@ -88,9 +89,11 @@ impl MultiRepoCommand for SyncArgs {
             if ctx.should_push {
                 plan.add(GitOperation::PushAll {
                     remote: remote.clone(),
+                    working_dir: repo_path.to_path_buf(),
                 });
                 plan.add(GitOperation::PushTags {
                     remote: remote.clone(),
+                    working_dir: repo_path.to_path_buf(),
                 });
             } else {
                 plan.add(MessageOperation::Skip {

@@ -26,7 +26,7 @@ pub(crate) trait MultiRepoCommand {
     type Context;
 
     fn context(&self, repo_path: &Path) -> Result<Self::Context>;
-    fn plan(&self, ctx: &Self::Context) -> Result<ExecutionPlan>;
+    fn plan(&self, ctx: &Self::Context, repo_path: &Path) -> Result<ExecutionPlan>;
 
     fn execute(plan: &ExecutionPlan) -> Result<()> {
         plan::run_plan(plan)
@@ -39,9 +39,8 @@ pub(crate) trait MultiRepoCommand {
             Output::repo_header(index + 1, total, repo_path);
 
             match self.context(repo_path) {
-                Ok(ctx) => match self.plan(&ctx) {
-                    Ok(mut plan) => {
-                        plan.repo_path = Some(repo_path.clone());
+                Ok(ctx) => match self.plan(&ctx, repo_path) {
+                    Ok(plan) => {
                         if let Err(e) = Self::execute(&plan) {
                             Output::error(&format!("{}", e));
                         }
