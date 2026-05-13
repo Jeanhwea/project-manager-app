@@ -145,7 +145,7 @@ fn build_execution_plan(
             let new_lines: Vec<&str> = edited.lines().collect();
             plan.add(EditOperation::WriteFile {
                 path: file_path.clone(),
-                content: edited,
+                content: edited.clone(),
                 description: format!("edit {}", file_path),
             });
 
