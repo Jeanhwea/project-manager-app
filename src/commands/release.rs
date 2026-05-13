@@ -132,6 +132,7 @@ fn build_execution_plan(
     registry: &EditorRegistry,
 ) -> ExecutionPlan {
     let mut plan = ExecutionPlan::new();
+    let mut has_changes = false;
 
     plan.add(MessageOperation::Section {
         title: "修改计划".to_string(),
@@ -141,40 +142,45 @@ fn build_execution_plan(
         let editor = registry.detect_editor(Path::new(file_path)).unwrap();
         if let Ok((original, edited)) = compute_edited_content(editor, &state.new_tag, file_path)
         {
-            let old_lines: Vec<&str> = original.lines().collect();
-            let new_lines: Vec<&str> = edited.lines().collect();
-            plan.add(EditOperation::WriteFile {
-                path: file_path.clone(),
-                content: edited.clone(),
-                description: format!("edit {}", file_path),
-            });
+            if original != edited {
+                has_changes = true;
+                let old_lines: Vec<&str> = original.lines().collect();
+                let new_lines: Vec<&str> = edited.lines().collect();
+                plan.add(EditOperation::WriteFile {
+                    path: file_path.clone(),
+                    content: edited.clone(),
+                    description: format!("edit {}", file_path),
+                });
 
-            for (line_num, (old_line, new_line)) in
-                (1..).zip(old_lines.iter().zip(new_lines.iter()))
-            {
-                if old_line != new_line {
-                    plan.add(MessageOperation::Diff {
-                        file: file_path.clone(),
-                        line_num,
-                        old_content: old_line.to_string(),
-                        new_content: new_line.to_string(),
-                    });
+                for (line_num, (old_line, new_line)) in
+                    (1..).zip(old_lines.iter().zip(new_lines.iter()))
+                {
+                    if old_line != new_line {
+                        plan.add(MessageOperation::Diff {
+                            file: file_path.clone(),
+                            line_num,
+                            old_content: old_line.to_string(),
+                            new_content: new_line.to_string(),
+                        });
+                    }
                 }
+
+                add_lockfile_operations(&mut plan, file_path);
+
+                plan.add(GitOperation::Add {
+                    path: file_path.clone(),
+                    working_dir: PathBuf::from("."),
+                });
             }
-
-            add_lockfile_operations(&mut plan, file_path);
-
-            plan.add(GitOperation::Add {
-                path: file_path.clone(),
-                working_dir: PathBuf::from("."),
-            });
         }
     }
 
-    plan.add(GitOperation::Commit {
-        message: state.commit_message.clone(),
-        working_dir: PathBuf::from("."),
-    });
+    if has_changes {
+        plan.add(GitOperation::Commit {
+            message: state.commit_message.clone(),
+            working_dir: PathBuf::from("."),
+        });
+    }
 
     // Handle the case where tag already exists
     plan.add(GitOperation::CreateTag {

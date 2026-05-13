@@ -162,6 +162,7 @@ fn execute_operation(op: &Operation) -> Result<()> {
 
 fn execute_git(op: &GitOperation) -> Result<()> {
     let runner = GitCommandRunner::new();
+
     match op {
         GitOperation::Init { working_dir } => {
             runner.execute_with_success(&["init"], Some(working_dir.as_path()))?
