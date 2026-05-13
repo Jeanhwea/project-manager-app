@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub enum GitOperation {
@@ -83,10 +83,18 @@ pub enum GitOperation {
 }
 
 impl GitOperation {
+    fn format_working_dir(path: &PathBuf) -> String {
+        if path == Path::new(".") {
+            String::new()
+        } else {
+            format!(" in {}", path.display())
+        }
+    }
+
     pub fn description(&self) -> String {
         match self {
             GitOperation::Init { working_dir } => {
-                format!("git init in {}", working_dir.display())
+                format!("git init{}", Self::format_working_dir(working_dir))
             }
             GitOperation::Clone {
                 url,
@@ -94,71 +102,101 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git clone {} {} in {}",
+                    "git clone {} {}{}",
                     url,
                     target_dir.display(),
-                    working_dir.display()
+                    Self::format_working_dir(working_dir)
                 )
             }
             GitOperation::Add { path, working_dir } => {
-                format!("git add {} in {}", path, working_dir.display())
+                format!("git add {}{}", path, Self::format_working_dir(working_dir))
             }
             GitOperation::Commit {
                 message,
                 working_dir,
-            } => format!("git commit -m \"{}\" in {}", message, working_dir.display()),
+            } => format!(
+                "git commit -m \"{}\"{}",
+                message,
+                Self::format_working_dir(working_dir)
+            ),
             GitOperation::CreateTag { tag, working_dir } => {
-                format!("git tag {} in {}", tag, working_dir.display())
+                format!("git tag {}{}", tag, Self::format_working_dir(working_dir))
             }
             GitOperation::PushTag {
                 remote,
                 tag,
                 working_dir,
-            } => format!("git push {} {} in {}", remote, tag, working_dir.display()),
+            } => format!(
+                "git push {} {}{}",
+                remote,
+                tag,
+                Self::format_working_dir(working_dir)
+            ),
             GitOperation::PushBranch {
                 remote,
                 branch,
                 working_dir,
             } => {
                 format!(
-                    "git push {} {} in {}",
+                    "git push {} {}{}",
                     remote,
                     branch,
-                    working_dir.display()
+                    Self::format_working_dir(working_dir)
                 )
             }
             GitOperation::PushAll {
                 remote,
                 working_dir,
-            } => format!("git push --all {} in {}", remote, working_dir.display()),
+            } => format!(
+                "git push --all {}{}",
+                remote,
+                Self::format_working_dir(working_dir)
+            ),
             GitOperation::PushTags {
                 remote,
                 working_dir,
-            } => format!("git push --tags {} in {}", remote, working_dir.display()),
+            } => format!(
+                "git push --tags {}{}",
+                remote,
+                Self::format_working_dir(working_dir)
+            ),
             GitOperation::Pull {
                 remote,
                 branch,
                 working_dir,
             } => format!(
-                "git pull {} {} in {}",
+                "git pull {} {}{}",
                 remote,
                 branch,
-                working_dir.display()
+                Self::format_working_dir(working_dir)
             ),
             GitOperation::Checkout {
                 ref_name,
                 working_dir,
-            } => format!("git checkout {} in {}", ref_name, working_dir.display()),
+            } => format!(
+                "git checkout {}{}",
+                ref_name,
+                Self::format_working_dir(working_dir)
+            ),
             GitOperation::DeleteBranch {
                 branch,
                 working_dir,
-            } => format!("git branch -d {} in {}", branch, working_dir.display()),
+            } => format!(
+                "git branch -d {}{}",
+                branch,
+                Self::format_working_dir(working_dir)
+            ),
             GitOperation::RenameBranch {
                 old,
                 new,
                 working_dir,
             } => {
-                format!("git branch -m {} {} in {}", old, new, working_dir.display())
+                format!(
+                    "git branch -m {} {}{}",
+                    old,
+                    new,
+                    Self::format_working_dir(working_dir)
+                )
             }
             GitOperation::DeleteRemoteBranch {
                 remote,
@@ -166,10 +204,10 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git push {} --delete {} in {}",
+                    "git push {} --delete {}{}",
                     remote,
                     branch,
-                    working_dir.display()
+                    Self::format_working_dir(working_dir)
                 )
             }
             GitOperation::RenameRemote {
@@ -178,30 +216,37 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git remote rename {} {} in {}",
+                    "git remote rename {} {}{}",
                     old,
                     new,
-                    working_dir.display()
+                    Self::format_working_dir(working_dir)
                 )
             }
             GitOperation::PruneRemote {
                 remote,
                 working_dir,
-            } => format!("git remote prune {} in {}", remote, working_dir.display()),
+            } => format!(
+                "git remote prune {}{}",
+                remote,
+                Self::format_working_dir(working_dir)
+            ),
             GitOperation::SetUpstream {
                 remote,
                 branch,
                 working_dir,
             } => {
                 format!(
-                    "git branch --set-upstream-to {}/{} in {}",
+                    "git branch --set-upstream-to {}/{}{}",
                     remote,
                     branch,
-                    working_dir.display()
+                    Self::format_working_dir(working_dir)
                 )
             }
             GitOperation::Gc { working_dir } => {
-                format!("git gc --aggressive in {}", working_dir.display())
+                format!(
+                    "git gc --aggressive{}",
+                    Self::format_working_dir(working_dir)
+                )
             }
         }
     }
@@ -412,5 +457,44 @@ impl ExecutionPlan {
 impl Default for ExecutionPlan {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn git_description_omits_current_working_dir() {
+        let op = GitOperation::Add {
+            path: "src/main.rs".to_string(),
+            working_dir: PathBuf::from("."),
+        };
+
+        assert_eq!(op.description(), "git add src/main.rs");
+    }
+
+    #[test]
+    fn git_description_includes_non_current_working_dir() {
+        let op = GitOperation::Add {
+            path: "src/main.rs".to_string(),
+            working_dir: PathBuf::from("repo"),
+        };
+
+        assert_eq!(op.description(), "git add src/main.rs in repo");
+    }
+
+    #[test]
+    fn message_diff_description_includes_file_and_line_numbers() {
+        let diff = MessageOperation::Diff {
+            file: "pyproject.toml".to_string(),
+            line_num: 3,
+            old_content: "version = \"1.4.10\"".to_string(),
+            new_content: "version = \"1.5.0\"".to_string(),
+        };
+
+        let expected = "pyproject.toml L3 -:  version = \"1.4.10\"\npyproject.toml L3 +:  version = \"1.5.0\"";
+        assert_eq!(diff.description(), expected);
     }
 }

@@ -86,12 +86,40 @@ fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
 }
 
 pub fn display_plan(plan: &ExecutionPlan) {
+    use colored::Colorize;
+
     if plan.operations.is_empty() {
         Output::skip("无操作");
         return;
     }
+
+    let mut last_diff_file: Option<&str> = None;
+    let mut last_diff_line: Option<usize> = None;
+
     for op in &plan.operations {
         match op {
+            Operation::Message(MessageOperation::Diff {
+                file,
+                line_num,
+                old_content,
+                new_content,
+            }) => {
+                if last_diff_file != Some(file.as_str()) {
+                    Output::message(&format!("diff --git a/{} b/{}", file, file));
+                    Output::message(&format!("--- a/{}", file));
+                    Output::message(&format!("+++ b/{}", file));
+                    Output::message(&format!("@@ -{} +{} @@", line_num, line_num));
+                } else if last_diff_line
+                    .map(|prev| prev + 1 != *line_num)
+                    .unwrap_or(true)
+                {
+                    Output::message(&format!("@@ -{} +{} @@", line_num, line_num));
+                }
+                println!("-{}", old_content.red());
+                println!("+{}", new_content.green());
+                last_diff_file = Some(file);
+                last_diff_line = Some(*line_num);
+            }
             Operation::Message(msg_op) => execute_message(msg_op),
             _ => Output::message(&op.description()),
         }
@@ -111,8 +139,9 @@ fn execute_message(op: &MessageOperation) {
             old_content,
             new_content,
         } => {
-            println!("    L{} {}", line_num, format!("- {}", old_content).red());
-            println!("    L{} {}", line_num, format!("+ {}", new_content).green());
+            println!("-{}", old_content.red());
+            println!("+{}", new_content.green());
+            let _ = line_num;
         }
         MessageOperation::Success { msg } => Output::success(msg),
         MessageOperation::Warning { msg } => Output::warning(msg),
