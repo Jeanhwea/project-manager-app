@@ -1,199 +1,107 @@
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
+pub struct GitOperationContext {
+    pub working_dir: PathBuf,
+}
+
+#[derive(Debug, Clone)]
 pub enum GitOperation {
-    Init {
-        working_dir: PathBuf,
-    },
+    Init,
     Clone {
         url: String,
         target_dir: PathBuf,
-        working_dir: PathBuf,
     },
     Add {
         path: String,
-        working_dir: PathBuf,
     },
     Commit {
         message: String,
-        working_dir: PathBuf,
     },
     CreateTag {
         tag: String,
-        working_dir: PathBuf,
     },
     PushTag {
         remote: String,
         tag: String,
-        working_dir: PathBuf,
     },
     PushBranch {
         remote: String,
         branch: String,
-        working_dir: PathBuf,
     },
     PushAll {
         remote: String,
-        working_dir: PathBuf,
     },
     PushTags {
         remote: String,
-        working_dir: PathBuf,
     },
     Pull {
         remote: String,
         branch: String,
-        working_dir: PathBuf,
     },
     Checkout {
         ref_name: String,
-        working_dir: PathBuf,
     },
     DeleteBranch {
         branch: String,
-        working_dir: PathBuf,
     },
     RenameBranch {
         old: String,
         new: String,
-        working_dir: PathBuf,
     },
     DeleteRemoteBranch {
         remote: String,
         branch: String,
-        working_dir: PathBuf,
     },
     RenameRemote {
         old: String,
         new: String,
-        working_dir: PathBuf,
     },
     PruneRemote {
         remote: String,
-        working_dir: PathBuf,
     },
     SetUpstream {
         remote: String,
         branch: String,
-        working_dir: PathBuf,
     },
-    Gc {
-        working_dir: PathBuf,
-    },
+    Gc,
 }
 
 impl GitOperation {
     pub fn description(&self) -> String {
         match self {
-            GitOperation::Init { working_dir } => {
-                format!("[{}] git init", working_dir.display())
+            GitOperation::Init => "[working_dir] git init".to_string(),
+            GitOperation::Clone { url, target_dir } => {
+                format!("[working_dir] git clone {} {}", url, target_dir.display())
             }
-            GitOperation::Clone {
-                url,
-                target_dir,
-                working_dir,
-            } => {
-                format!(
-                    "[{}] git clone {} {}",
-                    working_dir.display(),
-                    url,
-                    target_dir.display()
-                )
+            GitOperation::Add { path } => "[working_dir] git add {}".to_string(),
+            GitOperation::Commit { message } => "[working_dir] git commit -m \"{}\"".to_string(),
+            GitOperation::CreateTag { tag } => "[working_dir] git tag {}".to_string(),
+            GitOperation::PushTag { remote, tag } => "[working_dir] git push {} {}".to_string(),
+            GitOperation::PushBranch { remote, branch } => {
+                "[working_dir] git push {} {}".to_string()
             }
-            GitOperation::Add { path, working_dir } => {
-                format!("[{}] git add {}", working_dir.display(), path)
+            GitOperation::PushAll { remote } => "[working_dir] git push --all {}".to_string(),
+            GitOperation::PushTags { remote } => "[working_dir] git push --tags {}".to_string(),
+            GitOperation::Pull { remote, branch } => "[working_dir] git pull {} {}".to_string(),
+            GitOperation::Checkout { ref_name } => "[working_dir] git checkout {}".to_string(),
+            GitOperation::DeleteBranch { branch } => "[working_dir] git branch -d {}".to_string(),
+            GitOperation::RenameBranch { old, new } => "[working_dir] git branch -m {} {}".to_string(),
+            GitOperation::DeleteRemoteBranch { remote, branch } => {
+                "[working_dir] git push {} --delete {}".to_string()
             }
-            GitOperation::Commit {
-                message,
-                working_dir,
-            } => format!("[{}] git commit -m \"{}\"", working_dir.display(), message),
-            GitOperation::CreateTag { tag, working_dir } => {
-                format!("[{}] git tag {}", working_dir.display(), tag)
+            GitOperation::RenameRemote { old, new } => "[working_dir] git remote rename {} {}".to_string(),
+            GitOperation::PruneRemote { remote } => "[working_dir] git remote prune {}".to_string(),
+            GitOperation::SetUpstream { remote, branch } => {
+                "[working_dir] git branch --set-upstream-to {}/{}".to_string()
             }
-            GitOperation::PushTag {
-                remote,
-                tag,
-                working_dir,
-            } => format!("[{}] git push {} {}", working_dir.display(), remote, tag),
-            GitOperation::PushBranch {
-                remote,
-                branch,
-                working_dir,
-            } => {
-                format!("[{}] git push {} {}", working_dir.display(), remote, branch)
-            }
-            GitOperation::PushAll {
-                remote,
-                working_dir,
-            } => format!("[{}] git push --all {}", working_dir.display(), remote),
-            GitOperation::PushTags {
-                remote,
-                working_dir,
-            } => format!("[{}] git push --tags {}", working_dir.display(), remote),
-            GitOperation::Pull {
-                remote,
-                branch,
-                working_dir,
-            } => format!("[{}] git pull {} {}", working_dir.display(), remote, branch),
-            GitOperation::Checkout {
-                ref_name,
-                working_dir,
-            } => format!("[{}] git checkout {}", working_dir.display(), ref_name),
-            GitOperation::DeleteBranch {
-                branch,
-                working_dir,
-            } => format!("[{}] git branch -d {}", working_dir.display(), branch),
-            GitOperation::RenameBranch {
-                old,
-                new,
-                working_dir,
-            } => {
-                format!("[{}] git branch -m {} {}", working_dir.display(), old, new)
-            }
-            GitOperation::DeleteRemoteBranch {
-                remote,
-                branch,
-                working_dir,
-            } => {
-                format!(
-                    "[{}] git push {} --delete {}",
-                    working_dir.display(),
-                    remote,
-                    branch
-                )
-            }
-            GitOperation::RenameRemote {
-                old,
-                new,
-                working_dir,
-            } => {
-                format!(
-                    "[{}] git remote rename {} {}",
-                    working_dir.display(),
-                    old,
-                    new
-                )
-            }
-            GitOperation::PruneRemote {
-                remote,
-                working_dir,
-            } => format!("[{}] git remote prune {}", working_dir.display(), remote),
-            GitOperation::SetUpstream {
-                remote,
-                branch,
-                working_dir,
-            } => {
-                format!(
-                    "[{}] git branch --set-upstream-to {}/{}",
-                    working_dir.display(),
-                    remote,
-                    branch
-                )
-            }
-            GitOperation::Gc { working_dir } => {
-                format!("[{}] git gc --aggressive", working_dir.display())
-            }
+            GitOperation::Gc => "[working_dir] git gc --aggressive".to_string(),
         }
+    }
+
+    pub fn description_with_context(&self, ctx: &GitOperationContext) -> String {
+        let base = self.description();
+        base.replace("[working_dir]", &ctx.working_dir.display().to_string())
     }
 }
 
@@ -414,20 +322,30 @@ mod tests {
     fn git_description_omits_current_working_dir() {
         let op = GitOperation::Add {
             path: "src/main.rs".to_string(),
-            working_dir: PathBuf::from("."),
         };
 
-        assert_eq!(op.description(), "[.] git add src/main.rs");
+        assert_eq!(op.description(), "[working_dir] git add src/main.rs");
     }
 
     #[test]
     fn git_description_includes_non_current_working_dir() {
         let op = GitOperation::Add {
             path: "src/main.rs".to_string(),
+        };
+
+        assert_eq!(op.description(), "[working_dir] git add src/main.rs");
+    }
+
+    #[test]
+    fn git_description_with_context() {
+        let op = GitOperation::Add {
+            path: "src/main.rs".to_string(),
+        };
+        let ctx = GitOperationContext {
             working_dir: PathBuf::from("repo"),
         };
 
-        assert_eq!(op.description(), "[repo] git add src/main.rs");
+        assert_eq!(op.description_with_context(&ctx), "[repo] git add src/main.rs");
     }
 
     #[test]

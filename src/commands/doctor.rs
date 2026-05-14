@@ -61,7 +61,6 @@ impl MultiRepoCommand for DoctorArgs {
                 Diagnosis::StaleRefs { remote } => {
                     plan.add(GitOperation::PruneRemote {
                         remote: remote.clone(),
-                        working_dir: repo_path.to_path_buf(),
                     });
                 }
                 Diagnosis::NoRemoteTrackingBranch | Diagnosis::SingleLocalBranch => {
@@ -71,13 +70,10 @@ impl MultiRepoCommand for DoctorArgs {
                             .or_else(|| git_ctx.first_remote_name())
                             .unwrap_or_else(|| "origin".to_string()),
                         branch: git_ctx.current_branch.clone(),
-                        working_dir: repo_path.to_path_buf(),
                     });
                 }
                 Diagnosis::LargeRepo { .. } => {
-                    plan.add(GitOperation::Gc {
-                        working_dir: repo_path.to_path_buf(),
-                    });
+                    plan.add(GitOperation::Gc);
                 }
                 Diagnosis::StashExists => {
                     plan.add(MessageOperation::Warning {
@@ -95,7 +91,6 @@ impl MultiRepoCommand for DoctorArgs {
                         plan.add(GitOperation::RenameRemote {
                             old: current.clone(),
                             new: expected.clone(),
-                            working_dir: repo_path.to_path_buf(),
                         });
                     }
                 }

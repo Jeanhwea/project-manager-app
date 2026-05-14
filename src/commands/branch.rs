@@ -179,13 +179,11 @@ impl MultiRepoCommand for BranchCleanArgs {
         for branch in &ctx.branches_to_delete {
             plan.add(GitOperation::DeleteBranch {
                 branch: branch.clone(),
-                working_dir: repo_path.to_path_buf(),
             });
             if ctx.delete_remote {
                 plan.add(GitOperation::DeleteRemoteBranch {
                     remote: ctx.remote_name.clone(),
                     branch: branch.clone(),
-                    working_dir: repo_path.to_path_buf(),
                 });
             }
         }
@@ -216,7 +214,6 @@ impl MultiRepoCommand for BranchSwitchArgs {
 
         plan.add(GitOperation::Checkout {
             ref_name: self.branch.clone(),
-            working_dir: repo_path.to_path_buf(),
         });
         plan.add(MessageOperation::Success {
             msg: format!("已切换到 {}", self.branch),
@@ -249,7 +246,6 @@ impl MultiRepoCommand for BranchRenameArgs {
         plan.add(GitOperation::RenameBranch {
             old: self.old_name.clone(),
             new: self.new_name.clone(),
-            working_dir: repo_path.to_path_buf(),
         });
         plan.add(MessageOperation::Success {
             msg: format!("{} -> {}", self.old_name, self.new_name),
@@ -290,7 +286,6 @@ impl MultiRepoCommand for BranchAllArgs {
         for branch in &other_branches {
             plan.add(GitOperation::Checkout {
                 ref_name: branch.name.clone(),
-                working_dir: repo_path.to_path_buf(),
             });
 
             if let Some(ref remote) = preferred_remote {
@@ -298,7 +293,6 @@ impl MultiRepoCommand for BranchAllArgs {
                     plan.add(GitOperation::Pull {
                         remote: remote.clone(),
                         branch: branch.name.clone(),
-                        working_dir: repo_path.to_path_buf(),
                     });
                 } else {
                     plan.add(MessageOperation::Skip {
@@ -314,7 +308,6 @@ impl MultiRepoCommand for BranchAllArgs {
 
         plan.add(GitOperation::Checkout {
             ref_name: current_branch.clone(),
-            working_dir: repo_path.to_path_buf(),
         });
 
         plan.add(MessageOperation::Success {

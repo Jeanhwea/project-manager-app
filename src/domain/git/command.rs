@@ -129,6 +129,65 @@ impl GitCommandRunner {
             })
             .unwrap_or(false)
     }
+
+    pub fn execute_operation(&self, op: &crate::model::plan::GitOperation, ctx: &crate::model::plan::GitOperationContext) -> Result<()> {
+        match op {
+            crate::model::plan::GitOperation::Init => {
+                self.execute_with_success(&["init"], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::Clone { url, target_dir } => {
+                self.execute_with_success(&["clone", url, target_dir.as_str()], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::Add { path } => {
+                self.execute_with_success(&["add", path], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::Commit { message } => {
+                self.execute_with_success(&["commit", "-m", message], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::CreateTag { tag } => {
+                self.execute_with_success(&["tag", tag], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::PushTag { remote, tag } => {
+                self.execute_with_success(&["push", remote, tag], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::PushBranch { remote, branch } => {
+                self.execute_with_success(&["push", remote, branch], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::PushAll { remote } => {
+                self.execute_with_success(&["push", "--all", remote], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::PushTags { remote } => {
+                self.execute_with_success(&["push", "--tags", remote], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::Pull { remote, branch } => {
+                self.execute_with_success(&["pull", remote, branch], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::Checkout { ref_name } => {
+                self.execute_with_success(&["checkout", ref_name], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::DeleteBranch { branch } => {
+                self.execute_with_success(&["branch", "-d", branch], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::RenameBranch { old, new } => {
+                self.execute_with_success(&["branch", "-m", old, new], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::DeleteRemoteBranch { remote, branch } => {
+                self.execute_with_success(&["push", remote, "--delete", branch], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::RenameRemote { old, new } => {
+                self.execute_with_success(&["remote", "rename", old, new], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::PruneRemote { remote } => {
+                self.execute_with_success(&["remote", "prune", remote], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::SetUpstream { remote, branch } => {
+                self.execute_with_success(&["branch", "--set-upstream-to", &format!("{}/{}", remote, branch)], Some(&ctx.working_dir))
+            }
+            crate::model::plan::GitOperation::Gc => {
+                self.execute_with_success(&["gc", "--aggressive"], Some(&ctx.working_dir))
+            }
+        }
+    }
 }
 
 impl Default for GitCommandRunner {

@@ -6,6 +6,7 @@ use crate::model::plan::{
     ShellOperation,
 };
 use crate::utils::output::Output;
+use std::path::PathBuf;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
     if plan.dry_run {
@@ -47,7 +48,7 @@ fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
 
     match failed_op {
         Operation::Git(git_op) => match git_op {
-            GitOperation::PushTag { remote, tag, .. } => {
+            GitOperation::PushTag { remote, tag } => {
                 Output::detail(
                     "提示",
                     &format!(
@@ -56,7 +57,7 @@ fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
                     ),
                 );
             }
-            GitOperation::PushBranch { remote, branch, .. } => {
+            GitOperation::PushBranch { remote, branch } => {
                 Output::detail(
                     "提示",
                     &format!(
@@ -65,7 +66,7 @@ fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
                     ),
                 );
             }
-            GitOperation::PushAll { remote, .. } => {
+            GitOperation::PushAll { remote } => {
                 Output::detail(
                     "提示",
                     &format!(
@@ -74,7 +75,7 @@ fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
                     ),
                 );
             }
-            GitOperation::PushTags { remote, .. } => {
+            GitOperation::PushTags { remote } => {
                 Output::detail(
                     "提示",
                     &format!("tag 已创建但未推送，请手动执行: git push --tags {}", remote),
@@ -164,103 +165,50 @@ fn execute_git(op: &GitOperation) -> Result<()> {
     let runner = GitCommandRunner::new();
 
     match op {
-        GitOperation::Init { working_dir } => {
-            runner.execute_with_success(&["init"], Some(working_dir.as_path()))?
+        GitOperation::Init => {
+            runner.execute_with_success(&["init"], Some(&PathBuf::from(".")))?
         }
-        GitOperation::Clone {
-            url,
-            target_dir,
-            working_dir,
-        } => {
+        GitOperation::Clone { url, target_dir } => {
             if target_dir.exists() {
                 Output::skip(&format!("目录 {} 已存在，跳过克隆", target_dir.display()));
                 return Ok(());
             }
-            runner.execute_streaming(
-                &["clone", url, target_dir.to_str().unwrap_or(".")],
-                working_dir.as_path(),
-            )?
+            runner.execute_streaming(&["clone", url, target_dir.to_str().unwrap_or(".")], &PathBuf::from("."))?
         }
-        GitOperation::Add { path, working_dir } => {
-            runner.execute_with_success(&["add", path], Some(working_dir.as_path()))?
+        GitOperation::Add { path } => {
+            runner.execute_with_success(&["add", path], Some(&PathBuf::from(".")))?
         }
-        GitOperation::Commit {
-            message,
-            working_dir,
-        } => runner
-            .execute_with_success(&["commit", "-m", message], Some(working_dir.as_path()))?,
-        GitOperation::CreateTag { tag, working_dir } => {
-            runner.execute_with_success(&["tag", tag], Some(working_dir.as_path()))?
+        GitOperation::Commit { message } => runner
+            .execute_with_success(&["commit", "-m", message], Some(&PathBuf::from(".")))?,
+        GitOperation::CreateTag { tag } => {
+            runner.execute_with_success(&["tag", tag], Some(&PathBuf::from(".")))?
         }
-        GitOperation::PushTag {
-            remote,
-            tag,
-            working_dir,
-        } => runner.execute_streaming(&["push", remote, tag], working_dir.as_path())?,
-        GitOperation::PushBranch {
-            remote,
-            branch,
-            working_dir,
-        } => runner.execute_streaming(&["push", remote, branch], working_dir.as_path())?,
-        GitOperation::PushAll {
-            remote,
-            working_dir,
-        } => runner.execute_streaming(&["push", "--all", remote], working_dir.as_path())?,
-        GitOperation::PushTags {
-            remote,
-            working_dir,
-        } => runner.execute_streaming(&["push", "--tags", remote], working_dir.as_path())?,
-        GitOperation::Pull {
-            remote,
-            branch,
-            working_dir,
-        } => runner.execute_streaming(&["pull", remote, branch], working_dir.as_path())?,
-        GitOperation::Checkout {
-            ref_name,
-            working_dir,
-        } => runner.execute_streaming(&["checkout", ref_name], working_dir.as_path())?,
-        GitOperation::DeleteBranch {
-            branch,
-            working_dir,
-        } => {
-            runner.execute_with_success(&["branch", "-d", branch], Some(working_dir.as_path()))?
+        GitOperation::PushTag { remote, tag } => runner.execute_streaming(&["push", remote, tag], &PathBuf::from("."))?,
+        GitOperation::PushBranch { remote, branch } => runner.execute_streaming(&["push", remote, branch], &PathBuf::from("."))?,
+        GitOperation::PushAll { remote } => runner.execute_streaming(&["push", "--all", remote], &PathBuf::from("."))?,
+        GitOperation::PushTags { remote } => runner.execute_streaming(&["push", "--tags", remote], &PathBuf::from("."))?,
+        GitOperation::Pull { remote, branch } => runner.execute_streaming(&["pull", remote, branch], &PathBuf::from("."))?,
+        GitOperation::Checkout { ref_name } => runner.execute_streaming(&["checkout", ref_name], &PathBuf::from("."))?,
+        GitOperation::DeleteBranch { branch } => {
+            runner.execute_with_success(&["branch", "-d", branch], Some(&PathBuf::from(".")))?
         }
-        GitOperation::RenameBranch {
-            old,
-            new,
-            working_dir,
-        } => runner.execute_streaming(&["branch", "-m", old, new], working_dir.as_path())?,
-        GitOperation::DeleteRemoteBranch {
-            remote,
-            branch,
-            working_dir,
-        } => runner
-            .execute_streaming(&["push", remote, "--delete", branch], working_dir.as_path())?,
-        GitOperation::RenameRemote {
-            old,
-            new,
-            working_dir,
-        } => runner
-            .execute_with_success(&["remote", "rename", old, new], Some(working_dir.as_path()))?,
-        GitOperation::PruneRemote {
-            remote,
-            working_dir,
-        } => runner
-            .execute_with_success(&["remote", "prune", remote], Some(working_dir.as_path()))?,
-        GitOperation::SetUpstream {
-            remote,
-            branch,
-            working_dir,
-        } => runner.execute_with_success(
+        GitOperation::RenameBranch { old, new } => runner.execute_streaming(&["branch", "-m", old, new], &PathBuf::from("."))?,
+        GitOperation::DeleteRemoteBranch { remote, branch } => runner
+            .execute_streaming(&["push", remote, "--delete", branch], &PathBuf::from("."))?,
+        GitOperation::RenameRemote { old, new } => runner
+            .execute_with_success(&["remote", "rename", old, new], Some(&PathBuf::from(".")))?,
+        GitOperation::PruneRemote { remote } => runner
+            .execute_with_success(&["remote", "prune", remote], Some(&PathBuf::from(".")))?,
+        GitOperation::SetUpstream { remote, branch } => runner.execute_with_success(
             &[
                 "branch",
                 "--set-upstream-to",
                 &format!("{}/{}", remote, branch),
             ],
-            Some(working_dir.as_path()),
+            Some(&PathBuf::from(".")),
         )?,
-        GitOperation::Gc { working_dir } => {
-            runner.execute_streaming(&["gc", "--aggressive"], working_dir.as_path())?
+        GitOperation::Gc => {
+            runner.execute_streaming(&["gc", "--aggressive"], &PathBuf::from("."))?
         }
     }
     Ok(())

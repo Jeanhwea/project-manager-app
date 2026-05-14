@@ -47,6 +47,9 @@ pub enum AppError {
 
     #[error("Version parsing error: {0}")]
     SemVer(#[from] semver::Error),
+
+    #[error("Version format error: {0}")]
+    VersionFormatError(String),
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;

@@ -94,3 +94,88 @@ impl GitContext {
             .any(|b| b.is_remote && b.name == remote_branch)
     }
 }
+
+use clap::ValueEnum;
+use semver::Version as SemVersion;
+
+#[derive(ValueEnum, Clone, Debug, PartialEq)]
+pub enum BumpType {
+    #[value(alias = "ma")]
+    Major,
+    #[value(alias = "mi")]
+    Minor,
+    #[value(alias = "pa")]
+    Patch,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Version {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+impl Version {
+    pub fn parse(s: &str) -> Result<Self, crate::error::AppError> {
+        let ver = SemVersion::parse(s.trim()).map_err(|e| {
+            crate::error::AppError::VersionFormatError(format!("Invalid version format: {}", e))
+        })?;
+        Ok(Version {
+            major: ver.major as u32,
+            minor: ver.minor as u32,
+            patch: ver.patch as u32,
+        })
+    }
+
+    pub fn from_tag(tag: &str) -> Option<Self> {
+        let tag = tag.trim();
+        let version_str = tag.strip_prefix('v').unwrap_or(tag);
+        Self::parse(version_str).ok()
+    }
+
+    pub fn bump(&self, bump_type: &BumpType) -> Self {
+        match bump_type {
+            BumpType::Major => Version {
+                major: self.major + 1,
+                minor: 0,
+                patch: 0,
+            },
+            BumpType::Minor => Version {
+                major: self.major,
+                minor: self.minor + 1,
+                patch: 0,
+            },
+            BumpType::Patch => Version {
+                major: self.major,
+                minor: self.minor,
+                patch: self.patch + 1,
+            },
+        }
+    }
+
+    pub fn to_tag(&self) -> String {
+        format!("v{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl From<SemVersion> for Version {
+    fn from(v: SemVersion) -> Self {
+        Version {
+            major: v.major as u32,
+            minor: v.minor as u32,
+            patch: v.patch as u32,
+        }
+    }
+}
+
+impl From<&Version> for SemVersion {
+    fn from(v: &Version) -> Self {
+        SemVersion::new(v.major as u64, v.minor as u64, v.patch as u64)
+    }
+}
