@@ -131,25 +131,19 @@ impl Command for CreateArgs {
         }
 
         if ctx.needs_init {
-            plan.add(GitOperation::Init {
-                working_dir: ctx.project_path.clone(),
-            });
+            plan.add(GitOperation::Init);
             plan.add(GitOperation::Add {
                 path: ".".to_string(),
-                working_dir: ctx.project_path.clone(),
             });
             plan.add(GitOperation::Commit {
                 message: "snap-000000".to_string(),
-                working_dir: ctx.project_path.clone(),
             });
         } else {
             plan.add(GitOperation::Add {
                 path: ".".to_string(),
-                working_dir: ctx.project_path.clone(),
             });
             plan.add(GitOperation::Commit {
                 message: format!("snap-{:06}", ctx.num_commit),
-                working_dir: ctx.project_path.clone(),
             });
         }
 
@@ -255,7 +249,6 @@ impl Command for RestoreArgs {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
         plan.add(GitOperation::Checkout {
             ref_name: ctx.commit_ref.clone(),
-            working_dir: PathBuf::from(&self.path),
         });
         plan.add(MessageOperation::Success {
             msg: format!("已恢复到快照 {}", ctx.commit_ref),

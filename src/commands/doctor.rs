@@ -49,7 +49,7 @@ impl MultiRepoCommand for DoctorArgs {
         Ok(DoctorContext { git_ctx, issues })
     }
 
-    fn plan(&self, ctx: &DoctorContext, repo_path: &Path) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &DoctorContext, _repo_path: &Path) -> Result<ExecutionPlan> {
         let Some(git_ctx) = &ctx.git_ctx else {
             return Ok(ExecutionPlan::new());
         };

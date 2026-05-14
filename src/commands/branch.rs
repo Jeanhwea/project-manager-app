@@ -174,7 +174,7 @@ impl MultiRepoCommand for BranchCleanArgs {
         })
     }
 
-    fn plan(&self, ctx: &BranchCleanContext, repo_path: &Path) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &BranchCleanContext, _repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
         for branch in &ctx.branches_to_delete {
             plan.add(GitOperation::DeleteBranch {
@@ -203,7 +203,7 @@ impl MultiRepoCommand for BranchSwitchArgs {
         Ok(BranchSwitchContext { exists })
     }
 
-    fn plan(&self, ctx: &BranchSwitchContext, repo_path: &Path) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &BranchSwitchContext, _repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
         if !ctx.exists {
             plan.add(MessageOperation::Skip {
@@ -234,7 +234,7 @@ impl MultiRepoCommand for BranchRenameArgs {
         Ok(BranchRenameContext { exists })
     }
 
-    fn plan(&self, ctx: &BranchRenameContext, repo_path: &Path) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &BranchRenameContext, _repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
         if !ctx.exists {
             plan.add(MessageOperation::Skip {
@@ -262,7 +262,7 @@ impl MultiRepoCommand for BranchAllArgs {
         Ok(BranchAllContext { git_ctx })
     }
 
-    fn plan(&self, ctx: &BranchAllContext, repo_path: &Path) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &BranchAllContext, _repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
         let current_branch = &ctx.git_ctx.current_branch;
 

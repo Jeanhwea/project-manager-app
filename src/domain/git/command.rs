@@ -136,7 +136,7 @@ impl GitCommandRunner {
                 self.execute_with_success(&["init"], Some(&ctx.working_dir))
             }
             crate::model::plan::GitOperation::Clone { url, target_dir } => {
-                self.execute_with_success(&["clone", url, target_dir.as_str()], Some(&ctx.working_dir))
+                self.execute_with_success(&["clone", url, target_dir.to_string_lossy().as_ref()], Some(&ctx.working_dir))
             }
             crate::model::plan::GitOperation::Add { path } => {
                 self.execute_with_success(&["add", path], Some(&ctx.working_dir))

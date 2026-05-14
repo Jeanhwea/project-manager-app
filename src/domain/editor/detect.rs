@@ -112,7 +112,6 @@ fn add_cargo_lock_operations(plan: &mut ExecutionPlan, cargo_toml_path: &str) {
     let path_str = lock_path.to_string_lossy().replace('\\', "/");
     plan.add(GitOperation::Add {
         path: path_str,
-        working_dir: PathBuf::from("."),
     });
 }
 
@@ -149,7 +148,6 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
             let path_str = lock_path.to_string_lossy().replace('\\', "/");
             plan.add(GitOperation::Add {
                 path: path_str,
-                working_dir: PathBuf::from("."),
             });
             return;
         }

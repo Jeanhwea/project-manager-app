@@ -76,7 +76,7 @@ impl MultiRepoCommand for SyncArgs {
         })
     }
 
-    fn plan(&self, ctx: &SyncContext, repo_path: &Path) -> Result<ExecutionPlan> {
+    fn plan(&self, ctx: &SyncContext, _repo_path: &Path) -> Result<ExecutionPlan> {
         if ctx.git_ctx.remotes.is_empty() || ctx.target_remotes.is_empty() {
             return skip_plan("无远程仓库");
         }
@@ -103,12 +103,10 @@ impl MultiRepoCommand for SyncArgs {
                         if ctx.git_ctx.has_remote_branch(remote, &branch.name) {
                             plan.add(GitOperation::Checkout {
                                 ref_name: branch.name.clone(),
-                                working_dir: repo_path.to_path_buf(),
                             });
                             plan.add(GitOperation::Pull {
                                 remote: remote.clone(),
                                 branch: branch.name.clone(),
-                                working_dir: repo_path.to_path_buf(),
                             });
                         } else {
                             plan.add(MessageOperation::Skip {
@@ -120,7 +118,6 @@ impl MultiRepoCommand for SyncArgs {
 
                 plan.add(GitOperation::Checkout {
                     ref_name: current_branch.clone(),
-                    working_dir: repo_path.to_path_buf(),
                 });
             }
         }
@@ -134,7 +131,6 @@ impl MultiRepoCommand for SyncArgs {
                 plan.add(GitOperation::Pull {
                     remote: remote.clone(),
                     branch: current_branch.clone(),
-                    working_dir: repo_path.to_path_buf(),
                 });
             } else {
                 plan.add(MessageOperation::Skip {
@@ -147,11 +143,9 @@ impl MultiRepoCommand for SyncArgs {
             for remote in &ctx.target_remotes {
                 plan.add(GitOperation::PushAll {
                     remote: remote.clone(),
-                    working_dir: repo_path.to_path_buf(),
                 });
                 plan.add(GitOperation::PushTags {
                     remote: remote.clone(),
-                    working_dir: repo_path.to_path_buf(),
                 });
             }
         } else {

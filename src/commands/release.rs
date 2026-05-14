@@ -11,7 +11,6 @@ use crate::model::git::GitContext;
 use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
 use crate::utils::path::canonicalize_path;
 use std::path::Path;
-use std::path::PathBuf;
 
 #[derive(Debug, clap::Args)]
 pub struct ReleaseArgs {

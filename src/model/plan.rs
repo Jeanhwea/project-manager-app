@@ -74,9 +74,9 @@ impl GitOperation {
             GitOperation::Clone { url, target_dir } => {
                 format!("[working_dir] git clone {} {}", url, target_dir.display())
             }
-            GitOperation::Add { path } => "[working_dir] git add {}".to_string(),
-            GitOperation::Commit { message } => "[working_dir] git commit -m \"{}\"".to_string(),
-            GitOperation::CreateTag { tag } => "[working_dir] git tag {}".to_string(),
+            GitOperation::Add { path: _ } => "[working_dir] git add <path>".to_string(),
+            GitOperation::Commit { message: _ } => "[working_dir] git commit -m \"<message>\"".to_string(),
+            GitOperation::CreateTag { tag: _ } => "[working_dir] git tag <tag>".to_string(),
             GitOperation::PushTag { remote, tag } => "[working_dir] git push {} {}".to_string(),
             GitOperation::PushBranch { remote, branch } => {
                 "[working_dir] git push {} {}".to_string()
