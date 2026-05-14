@@ -84,7 +84,6 @@ impl MultiRepoCommand for SyncArgs {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
         let current_branch = &ctx.git_ctx.current_branch;
 
-        // 如果需要同步所有分支，先拉取所有本地分支
         if ctx.sync_all_branches {
             let other_branches: Vec<&crate::model::git::Branch> = ctx
                 .git_ctx
@@ -119,7 +118,6 @@ impl MultiRepoCommand for SyncArgs {
                     }
                 }
 
-                // 切换回当前分支
                 plan.add(GitOperation::Checkout {
                     ref_name: current_branch.clone(),
                     working_dir: repo_path.to_path_buf(),
@@ -127,7 +125,6 @@ impl MultiRepoCommand for SyncArgs {
             }
         }
 
-        // 拉取当前分支
         plan.add(MessageOperation::Header {
             title: "同步当前分支".to_string(),
         });
@@ -146,7 +143,6 @@ impl MultiRepoCommand for SyncArgs {
             }
         }
 
-        // 推送操作
         if ctx.should_push {
             for remote in &ctx.target_remotes {
                 plan.add(GitOperation::PushAll {
