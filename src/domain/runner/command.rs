@@ -83,12 +83,10 @@ impl CommandRunner {
 
         #[cfg(target_os = "windows")]
         {
-            // On Windows, ensure we have the system PATH
             if let Ok(path) = std::env::var("PATH") {
                 cmd.env("PATH", path);
             }
 
-            // For pnpm specifically on Windows, execute through cmd /c
             if context.program == "pnpm" {
                 let mut new_cmd = StdCommand::new("cmd");
                 new_cmd.arg("/c").arg("pnpm").args(&context.args);
