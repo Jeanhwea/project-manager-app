@@ -270,7 +270,6 @@ impl MultiRepoCommand for BranchAllArgs {
         let mut plan = ExecutionPlan::new();
         let current_branch = &ctx.git_ctx.current_branch;
 
-        // 获取所有本地分支（排除当前分支）
         let other_branches: Vec<&Branch> = ctx
             .git_ctx
             .local_branches()
@@ -286,17 +285,14 @@ impl MultiRepoCommand for BranchAllArgs {
             return Ok(plan);
         }
 
-        // 获取首选远端（如果有）
         let preferred_remote = ctx.git_ctx.preferred_remote();
 
         for branch in &other_branches {
-            // 切换到该分支
             plan.add(GitOperation::Checkout {
                 ref_name: branch.name.clone(),
                 working_dir: repo_path.to_path_buf(),
             });
 
-            // 如果有绑定远端，执行 pull
             if let Some(ref remote) = preferred_remote {
                 if ctx.git_ctx.has_remote_branch(remote, &branch.name) {
                     plan.add(GitOperation::Pull {
@@ -316,7 +312,6 @@ impl MultiRepoCommand for BranchAllArgs {
             }
         }
 
-        // 切换回原分支
         plan.add(GitOperation::Checkout {
             ref_name: current_branch.clone(),
             working_dir: repo_path.to_path_buf(),
