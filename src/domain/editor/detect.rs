@@ -2,7 +2,7 @@ use super::{EditorRegistry, FileEditor};
 use crate::error::AppError;
 use crate::model::plan::{ExecutionPlan, GitOperation};
 use regex::Regex;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub fn resolve_config_files(
     registry: &EditorRegistry,

@@ -77,22 +77,22 @@ impl GitOperation {
             GitOperation::Add { path: _ } => "[working_dir] git add <path>".to_string(),
             GitOperation::Commit { message: _ } => "[working_dir] git commit -m \"<message>\"".to_string(),
             GitOperation::CreateTag { tag: _ } => "[working_dir] git tag <tag>".to_string(),
-            GitOperation::PushTag { remote, tag } => "[working_dir] git push {} {}".to_string(),
-            GitOperation::PushBranch { remote, branch } => {
-                "[working_dir] git push {} {}".to_string()
+            GitOperation::PushTag { remote: _, tag: _ } => "[working_dir] git push <remote> <tag>".to_string(),
+            GitOperation::PushBranch { remote: _, branch: _ } => {
+                "[working_dir] git push <remote> <branch>".to_string()
             }
-            GitOperation::PushAll { remote } => "[working_dir] git push --all {}".to_string(),
-            GitOperation::PushTags { remote } => "[working_dir] git push --tags {}".to_string(),
-            GitOperation::Pull { remote, branch } => "[working_dir] git pull {} {}".to_string(),
-            GitOperation::Checkout { ref_name } => "[working_dir] git checkout {}".to_string(),
-            GitOperation::DeleteBranch { branch } => "[working_dir] git branch -d {}".to_string(),
-            GitOperation::RenameBranch { old, new } => "[working_dir] git branch -m {} {}".to_string(),
-            GitOperation::DeleteRemoteBranch { remote, branch } => {
-                "[working_dir] git push {} --delete {}".to_string()
+            GitOperation::PushAll { remote: _ } => "[working_dir] git push --all <remote>".to_string(),
+            GitOperation::PushTags { remote: _ } => "[working_dir] git push --tags <remote>".to_string(),
+            GitOperation::Pull { remote: _, branch: _ } => "[working_dir] git pull <remote> <branch>".to_string(),
+            GitOperation::Checkout { ref_name: _ } => "[working_dir] git checkout <ref>".to_string(),
+            GitOperation::DeleteBranch { branch: _ } => "[working_dir] git branch -d <branch>".to_string(),
+            GitOperation::RenameBranch { old: _, new: _ } => "[working_dir] git branch -m <old> <new>".to_string(),
+            GitOperation::DeleteRemoteBranch { remote: _, branch: _ } => {
+                "[working_dir] git push <remote> --delete <branch>".to_string()
             }
-            GitOperation::RenameRemote { old, new } => "[working_dir] git remote rename {} {}".to_string(),
-            GitOperation::PruneRemote { remote } => "[working_dir] git remote prune {}".to_string(),
-            GitOperation::SetUpstream { remote, branch } => {
+            GitOperation::RenameRemote { old: _, new: _ } => "[working_dir] git remote rename <old> <new>".to_string(),
+            GitOperation::PruneRemote { remote: _ } => "[working_dir] git remote prune <remote>".to_string(),
+            GitOperation::SetUpstream { remote: _, branch: _ } => {
                 "[working_dir] git branch --set-upstream-to {}/{}".to_string()
             }
             GitOperation::Gc => "[working_dir] git gc --aggressive".to_string(),
