@@ -87,14 +87,18 @@ impl GitOperation {
         if path == Path::new(".") {
             String::new()
         } else {
-            format!("[{}]", path.display())
+            path.display().to_string()
         }
     }
 
     pub fn description(&self) -> String {
         match self {
             GitOperation::Init { working_dir } => {
-                format!("git init{}", Self::format_working_dir(working_dir))
+                format!(
+                    "[{}] git init{}",
+                    working_dir.display(),
+                    Self::format_working_dir(working_dir)
+                )
             }
             GitOperation::Clone {
                 url,
@@ -102,32 +106,45 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git clone {} {}{}",
+                    "[{}] git clone {} {}{}",
+                    working_dir.display(),
                     url,
                     target_dir.display(),
                     Self::format_working_dir(working_dir)
                 )
             }
             GitOperation::Add { path, working_dir } => {
-                format!("git add {}{}", path, Self::format_working_dir(working_dir))
+                format!(
+                    "[{}] git add {}{}",
+                    working_dir.display(),
+                    path,
+                    Self::format_working_dir(working_dir)
+                )
             }
             GitOperation::Commit {
                 message,
                 working_dir,
             } => format!(
-                "git commit -m \"{}\"{}",
+                "[{}] git commit -m \"{}\"{}",
+                working_dir.display(),
                 message,
                 Self::format_working_dir(working_dir)
             ),
             GitOperation::CreateTag { tag, working_dir } => {
-                format!("git tag {}{}", tag, Self::format_working_dir(working_dir))
+                format!(
+                    "[{}] git tag {}{}",
+                    working_dir.display(),
+                    tag,
+                    Self::format_working_dir(working_dir)
+                )
             }
             GitOperation::PushTag {
                 remote,
                 tag,
                 working_dir,
             } => format!(
-                "git push {} {}{}",
+                "[{}] git push {} {}{}",
+                working_dir.display(),
                 remote,
                 tag,
                 Self::format_working_dir(working_dir)
@@ -138,7 +155,8 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git push {} {}{}",
+                    "[{}] git push {} {}{}",
+                    working_dir.display(),
                     remote,
                     branch,
                     Self::format_working_dir(working_dir)
@@ -148,7 +166,8 @@ impl GitOperation {
                 remote,
                 working_dir,
             } => format!(
-                "git push --all {}{}",
+                "[{}] git push --all {}{}",
+                working_dir.display(),
                 remote,
                 Self::format_working_dir(working_dir)
             ),
@@ -156,7 +175,8 @@ impl GitOperation {
                 remote,
                 working_dir,
             } => format!(
-                "git push --tags {}{}",
+                "[{}] git push --tags {}{}",
+                working_dir.display(),
                 remote,
                 Self::format_working_dir(working_dir)
             ),
@@ -165,7 +185,8 @@ impl GitOperation {
                 branch,
                 working_dir,
             } => format!(
-                "git pull {} {}{}",
+                "[{}] git pull {} {}{}",
+                working_dir.display(),
                 remote,
                 branch,
                 Self::format_working_dir(working_dir)
@@ -174,7 +195,8 @@ impl GitOperation {
                 ref_name,
                 working_dir,
             } => format!(
-                "git checkout {}{}",
+                "[{}] git checkout {}{}",
+                working_dir.display(),
                 ref_name,
                 Self::format_working_dir(working_dir)
             ),
@@ -182,7 +204,8 @@ impl GitOperation {
                 branch,
                 working_dir,
             } => format!(
-                "git branch -d {}{}",
+                "[{}] git branch -d {}{}",
+                working_dir.display(),
                 branch,
                 Self::format_working_dir(working_dir)
             ),
@@ -192,7 +215,8 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git branch -m {} {}{}",
+                    "[{}] git branch -m {} {}{}",
+                    working_dir.display(),
                     old,
                     new,
                     Self::format_working_dir(working_dir)
@@ -204,7 +228,8 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git push {} --delete {}{}",
+                    "[{}] git push {} --delete {}{}",
+                    working_dir.display(),
                     remote,
                     branch,
                     Self::format_working_dir(working_dir)
@@ -216,7 +241,8 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git remote rename {} {}{}",
+                    "[{}] git remote rename {} {}{}",
+                    working_dir.display(),
                     old,
                     new,
                     Self::format_working_dir(working_dir)
@@ -226,7 +252,8 @@ impl GitOperation {
                 remote,
                 working_dir,
             } => format!(
-                "git remote prune {}{}",
+                "[{}] git remote prune {}{}",
+                working_dir.display(),
                 remote,
                 Self::format_working_dir(working_dir)
             ),
@@ -236,7 +263,8 @@ impl GitOperation {
                 working_dir,
             } => {
                 format!(
-                    "git branch --set-upstream-to {}/{}{}",
+                    "[{}] git branch --set-upstream-to {}/{}{}",
+                    working_dir.display(),
                     remote,
                     branch,
                     Self::format_working_dir(working_dir)
@@ -244,7 +272,8 @@ impl GitOperation {
             }
             GitOperation::Gc { working_dir } => {
                 format!(
-                    "git gc --aggressive{}",
+                    "[{}] git gc --aggressive{}",
+                    working_dir.display(),
                     Self::format_working_dir(working_dir)
                 )
             }

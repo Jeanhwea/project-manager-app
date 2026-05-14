@@ -79,7 +79,16 @@ impl Output {
 
     pub fn cmd(cmd: &str) {
         let backend = TerminalBackend;
-        backend.print(&format!("{} {}", "==>".blue().bold(), cmd.yellow()));
+        if let Some((dir, rest)) = cmd.split_once(']') {
+            if let Some(command) = rest.strip_prefix(' ') {
+                backend.print(&format!("{} {}", "==>".blue().bold(), dir.blue().bold()));
+                backend.print(&format!("{} {}", " ", command.yellow()));
+            } else {
+                backend.print(&format!("{} {}", "==>".blue().bold(), cmd.yellow()));
+            }
+        } else {
+            backend.print(&format!("{} {}", "==>".blue().bold(), cmd.yellow()));
+        }
     }
 
     pub fn working_dir(path: &Path) {
