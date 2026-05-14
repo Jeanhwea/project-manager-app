@@ -17,10 +17,18 @@ pub struct SyncArgs {
     pub remote: Option<String>,
     #[arg(
         long,
+        short = 'A',
         default_value = "true",
         help = "Push to all remotes when no remote is specified"
     )]
     pub all_remotes: bool,
+    #[arg(
+        long,
+        short = 'a',
+        default_value = "false",
+        help = "Sync all branches before pulling (pull current branch first)"
+    )]
+    pub all_branches: bool,
     #[arg(
         long,
         default_value = "false",
@@ -34,6 +42,7 @@ pub(crate) struct SyncContext {
     git_ctx: GitContext,
     target_remotes: Vec<String>,
     should_push: bool,
+    sync_all_branches: bool,
 }
 
 impl MultiRepoCommand for SyncArgs {
@@ -47,6 +56,7 @@ impl MultiRepoCommand for SyncArgs {
                 git_ctx,
                 target_remotes: vec![],
                 should_push: false,
+                sync_all_branches: self.all_branches,
             });
         }
 
@@ -62,6 +72,7 @@ impl MultiRepoCommand for SyncArgs {
             git_ctx,
             target_remotes,
             should_push,
+            sync_all_branches: self.all_branches,
         })
     }
 
@@ -71,22 +82,69 @@ impl MultiRepoCommand for SyncArgs {
         }
 
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
-        let branch = ctx.git_ctx.current_branch.clone();
+        let current_branch = &ctx.git_ctx.current_branch;
+
+        if ctx.sync_all_branches {
+            let other_branches: Vec<&crate::model::git::Branch> = ctx
+                .git_ctx
+                .local_branches()
+                .iter()
+                .filter(|b| b.name != current_branch.as_str())
+                .cloned()
+                .collect();
+
+            if !other_branches.is_empty() {
+                plan.add(MessageOperation::Header {
+                    title: "同步所有本地分支".to_string(),
+                });
+
+                for branch in &other_branches {
+                    for remote in &ctx.target_remotes {
+                        if ctx.git_ctx.has_remote_branch(remote, &branch.name) {
+                            plan.add(GitOperation::Checkout {
+                                ref_name: branch.name.clone(),
+                                working_dir: repo_path.to_path_buf(),
+                            });
+                            plan.add(GitOperation::Pull {
+                                remote: remote.clone(),
+                                branch: branch.name.clone(),
+                                working_dir: repo_path.to_path_buf(),
+                            });
+                        } else {
+                            plan.add(MessageOperation::Skip {
+                                msg: format!("跳过 {} (远程无此分支)", branch.name),
+                            });
+                        }
+                    }
+                }
+
+                plan.add(GitOperation::Checkout {
+                    ref_name: current_branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
+                });
+            }
+        }
+
+        plan.add(MessageOperation::Header {
+            title: "同步当前分支".to_string(),
+        });
 
         for remote in &ctx.target_remotes {
-            if ctx.git_ctx.has_remote_branch(remote, &branch) {
+            if ctx.git_ctx.has_remote_branch(remote, current_branch) {
                 plan.add(GitOperation::Pull {
                     remote: remote.clone(),
-                    branch: branch.clone(),
+                    branch: current_branch.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
             } else {
                 plan.add(MessageOperation::Skip {
-                    msg: format!("跳过拉取 {}/{} (远程无此分支)", remote, branch),
+                    msg: format!("跳过拉取 {}/{} (远程无此分支)", remote, current_branch),
                 });
             }
+        }
 
-            if ctx.should_push {
+        if ctx.should_push {
+            for remote in &ctx.target_remotes {
                 plan.add(GitOperation::PushAll {
                     remote: remote.clone(),
                     working_dir: repo_path.to_path_buf(),
@@ -95,7 +153,9 @@ impl MultiRepoCommand for SyncArgs {
                     remote: remote.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
-            } else {
+            }
+        } else {
+            for remote in &ctx.target_remotes {
                 plan.add(MessageOperation::Skip {
                     msg: format!("跳过推送到 {} (配置 skip_push_remotes)", remote),
                 });
