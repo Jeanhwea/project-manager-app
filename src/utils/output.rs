@@ -81,8 +81,7 @@ impl Output {
         let backend = TerminalBackend;
         if let Some((dir, rest)) = cmd.split_once(']') {
             if let Some(command) = rest.strip_prefix(' ') {
-                backend.print(&format!("{} {}", "==>".blue().bold(), dir.blue().bold()));
-                backend.print(&format!("{} {}", " ", command.yellow()));
+                backend.print(&format!("{} {} {}", "==>".blue().bold(), (dir.to_string() + "]").blue().bold(), command.yellow()));
             } else {
                 backend.print(&format!("{} {}", "==>".blue().bold(), cmd.yellow()));
             }
