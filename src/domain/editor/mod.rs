@@ -64,7 +64,6 @@ pub trait FileEditor: Send + Sync {
                 let replaced = pattern.replace("{parent}", parent_dir);
                 file_name == replaced || path.ends_with(&replaced)
             } else if pattern.contains("{}") {
-                // Handle {} pattern for directory matching
                 if let Some(parent) = path.parent() {
                     let parent_name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("");
                     let replaced = pattern.replace("{}", parent_name);

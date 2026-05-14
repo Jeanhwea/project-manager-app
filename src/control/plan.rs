@@ -9,7 +9,12 @@ use crate::utils::output::Output;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
     if plan.dry_run {
-        Output::dry_run_header("将要执行的操作:");
+        let count = plan
+            .operations
+            .iter()
+            .filter(|op| !matches!(op, Operation::Message(_)))
+            .count();
+        Output::dry_run_header(&format!("将要执行的操作 ({} 条):", count));
         display_plan(plan);
         return Ok(());
     }
@@ -86,8 +91,6 @@ fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
 }
 
 pub fn display_plan(plan: &ExecutionPlan) {
-    use colored::Colorize;
-
     if plan.operations.is_empty() {
         Output::skip("无操作");
         return;
@@ -115,33 +118,30 @@ pub fn display_plan(plan: &ExecutionPlan) {
                 {
                     Output::message(&format!("@@ -{} +{} @@", line_num, line_num));
                 }
-                println!("-{}", old_content.red());
-                println!("+{}", new_content.green());
+                Output::diff_old(old_content);
+                Output::diff_new(new_content);
                 last_diff_file = Some(file);
                 last_diff_line = Some(*line_num);
             }
             Operation::Message(msg_op) => execute_message(msg_op),
-            _ => Output::message(&op.description()),
+            _ => Output::dry_cmd(&op.description()),
         }
     }
 }
 
 fn execute_message(op: &MessageOperation) {
-    use colored::Colorize;
     match op {
         MessageOperation::Header { title } => Output::header(title),
         MessageOperation::Section { title } => Output::section(title),
         MessageOperation::Item { label, value } => Output::item(label, value),
         MessageOperation::Detail { label, value } => Output::detail(label, value),
         MessageOperation::Diff {
-            file: _,
-            line_num,
             old_content,
             new_content,
+            ..
         } => {
-            println!("-{}", old_content.red());
-            println!("+{}", new_content.green());
-            let _ = line_num;
+            Output::diff_old(old_content);
+            Output::diff_new(new_content);
         }
         MessageOperation::Success { msg } => Output::success(msg),
         MessageOperation::Warning { msg } => Output::warning(msg),

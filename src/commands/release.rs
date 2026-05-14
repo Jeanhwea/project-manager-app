@@ -181,7 +181,6 @@ fn build_execution_plan(
         });
     }
 
-    // Handle the case where tag already exists
     plan.add(GitOperation::CreateTag {
         tag: state.new_tag.clone(),
         working_dir: PathBuf::from("."),
