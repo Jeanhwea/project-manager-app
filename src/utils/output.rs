@@ -82,6 +82,12 @@ impl Output {
         backend.print(&format!("{} {}", "==>".blue().bold(), cmd.yellow()));
     }
 
+    pub fn working_dir(path: &Path) {
+        let backend = TerminalBackend;
+        let path_str = crate::utils::path::format_path(path);
+        backend.print(&format!("   in {}", path_str.dimmed()));
+    }
+
     pub fn item(label: &str, value: &str) {
         let backend = TerminalBackend;
         let padded = format!("{:<width$}", label, width = SYMBOL_WIDTH);

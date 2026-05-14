@@ -6,6 +6,7 @@ use crate::model::plan::{
     ShellOperation,
 };
 use crate::utils::output::Output;
+use std::path::Path;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
     if plan.dry_run {
@@ -30,6 +31,40 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn get_working_dir(op: &Operation) -> Option<&Path> {
+    match op {
+        Operation::Git(git_op) => match git_op {
+            GitOperation::Init { working_dir }
+            | GitOperation::Clone { working_dir, .. }
+            | GitOperation::Add { working_dir, .. }
+            | GitOperation::Commit { working_dir, .. }
+            | GitOperation::CreateTag { working_dir, .. }
+            | GitOperation::PushTag { working_dir, .. }
+            | GitOperation::PushBranch { working_dir, .. }
+            | GitOperation::PushAll { working_dir, .. }
+            | GitOperation::PushTags { working_dir, .. }
+            | GitOperation::Pull { working_dir, .. }
+            | GitOperation::Checkout { working_dir, .. }
+            | GitOperation::DeleteBranch { working_dir, .. }
+            | GitOperation::RenameBranch { working_dir, .. }
+            | GitOperation::DeleteRemoteBranch { working_dir, .. }
+            | GitOperation::RenameRemote { working_dir, .. }
+            | GitOperation::PruneRemote { working_dir, .. }
+            | GitOperation::SetUpstream { working_dir, .. }
+            | GitOperation::Gc { working_dir } => Some(working_dir),
+        },
+        Operation::Shell(shell_op) => match shell_op {
+            ShellOperation::Run { dir, .. } => dir.as_deref(),
+        },
+        Operation::Edit(edit_op) => match edit_op {
+            EditOperation::WriteFile { .. } => None,
+            EditOperation::CopyDir { .. } => None,
+        },
+        Operation::SelfUpdate(_) => None,
+        Operation::Message(_) => None,
+    }
 }
 
 fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
@@ -121,7 +156,12 @@ pub fn display_plan(plan: &ExecutionPlan) {
                 last_diff_line = Some(*line_num);
             }
             Operation::Message(msg_op) => execute_message(msg_op),
-            _ => Output::message(&op.description()),
+            _ => {
+                Output::message(&op.description());
+                if let Some(dir) = get_working_dir(op) {
+                    Output::working_dir(dir);
+                }
+            }
         }
     }
 }

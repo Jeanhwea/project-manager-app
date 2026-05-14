@@ -87,7 +87,7 @@ impl GitOperation {
         if path == Path::new(".") {
             String::new()
         } else {
-            format!(" in {}", path.display())
+            format!("[{}]", path.display())
         }
     }
 
