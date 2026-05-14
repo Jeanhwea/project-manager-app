@@ -3,7 +3,7 @@ use crate::control::command::MultiRepoCommand;
 use crate::domain::git::GitCommandRunner;
 use crate::domain::git::collect_context;
 use crate::error::Result;
-use crate::model::git::GitContext;
+use crate::model::git::{Branch, GitContext};
 use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
 use std::path::Path;
 
@@ -17,6 +17,8 @@ pub enum BranchArgs {
     Switch(BranchSwitchArgs),
     #[command(visible_alias = "rn")]
     Rename(BranchRenameArgs),
+    #[command(visible_alias = "a")]
+    All(BranchAllArgs),
 }
 
 #[derive(Debug, clap::Args)]
@@ -70,6 +72,12 @@ pub struct BranchRenameArgs {
     pub repo_path: RepoPathArgs,
 }
 
+#[derive(Debug, clap::Args)]
+pub struct BranchAllArgs {
+    #[command(flatten)]
+    pub repo_path: RepoPathArgs,
+}
+
 #[derive(Debug)]
 pub(crate) struct BranchListContext {
     git_ctx: GitContext,
@@ -90,6 +98,11 @@ pub(crate) struct BranchSwitchContext {
 #[derive(Debug)]
 pub(crate) struct BranchRenameContext {
     exists: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct BranchAllContext {
+    git_ctx: GitContext,
 }
 
 impl MultiRepoCommand for BranchListArgs {
@@ -245,12 +258,89 @@ impl MultiRepoCommand for BranchRenameArgs {
     }
 }
 
+impl MultiRepoCommand for BranchAllArgs {
+    type Context = BranchAllContext;
+
+    fn context(&self, repo_path: &Path) -> Result<BranchAllContext> {
+        let git_ctx = collect_context(repo_path)?;
+        Ok(BranchAllContext { git_ctx })
+    }
+
+    fn plan(&self, ctx: &BranchAllContext, repo_path: &Path) -> Result<ExecutionPlan> {
+        let mut plan = ExecutionPlan::new();
+        let current_branch = &ctx.git_ctx.current_branch;
+
+        // 获取所有本地分支（排除当前分支）
+        let other_branches: Vec<&Branch> = ctx
+            .git_ctx
+            .local_branches()
+            .iter()
+            .filter(|b| b.name != current_branch.as_str())
+            .cloned()
+            .collect();
+
+        if other_branches.is_empty() {
+            plan.add(MessageOperation::Skip {
+                msg: "没有其他本地分支需要处理".to_string(),
+            });
+            return Ok(plan);
+        }
+
+        // 获取首选远端（如果有）
+        let preferred_remote = ctx.git_ctx.preferred_remote();
+
+        for branch in &other_branches {
+            // 切换到该分支
+            plan.add(GitOperation::Checkout {
+                ref_name: branch.name.clone(),
+                working_dir: repo_path.to_path_buf(),
+            });
+
+            // 如果有绑定远端，执行 pull
+            if let Some(ref remote) = preferred_remote {
+                if ctx.git_ctx.has_remote_branch(remote, &branch.name) {
+                    plan.add(GitOperation::Pull {
+                        remote: remote.clone(),
+                        branch: branch.name.clone(),
+                        working_dir: repo_path.to_path_buf(),
+                    });
+                } else {
+                    plan.add(MessageOperation::Skip {
+                        msg: format!("跳过拉取 {}/{} (远程无此分支)", remote, branch.name),
+                    });
+                }
+            } else {
+                plan.add(MessageOperation::Skip {
+                    msg: format!("跳过拉取 {} (无绑定远端)", branch.name),
+                });
+            }
+        }
+
+        // 切换回原分支
+        plan.add(GitOperation::Checkout {
+            ref_name: current_branch.clone(),
+            working_dir: repo_path.to_path_buf(),
+        });
+
+        plan.add(MessageOperation::Success {
+            msg: format!(
+                "已处理 {} 个分支，当前分支: {}",
+                other_branches.len(),
+                current_branch
+            ),
+        });
+
+        Ok(plan)
+    }
+}
+
 pub fn run(args: BranchArgs) -> Result<()> {
     match args {
         BranchArgs::List(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
         BranchArgs::Clean(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
         BranchArgs::Switch(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
         BranchArgs::Rename(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
+        BranchArgs::All(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
     }
 }
 
