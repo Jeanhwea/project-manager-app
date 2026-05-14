@@ -6,11 +6,15 @@ use crate::model::plan::{
     ShellOperation,
 };
 use crate::utils::output::Output;
-use std::path::Path;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
     if plan.dry_run {
-        Output::dry_run_header("将要执行的操作:");
+        let count = plan
+            .operations
+            .iter()
+            .filter(|op| !matches!(op, Operation::Message(_)))
+            .count();
+        Output::dry_run_header(&format!("将要执行的操作 ({} 条):", count));
         display_plan(plan);
         return Ok(());
     }
@@ -31,40 +35,6 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn get_working_dir(op: &Operation) -> Option<&Path> {
-    match op {
-        Operation::Git(git_op) => match git_op {
-            GitOperation::Init { working_dir }
-            | GitOperation::Clone { working_dir, .. }
-            | GitOperation::Add { working_dir, .. }
-            | GitOperation::Commit { working_dir, .. }
-            | GitOperation::CreateTag { working_dir, .. }
-            | GitOperation::PushTag { working_dir, .. }
-            | GitOperation::PushBranch { working_dir, .. }
-            | GitOperation::PushAll { working_dir, .. }
-            | GitOperation::PushTags { working_dir, .. }
-            | GitOperation::Pull { working_dir, .. }
-            | GitOperation::Checkout { working_dir, .. }
-            | GitOperation::DeleteBranch { working_dir, .. }
-            | GitOperation::RenameBranch { working_dir, .. }
-            | GitOperation::DeleteRemoteBranch { working_dir, .. }
-            | GitOperation::RenameRemote { working_dir, .. }
-            | GitOperation::PruneRemote { working_dir, .. }
-            | GitOperation::SetUpstream { working_dir, .. }
-            | GitOperation::Gc { working_dir } => Some(working_dir),
-        },
-        Operation::Shell(shell_op) => match shell_op {
-            ShellOperation::Run { dir, .. } => dir.as_deref(),
-        },
-        Operation::Edit(edit_op) => match edit_op {
-            EditOperation::WriteFile { .. } => None,
-            EditOperation::CopyDir { .. } => None,
-        },
-        Operation::SelfUpdate(_) => None,
-        Operation::Message(_) => None,
-    }
 }
 
 fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
@@ -121,8 +91,6 @@ fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
 }
 
 pub fn display_plan(plan: &ExecutionPlan) {
-    use colored::Colorize;
-
     if plan.operations.is_empty() {
         Output::skip("无操作");
         return;
@@ -150,38 +118,30 @@ pub fn display_plan(plan: &ExecutionPlan) {
                 {
                     Output::message(&format!("@@ -{} +{} @@", line_num, line_num));
                 }
-                println!("-{}", old_content.red());
-                println!("+{}", new_content.green());
+                Output::diff_old(old_content);
+                Output::diff_new(new_content);
                 last_diff_file = Some(file);
                 last_diff_line = Some(*line_num);
             }
             Operation::Message(msg_op) => execute_message(msg_op),
-            _ => {
-                Output::message(&op.description());
-                if let Some(dir) = get_working_dir(op) {
-                    Output::working_dir(dir);
-                }
-            }
+            _ => Output::cmd(&op.description()),
         }
     }
 }
 
 fn execute_message(op: &MessageOperation) {
-    use colored::Colorize;
     match op {
         MessageOperation::Header { title } => Output::header(title),
         MessageOperation::Section { title } => Output::section(title),
         MessageOperation::Item { label, value } => Output::item(label, value),
         MessageOperation::Detail { label, value } => Output::detail(label, value),
         MessageOperation::Diff {
-            file: _,
-            line_num,
             old_content,
             new_content,
+            ..
         } => {
-            println!("-{}", old_content.red());
-            println!("+{}", new_content.green());
-            let _ = line_num;
+            Output::diff_old(old_content);
+            Output::diff_new(new_content);
         }
         MessageOperation::Success { msg } => Output::success(msg),
         MessageOperation::Warning { msg } => Output::warning(msg),

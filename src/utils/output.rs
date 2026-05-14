@@ -86,17 +86,20 @@ impl Output {
         Self::print(&format!("{} {}", padded, value));
     }
 
-    pub fn working_dir(path: &Path) {
-        let path_str = crate::utils::path::format_path(path);
-        Self::print(&format!("   in {}", path_str.dimmed()));
-    }
-
     pub fn message(msg: &str) {
         Self::print(msg);
     }
 
     pub fn blank() {
         Self::print("");
+    }
+
+    pub fn diff_old(line: &str) {
+        Self::print(&format!("-{}", line.red()));
+    }
+
+    pub fn diff_new(line: &str) {
+        Self::print(&format!("+{}", line.green()));
     }
 
     pub fn dry_run_header(msg: &str) {
