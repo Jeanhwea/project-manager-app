@@ -10,6 +10,24 @@ pub struct AppConfig {
     pub sync: SyncConfig,
 }
 
+impl AppConfig {
+    pub fn repository_max_depth(&self) -> usize {
+        self.repository.max_depth
+    }
+
+    pub fn repository_skip_dirs(&self) -> &[String] {
+        &self.repository.skip_dirs
+    }
+
+    pub fn remote_rules(&self) -> &[RemoteRule] {
+        &self.remote.rules
+    }
+
+    pub fn sync_skip_push_remotes(&self) -> &[String] {
+        &self.sync.skip_push_remotes
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepositoryConfig {
     #[serde(default = "default_max_depth")]
