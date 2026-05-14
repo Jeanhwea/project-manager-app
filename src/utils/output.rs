@@ -35,7 +35,22 @@ impl Output {
         Self::print(&format!("{} {}", progress, path_str));
     }
 
+    fn strip_dir(cmd: &str) -> &str {
+        if let Some((_, rest)) = cmd.split_once(']')
+            && let Some(command) = rest.strip_prefix(' ')
+        {
+            command
+        } else {
+            cmd
+        }
+    }
+
     pub fn cmd(cmd: &str) {
+        let command = Self::strip_dir(cmd);
+        Self::print(&format!("{} {}", ARROW_OUT.blue().bold(), command.yellow()));
+    }
+
+    pub fn dry_cmd(cmd: &str) {
         let arrow = ARROW_OUT.blue().bold().to_string();
         let body = if let Some((dir, rest)) = cmd.split_once(']')
             && let Some(command) = rest.strip_prefix(' ')

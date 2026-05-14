@@ -124,7 +124,7 @@ pub fn display_plan(plan: &ExecutionPlan) {
                 last_diff_line = Some(*line_num);
             }
             Operation::Message(msg_op) => execute_message(msg_op),
-            _ => Output::cmd(&op.description()),
+            _ => Output::dry_cmd(&op.description()),
         }
     }
 }
