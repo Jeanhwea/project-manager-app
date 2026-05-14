@@ -1,137 +1,107 @@
 use colored::Colorize;
 use std::path::Path;
 
-const SYMBOL_WIDTH: usize = 6;
-
-fn tag_box(label: &str, color: colored::Color) -> String {
-    format!("[{}]", label).color(color).bold().to_string()
-}
-
-pub trait OutputBackend {
-    fn print(&self, msg: &str);
-}
-
-pub struct TerminalBackend;
-
-impl OutputBackend for TerminalBackend {
-    fn print(&self, msg: &str) {
-        println!("{}", msg);
-    }
-}
+const LABEL_WIDTH: usize = 6;
+const HEADER_WIDTH: usize = 60;
+const ARROW_IN: &str = "<==";
+const ARROW_OUT: &str = "==>";
 
 pub struct Output;
 
 impl Output {
+    fn print(msg: &str) {
+        println!("{}", msg);
+    }
+
     pub fn header(title: &str) {
-        let backend = TerminalBackend;
-        backend.print("");
         let line = format!("== {} ", title);
-        let padding = 60usize.saturating_sub(line.len());
-        backend.print(&format!(
-            "{}{}",
-            line.green().bold(),
-            "=".repeat(padding).green().bold()
-        ));
+        let fill = "=".repeat(HEADER_WIDTH.saturating_sub(line.len()));
+        Self::print("");
+        Self::print(&format!("{}{}", line.green().bold(), fill.green().bold()));
     }
 
     pub fn section(title: &str) {
-        let backend = TerminalBackend;
-        backend.print("");
-        backend.print(&format!("--- {} ---", title).cyan().bold().to_string());
+        Self::print("");
+        Self::print(&format!("--- {} ---", title).cyan().bold().to_string());
     }
 
     pub fn repo_header(index: usize, total: usize, path: &Path) {
-        let backend = TerminalBackend;
-        backend.print("");
-        let progress = format!("[{}/{}]", index, total);
-        let path_str = crate::utils::path::format_path(path);
-        backend.print(&format!(
-            "{} {}",
-            progress.white().bold(),
-            path_str.cyan().underline()
-        ));
-    }
-
-    pub fn success(msg: &str) {
-        let backend = TerminalBackend;
-        backend.print(&format!("{} {}", "<==".green().bold(), msg.green()));
-    }
-
-    pub fn error(msg: &str) {
-        let backend = TerminalBackend;
-        backend.print(&format!("{} {}", "<==".red().bold(), msg.red()));
-    }
-
-    pub fn warning(msg: &str) {
-        let backend = TerminalBackend;
-        backend.print(&format!("{} {}", "<==".yellow().bold(), msg.yellow()));
-    }
-
-    pub fn info(msg: &str) {
-        let backend = TerminalBackend;
-        backend.print(&format!("{} {}", "<==".cyan().bold(), msg));
-    }
-
-    pub fn skip(msg: &str) {
-        let backend = TerminalBackend;
-        backend.print(&format!("{} {}", "<==".dimmed(), msg.dimmed()));
+        let progress = format!("[{}/{}]", index, total).white().bold().to_string();
+        let path_str = crate::utils::path::format_path(path)
+            .cyan()
+            .underline()
+            .to_string();
+        Self::print("");
+        Self::print(&format!("{} {}", progress, path_str));
     }
 
     pub fn cmd(cmd: &str) {
-        let backend = TerminalBackend;
-        if let Some((dir, rest)) = cmd.split_once(']') {
-            if let Some(command) = rest.strip_prefix(' ') {
-                backend.print(&format!(
-                    "{} {} {}",
-                    "==>".blue().bold(),
-                    (dir.to_string() + "]").blue().bold(),
-                    command.yellow()
-                ));
-            } else {
-                backend.print(&format!("{} {}", "==>".blue().bold(), cmd.yellow()));
-            }
+        let arrow = ARROW_OUT.blue().bold().to_string();
+        let body = if let Some((dir, rest)) = cmd.split_once(']')
+            && let Some(command) = rest.strip_prefix(' ')
+        {
+            format!("{} {}", format!("{}]", dir).blue().bold(), command.yellow())
         } else {
-            backend.print(&format!("{} {}", "==>".blue().bold(), cmd.yellow()));
-        }
+            cmd.yellow().to_string()
+        };
+        Self::print(&format!("{} {}", arrow, body));
     }
 
-    pub fn working_dir(path: &Path) {
-        let backend = TerminalBackend;
-        let path_str = crate::utils::path::format_path(path);
-        backend.print(&format!("   in {}", path_str.dimmed()));
+    pub fn success(msg: &str) {
+        Self::print(&format!("{} {}", ARROW_IN.green().bold(), msg.green()));
     }
 
-    pub fn item(label: &str, value: &str) {
-        let backend = TerminalBackend;
-        let padded = format!("{:<width$}", label, width = SYMBOL_WIDTH);
-        backend.print(&format!("{} {}", padded.green().bold(), value.yellow()));
+    pub fn error(msg: &str) {
+        Self::print(&format!("{} {}", ARROW_IN.red().bold(), msg.red()));
     }
 
-    pub fn detail(label: &str, value: &str) {
-        let backend = TerminalBackend;
-        let padded = format!("{:<width$}", label, width = SYMBOL_WIDTH + 2);
-        backend.print(&format!("{} {}", padded.dimmed(), value));
-    }
-
-    pub fn message(msg: &str) {
-        let backend = TerminalBackend;
-        backend.print(msg);
-    }
-
-    pub fn blank() {
-        let backend = TerminalBackend;
-        backend.print("");
-    }
-
-    pub fn dry_run_header(msg: &str) {
-        let backend = TerminalBackend;
-        backend.print("");
-        let tag = tag_box("DRY", colored::Color::Magenta);
-        backend.print(&format!("{} {}", tag, msg.cyan().bold()));
+    pub fn warning(msg: &str) {
+        Self::print(&format!("{} {}", ARROW_IN.yellow().bold(), msg.yellow()));
     }
 
     pub fn not_found(msg: &str) {
-        let backend = TerminalBackend;
-        backend.print(&format!("{} {}", "<==".yellow().bold(), msg.yellow()));
+        Self::warning(msg);
+    }
+
+    pub fn info(msg: &str) {
+        Self::print(&format!("{} {}", ARROW_IN.cyan().bold(), msg));
+    }
+
+    pub fn skip(msg: &str) {
+        Self::print(&format!("{} {}", ARROW_IN.dimmed(), msg.dimmed()));
+    }
+
+    pub fn item(label: &str, value: &str) {
+        let padded = format!("{:<width$}", label, width = LABEL_WIDTH)
+            .green()
+            .bold()
+            .to_string();
+        Self::print(&format!("{} {}", padded, value.yellow()));
+    }
+
+    pub fn detail(label: &str, value: &str) {
+        let padded = format!("{:<width$}", label, width = LABEL_WIDTH + 2)
+            .dimmed()
+            .to_string();
+        Self::print(&format!("{} {}", padded, value));
+    }
+
+    pub fn working_dir(path: &Path) {
+        let path_str = crate::utils::path::format_path(path);
+        Self::print(&format!("   in {}", path_str.dimmed()));
+    }
+
+    pub fn message(msg: &str) {
+        Self::print(msg);
+    }
+
+    pub fn blank() {
+        Self::print("");
+    }
+
+    pub fn dry_run_header(msg: &str) {
+        let tag = "[DRY]".magenta().bold().to_string();
+        Self::print("");
+        Self::print(&format!("{} {}", tag, msg.cyan().bold()));
     }
 }
