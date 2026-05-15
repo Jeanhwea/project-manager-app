@@ -285,9 +285,12 @@ pub enum MessageOperation {
     },
     Diff {
         file: String,
-        line_num: usize,
-        old_content: String,
-        new_content: String,
+        old_start: usize,
+        new_start: usize,
+        old_lines: Vec<String>,
+        new_lines: Vec<String>,
+        old_count: usize,
+        new_count: usize,
     },
     Success {
         msg: String,
@@ -310,13 +313,33 @@ impl MessageOperation {
             MessageOperation::Detail { label, value } => format!("  {}: {}", label, value),
             MessageOperation::Diff {
                 file,
-                line_num,
-                old_content,
-                new_content,
-            } => format!(
-                "{} L{} -:  {}\n{} L{} +:  {}",
-                file, line_num, old_content, file, line_num, new_content
-            ),
+                old_start,
+                new_start,
+                old_lines,
+                new_lines,
+                old_count,
+                new_count,
+            } => {
+                let mut diff_lines = vec![
+                    format!("diff --git a/{} b/{}", file, file),
+                    format!("--- a/{}", file),
+                    format!("+++ b/{}", file),
+                    format!(
+                        "@@ -{},{} +{},{} @@",
+                        old_start, old_count, new_start, new_count
+                    ),
+                ];
+
+                for line in old_lines {
+                    diff_lines.push(format!("-{}", line));
+                }
+
+                for line in new_lines {
+                    diff_lines.push(format!("+{}", line));
+                }
+
+                diff_lines.join("\n")
+            }
             MessageOperation::Success { msg } => format!("OK> {}", msg),
             MessageOperation::Warning { msg } => format!("WARN {}", msg),
             MessageOperation::Skip { msg } => format!("SKIP {}", msg),
@@ -434,12 +457,15 @@ mod tests {
     fn message_diff_description_includes_file_and_line_numbers() {
         let diff = MessageOperation::Diff {
             file: "pyproject.toml".to_string(),
-            line_num: 3,
-            old_content: "version = \"1.4.10\"".to_string(),
-            new_content: "version = \"1.5.0\"".to_string(),
+            old_start: 3,
+            new_start: 3,
+            old_lines: vec!["version = \"1.4.10\"".to_string()],
+            new_lines: vec!["version = \"1.5.0\"".to_string()],
+            old_count: 1,
+            new_count: 1,
         };
 
-        let expected = "pyproject.toml L3 -:  version = \"1.4.10\"\npyproject.toml L3 +:  version = \"1.5.0\"";
+        let expected = "diff --git a/pyproject.toml b/pyproject.toml\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -3,1 +3,1 @@\n-version = \"1.4.10\"\n+version = \"1.5.0\"";
         assert_eq!(diff.description(), expected);
     }
 }
