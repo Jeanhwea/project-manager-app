@@ -118,12 +118,12 @@ pub fn display_plan(plan: &ExecutionPlan) {
 
                 // Print old lines
                 for line in old_lines {
-                    Output::diff_old(&line);
+                    Output::diff_old(line);
                 }
 
                 // Print new lines
                 for line in new_lines {
-                    Output::diff_new(&line);
+                    Output::diff_new(line);
                 }
             }
             Operation::Message(msg_op) => execute_message(msg_op),
@@ -144,10 +144,10 @@ fn execute_message(op: &MessageOperation) {
             ..
         } => {
             for line in old_lines {
-                Output::diff_old(&line);
+                Output::diff_old(line);
             }
             for line in new_lines {
-                Output::diff_new(&line);
+                Output::diff_new(line);
             }
         }
         MessageOperation::Success { msg } => Output::success(msg),
