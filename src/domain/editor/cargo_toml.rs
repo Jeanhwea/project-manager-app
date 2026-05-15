@@ -34,6 +34,10 @@ impl FileEditor for CargoTomlEditor {
         &["Cargo.toml"]
     }
 
+    fn candidate_files(&self) -> Vec<&str> {
+        vec!["Cargo.toml", "src-tauri/Cargo.toml"]
+    }
+
     fn find_version(&self, content: &str) -> Option<VersionPosition> {
         Self::find_version_position(content)
     }

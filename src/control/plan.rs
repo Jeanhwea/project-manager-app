@@ -96,32 +96,35 @@ pub fn display_plan(plan: &ExecutionPlan) {
         return;
     }
 
-    let mut last_diff_file: Option<&str> = None;
-    let mut last_diff_line: Option<usize> = None;
-
     for op in &plan.operations {
         match op {
             Operation::Message(MessageOperation::Diff {
                 file,
-                line_num,
-                old_content,
-                new_content,
+                old_start,
+                new_start,
+                old_lines,
+                new_lines,
+                old_count,
+                new_count,
             }) => {
-                if last_diff_file != Some(file.as_str()) {
-                    Output::message(&format!("diff --git a/{} b/{}", file, file));
-                    Output::message(&format!("--- a/{}", file));
-                    Output::message(&format!("+++ b/{}", file));
-                    Output::message(&format!("@@ -{} +{} @@", line_num, line_num));
-                } else if last_diff_line
-                    .map(|prev| prev + 1 != *line_num)
-                    .unwrap_or(true)
-                {
-                    Output::message(&format!("@@ -{} +{} @@", line_num, line_num));
+                // Print diff header if it's a new file
+                Output::message(&format!("diff --git a/{} b/{}", file, file));
+                Output::message(&format!("--- a/{}", file));
+                Output::message(&format!("+++ b/{}", file));
+                Output::message(&format!(
+                    "@@ -{},{} +{},{} @@",
+                    old_start, old_count, new_start, new_count
+                ));
+
+                // Print old lines
+                for line in old_lines {
+                    Output::diff_old(line);
                 }
-                Output::diff_old(old_content);
-                Output::diff_new(new_content);
-                last_diff_file = Some(file);
-                last_diff_line = Some(*line_num);
+
+                // Print new lines
+                for line in new_lines {
+                    Output::diff_new(line);
+                }
             }
             Operation::Message(msg_op) => execute_message(msg_op),
             _ => Output::dry_cmd(&op.description()),
@@ -136,12 +139,16 @@ fn execute_message(op: &MessageOperation) {
         MessageOperation::Item { label, value } => Output::item(label, value),
         MessageOperation::Detail { label, value } => Output::detail(label, value),
         MessageOperation::Diff {
-            old_content,
-            new_content,
+            old_lines,
+            new_lines,
             ..
         } => {
-            Output::diff_old(old_content);
-            Output::diff_new(new_content);
+            for line in old_lines {
+                Output::diff_old(line);
+            }
+            for line in new_lines {
+                Output::diff_new(line);
+            }
         }
         MessageOperation::Success { msg } => Output::success(msg),
         MessageOperation::Warning { msg } => Output::warning(msg),

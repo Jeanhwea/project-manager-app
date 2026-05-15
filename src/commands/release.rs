@@ -152,17 +152,26 @@ fn build_execution_plan(
                 description: format!("edit {}", file_path),
             });
 
-            for (line_num, (old_line, new_line)) in
+            // Collect all changed lines for a single diff operation
+            let mut changed_lines: Vec<(String, String)> = Vec::new();
+            for (_line_num, (old_line, new_line)) in
                 (1..).zip(old_lines.iter().zip(new_lines.iter()))
             {
                 if old_line != new_line {
-                    plan.add(MessageOperation::Diff {
-                        file: file_path.clone(),
-                        line_num,
-                        old_content: old_line.to_string(),
-                        new_content: new_line.to_string(),
-                    });
+                    changed_lines.push((old_line.to_string(), new_line.to_string()));
                 }
+            }
+
+            if !changed_lines.is_empty() {
+                plan.add(MessageOperation::Diff {
+                    file: file_path.clone(),
+                    old_start: 1,
+                    new_start: 1,
+                    old_lines: changed_lines.iter().map(|(old, _)| old.clone()).collect(),
+                    new_lines: changed_lines.iter().map(|(_, new)| new.clone()).collect(),
+                    old_count: changed_lines.len(),
+                    new_count: changed_lines.len(),
+                });
             }
 
             add_lockfile_operations(&mut plan, file_path);
