@@ -10,7 +10,9 @@ mod tauri_conf;
 mod version_bump;
 mod version_text;
 
-pub use detect::{add_lockfile_operations, compute_edited_content, resolve_config_files};
+pub use detect::{
+    add_lockfile_operations, compute_edited_content, detect_config_files, resolve_config_files,
+};
 
 use cargo_toml::CargoTomlEditor;
 use cmake::CMakeListsEditor;
