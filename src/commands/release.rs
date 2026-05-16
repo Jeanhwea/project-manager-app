@@ -6,7 +6,7 @@ use crate::domain::editor::{
 use crate::domain::git::{
     ReleaseGitState, collect_context, resolve_git_root, validate_git_state,
 };
-use crate::domain::project_config::ProjectConfig;
+use crate::domain::project_config;
 use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
@@ -67,7 +67,7 @@ impl Command for ReleaseArgs {
         };
 
         let cli_files = if self.files.is_empty() {
-            ProjectConfig::load(&work_dir)
+            project_config::load(&work_dir)
                 .map(|c| c.files)
                 .unwrap_or_default()
         } else {
