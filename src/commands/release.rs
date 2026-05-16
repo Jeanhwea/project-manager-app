@@ -6,6 +6,7 @@ use crate::domain::editor::{
 use crate::domain::git::{
     ReleaseGitState, collect_context, resolve_git_root, validate_git_state,
 };
+use crate::domain::project_config::ProjectConfig;
 use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
@@ -65,7 +66,15 @@ impl Command for ReleaseArgs {
             resolve_git_root()?
         };
 
-        let resolved_files = resolve_file_paths(&self.files, &work_dir);
+        let cli_files = if self.files.is_empty() {
+            ProjectConfig::load(&work_dir)
+                .map(|c| c.files)
+                .unwrap_or_default()
+        } else {
+            self.files.clone()
+        };
+
+        let resolved_files = resolve_file_paths(&cli_files, &work_dir);
 
         let git_ctx = collect_context(&work_dir)?;
         let state = validate_git_state(
