@@ -6,6 +6,7 @@ mod package_json;
 mod pom_xml;
 mod project_py;
 mod pyproject;
+mod tauri_conf;
 mod version_bump;
 mod version_text;
 
@@ -18,6 +19,7 @@ use package_json::PackageJsonEditor;
 use pom_xml::PomXmlEditor;
 use project_py::PythonVersionEditor;
 use pyproject::PyprojectEditor;
+use tauri_conf::TauriConfEditor;
 pub use version_bump::{BumpType, Version};
 use version_text::VersionTextEditor;
 
@@ -153,6 +155,7 @@ impl EditorRegistry {
             .register(PomXmlEditor)
             .register(PythonVersionEditor)
             .register(PyprojectEditor)
+            .register(TauriConfEditor)
     }
 
     pub fn register(mut self, editor: impl FileEditor + 'static) -> Self {
