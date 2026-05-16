@@ -1,14 +1,17 @@
 use crate::control::command::Command;
 use crate::domain::editor::{
     BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content,
-    resolve_config_files,
+    detect_config_files, resolve_config_files,
 };
 use crate::domain::git::{
     ReleaseGitState, collect_context, resolve_git_root, validate_git_state,
 };
-use crate::error::Result;
+use crate::domain::project_config;
+use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
+use crate::model::project_config::ProjectConfig;
+use crate::utils::output::Output;
 use crate::utils::path::canonicalize_path;
 use std::path::Path;
 use std::path::PathBuf;
@@ -45,6 +48,12 @@ pub struct ReleaseArgs {
     pub message: Option<String>,
     #[arg(long, help = "Pre-release suffix (e.g. \"alpha\" -> v1.0.0-alpha)")]
     pub pre_release: Option<String>,
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Initialize .pma.json with auto-detected files and exit"
+    )]
+    pub init: bool,
 }
 
 #[derive(Debug)]
@@ -65,7 +74,15 @@ impl Command for ReleaseArgs {
             resolve_git_root()?
         };
 
-        let resolved_files = resolve_file_paths(&self.files, &work_dir);
+        let cli_files = if self.files.is_empty() {
+            project_config::load(&work_dir)
+                .map(|c| c.files)
+                .unwrap_or_default()
+        } else {
+            self.files.clone()
+        };
+
+        let resolved_files = resolve_file_paths(&cli_files, &work_dir);
 
         let git_ctx = collect_context(&work_dir)?;
         let state = validate_git_state(
@@ -101,7 +118,42 @@ impl Command for ReleaseArgs {
 }
 
 pub fn run(args: ReleaseArgs) -> Result<()> {
+    if args.init {
+        return init_project_config(&args);
+    }
     Command::run(&args)
+}
+
+fn init_project_config(args: &ReleaseArgs) -> Result<()> {
+    let work_dir = if args.no_root {
+        std::env::current_dir()?
+    } else {
+        resolve_git_root()?
+    };
+
+    let target = project_config::config_path(&work_dir);
+    if target.exists() {
+        return Err(AppError::already_exists(format!(
+            "{} 已存在",
+            target.display()
+        )));
+    }
+
+    let registry = EditorRegistry::default_with_editors();
+    let detected = detect_config_files(&registry).unwrap_or_default();
+
+    let content = ProjectConfig::render(&detected);
+    std::fs::write(&target, content)?;
+
+    Output::success(&format!("已创建 {}", target.display()));
+    if detected.is_empty() {
+        Output::warning("未自动探测到任何版本文件，请手动编辑 files 字段");
+    } else {
+        for f in &detected {
+            Output::detail("file", f);
+        }
+    }
+    Ok(())
 }
 
 fn resolve_file_paths(files: &[String], base_dir: &Path) -> Vec<String> {

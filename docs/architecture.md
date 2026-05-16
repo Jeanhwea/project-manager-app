@@ -165,6 +165,7 @@ pub trait FileEditor: Send + Sync {
 | PomXmlEditor | pom.xml | `pom.xml` |
 | PythonVersionEditor | project.py | `project.py` |
 | PyprojectEditor | pyproject.toml | `pyproject.toml` |
+| TauriConfEditor | tauri.conf.json | `tauri.conf.json` |
 | VersionTextEditor | 纯文本版本文件 | 自定义 |
 
 ## 模块说明
@@ -228,6 +229,7 @@ Git 操作的核心领域模块:
 | `pom_xml.rs` | pom.xml 编辑器 (roxmltree) |
 | `project_py.rs` | Python project.py 编辑器 |
 | `pyproject.rs` | pyproject.toml 编辑器 |
+| `tauri_conf.rs` | tauri.conf.json 编辑器 (Tauri 应用配置) |
 | `version_text.rs` | 纯文本版本文件编辑器 |
 
 ### src/domain/config/
@@ -306,6 +308,20 @@ skip_push_remotes = ["internal"]
 [gitlab]
 url = "https://gitlab.example.com"
 token = "glpat-xxx"
+```
+
+### 项目级配置 (`<repo>/.pma.json`)
+
+仅用于 `pma release`：当未通过 CLI 指定文件时，会读取此文件中的 `files` 列表作为待升级版本的目标。优先级：CLI 参数 > `.pma.json` > 自动探测。
+
+```json
+{
+  "files": [
+    "Cargo.toml",
+    "src-tauri/tauri.conf.json",
+    "npm/pma/package.json"
+  ]
+}
 ```
 
 ## 数据流图
