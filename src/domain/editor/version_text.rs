@@ -8,7 +8,7 @@ impl FileEditor for VersionTextEditor {
     }
 
     fn file_patterns(&self) -> &[&str] {
-        &["version.txt", "version", "version.txt"]
+        &["version.txt", "version"]
     }
 
     fn find_version(&self, content: &str) -> Option<VersionPosition> {
