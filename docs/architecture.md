@@ -310,6 +310,20 @@ url = "https://gitlab.example.com"
 token = "glpat-xxx"
 ```
 
+### 项目级配置 (`<repo>/.pma.json`)
+
+仅用于 `pma release`：当未通过 CLI 指定文件时，会读取此文件中的 `files` 列表作为待升级版本的目标。优先级：CLI 参数 > `.pma.json` > 自动探测。
+
+```json
+{
+  "files": [
+    "Cargo.toml",
+    "src-tauri/tauri.conf.json",
+    "npm/pma/package.json"
+  ]
+}
+```
+
 ## 数据流图
 
 ```
