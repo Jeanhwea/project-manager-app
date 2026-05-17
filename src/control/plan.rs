@@ -107,7 +107,6 @@ pub fn display_plan(plan: &ExecutionPlan) {
                 old_count,
                 new_count,
             }) => {
-                // Print diff header if it's a new file
                 Output::message(&format!("diff --git a/{} b/{}", file, file));
                 Output::message(&format!("--- a/{}", file));
                 Output::message(&format!("+++ b/{}", file));
@@ -115,13 +114,9 @@ pub fn display_plan(plan: &ExecutionPlan) {
                     "@@ -{},{} +{},{} @@",
                     old_start, old_count, new_start, new_count
                 ));
-
-                // Print old lines
                 for line in old_lines {
                     Output::diff_old(line);
                 }
-
-                // Print new lines
                 for line in new_lines {
                     Output::diff_new(line);
                 }

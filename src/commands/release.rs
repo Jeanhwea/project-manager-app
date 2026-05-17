@@ -204,7 +204,6 @@ fn build_execution_plan(
                 description: format!("edit {}", file_path),
             });
 
-            // Collect all changed lines for a single diff operation
             let mut changed_lines: Vec<(String, String)> = Vec::new();
             for (_line_num, (old_line, new_line)) in
                 (1..).zip(old_lines.iter().zip(new_lines.iter()))
