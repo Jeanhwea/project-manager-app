@@ -217,6 +217,9 @@ fn execute_git(op: &GitOperation) -> Result<()> {
             branch,
             working_dir,
         } => runner.execute_streaming(&["pull", remote, branch], working_dir.as_path())?,
+        GitOperation::PullDefault { working_dir } => {
+            runner.execute_streaming(&["pull"], working_dir.as_path())?
+        }
         GitOperation::Checkout {
             ref_name,
             working_dir,

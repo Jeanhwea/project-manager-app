@@ -143,6 +143,10 @@ impl MultiRepoCommand for SyncArgs {
             }
         }
 
+        plan.add(GitOperation::PullDefault {
+            working_dir: repo_path.to_path_buf(),
+        });
+
         if ctx.should_push {
             for remote in &ctx.target_remotes {
                 plan.add(GitOperation::PushAll {

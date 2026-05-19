@@ -45,6 +45,9 @@ pub enum GitOperation {
         branch: String,
         working_dir: PathBuf,
     },
+    PullDefault {
+        working_dir: PathBuf,
+    },
     Checkout {
         ref_name: String,
         working_dir: PathBuf,
@@ -135,6 +138,9 @@ impl GitOperation {
                 branch,
                 working_dir,
             } => format!("[{}] git pull {} {}", working_dir.display(), remote, branch),
+            GitOperation::PullDefault { working_dir } => {
+                format!("[{}] git pull", working_dir.display())
+            }
             GitOperation::Checkout {
                 ref_name,
                 working_dir,
