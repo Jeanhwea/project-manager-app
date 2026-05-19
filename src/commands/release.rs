@@ -108,15 +108,14 @@ impl Command for ReleaseArgs {
     }
 
     fn plan(&self, ctx: &ReleaseContext) -> Result<ExecutionPlan> {
-        let mut plan = build_execution_plan(
+        let plan = build_execution_plan(
             self,
             &ctx.config_files,
             &ctx.state,
             &ctx.git_ctx,
             &ctx.registry,
-        );
-        plan = plan.with_dry_run(self.dry_run);
-        Ok(plan)
+        )?;
+        Ok(plan.with_dry_run(self.dry_run))
     }
 
     fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
@@ -189,17 +188,20 @@ fn build_execution_plan(
     state: &ReleaseGitState,
     ctx: &GitContext,
     registry: &EditorRegistry,
-) -> ExecutionPlan {
+) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
     let mut has_changes = false;
 
     let mut edit_phase = Phase::new("版本修改");
 
     for file_path in config_files {
-        let editor = registry.detect_editor(Path::new(file_path)).unwrap();
-        if let Ok((original, edited)) = compute_edited_content(editor, &state.new_tag, file_path)
-            && original != edited
-        {
+        let editor = registry
+            .detect_editor(Path::new(file_path))
+            .ok_or_else(|| AppError::release(format!("无法识别文件类型: {}", file_path)))?;
+
+        let (original, edited) = compute_edited_content(editor, &state.new_tag, file_path)?;
+
+        if original != edited {
             has_changes = true;
             let old_lines: Vec<&str> = original.lines().collect();
             let new_lines: Vec<&str> = edited.lines().collect();
@@ -276,5 +278,5 @@ fn build_execution_plan(
         plan.add_phase(git_phase);
     }
 
-    plan
+    Ok(plan)
 }
