@@ -1,6 +1,8 @@
-use crate::control::command::Command;
+use crate::commands::Command;
+use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
+use crate::model::operation::{EditOperation, GitOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Args)]
@@ -25,8 +27,9 @@ pub(crate) struct ForkContext {
 
 impl Command for ForkArgs {
     type Context = ForkContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self) -> Result<ForkContext> {
+    fn collect(&self) -> Result<ForkContext> {
         let source = Path::new(&self.source);
         let target = Path::new(&self.target);
 
@@ -53,37 +56,45 @@ impl Command for ForkArgs {
     fn plan(&self, ctx: &ForkContext) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        plan.add(MessageOperation::Header {
+        plan.add_message(DisplayMessage::Header {
             title: "项目分叉".to_string(),
         });
-        plan.add(MessageOperation::Item {
+        plan.add_message(DisplayMessage::Item {
             label: "源".to_string(),
             value: self.source.clone(),
         });
-        plan.add(MessageOperation::Item {
+        plan.add_message(DisplayMessage::Item {
             label: "目标".to_string(),
             value: self.target.clone(),
         });
 
-        plan.add(EditOperation::CopyDir {
+        let mut copy_phase = Phase::new("复制项目");
+        copy_phase.add(EditOperation::CopyDir {
             source: ctx.source.to_string_lossy().to_string(),
             target: ctx.target.to_string_lossy().to_string(),
             description: format!("copy {} -> {}", self.source, self.target),
         });
+        plan.add_phase(copy_phase);
 
-        plan.add(GitOperation::Init {
+        let mut init_phase = Phase::new("初始化仓库");
+        init_phase.add(GitOperation::Init {
             working_dir: ctx.target.clone(),
         });
-        plan.add(GitOperation::Add {
+        init_phase.add(GitOperation::Add {
             path: ".".to_string(),
             working_dir: ctx.target.clone(),
         });
-        plan.add(GitOperation::Commit {
+        init_phase.add(GitOperation::Commit {
             message: "fork: initial commit".to_string(),
             working_dir: ctx.target.clone(),
         });
+        plan.add_phase(init_phase);
 
         Ok(plan)
+    }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
     }
 }
 

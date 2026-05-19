@@ -5,7 +5,6 @@ use crate::domain::config::ConfigManager;
 pub struct RemoteIssue {
     pub current_name: String,
     pub expected_name: String,
-    pub host: String,
 }
 
 pub fn resolve_remote_name(host: &str) -> Option<String> {
@@ -38,7 +37,6 @@ pub fn diagnose_remote_names(repo_path: &std::path::Path) -> Vec<RemoteIssue> {
             issues.push(RemoteIssue {
                 current_name: remote.name.clone(),
                 expected_name,
-                host,
             });
         }
     }

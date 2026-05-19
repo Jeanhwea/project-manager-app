@@ -3,9 +3,6 @@ use crate::domain::git::GitError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    #[error("Command not available: {0}")]
-    CommandNotAvailable(String),
-
     #[error("{0}")]
     Editor(#[from] EditorError),
 
@@ -52,10 +49,6 @@ pub enum AppError {
 pub type Result<T> = std::result::Result<T, AppError>;
 
 impl AppError {
-    pub fn command_not_available(name: &str) -> Self {
-        AppError::CommandNotAvailable(name.to_string())
-    }
-
     pub fn not_found(msg: impl Into<String>) -> Self {
         AppError::NotFound(msg.into())
     }

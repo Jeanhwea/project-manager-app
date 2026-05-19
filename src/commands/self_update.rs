@@ -1,8 +1,10 @@
-use crate::control::command::Command;
+use crate::commands::Command;
 use crate::domain::selfupdate::DownloadContext as SelfUpdateContext;
 use crate::domain::selfupdate::{fetch_latest_release, get_asset_name};
+use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::model::plan::{ExecutionPlan, MessageOperation, SelfUpdateOperation};
+use crate::model::operation::SelfUpdateOperation;
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use crate::utils::output::Output;
 use std::env;
 
@@ -48,8 +50,9 @@ struct VersionMarker;
 
 impl Command for VersionMarker {
     type Context = VersionContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self) -> Result<VersionContext> {
+    fn collect(&self) -> Result<VersionContext> {
         Ok(VersionContext {
             pkg_name: PKG_NAME,
             pkg_version: PKG_VERSION,
@@ -60,7 +63,7 @@ impl Command for VersionMarker {
 
     fn plan(&self, ctx: &VersionContext) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
-        plan.add(MessageOperation::Skip {
+        plan.add_message(DisplayMessage::Skip {
             msg: format!(
                 "{} v{} ({}-{})",
                 ctx.pkg_name, ctx.pkg_version, ctx.os, ctx.arch
@@ -68,12 +71,17 @@ impl Command for VersionMarker {
         });
         Ok(plan)
     }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
+    }
 }
 
 impl Command for UpdateArgs {
     type Context = SelfUpdateContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self) -> Result<SelfUpdateContext> {
+    fn collect(&self) -> Result<SelfUpdateContext> {
         if env::var("PMA_NPM_INSTALL").is_ok() {
             return Err(AppError::self_update(
                 "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma",
@@ -122,18 +130,24 @@ impl Command for UpdateArgs {
 
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        plan.add(SelfUpdateOperation::DownloadAndInstall {
+        let mut update_phase = Phase::new("下载更新");
+        update_phase.add(SelfUpdateOperation::DownloadAndInstall {
             api_url: asset.url.clone(),
             browser_url: asset.browser_download_url.clone(),
             asset_name: asset.name.clone(),
             current_version: ctx.current.to_string(),
             target_version: ctx.latest.clone(),
         });
+        plan.add_phase(update_phase);
 
-        plan.add(MessageOperation::Success {
+        plan.add_message(DisplayMessage::Success {
             msg: format!("更新成功! v{} -> v{}", ctx.current, ctx.latest),
         });
         Ok(plan)
+    }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
     }
 }
 

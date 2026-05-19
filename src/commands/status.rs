@@ -1,9 +1,10 @@
+use crate::commands::MultiRepo;
 use crate::commands::RepoPathArgs;
-use crate::control::command::MultiRepoCommand;
 use crate::domain::git::collect_context;
+use crate::engine::plan;
 use crate::error::Result;
 use crate::model::git::GitContext;
-use crate::model::plan::{ExecutionPlan, MessageOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult};
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
@@ -17,10 +18,11 @@ pub(crate) struct StatusContext {
     git_ctx: GitContext,
 }
 
-impl MultiRepoCommand for StatusArgs {
+impl MultiRepo for StatusArgs {
     type Context = StatusContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<StatusContext> {
+    fn collect(&self, repo_path: &Path) -> Result<StatusContext> {
         let git_ctx = collect_context(repo_path)?;
         Ok(StatusContext { git_ctx })
     }
@@ -29,24 +31,24 @@ impl MultiRepoCommand for StatusArgs {
         let _ = repo_path;
         let mut plan = ExecutionPlan::new();
 
-        plan.add(MessageOperation::Item {
+        plan.add_message(DisplayMessage::Item {
             label: "分支".to_string(),
             value: ctx.git_ctx.current_branch.clone(),
         });
 
         if ctx.git_ctx.has_uncommitted_changes {
-            plan.add(MessageOperation::Warning {
+            plan.add_message(DisplayMessage::Warning {
                 msg: "有未提交的变更".to_string(),
             });
         } else {
-            plan.add(MessageOperation::Success {
+            plan.add_message(DisplayMessage::Success {
                 msg: "工作区干净".to_string(),
             });
         }
 
         if !ctx.git_ctx.remotes.is_empty() {
             for remote in &ctx.git_ctx.remotes {
-                plan.add(MessageOperation::Detail {
+                plan.add_message(DisplayMessage::Detail {
                     label: remote.name.clone(),
                     value: remote.url.clone(),
                 });
@@ -55,7 +57,7 @@ impl MultiRepoCommand for StatusArgs {
 
         if !ctx.git_ctx.tags.is_empty() {
             let latest_tag = ctx.git_ctx.tags[0].name.clone();
-            plan.add(MessageOperation::Item {
+            plan.add_message(DisplayMessage::Item {
                 label: "最新标签".to_string(),
                 value: latest_tag,
             });
@@ -63,8 +65,12 @@ impl MultiRepoCommand for StatusArgs {
 
         Ok(plan)
     }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
+    }
 }
 
 pub fn run(args: StatusArgs) -> Result<()> {
-    crate::commands::run_multi_repo(&args, &args.repo_path)
+    crate::commands::run_multi_repo_cmd(&args, &args.repo_path)
 }

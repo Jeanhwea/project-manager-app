@@ -1,11 +1,11 @@
+use crate::commands::MultiRepo;
 use crate::commands::{RepoPathArgs, init_repo_walker};
-use crate::control::command::MultiRepoCommand;
-use crate::domain::git::repository::RepoWalker;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
+use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation, Operation};
-use crate::utils::output::Output;
+use crate::model::operation::GitOperation;
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
@@ -33,10 +33,11 @@ pub(crate) struct DoctorContext {
     issues: Vec<Diagnosis>,
 }
 
-impl MultiRepoCommand for DoctorArgs {
+impl MultiRepo for DoctorArgs {
     type Context = DoctorContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<DoctorContext> {
+    fn collect(&self, repo_path: &Path) -> Result<DoctorContext> {
         let issues = diagnose_repo(repo_path).map_err(|e| {
             AppError::release(format!("诊断仓库 {} 失败: {}", repo_path.display(), e))
         })?;
@@ -55,17 +56,18 @@ impl MultiRepoCommand for DoctorArgs {
         };
 
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+        let mut fix_phase = Phase::new("修复问题");
 
         for issue in &ctx.issues {
             match issue {
                 Diagnosis::StaleRefs { remote } => {
-                    plan.add(GitOperation::PruneRemote {
+                    fix_phase.add(GitOperation::PruneRemote {
                         remote: remote.clone(),
                         working_dir: repo_path.to_path_buf(),
                     });
                 }
                 Diagnosis::NoRemoteTrackingBranch | Diagnosis::SingleLocalBranch => {
-                    plan.add(GitOperation::SetUpstream {
+                    fix_phase.add(GitOperation::SetUpstream {
                         remote: git_ctx
                             .preferred_remote()
                             .or_else(|| git_ctx.first_remote_name())
@@ -74,13 +76,13 @@ impl MultiRepoCommand for DoctorArgs {
                         working_dir: repo_path.to_path_buf(),
                     });
                 }
-                Diagnosis::LargeRepo { .. } => {
-                    plan.add(GitOperation::Gc {
+                Diagnosis::LargeRepo => {
+                    fix_phase.add(GitOperation::Gc {
                         working_dir: repo_path.to_path_buf(),
                     });
                 }
                 Diagnosis::StashExists => {
-                    plan.add(MessageOperation::Warning {
+                    fix_phase.add_message(DisplayMessage::Warning {
                         msg: "stash 条目需要手动处理".to_string(),
                     });
                 }
@@ -88,11 +90,11 @@ impl MultiRepoCommand for DoctorArgs {
                     current, expected, ..
                 } => {
                     if git_ctx.has_remote(expected) {
-                        plan.add(MessageOperation::Warning {
+                        fix_phase.add_message(DisplayMessage::Warning {
                             msg: format!("目标 remote 名称 {} 已存在，跳过", expected),
                         });
                     } else {
-                        plan.add(GitOperation::RenameRemote {
+                        fix_phase.add(GitOperation::RenameRemote {
                             old: current.clone(),
                             new: expected.clone(),
                             working_dir: repo_path.to_path_buf(),
@@ -103,64 +105,15 @@ impl MultiRepoCommand for DoctorArgs {
             }
         }
 
+        if !fix_phase.is_empty() {
+            plan.add_phase(fix_phase);
+        }
+
         Ok(plan)
     }
 
-    fn run(&self, walker: &RepoWalker) -> Result<()> {
-        if self.fix {
-            check_prerequisites()?;
-        }
-
-        let total = walker.total();
-        let mut total_issues = 0;
-        let mut total_fixed = 0;
-
-        for (index, repo_info) in walker.repositories().iter().enumerate() {
-            let repo_path = &repo_info.path;
-            let ctx = self.context(repo_path);
-
-            let issues = ctx.as_ref().map(|c| c.issues.clone()).unwrap_or_default();
-            if issues.is_empty() {
-                Output::repo_header(index + 1, total, repo_path);
-                match &ctx {
-                    Ok(_) => Output::success(&format!("{}: 健康", repo_path.display())),
-                    Err(e) => {
-                        Output::warning(&format!("{}: 诊断失败 - {}", repo_path.display(), e))
-                    }
-                }
-                continue;
-            }
-
-            total_issues += issues.len();
-            Output::repo_header(index + 1, total, repo_path);
-            Output::warning(&format!("{}: {} 个问题", repo_path.display(), issues.len()));
-
-            for issue in &issues {
-                Output::detail("问题", &issue.display_message());
-            }
-
-            if self.fix
-                && let Ok(ctx) = ctx
-            {
-                let plan = self.plan(&ctx, repo_path)?;
-                let fixed = plan
-                    .operations
-                    .iter()
-                    .filter(|op| !matches!(op, Operation::Message(_)))
-                    .count();
-                Self::execute(&plan)?;
-                total_fixed += fixed;
-            }
-        }
-
-        Output::header("诊断汇总");
-        Output::item("检查仓库", &walker.total().to_string());
-        Output::item("发现问题", &total_issues.to_string());
-        if self.fix {
-            Output::item("已修复", &total_fixed.to_string());
-        }
-
-        Ok(())
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
     }
 }
 
@@ -169,20 +122,5 @@ pub fn run(args: DoctorArgs) -> Result<()> {
         return Ok(());
     };
 
-    MultiRepoCommand::run(&args, &walker)
-}
-
-fn check_prerequisites() -> Result<()> {
-    let tools = ["git"];
-    let missing: Vec<&str> = tools
-        .iter()
-        .filter(|tool| !crate::utils::is_command_available(tool))
-        .copied()
-        .collect();
-
-    if !missing.is_empty() {
-        return Err(AppError::command_not_available(&missing.join(", ")));
-    }
-
-    Ok(())
+    crate::commands::run_multi_repo(&args, &walker)
 }

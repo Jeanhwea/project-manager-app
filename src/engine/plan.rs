@@ -1,143 +1,131 @@
 use crate::domain::git::GitCommandRunner;
 use crate::domain::selfupdate::{download_asset, install_binary};
 use crate::error::{AppError, Result};
-use crate::model::plan::{
-    EditOperation, ExecutionPlan, GitOperation, MessageOperation, Operation, SelfUpdateOperation,
-    ShellOperation,
+use crate::model::operation::{
+    EditOperation, GitOperation, Operation, SelfUpdateOperation, ShellOperation,
 };
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError};
 use crate::utils::output::Output;
 
-pub fn run_plan(plan: &ExecutionPlan) -> Result<()> {
-    if plan.dry_run {
-        let count = plan
-            .operations
-            .iter()
-            .filter(|op| !matches!(op, Operation::Message(_)))
-            .count();
+pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
+    if plan.dry_run() {
+        let count = plan.operation_count();
         Output::dry_run_header(&format!("将要执行的操作 ({} 条):", count));
         display_plan(plan);
-        return Ok(());
+        return Ok(ExecutionResult::new());
     }
 
-    let mut executed = Vec::new();
-    for op in &plan.operations {
-        match op {
-            Operation::Message(msg_op) => execute_message(msg_op),
-            _ => {
-                Output::cmd(&op.description());
-                if let Err(e) = execute_operation(op) {
-                    Output::error(&format!("执行失败: {}", e));
-                    emit_recovery_hints(&executed, op);
-                    return Err(e);
+    render_messages(plan.messages());
+
+    let mut result = ExecutionResult::new();
+
+    for phase in plan.phases() {
+        if phase.is_empty() {
+            continue;
+        }
+
+        Output::section(&format!("▸ {}", phase.label()));
+        render_messages(phase.messages());
+
+        for op in phase.operations() {
+            Output::cmd(&op.description());
+            match execute_operation(op) {
+                Ok(()) => {
+                    result.add_executed();
                 }
-                executed.push(op.description());
+                Err(e) => {
+                    let error = OperationError::new(op.description())
+                        .with_recovery_hint(generate_recovery_hint(&result, op));
+                    result.add_error(error);
+                    Output::error(&format!("执行失败: {}", e));
+                    return Ok(result);
+                }
             }
         }
     }
-    Ok(())
+
+    Ok(result)
 }
 
-fn emit_recovery_hints(executed: &[String], failed_op: &Operation) {
-    if executed.is_empty() {
-        return;
-    }
-
-    Output::blank();
-    Output::warning("恢复指引:");
-
+fn generate_recovery_hint(result: &ExecutionResult, failed_op: &Operation) -> String {
     match failed_op {
         Operation::Git(git_op) => match git_op {
             GitOperation::PushTag { remote, tag, .. } => {
-                Output::detail(
-                    "提示",
-                    &format!(
-                        "tag {} 已创建但未推送，请手动执行: git push {} {}",
-                        tag, remote, tag
-                    ),
-                );
+                format!(
+                    "tag {} 已创建但未推送，请手动执行: git push {} {}",
+                    tag, remote, tag
+                )
             }
             GitOperation::PushBranch { remote, branch, .. } => {
-                Output::detail(
-                    "提示",
-                    &format!(
-                        "commit 已创建但未推送，请手动执行: git push {} {}",
-                        remote, branch
-                    ),
-                );
+                format!(
+                    "commit 已创建但未推送，请手动执行: git push {} {}",
+                    remote, branch
+                )
             }
             GitOperation::PushAll { remote, .. } => {
-                Output::detail(
-                    "提示",
-                    &format!(
-                        "commit 已创建但未推送，请手动执行: git push --all {}",
-                        remote
-                    ),
-                );
+                format!(
+                    "commit 已创建但未推送，请手动执行: git push --all {}",
+                    remote
+                )
             }
             GitOperation::PushTags { remote, .. } => {
-                Output::detail(
-                    "提示",
-                    &format!("tag 已创建但未推送，请手动执行: git push --tags {}", remote),
-                );
+                format!("tag 已创建但未推送，请手动执行: git push --tags {}", remote)
             }
-            _ => {
-                Output::detail("已执行", &format!("{} 个操作已完成", executed.len()));
-            }
+            _ => format!("{} 个操作已完成", result.executed_count()),
         },
-        _ => {
-            Output::detail("已执行", &format!("{} 个操作已完成", executed.len()));
-        }
+        _ => format!("{} 个操作已完成", result.executed_count()),
     }
 }
 
 pub fn display_plan(plan: &ExecutionPlan) {
-    if plan.operations.is_empty() {
+    let has_operations = plan.operation_count() > 0;
+    if !has_operations && plan.messages().is_empty() {
         Output::skip("无操作");
         return;
     }
 
-    for op in &plan.operations {
-        match op {
-            Operation::Message(MessageOperation::Diff {
-                file,
-                old_start,
-                new_start,
-                old_lines,
-                new_lines,
-                old_count,
-                new_count,
-            }) => {
-                Output::message(&format!("diff --git a/{} b/{}", file, file));
-                Output::message(&format!("--- a/{}", file));
-                Output::message(&format!("+++ b/{}", file));
-                Output::message(&format!(
-                    "@@ -{},{} +{},{} @@",
-                    old_start, old_count, new_start, new_count
-                ));
-                for line in old_lines {
-                    Output::diff_old(line);
-                }
-                for line in new_lines {
-                    Output::diff_new(line);
-                }
-            }
-            Operation::Message(msg_op) => execute_message(msg_op),
-            _ => Output::dry_cmd(&op.description()),
+    render_messages(plan.messages());
+
+    for phase in plan.phases() {
+        if phase.is_empty() {
+            continue;
+        }
+        Output::section(&format!("▸ {}", phase.label()));
+        render_messages(phase.messages());
+        for op in phase.operations() {
+            Output::dry_cmd(&op.description());
         }
     }
 }
 
-fn execute_message(op: &MessageOperation) {
-    match op {
-        MessageOperation::Header { title } => Output::header(title),
-        MessageOperation::Section { title } => Output::section(title),
-        MessageOperation::Item { label, value } => Output::item(label, value),
-        MessageOperation::Detail { label, value } => Output::detail(label, value),
-        MessageOperation::Diff {
+pub fn render_messages(messages: &[DisplayMessage]) {
+    for msg in messages {
+        render_message(msg);
+    }
+}
+
+pub fn render_message(msg: &DisplayMessage) {
+    match msg {
+        DisplayMessage::Header { title } => Output::header(title),
+        DisplayMessage::Section { title } => Output::section(title),
+        DisplayMessage::Item { label, value } => Output::item(label, value),
+        DisplayMessage::Detail { label, value } => Output::detail(label, value),
+        DisplayMessage::Diff {
+            file,
+            old_start,
+            new_start,
             old_lines,
             new_lines,
-            ..
+            old_count,
+            new_count,
         } => {
+            Output::message(&format!("diff --git a/{} b/{}", file, file));
+            Output::message(&format!("--- a/{}", file));
+            Output::message(&format!("+++ b/{}", file));
+            Output::message(&format!(
+                "@@ -{},{} +{},{} @@",
+                old_start, old_count, new_start, new_count
+            ));
             for line in old_lines {
                 Output::diff_old(line);
             }
@@ -145,10 +133,10 @@ fn execute_message(op: &MessageOperation) {
                 Output::diff_new(line);
             }
         }
-        MessageOperation::Success { msg } => Output::success(msg),
-        MessageOperation::Warning { msg } => Output::warning(msg),
-        MessageOperation::Skip { msg } => Output::skip(msg),
-        MessageOperation::Blank => Output::blank(),
+        DisplayMessage::Success { msg } => Output::success(msg),
+        DisplayMessage::Warning { msg } => Output::warning(msg),
+        DisplayMessage::Skip { msg } => Output::skip(msg),
+        DisplayMessage::Blank => Output::blank(),
     }
 }
 
@@ -158,7 +146,6 @@ fn execute_operation(op: &Operation) -> Result<()> {
         Operation::Shell(shell_op) => execute_shell(shell_op),
         Operation::Edit(edit_op) => execute_edit(edit_op),
         Operation::SelfUpdate(update_op) => execute_self_update(update_op),
-        Operation::Message(_) => Ok(()),
     }
 }
 
