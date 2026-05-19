@@ -1,5 +1,5 @@
-use crate::control::command::Command;
-use crate::control::plan;
+use crate::commands::Command;
+use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::plan::{
     DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation, Phase,

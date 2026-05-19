@@ -1,10 +1,10 @@
 use crate::domain::git::GitCommandRunner;
 use crate::domain::selfupdate::{download_asset, install_binary};
 use crate::error::{AppError, Result};
-use crate::model::plan::{
-    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation, Operation,
-    OperationError, SelfUpdateOperation, ShellOperation,
+use crate::model::operation::{
+    EditOperation, GitOperation, Operation, SelfUpdateOperation, ShellOperation,
 };
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError};
 use crate::utils::output::Output;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {

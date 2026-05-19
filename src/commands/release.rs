@@ -1,5 +1,4 @@
-use crate::control::command::Command;
-use crate::control::plan;
+use crate::commands::Command;
 use crate::domain::editor::{
     BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content,
     detect_config_files, resolve_config_files,
@@ -8,6 +7,7 @@ use crate::domain::git::{
     ReleaseGitState, collect_context, resolve_git_root, validate_git_state,
 };
 use crate::domain::project_config;
+use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{

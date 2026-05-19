@@ -1,9 +1,9 @@
+use crate::commands::MultiRepo;
 use crate::commands::RepoPathArgs;
-use crate::control::command::MultiRepo;
-use crate::control::plan;
 use crate::domain::config::ConfigManager;
 use crate::domain::git::collect_context;
 use crate::domain::git::repository::RepoWalker;
+use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
@@ -195,7 +195,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
         return Ok(());
     }
 
-    crate::control::command::run_multi_repo(&args, &walker)
+    crate::commands::run_multi_repo(&args, &walker)
 }
 
 fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {

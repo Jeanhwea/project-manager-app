@@ -2,7 +2,7 @@ use clap::Parser;
 
 use crate::commands::{
     branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs,
-    gitlab::GitLabArgs, release::ReleaseArgs, selfman::SelfManageArgs, snap::SnapArgs,
+    gitlab::GitLabArgs, release::ReleaseArgs, self_update::SelfManageArgs, snap::SnapArgs,
     status::StatusArgs, sync::SyncArgs,
 };
 use crate::error::Result;
@@ -81,7 +81,7 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         Commands::Snap { command } => crate::commands::snap::run(command),
         Commands::Status(args) => crate::commands::status::run(args),
         Commands::Branch { command } => crate::commands::branch::run(command),
-        Commands::Self_ { command } => crate::commands::selfman::run(command),
+        Commands::Self_ { command } => crate::commands::self_update::run(command),
         Commands::Config { command } => crate::commands::config::run(command),
     }
 }

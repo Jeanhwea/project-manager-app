@@ -1,7 +1,7 @@
+use crate::commands::MultiRepo;
 use crate::commands::RepoPathArgs;
-use crate::control::command::MultiRepo;
-use crate::control::plan;
 use crate::domain::git::collect_context;
+use crate::engine::plan;
 use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult};
@@ -72,5 +72,5 @@ impl MultiRepo for StatusArgs {
 }
 
 pub fn run(args: StatusArgs) -> Result<()> {
-    crate::commands::run_multi_repo(&args, &args.repo_path)
+    crate::commands::run_multi_repo_cmd(&args, &args.repo_path)
 }

@@ -1,8 +1,8 @@
+use crate::commands::MultiRepo;
 use crate::commands::RepoPathArgs;
-use crate::control::command::MultiRepo;
-use crate::control::plan;
 use crate::domain::git::GitCommandRunner;
 use crate::domain::git::collect_context;
+use crate::engine::plan;
 use crate::error::Result;
 use crate::model::git::{Branch, GitContext};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
@@ -371,11 +371,11 @@ impl MultiRepo for BranchAllArgs {
 
 pub fn run(args: BranchArgs) -> Result<()> {
     match args {
-        BranchArgs::List(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
-        BranchArgs::Clean(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
-        BranchArgs::Switch(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
-        BranchArgs::Rename(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
-        BranchArgs::All(args) => crate::commands::run_multi_repo(&args, &args.repo_path),
+        BranchArgs::List(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
+        BranchArgs::Clean(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
+        BranchArgs::Switch(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
+        BranchArgs::Rename(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
+        BranchArgs::All(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
     }
 }
 

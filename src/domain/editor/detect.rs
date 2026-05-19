@@ -1,6 +1,7 @@
 use super::{EditorRegistry, FileEditor};
 use crate::error::AppError;
-use crate::model::plan::{AddOperation, DisplayMessage, GitOperation};
+use crate::model::operation::GitOperation;
+use crate::model::plan::AddOperation;
 use regex::Regex;
 use std::path::{Path, PathBuf};
 
@@ -98,7 +99,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
         return;
     };
 
-    plan.add_op(crate::model::plan::ShellOperation::Run {
+    plan.add_op(crate::model::operation::ShellOperation::Run {
         program: "cargo".to_string(),
         args: vec![
             "update".to_string(),
@@ -139,7 +140,7 @@ fn add_js_lockfile_operations(plan: &mut impl AddOperation, package_json_path: &
         let lock_path = pkg_dir.join(lock_name);
         if lock_path.exists() && !is_gitignored(&lock_path) {
             let args_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-            plan.add_op(crate::model::plan::ShellOperation::Run {
+            plan.add_op(crate::model::operation::ShellOperation::Run {
                 program: cmd.to_string(),
                 args: args_vec,
                 dir: Some(pkg_dir.to_path_buf()),
@@ -158,7 +159,7 @@ fn add_js_lockfile_operations(plan: &mut impl AddOperation, package_json_path: &
     if crate::utils::is_command_available("pnpm") {
         let lock_path = pkg_dir.join("pnpm-lock.yaml");
         if !is_gitignored(&lock_path) {
-            plan.add_op(crate::model::plan::ShellOperation::Run {
+            plan.add_op(crate::model::operation::ShellOperation::Run {
                 program: "pnpm".to_string(),
                 args: vec!["install".to_string(), "--lockfile-only".to_string()],
                 dir: Some(pkg_dir.to_path_buf()),

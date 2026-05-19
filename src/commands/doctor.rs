@@ -1,8 +1,8 @@
+use crate::commands::MultiRepo;
 use crate::commands::{RepoPathArgs, init_repo_walker};
-use crate::control::command::MultiRepo;
-use crate::control::plan;
 use crate::domain::git::repository::RepoWalker;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
+use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
@@ -178,7 +178,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
         return Ok(());
     };
 
-    crate::control::command::run_multi_repo(&args, &walker)
+    crate::commands::run_multi_repo(&args, &walker)
 }
 
 fn check_prerequisites() -> Result<()> {
