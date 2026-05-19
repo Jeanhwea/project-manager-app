@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct ReleaseGitState {
+    pub current_tag: String,
     pub current_branch: String,
     pub new_tag: String,
     pub commit_message: String,
@@ -28,6 +29,7 @@ pub fn validate_git_state(
     pre_release: &Option<String>,
     message: &Option<String>,
     ctx: &GitContext,
+    fallback_version: Option<&str>,
 ) -> crate::error::Result<ReleaseGitState> {
     if !force && ctx.current_branch != "master" {
         return Err(AppError::release("只能在 master 分支上执行 release"));
@@ -38,7 +40,20 @@ pub fn validate_git_state(
         .execute(&["describe", "--tags", "--match", "v*"], Some(repo_path))
         .ok()
         .and_then(|o| o.split('-').next().map(|s| s.to_string()));
-    let current_tag = previous_tag.clone().unwrap_or_else(|| "v0.0.0".to_string());
+
+    let current_tag = if let Some(ref tag) = previous_tag {
+        tag.clone()
+    } else if let Some(fallback) = fallback_version {
+        let fb = if fallback.starts_with('v') {
+            fallback.to_string()
+        } else {
+            format!("v{}", fallback)
+        };
+        Output::warning(&format!("无 git tag，使用文件版本 {} 作为基准", fb));
+        fb
+    } else {
+        "v0.0.0".to_string()
+    };
 
     if let Some(ref tag) = previous_tag {
         let rev_current_tag = runner.execute(&["rev-parse", tag], Some(repo_path))?;
@@ -68,6 +83,7 @@ pub fn validate_git_state(
     }
 
     Ok(ReleaseGitState {
+        current_tag,
         current_branch: ctx.current_branch.clone(),
         new_tag,
         commit_message,

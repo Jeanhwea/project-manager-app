@@ -11,7 +11,8 @@ mod version_bump;
 mod version_text;
 
 pub use detect::{
-    add_lockfile_operations, compute_edited_content, detect_config_files, resolve_config_files,
+    add_lockfile_operations, compute_edited_content, detect_config_files, read_file_version,
+    resolve_config_files,
 };
 
 use cargo_toml::CargoTomlEditor;

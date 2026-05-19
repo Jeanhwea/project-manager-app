@@ -1,7 +1,7 @@
 use crate::commands::Command;
 use crate::domain::editor::{
     BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content,
-    detect_config_files, resolve_config_files,
+    detect_config_files, read_file_version, resolve_config_files,
 };
 use crate::domain::git::{
     ReleaseGitState, collect_context, resolve_git_root, validate_git_state,
@@ -88,6 +88,11 @@ impl Command for ReleaseArgs {
         let resolved_files = resolve_file_paths(&cli_files, &work_dir);
 
         let git_ctx = collect_context(&work_dir)?;
+        let registry = EditorRegistry::default_with_editors();
+        let config_files = resolve_config_files(&registry, &resolved_files)?;
+
+        let fallback_version = extract_fallback_version(&registry, &config_files);
+
         let state = validate_git_state(
             &work_dir,
             self.force,
@@ -95,9 +100,8 @@ impl Command for ReleaseArgs {
             &self.pre_release,
             &self.message,
             &git_ctx,
+            fallback_version.as_deref(),
         )?;
-        let registry = EditorRegistry::default_with_editors();
-        let config_files = resolve_config_files(&registry, &resolved_files)?;
 
         Ok(ReleaseContext {
             git_ctx,
@@ -201,6 +205,19 @@ fn build_execution_plan(
 
         let (original, edited) = compute_edited_content(editor, &state.new_tag, file_path)?;
 
+        // 检查文件版本与 git describe 版本是否一致
+        if let Ok(file_ver) = read_file_version(editor, file_path) {
+            let git_ver = state.current_tag.trim_start_matches('v');
+            if file_ver != git_ver {
+                plan.add_message(DisplayMessage::Warning {
+                    msg: format!(
+                        "{}: 文件版本 {} 与 git tag 版本 {} 不一致，以 git tag 为准",
+                        file_path, file_ver, git_ver
+                    ),
+                });
+            }
+        }
+
         if original != edited {
             has_changes = true;
             let old_lines: Vec<&str> = original.lines().collect();
@@ -279,4 +296,25 @@ fn build_execution_plan(
     }
 
     Ok(plan)
+}
+
+/// 从配置文件中提取最高版本号，作为 git describe 无 tag 时的 fallback
+fn extract_fallback_version(
+    registry: &EditorRegistry,
+    config_files: &[String],
+) -> Option<String> {
+    use crate::domain::editor::Version;
+
+    let mut best: Option<Version> = None;
+    for file_path in config_files {
+        let editor = registry.detect_editor(Path::new(file_path))?;
+        if let Ok(ver_str) = read_file_version(editor, file_path) {
+            if let Ok(ver) = Version::parse(&ver_str) {
+                if best.as_ref().map_or(true, |b| ver > *b) {
+                    best = Some(ver);
+                }
+            }
+        }
+    }
+    best.map(|v| v.to_string())
 }
