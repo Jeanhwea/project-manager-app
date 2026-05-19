@@ -209,10 +209,10 @@ fn build_execution_plan(
         if let Ok(file_ver) = read_file_version(editor, file_path) {
             let git_ver = state.current_tag.trim_start_matches('v');
             if file_ver != git_ver {
-                plan.add_message(DisplayMessage::Warning {
+                edit_phase.add_message(DisplayMessage::Warning {
                     msg: format!(
-                        "{}: 文件版本 {} 与 git tag 版本 {} 不一致，以 git tag 为准",
-                        file_path, file_ver, git_ver
+                        "文件版本 {} 与 git tag {} 不一致，以 git tag 为准",
+                        file_ver, git_ver
                     ),
                 });
             }
@@ -222,11 +222,6 @@ fn build_execution_plan(
             has_changes = true;
             let old_lines: Vec<&str> = original.lines().collect();
             let new_lines: Vec<&str> = edited.lines().collect();
-            edit_phase.add(EditOperation::WriteFile {
-                path: file_path.clone(),
-                content: edited.clone(),
-                description: format!("edit {}", file_path),
-            });
 
             let mut changed_lines: Vec<(String, String)> = Vec::new();
             for (_line_num, (old_line, new_line)) in
@@ -237,8 +232,14 @@ fn build_execution_plan(
                 }
             }
 
+            edit_phase.add(EditOperation::WriteFile {
+                path: file_path.clone(),
+                content: edited.clone(),
+                description: format!("edit {}", file_path),
+            });
+
             if !changed_lines.is_empty() {
-                plan.add_message(DisplayMessage::Diff {
+                edit_phase.add_message(DisplayMessage::Diff {
                     file: file_path.clone(),
                     old_start: 1,
                     new_start: 1,

@@ -25,7 +25,6 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
         }
 
         Output::section(&format!("▸ {}", phase.label()));
-        render_messages(phase.messages());
 
         for op in phase.operations() {
             Output::cmd(&op.description());
@@ -42,6 +41,8 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
                 }
             }
         }
+
+        render_messages(phase.messages());
     }
 
     Ok(result)
@@ -91,10 +92,10 @@ pub fn display_plan(plan: &ExecutionPlan) {
             continue;
         }
         Output::section(&format!("▸ {}", phase.label()));
-        render_messages(phase.messages());
         for op in phase.operations() {
             Output::dry_cmd(&op.description());
         }
+        render_messages(phase.messages());
     }
 }
 
