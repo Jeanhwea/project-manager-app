@@ -4,7 +4,7 @@ use crate::error::{AppError, Result};
 use crate::model::operation::{
     EditOperation, GitOperation, Operation, SelfUpdateOperation, ShellOperation,
 };
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Step};
 use crate::utils::output::Output;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
@@ -26,23 +26,28 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
 
         Output::section(&format!("▸ {}", phase.label()));
 
-        for op in phase.operations() {
-            Output::cmd(&op.description());
-            match execute_operation(op) {
-                Ok(()) => {
-                    result.add_executed();
+        for step in phase.steps() {
+            match step {
+                Step::Op(op) => {
+                    Output::cmd(&op.description());
+                    match execute_operation(op) {
+                        Ok(()) => {
+                            result.add_executed();
+                        }
+                        Err(e) => {
+                            let error = OperationError::new(op.description())
+                                .with_recovery_hint(generate_recovery_hint(&result, op));
+                            result.add_error(error);
+                            Output::error(&format!("执行失败: {}", e));
+                            return Ok(result);
+                        }
+                    }
                 }
-                Err(e) => {
-                    let error = OperationError::new(op.description())
-                        .with_recovery_hint(generate_recovery_hint(&result, op));
-                    result.add_error(error);
-                    Output::error(&format!("执行失败: {}", e));
-                    return Ok(result);
+                Step::Msg(msg) => {
+                    render_message(msg);
                 }
             }
         }
-
-        render_messages(phase.messages());
     }
 
     Ok(result)
@@ -92,10 +97,12 @@ pub fn display_plan(plan: &ExecutionPlan) {
             continue;
         }
         Output::section(&format!("▸ {}", phase.label()));
-        for op in phase.operations() {
-            Output::dry_cmd(&op.description());
+        for step in phase.steps() {
+            match step {
+                Step::Op(op) => Output::dry_cmd(&op.description()),
+                Step::Msg(msg) => render_message(msg),
+            }
         }
-        render_messages(phase.messages());
     }
 }
 

@@ -37,6 +37,12 @@ pub enum DisplayMessage {
     Blank,
 }
 
+#[derive(Debug, Clone)]
+pub enum Step {
+    Op(Operation),
+    Msg(DisplayMessage),
+}
+
 pub trait AddOperation {
     fn add_op(&mut self, op: impl Into<Operation>);
     fn add_msg(&mut self, msg: DisplayMessage);
@@ -45,16 +51,16 @@ pub trait AddOperation {
 #[derive(Debug, Clone)]
 pub struct Phase {
     label: String,
-    operations: Vec<Operation>,
-    messages: Vec<DisplayMessage>,
+    steps: Vec<Step>,
+    op_count: usize,
 }
 
 impl Phase {
     pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
-            operations: Vec::new(),
-            messages: Vec::new(),
+            steps: Vec::new(),
+            op_count: 0,
         }
     }
 
@@ -62,24 +68,25 @@ impl Phase {
         &self.label
     }
 
-    pub fn operations(&self) -> &[Operation] {
-        &self.operations
+    pub fn steps(&self) -> &[Step] {
+        &self.steps
     }
 
-    pub fn messages(&self) -> &[DisplayMessage] {
-        &self.messages
+    pub fn op_count(&self) -> usize {
+        self.op_count
     }
 
     pub fn add(&mut self, op: impl Into<Operation>) {
-        self.operations.push(op.into());
+        self.steps.push(Step::Op(op.into()));
+        self.op_count += 1;
     }
 
     pub fn add_message(&mut self, msg: DisplayMessage) {
-        self.messages.push(msg);
+        self.steps.push(Step::Msg(msg));
     }
 
     pub fn is_empty(&self) -> bool {
-        self.operations.is_empty() && self.messages.is_empty()
+        self.steps.is_empty()
     }
 }
 
@@ -142,7 +149,7 @@ impl ExecutionPlan {
     }
 
     pub fn operation_count(&self) -> usize {
-        self.phases.iter().map(|p| p.operations.len()).sum()
+        self.phases.iter().map(|p| p.op_count()).sum()
     }
 }
 
