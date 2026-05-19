@@ -49,14 +49,14 @@ impl CommandRunner {
         let stdout_thread = thread::spawn(move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines().map_while(std::result::Result::ok) {
-                println!("{}", line);
+                crate::utils::output::Output::message(&line);
             }
         });
 
         let stderr_thread = thread::spawn(move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines().map_while(std::result::Result::ok) {
-                eprintln!("{}", line);
+                crate::utils::output::Output::message(&line);
             }
         });
 
