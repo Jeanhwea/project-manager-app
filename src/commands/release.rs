@@ -10,9 +10,8 @@ use crate::domain::project_config;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{
-    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation, Phase,
-};
+use crate::model::operation::{EditOperation, GitOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use crate::model::project_config::ProjectConfig;
 use crate::utils::output::Output;
 use crate::utils::path::canonicalize_path;

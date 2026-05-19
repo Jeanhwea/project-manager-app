@@ -2,7 +2,8 @@ use crate::commands::Command;
 use crate::domain::git::GitCommandRunner;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
+use crate::model::operation::GitOperation;
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Subcommand)]

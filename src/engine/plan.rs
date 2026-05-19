@@ -25,20 +25,16 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
         }
 
         Output::section(&format!("▸ {}", phase.label()));
-        // Render phase-level messages
         render_messages(phase.messages());
 
         for op in phase.operations() {
             Output::cmd(&op.description());
             match execute_operation(op) {
                 Ok(()) => {
-                    result.add_executed(crate::model::plan::ExecutedOperation::new(
-                        op.description(),
-                        phase.label(),
-                    ));
+                    result.add_executed();
                 }
                 Err(e) => {
-                    let error = OperationError::new(op.description(), phase.label())
+                    let error = OperationError::new(op.description())
                         .with_recovery_hint(generate_recovery_hint(&result, op));
                     result.add_error(error);
                     Output::error(&format!("执行失败: {}", e));
@@ -75,9 +71,9 @@ fn generate_recovery_hint(result: &ExecutionResult, failed_op: &Operation) -> St
             GitOperation::PushTags { remote, .. } => {
                 format!("tag 已创建但未推送，请手动执行: git push --tags {}", remote)
             }
-            _ => format!("{} 个操作已完成", result.executed().len()),
+            _ => format!("{} 个操作已完成", result.executed_count()),
         },
-        _ => format!("{} 个操作已完成", result.executed().len()),
+        _ => format!("{} 个操作已完成", result.executed_count()),
     }
 }
 

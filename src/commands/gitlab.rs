@@ -3,9 +3,8 @@ use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::model::plan::{
-    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation, Phase,
-};
+use crate::model::operation::{EditOperation, GitOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -161,7 +160,6 @@ impl Command for CloneArgs {
             value: ctx.projects.len().to_string(),
         });
 
-        // Phase: 克隆项目
         let mut clone_phase = Phase::new("克隆项目");
         for proj in &ctx.projects {
             let url = match ctx.protocol.as_str() {

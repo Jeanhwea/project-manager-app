@@ -15,8 +15,6 @@ use crate::model::plan::ExecutionResult;
 use crate::utils::output::Output;
 use std::path::Path;
 
-// ── Command traits ──────────────────────────────────────────────────
-
 pub(crate) trait Command {
     type Context;
     type Plan;
@@ -52,8 +50,6 @@ pub(crate) trait MultiRepo {
     fn execute(&self, plan: &Self::Plan) -> Result<ExecutionResult>;
 }
 
-// ── Multi-repo runner ───────────────────────────────────────────────
-
 pub(crate) fn run_multi_repo<C: MultiRepo>(cmd: &C, walker: &RepoWalker) -> Result<()> {
     let total = walker.total();
     for (index, repo_info) in walker.repositories().iter().enumerate() {
@@ -77,8 +73,6 @@ pub(crate) fn run_multi_repo<C: MultiRepo>(cmd: &C, walker: &RepoWalker) -> Resu
     }
     Ok(())
 }
-
-// ── CLI helpers ─────────────────────────────────────────────────────
 
 #[derive(Debug, clap::Args)]
 pub struct RepoPathArgs {

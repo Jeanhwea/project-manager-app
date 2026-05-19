@@ -3,9 +3,8 @@ use crate::domain::selfupdate::DownloadContext as SelfUpdateContext;
 use crate::domain::selfupdate::{fetch_latest_release, get_asset_name};
 use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::model::plan::{
-    DisplayMessage, ExecutionPlan, ExecutionResult, Phase, SelfUpdateOperation,
-};
+use crate::model::operation::SelfUpdateOperation;
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use crate::utils::output::Output;
 use std::env;
 

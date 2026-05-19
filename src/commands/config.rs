@@ -3,7 +3,8 @@ use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::model::plan::{DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, Phase};
+use crate::model::operation::EditOperation;
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::PathBuf;
 
 #[derive(Debug, clap::Subcommand)]

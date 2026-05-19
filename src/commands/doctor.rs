@@ -1,12 +1,11 @@
 use crate::commands::MultiRepo;
 use crate::commands::{RepoPathArgs, init_repo_walker};
-use crate::domain::git::repository::RepoWalker;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
-use crate::utils::output::Output;
+use crate::model::operation::GitOperation;
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
@@ -77,7 +76,7 @@ impl MultiRepo for DoctorArgs {
                         working_dir: repo_path.to_path_buf(),
                     });
                 }
-                Diagnosis::LargeRepo { .. } => {
+                Diagnosis::LargeRepo => {
                     fix_phase.add(GitOperation::Gc {
                         working_dir: repo_path.to_path_buf(),
                     });
@@ -118,80 +117,10 @@ impl MultiRepo for DoctorArgs {
     }
 }
 
-impl DoctorArgs {
-    fn run(&self, walker: &RepoWalker) -> Result<()> {
-        if self.fix {
-            check_prerequisites()?;
-        }
-
-        let total = walker.total();
-        let mut total_issues = 0;
-        let mut total_fixed = 0;
-
-        for (index, repo_info) in walker.repositories().iter().enumerate() {
-            let repo_path = &repo_info.path;
-            let ctx = self.collect(repo_path);
-
-            let issues = ctx.as_ref().map(|c| c.issues.clone()).unwrap_or_default();
-            if issues.is_empty() {
-                Output::repo_header(index + 1, total, repo_path);
-                match &ctx {
-                    Ok(_) => Output::success(&format!("{}: 健康", repo_path.display())),
-                    Err(e) => {
-                        Output::warning(&format!("{}: 诊断失败 - {}", repo_path.display(), e))
-                    }
-                }
-                continue;
-            }
-
-            total_issues += issues.len();
-            Output::repo_header(index + 1, total, repo_path);
-            Output::warning(&format!("{}: {} 个问题", repo_path.display(), issues.len()));
-
-            for issue in &issues {
-                Output::detail("问题", &issue.display_message());
-            }
-
-            if self.fix
-                && let Ok(ctx) = ctx
-            {
-                let plan = self.plan(&ctx, repo_path)?;
-                let fixed = plan.operation_count();
-                self.execute(&plan)?;
-                total_fixed += fixed;
-            }
-        }
-
-        Output::header("诊断汇总");
-        Output::item("检查仓库", &walker.total().to_string());
-        Output::item("发现问题", &total_issues.to_string());
-        if self.fix {
-            Output::item("已修复", &total_fixed.to_string());
-        }
-
-        Ok(())
-    }
-}
-
 pub fn run(args: DoctorArgs) -> Result<()> {
     let Some(walker) = init_repo_walker(&args.repo_path)? else {
         return Ok(());
     };
 
     crate::commands::run_multi_repo(&args, &walker)
-}
-
-fn check_prerequisites() -> Result<()> {
-    let tools = ["git"];
-    let missing: Vec<&str> = tools
-        .iter()
-        .filter(|tool| !crate::utils::is_command_available(tool))
-        .copied()
-        .collect();
-
-    if !missing.is_empty() {
-        return Err(AppError::command_not_available(&missing.join(", ")));
-    }
-
-    Ok(())
 }

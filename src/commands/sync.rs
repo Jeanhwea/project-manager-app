@@ -6,7 +6,8 @@ use crate::domain::git::repository::RepoWalker;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
+use crate::model::operation::GitOperation;
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -86,7 +87,6 @@ impl MultiRepo for SyncArgs {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
         let current_branch = &ctx.git_ctx.current_branch;
 
-        // Phase: 同步其他分支
         if ctx.sync_all_branches {
             let other_branches: Vec<&crate::model::git::Branch> = ctx
                 .git_ctx
@@ -130,7 +130,6 @@ impl MultiRepo for SyncArgs {
             }
         }
 
-        // Phase: 拉取当前分支
         let mut pull_phase = Phase::new("拉取当前分支");
         for remote in &ctx.target_remotes {
             if ctx.git_ctx.has_remote_branch(remote, current_branch) {
@@ -154,7 +153,6 @@ impl MultiRepo for SyncArgs {
             plan.add_phase(pull_phase);
         }
 
-        // Phase: 推送
         if ctx.should_push {
             let mut push_phase = Phase::new("推送");
             for remote in &ctx.target_remotes {

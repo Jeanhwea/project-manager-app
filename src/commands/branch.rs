@@ -5,7 +5,8 @@ use crate::domain::git::collect_context;
 use crate::engine::plan;
 use crate::error::Result;
 use crate::model::git::{Branch, GitContext};
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
+use crate::model::operation::GitOperation;
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::Path;
 
 #[derive(Debug, clap::Subcommand)]
