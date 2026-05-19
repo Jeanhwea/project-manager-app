@@ -76,7 +76,12 @@ fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch
 
 fn collect_tags(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Tag>> {
     let output = runner.execute(
-        &["for-each-ref", "--format=%(refname:short)", "--sort=-creatordate", "refs/tags"],
+        &[
+            "for-each-ref",
+            "--format=%(refname:short)",
+            "--sort=-creatordate",
+            "refs/tags",
+        ],
         Some(root),
     )?;
 

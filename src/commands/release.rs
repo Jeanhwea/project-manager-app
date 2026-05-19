@@ -309,12 +309,11 @@ fn extract_fallback_version(
     let mut best: Option<Version> = None;
     for file_path in config_files {
         let editor = registry.detect_editor(Path::new(file_path))?;
-        if let Ok(ver_str) = read_file_version(editor, file_path) {
-            if let Ok(ver) = Version::parse(&ver_str) {
-                if best.as_ref().map_or(true, |b| ver > *b) {
-                    best = Some(ver);
-                }
-            }
+        if let Ok(ver_str) = read_file_version(editor, file_path)
+            && let Ok(ver) = Version::parse(&ver_str)
+            && best.as_ref().is_none_or(|b| ver > *b)
+        {
+            best = Some(ver);
         }
     }
     best.map(|v| v.to_string())
