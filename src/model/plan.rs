@@ -57,21 +57,27 @@ impl Phase {
             messages: Vec::new(),
         }
     }
+
     pub fn label(&self) -> &str {
         &self.label
     }
+
     pub fn operations(&self) -> &[Operation] {
         &self.operations
     }
+
     pub fn messages(&self) -> &[DisplayMessage] {
         &self.messages
     }
+
     pub fn add(&mut self, op: impl Into<Operation>) {
         self.operations.push(op.into());
     }
+
     pub fn add_message(&mut self, msg: DisplayMessage) {
         self.messages.push(msg);
     }
+
     pub fn is_empty(&self) -> bool {
         self.operations.is_empty() && self.messages.is_empty()
     }
@@ -81,77 +87,51 @@ impl AddOperation for Phase {
     fn add_op(&mut self, op: impl Into<Operation>) {
         self.add(op);
     }
+
     fn add_msg(&mut self, msg: DisplayMessage) {
         self.add_message(msg);
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct PlanMetadata {
-    messages: Vec<DisplayMessage>,
-    dry_run: bool,
-}
-
-impl PlanMetadata {
-    pub fn new() -> Self {
-        Self {
-            messages: Vec::new(),
-            dry_run: false,
-        }
-    }
-    pub fn with_dry_run(mut self, value: bool) -> Self {
-        self.dry_run = value;
-        self
-    }
-    pub fn dry_run(&self) -> bool {
-        self.dry_run
-    }
-    pub fn messages(&self) -> &[DisplayMessage] {
-        &self.messages
-    }
-    pub fn add_message(&mut self, msg: DisplayMessage) {
-        self.messages.push(msg);
-    }
-}
-
-impl Default for PlanMetadata {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct ExecutionPlan {
     phases: Vec<Phase>,
-    metadata: PlanMetadata,
+    messages: Vec<DisplayMessage>,
+    dry_run: bool,
 }
 
 impl ExecutionPlan {
     pub fn new() -> Self {
         Self {
             phases: Vec::new(),
-            metadata: PlanMetadata::new(),
+            messages: Vec::new(),
+            dry_run: false,
         }
     }
+
     pub fn with_dry_run(mut self, value: bool) -> Self {
-        self.metadata = self.metadata.with_dry_run(value);
+        self.dry_run = value;
         self
     }
+
     pub fn dry_run(&self) -> bool {
-        self.metadata.dry_run()
+        self.dry_run
     }
+
     pub fn phases(&self) -> &[Phase] {
         &self.phases
     }
+
     pub fn messages(&self) -> &[DisplayMessage] {
-        self.metadata.messages()
+        &self.messages
     }
 
     pub fn add_phase(&mut self, phase: Phase) {
         self.phases.push(phase);
     }
+
     pub fn add_message(&mut self, msg: DisplayMessage) {
-        self.metadata.add_message(msg);
+        self.messages.push(msg);
     }
 
     pub fn add(&mut self, op: impl Into<Operation>) {
@@ -176,6 +156,7 @@ impl AddOperation for ExecutionPlan {
     fn add_op(&mut self, op: impl Into<Operation>) {
         self.add(op);
     }
+
     fn add_msg(&mut self, msg: DisplayMessage) {
         self.add_message(msg);
     }
@@ -194,18 +175,23 @@ impl ExecutionResult {
             errors: Vec::new(),
         }
     }
+
     pub fn is_success(&self) -> bool {
         self.errors.is_empty()
     }
+
     pub fn executed_count(&self) -> usize {
         self.executed
     }
+
     pub fn errors(&self) -> &[OperationError] {
         &self.errors
     }
+
     pub fn add_executed(&mut self) {
         self.executed += 1;
     }
+
     pub fn add_error(&mut self, err: OperationError) {
         self.errors.push(err);
     }
@@ -230,13 +216,16 @@ impl OperationError {
             recovery_hint: None,
         }
     }
+
     pub fn with_recovery_hint(mut self, hint: impl Into<String>) -> Self {
         self.recovery_hint = Some(hint.into());
         self
     }
+
     pub fn description(&self) -> &str {
         &self.description
     }
+
     pub fn recovery_hint(&self) -> Option<&str> {
         self.recovery_hint.as_deref()
     }
