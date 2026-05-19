@@ -7,7 +7,6 @@ use crate::model::plan::{
 };
 use crate::utils::output::Output;
 
-/// Execute an ExecutionPlan, returning a structured ExecutionResult.
 pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
     if plan.dry_run() {
         let count = plan.operation_count();
@@ -16,15 +15,18 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
         return Ok(ExecutionResult::new());
     }
 
-    // Render pre-execution messages
     render_messages(plan.messages());
 
     let mut result = ExecutionResult::new();
 
     for phase in plan.phases() {
-        if !phase.is_empty() {
-            Output::section(&format!("▸ {}", phase.label()));
+        if phase.is_empty() {
+            continue;
         }
+
+        Output::section(&format!("▸ {}", phase.label()));
+        // Render phase-level messages
+        render_messages(phase.messages());
 
         for op in phase.operations() {
             Output::cmd(&op.description());
@@ -86,15 +88,14 @@ pub fn display_plan(plan: &ExecutionPlan) {
         return;
     }
 
-    // Render messages
     render_messages(plan.messages());
 
-    // Render phases and their operations
     for phase in plan.phases() {
         if phase.is_empty() {
             continue;
         }
         Output::section(&format!("▸ {}", phase.label()));
+        render_messages(phase.messages());
         for op in phase.operations() {
             Output::dry_cmd(&op.description());
         }

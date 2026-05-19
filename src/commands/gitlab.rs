@@ -4,7 +4,7 @@ use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
 use crate::error::{AppError, Result};
 use crate::model::plan::{
-    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation,
+    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation, Phase,
 };
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -161,6 +161,8 @@ impl Command for CloneArgs {
             value: ctx.projects.len().to_string(),
         });
 
+        // Phase: 克隆项目
+        let mut clone_phase = Phase::new("克隆项目");
         for proj in &ctx.projects {
             let url = match ctx.protocol.as_str() {
                 "ssh" => &proj.ssh_url_to_repo,
@@ -173,17 +175,18 @@ impl Command for CloneArgs {
                 .unwrap_or(&proj.path_with_namespace)
                 .to_string();
 
-            plan.add_message(DisplayMessage::Item {
+            clone_phase.add_message(DisplayMessage::Item {
                 label: "项目".to_string(),
                 value: proj.path_with_namespace.clone(),
             });
 
-            plan.add(GitOperation::Clone {
+            clone_phase.add(GitOperation::Clone {
                 url: url.clone(),
                 target_dir: PathBuf::from(&target_dir),
                 working_dir: PathBuf::from("."),
             });
         }
+        plan.add_phase(clone_phase);
 
         Ok(plan)
     }

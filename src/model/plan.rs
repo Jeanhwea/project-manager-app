@@ -397,10 +397,16 @@ impl From<SelfUpdateOperation> for Operation {
     }
 }
 
+pub trait AddOperation {
+    fn add_op(&mut self, op: impl Into<Operation>);
+    fn add_msg(&mut self, msg: DisplayMessage);
+}
+
 #[derive(Debug, Clone)]
 pub struct Phase {
     label: String,
     operations: Vec<Operation>,
+    messages: Vec<DisplayMessage>,
 }
 
 impl Phase {
@@ -408,6 +414,7 @@ impl Phase {
         Self {
             label: label.into(),
             operations: Vec::new(),
+            messages: Vec::new(),
         }
     }
     pub fn label(&self) -> &str {
@@ -416,11 +423,26 @@ impl Phase {
     pub fn operations(&self) -> &[Operation] {
         &self.operations
     }
+    pub fn messages(&self) -> &[DisplayMessage] {
+        &self.messages
+    }
     pub fn add(&mut self, op: impl Into<Operation>) {
         self.operations.push(op.into());
     }
+    pub fn add_message(&mut self, msg: DisplayMessage) {
+        self.messages.push(msg);
+    }
     pub fn is_empty(&self) -> bool {
-        self.operations.is_empty()
+        self.operations.is_empty() && self.messages.is_empty()
+    }
+}
+
+impl AddOperation for Phase {
+    fn add_op(&mut self, op: impl Into<Operation>) {
+        self.add(op);
+    }
+    fn add_msg(&mut self, msg: DisplayMessage) {
+        self.add_message(msg);
     }
 }
 
@@ -503,7 +525,6 @@ impl ExecutionPlan {
         self.phases.last_mut().unwrap().add(op);
     }
 
-    /// Get all operations across all phases
     pub fn all_operations(&self) -> Vec<&Operation> {
         self.phases.iter().flat_map(|p| p.operations()).collect()
     }
@@ -517,6 +538,15 @@ impl ExecutionPlan {
 impl Default for ExecutionPlan {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl AddOperation for ExecutionPlan {
+    fn add_op(&mut self, op: impl Into<Operation>) {
+        self.add(op);
+    }
+    fn add_msg(&mut self, msg: DisplayMessage) {
+        self.add_message(msg);
     }
 }
 

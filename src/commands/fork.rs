@@ -2,7 +2,7 @@ use crate::control::command::Command;
 use crate::control::plan;
 use crate::error::{AppError, Result};
 use crate::model::plan::{
-    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation,
+    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation, Phase,
 };
 use std::path::{Path, PathBuf};
 
@@ -69,23 +69,29 @@ impl Command for ForkArgs {
             value: self.target.clone(),
         });
 
-        plan.add(EditOperation::CopyDir {
+        // Phase: 复制项目
+        let mut copy_phase = Phase::new("复制项目");
+        copy_phase.add(EditOperation::CopyDir {
             source: ctx.source.to_string_lossy().to_string(),
             target: ctx.target.to_string_lossy().to_string(),
             description: format!("copy {} -> {}", self.source, self.target),
         });
+        plan.add_phase(copy_phase);
 
-        plan.add(GitOperation::Init {
+        // Phase: 初始化仓库
+        let mut init_phase = Phase::new("初始化仓库");
+        init_phase.add(GitOperation::Init {
             working_dir: ctx.target.clone(),
         });
-        plan.add(GitOperation::Add {
+        init_phase.add(GitOperation::Add {
             path: ".".to_string(),
             working_dir: ctx.target.clone(),
         });
-        plan.add(GitOperation::Commit {
+        init_phase.add(GitOperation::Commit {
             message: "fork: initial commit".to_string(),
             working_dir: ctx.target.clone(),
         });
+        plan.add_phase(init_phase);
 
         Ok(plan)
     }

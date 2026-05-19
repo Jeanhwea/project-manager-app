@@ -3,7 +3,9 @@ use crate::control::plan;
 use crate::domain::selfupdate::DownloadContext as SelfUpdateContext;
 use crate::domain::selfupdate::{fetch_latest_release, get_asset_name};
 use crate::error::{AppError, Result};
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, SelfUpdateOperation};
+use crate::model::plan::{
+    DisplayMessage, ExecutionPlan, ExecutionResult, Phase, SelfUpdateOperation,
+};
 use crate::utils::output::Output;
 use std::env;
 
@@ -129,13 +131,15 @@ impl Command for UpdateArgs {
 
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        plan.add(SelfUpdateOperation::DownloadAndInstall {
+        let mut update_phase = Phase::new("下载更新");
+        update_phase.add(SelfUpdateOperation::DownloadAndInstall {
             api_url: asset.url.clone(),
             browser_url: asset.browser_download_url.clone(),
             asset_name: asset.name.clone(),
             current_version: ctx.current.to_string(),
             target_version: ctx.latest.clone(),
         });
+        plan.add_phase(update_phase);
 
         plan.add_message(DisplayMessage::Success {
             msg: format!("更新成功! v{} -> v{}", ctx.current, ctx.latest),

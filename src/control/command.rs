@@ -5,24 +5,16 @@ use crate::model::plan::{ExecutionPlan, ExecutionResult};
 use crate::utils::output::Output;
 use std::path::Path;
 
-/// Unified command trait. All commands follow the collect → plan → execute flow.
-///
-/// - `Context`: the data collected by `collect()`, passed to `plan()`
-/// - `Plan`: the plan type returned by `plan()`. For most commands this is `ExecutionPlan`.
 pub(crate) trait Command {
     type Context;
     type Plan;
 
-    /// Collect context information needed to build the plan.
     fn collect(&self) -> Result<Self::Context>;
 
-    /// Build an execution plan from the collected context.
     fn plan(&self, ctx: &Self::Context) -> Result<Self::Plan>;
 
-    /// Execute the plan and return a structured result.
     fn execute(&self, plan: &Self::Plan) -> Result<ExecutionResult>;
 
-    /// Run the full collect → plan → execute pipeline.
     fn run(&self) -> Result<()> {
         let ctx = self.collect()?;
         let plan = self.plan(&ctx)?;
@@ -39,7 +31,6 @@ pub(crate) trait Command {
     }
 }
 
-/// Helper for multi-repo commands. Each repo gets its own collect → plan → execute cycle.
 pub(crate) fn run_multi_repo<C: MultiRepo>(cmd: &C, walker: &RepoWalker) -> Result<()> {
     let total = walker.total();
     for (index, repo_info) in walker.repositories().iter().enumerate() {
@@ -64,8 +55,6 @@ pub(crate) fn run_multi_repo<C: MultiRepo>(cmd: &C, walker: &RepoWalker) -> Resu
     Ok(())
 }
 
-/// Trait for commands that operate on multiple repositories.
-/// The command itself manages the iteration via `run_multi_repo()`.
 pub(crate) trait MultiRepo {
     type Context;
     type Plan;

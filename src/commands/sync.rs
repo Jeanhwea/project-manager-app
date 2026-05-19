@@ -6,7 +6,7 @@ use crate::domain::git::collect_context;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -86,6 +86,7 @@ impl MultiRepo for SyncArgs {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
         let current_branch = &ctx.git_ctx.current_branch;
 
+        // Phase: 同步其他分支
         if ctx.sync_all_branches {
             let other_branches: Vec<&crate::model::git::Branch> = ctx
                 .git_ctx
@@ -96,69 +97,78 @@ impl MultiRepo for SyncArgs {
                 .collect();
 
             if !other_branches.is_empty() {
-                plan.add_message(DisplayMessage::Header {
-                    title: "同步所有本地分支".to_string(),
-                });
+                let mut branch_phase = Phase::new("同步其他分支");
 
                 for branch in &other_branches {
                     for remote in &ctx.target_remotes {
                         if ctx.git_ctx.has_remote_branch(remote, &branch.name) {
-                            plan.add(GitOperation::Checkout {
+                            branch_phase.add(GitOperation::Checkout {
                                 ref_name: branch.name.clone(),
                                 working_dir: repo_path.to_path_buf(),
                             });
-                            plan.add(GitOperation::Pull {
+                            branch_phase.add(GitOperation::Pull {
                                 remote: remote.clone(),
                                 branch: branch.name.clone(),
                                 working_dir: repo_path.to_path_buf(),
                             });
                         } else {
-                            plan.add_message(DisplayMessage::Skip {
+                            branch_phase.add_message(DisplayMessage::Skip {
                                 msg: format!("跳过 {} (远程无此分支)", branch.name),
                             });
                         }
                     }
                 }
 
-                plan.add(GitOperation::Checkout {
+                branch_phase.add(GitOperation::Checkout {
                     ref_name: current_branch.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
+
+                if !branch_phase.is_empty() {
+                    plan.add_phase(branch_phase);
+                }
             }
         }
 
-        plan.add_message(DisplayMessage::Header {
-            title: "同步当前分支".to_string(),
-        });
-
+        // Phase: 拉取当前分支
+        let mut pull_phase = Phase::new("拉取当前分支");
         for remote in &ctx.target_remotes {
             if ctx.git_ctx.has_remote_branch(remote, current_branch) {
-                plan.add(GitOperation::Pull {
+                pull_phase.add(GitOperation::Pull {
                     remote: remote.clone(),
                     branch: current_branch.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
             } else {
-                plan.add_message(DisplayMessage::Skip {
+                pull_phase.add_message(DisplayMessage::Skip {
                     msg: format!("跳过拉取 {}/{} (远程无此分支)", remote, current_branch),
                 });
             }
         }
 
-        plan.add(GitOperation::PullDefault {
+        pull_phase.add(GitOperation::PullDefault {
             working_dir: repo_path.to_path_buf(),
         });
 
+        if !pull_phase.is_empty() {
+            plan.add_phase(pull_phase);
+        }
+
+        // Phase: 推送
         if ctx.should_push {
+            let mut push_phase = Phase::new("推送");
             for remote in &ctx.target_remotes {
-                plan.add(GitOperation::PushAll {
+                push_phase.add(GitOperation::PushAll {
                     remote: remote.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
-                plan.add(GitOperation::PushTags {
+                push_phase.add(GitOperation::PushTags {
                     remote: remote.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
+            }
+            if !push_phase.is_empty() {
+                plan.add_phase(push_phase);
             }
         } else {
             for remote in &ctx.target_remotes {

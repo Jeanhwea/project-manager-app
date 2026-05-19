@@ -1,6 +1,6 @@
 use super::{EditorRegistry, FileEditor};
 use crate::error::AppError;
-use crate::model::plan::{ExecutionPlan, GitOperation};
+use crate::model::plan::{AddOperation, DisplayMessage, GitOperation};
 use regex::Regex;
 use std::path::{Path, PathBuf};
 
@@ -76,7 +76,7 @@ pub fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     results
 }
 
-pub fn add_lockfile_operations(plan: &mut ExecutionPlan, config_file: &str) {
+pub fn add_lockfile_operations(plan: &mut impl AddOperation, config_file: &str) {
     if config_file.ends_with("Cargo.toml") {
         add_cargo_lock_operations(plan, config_file);
     } else if config_file.ends_with("package.json") {
@@ -84,7 +84,7 @@ pub fn add_lockfile_operations(plan: &mut ExecutionPlan, config_file: &str) {
     }
 }
 
-fn add_cargo_lock_operations(plan: &mut ExecutionPlan, cargo_toml_path: &str) {
+fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str) {
     use crate::domain::git::release::is_gitignored;
 
     let dir = parent_dir(Path::new(cargo_toml_path));
@@ -98,7 +98,7 @@ fn add_cargo_lock_operations(plan: &mut ExecutionPlan, cargo_toml_path: &str) {
         return;
     };
 
-    plan.add(crate::model::plan::ShellOperation::Run {
+    plan.add_op(crate::model::plan::ShellOperation::Run {
         program: "cargo".to_string(),
         args: vec![
             "update".to_string(),
@@ -110,13 +110,13 @@ fn add_cargo_lock_operations(plan: &mut ExecutionPlan, cargo_toml_path: &str) {
     });
 
     let path_str = lock_path.to_string_lossy().replace('\\', "/");
-    plan.add(GitOperation::Add {
+    plan.add_op(GitOperation::Add {
         path: path_str,
         working_dir: PathBuf::from("."),
     });
 }
 
-fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str) {
+fn add_js_lockfile_operations(plan: &mut impl AddOperation, package_json_path: &str) {
     use crate::domain::git::release::is_gitignored;
 
     let pkg_dir = parent_dir(Path::new(package_json_path));
@@ -139,7 +139,7 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
         let lock_path = pkg_dir.join(lock_name);
         if lock_path.exists() && !is_gitignored(&lock_path) {
             let args_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-            plan.add(crate::model::plan::ShellOperation::Run {
+            plan.add_op(crate::model::plan::ShellOperation::Run {
                 program: cmd.to_string(),
                 args: args_vec,
                 dir: Some(pkg_dir.to_path_buf()),
@@ -147,7 +147,7 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
             });
 
             let path_str = lock_path.to_string_lossy().replace('\\', "/");
-            plan.add(GitOperation::Add {
+            plan.add_op(GitOperation::Add {
                 path: path_str,
                 working_dir: PathBuf::from("."),
             });
@@ -158,7 +158,7 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
     if crate::utils::is_command_available("pnpm") {
         let lock_path = pkg_dir.join("pnpm-lock.yaml");
         if !is_gitignored(&lock_path) {
-            plan.add(crate::model::plan::ShellOperation::Run {
+            plan.add_op(crate::model::plan::ShellOperation::Run {
                 program: "pnpm".to_string(),
                 args: vec!["install".to_string(), "--lockfile-only".to_string()],
                 dir: Some(pkg_dir.to_path_buf()),
@@ -168,13 +168,13 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
     } else {
         #[cfg(target_os = "windows")]
         {
-            plan.add_message(crate::model::plan::DisplayMessage::Warning {
+            plan.add_msg(crate::model::plan::DisplayMessage::Warning {
                 msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm".to_string(),
             });
         }
         #[cfg(not(target_os = "windows"))]
         {
-            plan.add_message(crate::model::plan::DisplayMessage::Warning {
+            plan.add_msg(crate::model::plan::DisplayMessage::Warning {
                 msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新".to_string(),
             });
         }

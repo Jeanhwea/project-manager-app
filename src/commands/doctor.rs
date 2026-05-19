@@ -5,7 +5,7 @@ use crate::domain::git::repository::RepoWalker;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -57,17 +57,18 @@ impl MultiRepo for DoctorArgs {
         };
 
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+        let mut fix_phase = Phase::new("修复问题");
 
         for issue in &ctx.issues {
             match issue {
                 Diagnosis::StaleRefs { remote } => {
-                    plan.add(GitOperation::PruneRemote {
+                    fix_phase.add(GitOperation::PruneRemote {
                         remote: remote.clone(),
                         working_dir: repo_path.to_path_buf(),
                     });
                 }
                 Diagnosis::NoRemoteTrackingBranch | Diagnosis::SingleLocalBranch => {
-                    plan.add(GitOperation::SetUpstream {
+                    fix_phase.add(GitOperation::SetUpstream {
                         remote: git_ctx
                             .preferred_remote()
                             .or_else(|| git_ctx.first_remote_name())
@@ -77,12 +78,12 @@ impl MultiRepo for DoctorArgs {
                     });
                 }
                 Diagnosis::LargeRepo { .. } => {
-                    plan.add(GitOperation::Gc {
+                    fix_phase.add(GitOperation::Gc {
                         working_dir: repo_path.to_path_buf(),
                     });
                 }
                 Diagnosis::StashExists => {
-                    plan.add_message(DisplayMessage::Warning {
+                    fix_phase.add_message(DisplayMessage::Warning {
                         msg: "stash 条目需要手动处理".to_string(),
                     });
                 }
@@ -90,11 +91,11 @@ impl MultiRepo for DoctorArgs {
                     current, expected, ..
                 } => {
                     if git_ctx.has_remote(expected) {
-                        plan.add_message(DisplayMessage::Warning {
+                        fix_phase.add_message(DisplayMessage::Warning {
                             msg: format!("目标 remote 名称 {} 已存在，跳过", expected),
                         });
                     } else {
-                        plan.add(GitOperation::RenameRemote {
+                        fix_phase.add(GitOperation::RenameRemote {
                             old: current.clone(),
                             new: expected.clone(),
                             working_dir: repo_path.to_path_buf(),
@@ -103,6 +104,10 @@ impl MultiRepo for DoctorArgs {
                 }
                 Diagnosis::DetachedHead | Diagnosis::NoRemote => {}
             }
+        }
+
+        if !fix_phase.is_empty() {
+            plan.add_phase(fix_phase);
         }
 
         Ok(plan)

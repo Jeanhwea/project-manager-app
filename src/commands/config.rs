@@ -3,7 +3,7 @@ use crate::control::plan;
 use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
 use crate::error::{AppError, Result};
-use crate::model::plan::{DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult};
+use crate::model::plan::{DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, Phase};
 use std::path::PathBuf;
 
 #[derive(Debug, clap::Subcommand)]
@@ -63,17 +63,19 @@ impl Command for InitArgs {
     fn plan(&self, ctx: &ConfigInitContext) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
 
-        plan.add(EditOperation::WriteFile {
+        let mut init_phase = Phase::new("创建配置");
+        init_phase.add(EditOperation::WriteFile {
             path: ctx.config_path.to_string_lossy().to_string(),
             content: schema::default_config_content().to_string(),
             description: "create main config".to_string(),
         });
 
-        plan.add(EditOperation::WriteFile {
+        init_phase.add(EditOperation::WriteFile {
             path: ctx.gitlab_path.to_string_lossy().to_string(),
             content: schema::default_gitlab_config_content().to_string(),
             description: "create gitlab config".to_string(),
         });
+        plan.add_phase(init_phase);
 
         plan.add_message(DisplayMessage::Item {
             label: "已创建配置目录".to_string(),

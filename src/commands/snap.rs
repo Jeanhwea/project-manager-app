@@ -2,7 +2,7 @@ use crate::control::command::Command;
 use crate::control::plan;
 use crate::domain::git::GitCommandRunner;
 use crate::error::{AppError, Result};
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Subcommand)]
@@ -132,28 +132,30 @@ impl Command for CreateArgs {
             return Ok(plan);
         }
 
+        let mut snap_phase = Phase::new("创建快照");
         if ctx.needs_init {
-            plan.add(GitOperation::Init {
+            snap_phase.add(GitOperation::Init {
                 working_dir: ctx.project_path.clone(),
             });
-            plan.add(GitOperation::Add {
+            snap_phase.add(GitOperation::Add {
                 path: ".".to_string(),
                 working_dir: ctx.project_path.clone(),
             });
-            plan.add(GitOperation::Commit {
+            snap_phase.add(GitOperation::Commit {
                 message: "snap-000000".to_string(),
                 working_dir: ctx.project_path.clone(),
             });
         } else {
-            plan.add(GitOperation::Add {
+            snap_phase.add(GitOperation::Add {
                 path: ".".to_string(),
                 working_dir: ctx.project_path.clone(),
             });
-            plan.add(GitOperation::Commit {
+            snap_phase.add(GitOperation::Commit {
                 message: format!("snap-{:06}", ctx.num_commit),
                 working_dir: ctx.project_path.clone(),
             });
         }
+        plan.add_phase(snap_phase);
 
         Ok(plan)
     }
@@ -265,10 +267,14 @@ impl Command for RestoreArgs {
 
     fn plan(&self, ctx: &SnapRestoreContext) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
-        plan.add(GitOperation::Checkout {
+
+        let mut restore_phase = Phase::new("恢复快照");
+        restore_phase.add(GitOperation::Checkout {
             ref_name: ctx.commit_ref.clone(),
             working_dir: PathBuf::from(&self.path),
         });
+        plan.add_phase(restore_phase);
+
         plan.add_message(DisplayMessage::Success {
             msg: format!("已恢复到快照 {}", ctx.commit_ref),
         });

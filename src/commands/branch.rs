@@ -5,7 +5,7 @@ use crate::domain::git::GitCommandRunner;
 use crate::domain::git::collect_context;
 use crate::error::Result;
 use crate::model::git::{Branch, GitContext};
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation, Phase};
 use std::path::Path;
 
 #[derive(Debug, clap::Subcommand)]
@@ -183,19 +183,25 @@ impl MultiRepo for BranchCleanArgs {
 
     fn plan(&self, ctx: &BranchCleanContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+
+        let mut clean_phase = Phase::new("清理分支");
         for branch in &ctx.branches_to_delete {
-            plan.add(GitOperation::DeleteBranch {
+            clean_phase.add(GitOperation::DeleteBranch {
                 branch: branch.clone(),
                 working_dir: repo_path.to_path_buf(),
             });
             if ctx.delete_remote {
-                plan.add(GitOperation::DeleteRemoteBranch {
+                clean_phase.add(GitOperation::DeleteRemoteBranch {
                     remote: ctx.remote_name.clone(),
                     branch: branch.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
             }
         }
+        if !clean_phase.is_empty() {
+            plan.add_phase(clean_phase);
+        }
+
         Ok(plan)
     }
 
@@ -226,10 +232,13 @@ impl MultiRepo for BranchSwitchArgs {
             return Ok(plan);
         }
 
-        plan.add(GitOperation::Checkout {
+        let mut switch_phase = Phase::new("切换分支");
+        switch_phase.add(GitOperation::Checkout {
             ref_name: self.branch.clone(),
             working_dir: repo_path.to_path_buf(),
         });
+        plan.add_phase(switch_phase);
+
         plan.add_message(DisplayMessage::Success {
             msg: format!("已切换到 {}", self.branch),
         });
@@ -263,11 +272,14 @@ impl MultiRepo for BranchRenameArgs {
             return Ok(plan);
         }
 
-        plan.add(GitOperation::RenameBranch {
+        let mut rename_phase = Phase::new("重命名分支");
+        rename_phase.add(GitOperation::RenameBranch {
             old: self.old_name.clone(),
             new: self.new_name.clone(),
             working_dir: repo_path.to_path_buf(),
         });
+        plan.add_phase(rename_phase);
+
         plan.add_message(DisplayMessage::Success {
             msg: format!("{} -> {}", self.old_name, self.new_name),
         });
@@ -309,35 +321,37 @@ impl MultiRepo for BranchAllArgs {
 
         let preferred_remote = ctx.git_ctx.preferred_remote();
 
+        let mut sync_phase = Phase::new("同步分支");
         for branch in &other_branches {
-            plan.add(GitOperation::Checkout {
+            sync_phase.add(GitOperation::Checkout {
                 ref_name: branch.name.clone(),
                 working_dir: repo_path.to_path_buf(),
             });
 
             if let Some(ref remote) = preferred_remote {
                 if ctx.git_ctx.has_remote_branch(remote, &branch.name) {
-                    plan.add(GitOperation::Pull {
+                    sync_phase.add(GitOperation::Pull {
                         remote: remote.clone(),
                         branch: branch.name.clone(),
                         working_dir: repo_path.to_path_buf(),
                     });
                 } else {
-                    plan.add_message(DisplayMessage::Skip {
+                    sync_phase.add_message(DisplayMessage::Skip {
                         msg: format!("跳过拉取 {}/{} (远程无此分支)", remote, branch.name),
                     });
                 }
             } else {
-                plan.add_message(DisplayMessage::Skip {
+                sync_phase.add_message(DisplayMessage::Skip {
                     msg: format!("跳过拉取 {} (无绑定远端)", branch.name),
                 });
             }
         }
 
-        plan.add(GitOperation::Checkout {
+        sync_phase.add(GitOperation::Checkout {
             ref_name: current_branch.clone(),
             working_dir: repo_path.to_path_buf(),
         });
+        plan.add_phase(sync_phase);
 
         plan.add_message(DisplayMessage::Success {
             msg: format!(

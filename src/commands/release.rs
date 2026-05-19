@@ -11,7 +11,7 @@ use crate::domain::project_config;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{
-    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation,
+    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation, Phase,
 };
 use crate::model::project_config::ProjectConfig;
 use crate::utils::output::Output;
@@ -194,9 +194,7 @@ fn build_execution_plan(
     let mut plan = ExecutionPlan::new();
     let mut has_changes = false;
 
-    plan.add_message(DisplayMessage::Section {
-        title: "修改计划".to_string(),
-    });
+    let mut edit_phase = Phase::new("版本修改");
 
     for file_path in config_files {
         let editor = registry.detect_editor(Path::new(file_path)).unwrap();
@@ -206,7 +204,7 @@ fn build_execution_plan(
             has_changes = true;
             let old_lines: Vec<&str> = original.lines().collect();
             let new_lines: Vec<&str> = edited.lines().collect();
-            plan.add(EditOperation::WriteFile {
+            edit_phase.add(EditOperation::WriteFile {
                 path: file_path.clone(),
                 content: edited.clone(),
                 description: format!("edit {}", file_path),
@@ -233,40 +231,50 @@ fn build_execution_plan(
                 });
             }
 
-            add_lockfile_operations(&mut plan, file_path);
+            add_lockfile_operations(&mut edit_phase, file_path);
 
-            plan.add(GitOperation::Add {
+            edit_phase.add(GitOperation::Add {
                 path: file_path.clone(),
                 working_dir: PathBuf::from("."),
             });
         }
     }
 
+    if !edit_phase.is_empty() {
+        plan.add_phase(edit_phase);
+    }
+
+    let mut git_phase = Phase::new("Git 提交推送");
+
     if has_changes {
-        plan.add(GitOperation::Commit {
+        git_phase.add(GitOperation::Commit {
             message: state.commit_message.clone(),
             working_dir: PathBuf::from("."),
         });
     }
 
-    plan.add(GitOperation::CreateTag {
+    git_phase.add(GitOperation::CreateTag {
         tag: state.new_tag.clone(),
         working_dir: PathBuf::from("."),
     });
 
     if !args.skip_push {
         for remote in ctx.remote_names() {
-            plan.add(GitOperation::PushTag {
+            git_phase.add(GitOperation::PushTag {
                 remote: remote.to_string(),
                 tag: state.new_tag.clone(),
                 working_dir: PathBuf::from("."),
             });
-            plan.add(GitOperation::PushBranch {
+            git_phase.add(GitOperation::PushBranch {
                 remote: remote.to_string(),
                 branch: state.current_branch.clone(),
                 working_dir: PathBuf::from("."),
             });
         }
+    }
+
+    if !git_phase.is_empty() {
+        plan.add_phase(git_phase);
     }
 
     plan
