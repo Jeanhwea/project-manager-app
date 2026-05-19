@@ -1,6 +1,9 @@
 use crate::control::command::Command;
+use crate::control::plan;
 use crate::error::{AppError, Result};
-use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
+use crate::model::plan::{
+    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation,
+};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, clap::Args)]
@@ -25,8 +28,9 @@ pub(crate) struct ForkContext {
 
 impl Command for ForkArgs {
     type Context = ForkContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self) -> Result<ForkContext> {
+    fn collect(&self) -> Result<ForkContext> {
         let source = Path::new(&self.source);
         let target = Path::new(&self.target);
 
@@ -53,14 +57,14 @@ impl Command for ForkArgs {
     fn plan(&self, ctx: &ForkContext) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        plan.add(MessageOperation::Header {
+        plan.add_message(DisplayMessage::Header {
             title: "项目分叉".to_string(),
         });
-        plan.add(MessageOperation::Item {
+        plan.add_message(DisplayMessage::Item {
             label: "源".to_string(),
             value: self.source.clone(),
         });
-        plan.add(MessageOperation::Item {
+        plan.add_message(DisplayMessage::Item {
             label: "目标".to_string(),
             value: self.target.clone(),
         });
@@ -84,6 +88,10 @@ impl Command for ForkArgs {
         });
 
         Ok(plan)
+    }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
     }
 }
 

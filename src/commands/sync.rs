@@ -1,11 +1,12 @@
 use crate::commands::RepoPathArgs;
-use crate::control::command::MultiRepoCommand;
+use crate::control::command::MultiRepo;
+use crate::control::plan;
 use crate::domain::config::ConfigManager;
 use crate::domain::git::collect_context;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -45,10 +46,11 @@ pub(crate) struct SyncContext {
     sync_all_branches: bool,
 }
 
-impl MultiRepoCommand for SyncArgs {
+impl MultiRepo for SyncArgs {
     type Context = SyncContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<SyncContext> {
+    fn collect(&self, repo_path: &Path) -> Result<SyncContext> {
         let git_ctx = collect_context(repo_path)?;
 
         if git_ctx.remotes.is_empty() {
@@ -94,7 +96,7 @@ impl MultiRepoCommand for SyncArgs {
                 .collect();
 
             if !other_branches.is_empty() {
-                plan.add(MessageOperation::Header {
+                plan.add_message(DisplayMessage::Header {
                     title: "同步所有本地分支".to_string(),
                 });
 
@@ -111,7 +113,7 @@ impl MultiRepoCommand for SyncArgs {
                                 working_dir: repo_path.to_path_buf(),
                             });
                         } else {
-                            plan.add(MessageOperation::Skip {
+                            plan.add_message(DisplayMessage::Skip {
                                 msg: format!("跳过 {} (远程无此分支)", branch.name),
                             });
                         }
@@ -125,7 +127,7 @@ impl MultiRepoCommand for SyncArgs {
             }
         }
 
-        plan.add(MessageOperation::Header {
+        plan.add_message(DisplayMessage::Header {
             title: "同步当前分支".to_string(),
         });
 
@@ -137,7 +139,7 @@ impl MultiRepoCommand for SyncArgs {
                     working_dir: repo_path.to_path_buf(),
                 });
             } else {
-                plan.add(MessageOperation::Skip {
+                plan.add_message(DisplayMessage::Skip {
                     msg: format!("跳过拉取 {}/{} (远程无此分支)", remote, current_branch),
                 });
             }
@@ -160,13 +162,17 @@ impl MultiRepoCommand for SyncArgs {
             }
         } else {
             for remote in &ctx.target_remotes {
-                plan.add(MessageOperation::Skip {
+                plan.add_message(DisplayMessage::Skip {
                     msg: format!("跳过推送到 {} (配置 skip_push_remotes)", remote),
                 });
             }
         }
 
         Ok(plan)
+    }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
     }
 }
 
@@ -179,7 +185,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
         return Ok(());
     }
 
-    MultiRepoCommand::run(&args, &walker)
+    crate::control::command::run_multi_repo(&args, &walker)
 }
 
 fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {
@@ -222,7 +228,7 @@ fn should_push_to_remote(remote_name: &str) -> bool {
 
 fn skip_plan(msg: &str) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
-    plan.add(MessageOperation::Skip {
+    plan.add_message(DisplayMessage::Skip {
         msg: msg.to_string(),
     });
     Ok(plan)

@@ -9,7 +9,7 @@ pub mod snap;
 pub mod status;
 pub mod sync;
 
-use crate::control::command::MultiRepoCommand;
+use crate::control::command::MultiRepo;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::Result;
 use crate::utils::output::Output;
@@ -37,9 +37,9 @@ pub fn init_repo_walker(args: &RepoPathArgs) -> Result<Option<RepoWalker>> {
     Ok(Some(walker))
 }
 
-pub fn run_multi_repo(cmd: &impl MultiRepoCommand, repo_path: &RepoPathArgs) -> Result<()> {
+pub fn run_multi_repo(cmd: &impl MultiRepo, repo_path: &RepoPathArgs) -> Result<()> {
     let Some(walker) = init_repo_walker(repo_path)? else {
         return Ok(());
     };
-    MultiRepoCommand::run(cmd, &walker)
+    crate::control::command::run_multi_repo(cmd, &walker)
 }

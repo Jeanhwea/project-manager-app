@@ -1,8 +1,11 @@
 use crate::control::command::Command;
+use crate::control::plan;
 use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
 use crate::error::{AppError, Result};
-use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
+use crate::model::plan::{
+    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation,
+};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -62,8 +65,9 @@ pub(crate) struct CloneContext {
 
 impl Command for LoginArgs {
     type Context = LoginContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self) -> Result<LoginContext> {
+    fn collect(&self) -> Result<LoginContext> {
         let mut config = ConfigManager::load_gitlab();
         let trimmed_url = self.url.trim().to_string();
         let is_update = config.servers.iter().any(|s| s.url == trimmed_url);
@@ -87,7 +91,7 @@ impl Command for LoginArgs {
         let mut plan = ExecutionPlan::new();
 
         if ctx.is_update {
-            plan.add(MessageOperation::Warning {
+            plan.add_message(DisplayMessage::Warning {
                 msg: format!("服务器 {} 已存在，将更新 token", self.url),
             });
         }
@@ -101,18 +105,23 @@ impl Command for LoginArgs {
             description: "save gitlab config".to_string(),
         });
 
-        plan.add(MessageOperation::Success {
+        plan.add_message(DisplayMessage::Success {
             msg: format!("已添加 GitLab 服务器: {}", self.url),
         });
 
         Ok(plan)
     }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
+    }
 }
 
 impl Command for CloneArgs {
     type Context = CloneContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self) -> Result<CloneContext> {
+    fn collect(&self) -> Result<CloneContext> {
         let config = ConfigManager::load_gitlab();
         let (server, group_path) =
             resolve_server_and_group(&config, &self.group, self.server.as_deref())?;
@@ -130,24 +139,24 @@ impl Command for CloneArgs {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
         if ctx.projects.is_empty() {
-            plan.add(MessageOperation::Warning {
+            plan.add_message(DisplayMessage::Warning {
                 msg: "未找到项目".to_string(),
             });
             return Ok(plan);
         }
 
-        plan.add(MessageOperation::Header {
+        plan.add_message(DisplayMessage::Header {
             title: "克隆项目".to_string(),
         });
-        plan.add(MessageOperation::Item {
+        plan.add_message(DisplayMessage::Item {
             label: "服务器".to_string(),
             value: ctx.server_url.clone(),
         });
-        plan.add(MessageOperation::Item {
+        plan.add_message(DisplayMessage::Item {
             label: "协议".to_string(),
             value: ctx.protocol.clone(),
         });
-        plan.add(MessageOperation::Item {
+        plan.add_message(DisplayMessage::Item {
             label: "数量".to_string(),
             value: ctx.projects.len().to_string(),
         });
@@ -164,7 +173,7 @@ impl Command for CloneArgs {
                 .unwrap_or(&proj.path_with_namespace)
                 .to_string();
 
-            plan.add(MessageOperation::Item {
+            plan.add_message(DisplayMessage::Item {
                 label: "项目".to_string(),
                 value: proj.path_with_namespace.clone(),
             });
@@ -177,6 +186,10 @@ impl Command for CloneArgs {
         }
 
         Ok(plan)
+    }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
     }
 }
 

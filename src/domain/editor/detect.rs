@@ -168,13 +168,13 @@ fn add_js_lockfile_operations(plan: &mut ExecutionPlan, package_json_path: &str)
     } else {
         #[cfg(target_os = "windows")]
         {
-            plan.add(crate::model::plan::MessageOperation::Warning {
+            plan.add_message(crate::model::plan::DisplayMessage::Warning {
                 msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm".to_string(),
             });
         }
         #[cfg(not(target_os = "windows"))]
         {
-            plan.add(crate::model::plan::MessageOperation::Warning {
+            plan.add_message(crate::model::plan::DisplayMessage::Warning {
                 msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新".to_string(),
             });
         }

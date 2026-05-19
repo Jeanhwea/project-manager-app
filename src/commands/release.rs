@@ -1,4 +1,5 @@
 use crate::control::command::Command;
+use crate::control::plan;
 use crate::domain::editor::{
     BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content,
     detect_config_files, resolve_config_files,
@@ -9,7 +10,9 @@ use crate::domain::git::{
 use crate::domain::project_config;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{EditOperation, ExecutionPlan, GitOperation, MessageOperation};
+use crate::model::plan::{
+    DisplayMessage, EditOperation, ExecutionPlan, ExecutionResult, GitOperation,
+};
 use crate::model::project_config::ProjectConfig;
 use crate::utils::output::Output;
 use crate::utils::path::canonicalize_path;
@@ -66,8 +69,9 @@ pub(crate) struct ReleaseContext {
 
 impl Command for ReleaseArgs {
     type Context = ReleaseContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self) -> Result<ReleaseContext> {
+    fn collect(&self) -> Result<ReleaseContext> {
         let work_dir = if self.no_root {
             std::env::current_dir()?
         } else {
@@ -112,8 +116,12 @@ impl Command for ReleaseArgs {
             &ctx.git_ctx,
             &ctx.registry,
         );
-        plan.dry_run = self.dry_run;
+        plan = plan.with_dry_run(self.dry_run);
         Ok(plan)
+    }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
     }
 }
 
@@ -186,7 +194,7 @@ fn build_execution_plan(
     let mut plan = ExecutionPlan::new();
     let mut has_changes = false;
 
-    plan.add(MessageOperation::Section {
+    plan.add_message(DisplayMessage::Section {
         title: "修改计划".to_string(),
     });
 
@@ -214,7 +222,7 @@ fn build_execution_plan(
             }
 
             if !changed_lines.is_empty() {
-                plan.add(MessageOperation::Diff {
+                plan.add_message(DisplayMessage::Diff {
                     file: file_path.clone(),
                     old_start: 1,
                     new_start: 1,

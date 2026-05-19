@@ -1,10 +1,11 @@
 use crate::commands::RepoPathArgs;
-use crate::control::command::MultiRepoCommand;
+use crate::control::command::MultiRepo;
+use crate::control::plan;
 use crate::domain::git::GitCommandRunner;
 use crate::domain::git::collect_context;
 use crate::error::Result;
 use crate::model::git::{Branch, GitContext};
-use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation};
 use std::path::Path;
 
 #[derive(Debug, clap::Subcommand)]
@@ -105,10 +106,11 @@ pub(crate) struct BranchAllContext {
     git_ctx: GitContext,
 }
 
-impl MultiRepoCommand for BranchListArgs {
+impl MultiRepo for BranchListArgs {
     type Context = BranchListContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<BranchListContext> {
+    fn collect(&self, repo_path: &Path) -> Result<BranchListContext> {
         let git_ctx = collect_context(repo_path)?;
         Ok(BranchListContext { git_ctx })
     }
@@ -122,12 +124,12 @@ impl MultiRepoCommand for BranchListArgs {
 
         for branch in ctx.git_ctx.local_branches() {
             if branch.is_current {
-                plan.add(MessageOperation::Item {
+                plan.add_message(DisplayMessage::Item {
                     label: "当前".to_string(),
                     value: branch.name.clone(),
                 });
             } else {
-                plan.add(MessageOperation::Skip {
+                plan.add_message(DisplayMessage::Skip {
                     msg: format!("  {}", branch.name),
                 });
             }
@@ -135,12 +137,17 @@ impl MultiRepoCommand for BranchListArgs {
 
         Ok(plan)
     }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
+    }
 }
 
-impl MultiRepoCommand for BranchCleanArgs {
+impl MultiRepo for BranchCleanArgs {
     type Context = BranchCleanContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<BranchCleanContext> {
+    fn collect(&self, repo_path: &Path) -> Result<BranchCleanContext> {
         let git_ctx = collect_context(repo_path)?;
 
         let remote_name = if git_ctx.has_remote(&self.remote) {
@@ -191,12 +198,17 @@ impl MultiRepoCommand for BranchCleanArgs {
         }
         Ok(plan)
     }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
+    }
 }
 
-impl MultiRepoCommand for BranchSwitchArgs {
+impl MultiRepo for BranchSwitchArgs {
     type Context = BranchSwitchContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<BranchSwitchContext> {
+    fn collect(&self, repo_path: &Path) -> Result<BranchSwitchContext> {
         let git_ctx = collect_context(repo_path)?;
         let exists = git_ctx
             .local_branches()
@@ -208,7 +220,7 @@ impl MultiRepoCommand for BranchSwitchArgs {
     fn plan(&self, ctx: &BranchSwitchContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
         if !ctx.exists {
-            plan.add(MessageOperation::Skip {
+            plan.add_message(DisplayMessage::Skip {
                 msg: format!("分支 {} 不存在", self.branch),
             });
             return Ok(plan);
@@ -218,17 +230,22 @@ impl MultiRepoCommand for BranchSwitchArgs {
             ref_name: self.branch.clone(),
             working_dir: repo_path.to_path_buf(),
         });
-        plan.add(MessageOperation::Success {
+        plan.add_message(DisplayMessage::Success {
             msg: format!("已切换到 {}", self.branch),
         });
         Ok(plan)
     }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
+    }
 }
 
-impl MultiRepoCommand for BranchRenameArgs {
+impl MultiRepo for BranchRenameArgs {
     type Context = BranchRenameContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<BranchRenameContext> {
+    fn collect(&self, repo_path: &Path) -> Result<BranchRenameContext> {
         let git_ctx = collect_context(repo_path)?;
         let exists = git_ctx
             .local_branches()
@@ -240,7 +257,7 @@ impl MultiRepoCommand for BranchRenameArgs {
     fn plan(&self, ctx: &BranchRenameContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
         if !ctx.exists {
-            plan.add(MessageOperation::Skip {
+            plan.add_message(DisplayMessage::Skip {
                 msg: format!("分支 {} 不存在", self.old_name),
             });
             return Ok(plan);
@@ -251,17 +268,22 @@ impl MultiRepoCommand for BranchRenameArgs {
             new: self.new_name.clone(),
             working_dir: repo_path.to_path_buf(),
         });
-        plan.add(MessageOperation::Success {
+        plan.add_message(DisplayMessage::Success {
             msg: format!("{} -> {}", self.old_name, self.new_name),
         });
         Ok(plan)
     }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
+    }
 }
 
-impl MultiRepoCommand for BranchAllArgs {
+impl MultiRepo for BranchAllArgs {
     type Context = BranchAllContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<BranchAllContext> {
+    fn collect(&self, repo_path: &Path) -> Result<BranchAllContext> {
         let git_ctx = collect_context(repo_path)?;
         Ok(BranchAllContext { git_ctx })
     }
@@ -279,7 +301,7 @@ impl MultiRepoCommand for BranchAllArgs {
             .collect();
 
         if other_branches.is_empty() {
-            plan.add(MessageOperation::Skip {
+            plan.add_message(DisplayMessage::Skip {
                 msg: "没有其他本地分支需要处理".to_string(),
             });
             return Ok(plan);
@@ -301,12 +323,12 @@ impl MultiRepoCommand for BranchAllArgs {
                         working_dir: repo_path.to_path_buf(),
                     });
                 } else {
-                    plan.add(MessageOperation::Skip {
+                    plan.add_message(DisplayMessage::Skip {
                         msg: format!("跳过拉取 {}/{} (远程无此分支)", remote, branch.name),
                     });
                 }
             } else {
-                plan.add(MessageOperation::Skip {
+                plan.add_message(DisplayMessage::Skip {
                     msg: format!("跳过拉取 {} (无绑定远端)", branch.name),
                 });
             }
@@ -317,7 +339,7 @@ impl MultiRepoCommand for BranchAllArgs {
             working_dir: repo_path.to_path_buf(),
         });
 
-        plan.add(MessageOperation::Success {
+        plan.add_message(DisplayMessage::Success {
             msg: format!(
                 "已处理 {} 个分支，当前分支: {}",
                 other_branches.len(),
@@ -326,6 +348,10 @@ impl MultiRepoCommand for BranchAllArgs {
         });
 
         Ok(plan)
+    }
+
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
     }
 }
 

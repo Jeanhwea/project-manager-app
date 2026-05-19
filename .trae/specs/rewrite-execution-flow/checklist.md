@@ -1,29 +1,29 @@
-- [ ] `DisplayMessage` 枚举定义完整，包含原 MessageOperation 的所有变体（Header, Section, Item, Detail, Diff, Success, Warning, Skip, Blank）
-- [ ] `Phase` 结构体包含 label 和 operations 字段
-- [ ] `PlanMetadata` 结构体包含 messages 和 dry_run 字段
-- [ ] `ExecutionPlan` 内部字段已封装（非 pub），提供只读访问器方法
-- [ ] `ExecutionResult` / `ExecutedOperation` / `SkippedOperation` / `OperationError` 结构体定义完整
-- [ ] `Operation` 枚举不再包含 `Message` 变体
-- [ ] `MessageOperation` 枚举已移除
-- [ ] 统一 `Command` trait 定义，包含 Context/Plan 关联类型和 collect/plan/execute 方法
-- [ ] `MultiRepoCommand` trait 已移除
-- [ ] 多仓库命令辅助函数 `run_multi_repo()` 存在且可用
-- [ ] `run_plan()` 支持按 Phase 阶段化执行
-- [ ] `PlanMetadata.messages` 在执行前后正确渲染
-- [ ] `run_plan()` 返回 `ExecutionResult` 而非 `Result<()>`
-- [ ] `display_plan()` 适配新的 ExecutionPlan 结构
-- [ ] `emit_recovery_hints()` 使用 OperationError 结构
-- [ ] release 命令适配新框架，使用 Phase 分组
-- [ ] sync 命令从 MultiRepoCommand 迁移到统一 Command trait
-- [ ] status 命令从 MultiRepoCommand 迁移到统一 Command trait
-- [ ] branch 命令从 MultiRepoCommand 迁移到统一 Command trait
-- [ ] doctor 命令从 MultiRepoCommand 迁移到统一 Command trait，不再直接访问 operations 字段
-- [ ] fork 命令适配新框架
-- [ ] gitlab 命令适配新框架
-- [ ] config 命令适配新框架
-- [ ] selfman 命令适配新框架
-- [ ] snap 命令适配新框架
-- [ ] `commands/mod.rs` 辅助函数已更新
-- [ ] `cargo check` 编译通过
-- [ ] `cargo test` 所有测试通过
-- [ ] `model/plan.rs` 测试用例已更新适配新数据结构
+- [x] `DisplayMessage` 枚举定义完整，包含原 MessageOperation 的所有变体（Header, Section, Item, Detail, Diff, Success, Warning, Skip, Blank）
+- [x] `Phase` 结构体包含 label 和 operations 字段
+- [x] `PlanMetadata` 结构体包含 messages 和 dry_run 字段
+- [x] `ExecutionPlan` 内部字段已封装（非 pub），提供只读访问器方法
+- [x] `ExecutionResult` / `ExecutedOperation` / `SkippedOperation` / `OperationError` 结构体定义完整
+- [x] `Operation` 枚举不再包含 `Message` 变体
+- [x] `MessageOperation` 枚举已移除
+- [x] 统一 `Command` trait 定义，包含 Context/Plan 关联类型和 collect/plan/execute 方法
+- [x] `MultiRepoCommand` trait 已移除
+- [x] 多仓库命令辅助函数 `run_multi_repo()` 存在且可用
+- [x] `run_plan()` 支持按 Phase 阶段化执行
+- [x] `PlanMetadata.messages` 在执行前后正确渲染
+- [x] `run_plan()` 返回 `ExecutionResult` 而非 `Result<()>`
+- [x] `display_plan()` 适配新的 ExecutionPlan 结构
+- [x] `emit_recovery_hints()` 使用 OperationError 结构
+- [x] release 命令适配新框架，使用 Phase 分组
+- [x] sync 命令从 MultiRepoCommand 迁移到统一 Command trait
+- [x] status 命令从 MultiRepoCommand 迁移到统一 Command trait
+- [x] branch 命令从 MultiRepoCommand 迁移到统一 Command trait
+- [x] doctor 命令从 MultiRepoCommand 迁移到统一 Command trait，不再直接访问 operations 字段
+- [x] fork 命令适配新框架
+- [x] gitlab 命令适配新框架
+- [x] config 命令适配新框架
+- [x] selfman 命令适配新框架
+- [x] snap 命令适配新框架
+- [x] `commands/mod.rs` 辅助函数已更新
+- [x] `cargo check` 编译通过
+- [x] `cargo test` 所有测试通过
+- [x] `model/plan.rs` 测试用例已更新适配新数据结构

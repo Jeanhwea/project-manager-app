@@ -1,10 +1,11 @@
 use crate::commands::{RepoPathArgs, init_repo_walker};
-use crate::control::command::MultiRepoCommand;
+use crate::control::command::MultiRepo;
+use crate::control::plan;
 use crate::domain::git::repository::RepoWalker;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::plan::{ExecutionPlan, GitOperation, MessageOperation, Operation};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, GitOperation};
 use crate::utils::output::Output;
 use std::path::Path;
 
@@ -33,10 +34,11 @@ pub(crate) struct DoctorContext {
     issues: Vec<Diagnosis>,
 }
 
-impl MultiRepoCommand for DoctorArgs {
+impl MultiRepo for DoctorArgs {
     type Context = DoctorContext;
+    type Plan = ExecutionPlan;
 
-    fn context(&self, repo_path: &Path) -> Result<DoctorContext> {
+    fn collect(&self, repo_path: &Path) -> Result<DoctorContext> {
         let issues = diagnose_repo(repo_path).map_err(|e| {
             AppError::release(format!("诊断仓库 {} 失败: {}", repo_path.display(), e))
         })?;
@@ -80,7 +82,7 @@ impl MultiRepoCommand for DoctorArgs {
                     });
                 }
                 Diagnosis::StashExists => {
-                    plan.add(MessageOperation::Warning {
+                    plan.add_message(DisplayMessage::Warning {
                         msg: "stash 条目需要手动处理".to_string(),
                     });
                 }
@@ -88,7 +90,7 @@ impl MultiRepoCommand for DoctorArgs {
                     current, expected, ..
                 } => {
                     if git_ctx.has_remote(expected) {
-                        plan.add(MessageOperation::Warning {
+                        plan.add_message(DisplayMessage::Warning {
                             msg: format!("目标 remote 名称 {} 已存在，跳过", expected),
                         });
                     } else {
@@ -106,6 +108,12 @@ impl MultiRepoCommand for DoctorArgs {
         Ok(plan)
     }
 
+    fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        plan::run_plan(plan)
+    }
+}
+
+impl DoctorArgs {
     fn run(&self, walker: &RepoWalker) -> Result<()> {
         if self.fix {
             check_prerequisites()?;
@@ -117,7 +125,7 @@ impl MultiRepoCommand for DoctorArgs {
 
         for (index, repo_info) in walker.repositories().iter().enumerate() {
             let repo_path = &repo_info.path;
-            let ctx = self.context(repo_path);
+            let ctx = self.collect(repo_path);
 
             let issues = ctx.as_ref().map(|c| c.issues.clone()).unwrap_or_default();
             if issues.is_empty() {
@@ -143,12 +151,8 @@ impl MultiRepoCommand for DoctorArgs {
                 && let Ok(ctx) = ctx
             {
                 let plan = self.plan(&ctx, repo_path)?;
-                let fixed = plan
-                    .operations
-                    .iter()
-                    .filter(|op| !matches!(op, Operation::Message(_)))
-                    .count();
-                Self::execute(&plan)?;
+                let fixed = plan.operation_count();
+                self.execute(&plan)?;
                 total_fixed += fixed;
             }
         }
@@ -169,7 +173,7 @@ pub fn run(args: DoctorArgs) -> Result<()> {
         return Ok(());
     };
 
-    MultiRepoCommand::run(&args, &walker)
+    crate::control::command::run_multi_repo(&args, &walker)
 }
 
 fn check_prerequisites() -> Result<()> {

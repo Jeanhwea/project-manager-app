@@ -274,7 +274,7 @@ impl SelfUpdateOperation {
 }
 
 #[derive(Debug, Clone)]
-pub enum MessageOperation {
+pub enum DisplayMessage {
     Header {
         title: String,
     },
@@ -310,14 +310,14 @@ pub enum MessageOperation {
     Blank,
 }
 
-impl MessageOperation {
+impl DisplayMessage {
     pub fn description(&self) -> String {
         match self {
-            MessageOperation::Header { title } => title.clone(),
-            MessageOperation::Section { title } => title.clone(),
-            MessageOperation::Item { label, value } => format!("{}: {}", label, value),
-            MessageOperation::Detail { label, value } => format!("  {}: {}", label, value),
-            MessageOperation::Diff {
+            DisplayMessage::Header { title } => title.clone(),
+            DisplayMessage::Section { title } => title.clone(),
+            DisplayMessage::Item { label, value } => format!("{}: {}", label, value),
+            DisplayMessage::Detail { label, value } => format!("  {}: {}", label, value),
+            DisplayMessage::Diff {
                 file,
                 old_start,
                 new_start,
@@ -346,10 +346,10 @@ impl MessageOperation {
 
                 diff_lines.join("\n")
             }
-            MessageOperation::Success { msg } => format!("OK> {}", msg),
-            MessageOperation::Warning { msg } => format!("WARN {}", msg),
-            MessageOperation::Skip { msg } => format!("SKIP {}", msg),
-            MessageOperation::Blank => String::new(),
+            DisplayMessage::Success { msg } => format!("OK> {}", msg),
+            DisplayMessage::Warning { msg } => format!("WARN {}", msg),
+            DisplayMessage::Skip { msg } => format!("SKIP {}", msg),
+            DisplayMessage::Blank => String::new(),
         }
     }
 }
@@ -360,7 +360,6 @@ pub enum Operation {
     Shell(ShellOperation),
     Edit(EditOperation),
     SelfUpdate(SelfUpdateOperation),
-    Message(MessageOperation),
 }
 
 impl Operation {
@@ -370,7 +369,6 @@ impl Operation {
             Operation::Shell(op) => op.description(),
             Operation::Edit(op) => op.description(),
             Operation::SelfUpdate(op) => op.description(),
-            Operation::Message(op) => op.description(),
         }
     }
 }
@@ -399,38 +397,242 @@ impl From<SelfUpdateOperation> for Operation {
     }
 }
 
-impl From<MessageOperation> for Operation {
-    fn from(op: MessageOperation) -> Self {
-        Operation::Message(op)
+#[derive(Debug, Clone)]
+pub struct Phase {
+    label: String,
+    operations: Vec<Operation>,
+}
+
+impl Phase {
+    pub fn new(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            operations: Vec::new(),
+        }
+    }
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+    pub fn operations(&self) -> &[Operation] {
+        &self.operations
+    }
+    pub fn add(&mut self, op: impl Into<Operation>) {
+        self.operations.push(op.into());
+    }
+    pub fn is_empty(&self) -> bool {
+        self.operations.is_empty()
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PlanMetadata {
+    messages: Vec<DisplayMessage>,
+    dry_run: bool,
+}
+
+impl PlanMetadata {
+    pub fn new() -> Self {
+        Self {
+            messages: Vec::new(),
+            dry_run: false,
+        }
+    }
+    pub fn with_dry_run(mut self, value: bool) -> Self {
+        self.dry_run = value;
+        self
+    }
+    pub fn dry_run(&self) -> bool {
+        self.dry_run
+    }
+    pub fn messages(&self) -> &[DisplayMessage] {
+        &self.messages
+    }
+    pub fn add_message(&mut self, msg: DisplayMessage) {
+        self.messages.push(msg);
+    }
+}
+
+impl Default for PlanMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ExecutionPlan {
-    pub operations: Vec<Operation>,
-    pub dry_run: bool,
+    phases: Vec<Phase>,
+    metadata: PlanMetadata,
 }
 
 impl ExecutionPlan {
     pub fn new() -> Self {
         Self {
-            operations: Vec::new(),
-            dry_run: false,
+            phases: Vec::new(),
+            metadata: PlanMetadata::new(),
         }
     }
-
     pub fn with_dry_run(mut self, value: bool) -> Self {
-        self.dry_run = value;
+        self.metadata = self.metadata.with_dry_run(value);
         self
     }
+    pub fn dry_run(&self) -> bool {
+        self.metadata.dry_run()
+    }
+    pub fn phases(&self) -> &[Phase] {
+        &self.phases
+    }
+    pub fn metadata(&self) -> &PlanMetadata {
+        &self.metadata
+    }
+    pub fn messages(&self) -> &[DisplayMessage] {
+        self.metadata.messages()
+    }
 
+    pub fn add_phase(&mut self, phase: Phase) {
+        self.phases.push(phase);
+    }
+    pub fn add_message(&mut self, msg: DisplayMessage) {
+        self.metadata.add_message(msg);
+    }
+
+    /// Add an operation to the last phase, creating a default phase if none exists
     pub fn add(&mut self, op: impl Into<Operation>) {
-        self.operations.push(op.into());
+        if self.phases.is_empty() {
+            self.phases.push(Phase::new("default"));
+        }
+        self.phases.last_mut().unwrap().add(op);
+    }
+
+    /// Get all operations across all phases
+    pub fn all_operations(&self) -> Vec<&Operation> {
+        self.phases.iter().flat_map(|p| p.operations()).collect()
+    }
+
+    /// Count non-message operations (for dry-run header)
+    pub fn operation_count(&self) -> usize {
+        self.phases.iter().map(|p| p.operations.len()).sum()
     }
 }
 
 impl Default for ExecutionPlan {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecutionResult {
+    executed: Vec<ExecutedOperation>,
+    skipped: Vec<SkippedOperation>,
+    errors: Vec<OperationError>,
+}
+
+impl ExecutionResult {
+    pub fn new() -> Self {
+        Self {
+            executed: Vec::new(),
+            skipped: Vec::new(),
+            errors: Vec::new(),
+        }
+    }
+    pub fn is_success(&self) -> bool {
+        self.errors.is_empty()
+    }
+    pub fn executed(&self) -> &[ExecutedOperation] {
+        &self.executed
+    }
+    pub fn skipped(&self) -> &[SkippedOperation] {
+        &self.skipped
+    }
+    pub fn errors(&self) -> &[OperationError] {
+        &self.errors
+    }
+    pub fn add_executed(&mut self, op: ExecutedOperation) {
+        self.executed.push(op);
+    }
+    pub fn add_skipped(&mut self, op: SkippedOperation) {
+        self.skipped.push(op);
+    }
+    pub fn add_error(&mut self, err: OperationError) {
+        self.errors.push(err);
+    }
+}
+
+impl Default for ExecutionResult {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecutedOperation {
+    description: String,
+    phase: String,
+}
+
+impl ExecutedOperation {
+    pub fn new(description: impl Into<String>, phase: impl Into<String>) -> Self {
+        Self {
+            description: description.into(),
+            phase: phase.into(),
+        }
+    }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+    pub fn phase(&self) -> &str {
+        &self.phase
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SkippedOperation {
+    description: String,
+    reason: String,
+}
+
+impl SkippedOperation {
+    pub fn new(description: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self {
+            description: description.into(),
+            reason: reason.into(),
+        }
+    }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OperationError {
+    description: String,
+    phase: String,
+    recovery_hint: Option<String>,
+}
+
+impl OperationError {
+    pub fn new(description: impl Into<String>, phase: impl Into<String>) -> Self {
+        Self {
+            description: description.into(),
+            phase: phase.into(),
+            recovery_hint: None,
+        }
+    }
+    pub fn with_recovery_hint(mut self, hint: impl Into<String>) -> Self {
+        self.recovery_hint = Some(hint.into());
+        self
+    }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+    pub fn phase(&self) -> &str {
+        &self.phase
+    }
+    pub fn recovery_hint(&self) -> Option<&str> {
+        self.recovery_hint.as_deref()
     }
 }
 
@@ -460,8 +662,8 @@ mod tests {
     }
 
     #[test]
-    fn message_diff_description_includes_file_and_line_numbers() {
-        let diff = MessageOperation::Diff {
+    fn display_message_diff_description_includes_file_and_line_numbers() {
+        let diff = DisplayMessage::Diff {
             file: "pyproject.toml".to_string(),
             old_start: 3,
             new_start: 3,
