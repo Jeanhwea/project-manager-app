@@ -155,12 +155,12 @@ fn init_project_config(args: &ReleaseArgs) -> Result<()> {
     let content = ProjectConfig::render(&detected);
     std::fs::write(&target, content)?;
 
-    Output::success(&format!("已创建 {}", target.display()));
+    Output::item("已创建", &target.display().to_string());
     if detected.is_empty() {
         Output::warning("未自动探测到任何版本文件，请手动编辑 files 字段");
     } else {
         for f in &detected {
-            Output::detail("file", f);
+            Output::item("文件", f);
         }
     }
     Ok(())
@@ -196,6 +196,26 @@ fn build_execution_plan(
     let mut plan = ExecutionPlan::new();
     let mut has_changes = false;
 
+    plan.add_message(DisplayMessage::Item {
+        label: "当前版本".to_string(),
+        value: state.current_tag.clone(),
+    });
+    plan.add_message(DisplayMessage::Item {
+        label: "目标版本".to_string(),
+        value: state.new_tag.clone(),
+    });
+    if state.used_fallback {
+        plan.add_message(DisplayMessage::Warning {
+            msg: format!("无 git tag，使用文件版本 {} 作为基准", state.current_tag),
+        });
+    }
+    if args.message.is_some() {
+        plan.add_message(DisplayMessage::Detail {
+            label: "提交消息".to_string(),
+            value: state.commit_message.clone(),
+        });
+    }
+
     let mut edit_phase = Phase::new("版本修改");
 
     for file_path in config_files {
@@ -205,7 +225,6 @@ fn build_execution_plan(
 
         let (original, edited) = compute_edited_content(editor, &state.new_tag, file_path)?;
 
-        // 检查文件版本与 git describe 版本是否一致
         if let Ok(file_ver) = read_file_version(editor, file_path) {
             let git_ver = state.current_tag.trim_start_matches('v');
             if file_ver != git_ver {

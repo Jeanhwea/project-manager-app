@@ -18,23 +18,17 @@ const GITHUB_PROXIES: &[&str] = &[
     "https://ghproxy.net/",
 ];
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Release {
     pub tag_name: String,
     pub assets: Vec<Asset>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Asset {
     pub name: String,
     pub browser_download_url: String,
     pub url: String,
-}
-
-pub struct DownloadContext {
-    pub current: &'static str,
-    pub latest: String,
-    pub release: Release,
 }
 
 pub fn fetch_latest_release() -> Result<Release> {

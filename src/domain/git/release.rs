@@ -2,7 +2,6 @@ use super::GitCommandRunner;
 use crate::domain::editor::{BumpType, Version};
 use crate::error::AppError;
 use crate::model::git::GitContext;
-use crate::utils::output::Output;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -11,6 +10,7 @@ pub struct ReleaseGitState {
     pub current_branch: String,
     pub new_tag: String,
     pub commit_message: String,
+    pub used_fallback: bool,
 }
 
 pub fn resolve_git_root() -> crate::error::Result<PathBuf> {
@@ -41,18 +41,17 @@ pub fn validate_git_state(
         .ok()
         .and_then(|o| o.split('-').next().map(|s| s.to_string()));
 
-    let current_tag = if let Some(ref tag) = previous_tag {
-        tag.clone()
+    let (current_tag, used_fallback) = if let Some(ref tag) = previous_tag {
+        (tag.clone(), false)
     } else if let Some(fallback) = fallback_version {
         let fb = if fallback.starts_with('v') {
             fallback.to_string()
         } else {
             format!("v{}", fallback)
         };
-        Output::warning(&format!("无 git tag，使用文件版本 {} 作为基准", fb));
-        fb
+        (fb, true)
     } else {
-        "v0.0.0".to_string()
+        ("v0.0.0".to_string(), false)
     };
 
     if let Some(ref tag) = previous_tag {
@@ -76,17 +75,12 @@ pub fn validate_git_state(
         None => new_tag.clone(),
     };
 
-    Output::item(&format!("版本变更: {} ->", current_tag), &new_tag);
-
-    if message.is_some() {
-        Output::item("提交消息", &commit_message);
-    }
-
     Ok(ReleaseGitState {
         current_tag,
         current_branch: ctx.current_branch.clone(),
         new_tag,
         commit_message,
+        used_fallback,
     })
 }
 
