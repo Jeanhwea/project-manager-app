@@ -83,9 +83,9 @@ impl Command for UpdateArgs {
 
     fn collect(&self) -> Result<SelfUpdateContext> {
         if env::var("PMA_NPM_INSTALL").is_ok() {
-            return Err(AppError::self_update(
-                "检测到通过 npm 安装，请使用 npm 更新:\n  npm update -g @jeansoft/pma",
-            ));
+            Output::warning("检测到通过 npm 安装");
+            Output::item("更新命令", "npm update -g @jeansoft/pma");
+            return Err(AppError::self_update("请使用 npm 更新"));
         }
 
         Output::info("检查最新版本...");
