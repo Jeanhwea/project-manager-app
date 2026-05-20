@@ -1,6 +1,5 @@
 use crate::commands::Command;
-use crate::domain::git::GitCommandRunner;
-use crate::domain::git::GitOperation;
+use crate::domain::git::{self, GitCommandRunner, GitOperation};
 use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
@@ -110,10 +109,7 @@ impl Command for CreateArgs {
             });
         }
 
-        let output = runner.execute_raw(&["rev-list", "--count", "HEAD"], &project_path)?;
-        let num_commit = String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .parse::<usize>()?;
+        let num_commit = git::snapshot::head_commit_count(&project_path)?;
 
         Ok(SnapCreateContext {
             project_path,
@@ -186,15 +182,7 @@ impl Command for ListArgs {
             });
         }
 
-        let runner = GitCommandRunner::new();
-        let output = runner.execute_raw(&["log", "--oneline"], project_path)?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-
-        let snap_commits: Vec<String> = stdout
-            .lines()
-            .filter(|line| line.contains("snap-"))
-            .map(|s| s.to_string())
-            .collect();
+        let snap_commits = git::snapshot::list_snapshot_oneline(project_path)?;
 
         Ok(SnapListContext { snap_commits })
     }
@@ -260,8 +248,7 @@ impl Command for RestoreArgs {
             ));
         }
 
-        let runner = GitCommandRunner::new();
-        let commit_ref = resolve_snapshot_ref(&runner, project_path, &self.snapshot)?;
+        let commit_ref = resolve_snapshot_ref(project_path, &self.snapshot)?;
 
         Ok(SnapRestoreContext { commit_ref })
     }
@@ -298,32 +285,20 @@ pub fn run(args: SnapArgs) -> Result<()> {
     }
 }
 
-fn resolve_snapshot_ref(
-    runner: &GitCommandRunner,
-    project_path: &Path,
-    snapshot: &str,
-) -> Result<String> {
+fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
     if snapshot.starts_with("snap-") {
-        let output =
-            runner.execute_raw(&["log", "--oneline", "--grep", snapshot], project_path)?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-
-        if let Some(first_line) = stdout.lines().next() {
+        let lines = git::snapshot::search_oneline(project_path, snapshot)?;
+        if let Some(first_line) = lines.first() {
             let hash = first_line.split_whitespace().next().unwrap_or(snapshot);
             return Ok(hash.to_string());
         }
+        return Ok(snapshot.to_string());
     }
 
     if let Some(index_str) = snapshot.strip_prefix('#')
         && let Ok(index) = index_str.parse::<usize>()
     {
-        let output = runner.execute_raw(&["log", "--oneline"], project_path)?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-
-        let snap_commits: Vec<&str> = stdout
-            .lines()
-            .filter(|line| line.contains("snap-"))
-            .collect();
+        let snap_commits = git::snapshot::list_snapshot_oneline(project_path)?;
 
         if index < snap_commits.len() {
             let hash = snap_commits[index]
@@ -340,9 +315,8 @@ fn resolve_snapshot_ref(
         }
     }
 
-    let output = runner.execute_raw(&["rev-parse", "--verify", snapshot], project_path)?;
-
-    let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let hash = git::snapshot::rev_parse_verify(project_path, snapshot)?;
+    let hash = hash.trim().to_string();
     if hash.is_empty() {
         return Err(AppError::snapshot(format!(
             "无法解析快照引用: {}",

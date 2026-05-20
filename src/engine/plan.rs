@@ -1,4 +1,4 @@
-use crate::domain::git::{GitCommandRunner, GitOperation};
+use crate::domain::git::GitCommandRunner;
 use crate::domain::selfupdate::{download_asset, install_binary};
 use crate::error::{AppError, Result};
 use crate::model::operation::{EditOperation, Operation, SelfUpdateOperation, ShellOperation};
@@ -16,6 +16,7 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
     render_messages(plan.messages());
 
     let mut result = ExecutionResult::new();
+    let runner = GitCommandRunner::new();
 
     for phase in plan.phases() {
         if phase.is_empty() {
@@ -27,14 +28,22 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
         for step in phase.steps() {
             match step {
                 Step::Op(op) => {
+                    if let Operation::Git(git_op) = op
+                        && let Some(reason) = git_op.should_skip()
+                    {
+                        Output::skip(&reason);
+                        result.add_executed();
+                        continue;
+                    }
                     Output::cmd(&op.description());
-                    match execute_operation(op) {
+                    match execute_operation(op, &runner) {
                         Ok(()) => {
                             result.add_executed();
                         }
                         Err(e) => {
-                            let error = OperationError::new(op.description())
-                                .with_recovery_hint(generate_recovery_hint(&result, op));
+                            let hint = recovery_hint(op, result.executed_count());
+                            let error =
+                                OperationError::new(op.description()).with_recovery_hint(hint);
                             result.add_error(error);
                             Output::error(&format!("执行失败: {}", e));
                             return Ok(result);
@@ -51,34 +60,13 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
     Ok(result)
 }
 
-fn generate_recovery_hint(result: &ExecutionResult, failed_op: &Operation) -> String {
-    match failed_op {
-        Operation::Git(git_op) => match git_op {
-            GitOperation::PushTag { remote, tag, .. } => {
-                format!(
-                    "tag {} 已创建但未推送，请手动执行: git push {} {}",
-                    tag, remote, tag
-                )
-            }
-            GitOperation::PushBranch { remote, branch, .. } => {
-                format!(
-                    "commit 已创建但未推送，请手动执行: git push {} {}",
-                    remote, branch
-                )
-            }
-            GitOperation::PushAll { remote, .. } => {
-                format!(
-                    "commit 已创建但未推送，请手动执行: git push --all {}",
-                    remote
-                )
-            }
-            GitOperation::PushTags { remote, .. } => {
-                format!("tag 已创建但未推送，请手动执行: git push --tags {}", remote)
-            }
-            _ => format!("{} 个操作已完成", result.executed_count()),
-        },
-        _ => format!("{} 个操作已完成", result.executed_count()),
+fn recovery_hint(failed_op: &Operation, executed_count: usize) -> String {
+    if let Operation::Git(git_op) = failed_op
+        && let Some(text) = git_op.recovery_hint(executed_count)
+    {
+        return text;
     }
+    format!("{} 个操作已完成", executed_count)
 }
 
 pub fn display_plan(plan: &ExecutionPlan) {
@@ -146,122 +134,13 @@ pub fn render_message(msg: &DisplayMessage) {
     }
 }
 
-fn execute_operation(op: &Operation) -> Result<()> {
+fn execute_operation(op: &Operation, runner: &GitCommandRunner) -> Result<()> {
     match op {
-        Operation::Git(git_op) => execute_git(git_op),
+        Operation::Git(git_op) => git_op.execute(runner),
         Operation::Shell(shell_op) => execute_shell(shell_op),
         Operation::Edit(edit_op) => execute_edit(edit_op),
         Operation::SelfUpdate(update_op) => execute_self_update(update_op),
     }
-}
-
-fn execute_git(op: &GitOperation) -> Result<()> {
-    let runner = GitCommandRunner::new();
-
-    match op {
-        GitOperation::Init { working_dir } => {
-            runner.execute_with_success(&["init"], Some(working_dir.as_path()))?
-        }
-        GitOperation::Clone {
-            url,
-            target_dir,
-            working_dir,
-        } => {
-            if target_dir.exists() {
-                Output::skip(&format!("目录 {} 已存在，跳过克隆", target_dir.display()));
-                return Ok(());
-            }
-            runner.execute_streaming(
-                &["clone", url, target_dir.to_str().unwrap_or(".")],
-                working_dir.as_path(),
-            )?
-        }
-        GitOperation::Add { path, working_dir } => {
-            runner.execute_with_success(&["add", path], Some(working_dir.as_path()))?
-        }
-        GitOperation::Commit {
-            message,
-            working_dir,
-        } => runner
-            .execute_with_success(&["commit", "-m", message], Some(working_dir.as_path()))?,
-        GitOperation::CreateTag { tag, working_dir } => {
-            runner.execute_with_success(&["tag", tag], Some(working_dir.as_path()))?
-        }
-        GitOperation::PushTag {
-            remote,
-            tag,
-            working_dir,
-        } => runner.execute_streaming(&["push", remote, tag], working_dir.as_path())?,
-        GitOperation::PushBranch {
-            remote,
-            branch,
-            working_dir,
-        } => runner.execute_streaming(&["push", remote, branch], working_dir.as_path())?,
-        GitOperation::PushAll {
-            remote,
-            working_dir,
-        } => runner.execute_streaming(&["push", "--all", remote], working_dir.as_path())?,
-        GitOperation::PushTags {
-            remote,
-            working_dir,
-        } => runner.execute_streaming(&["push", "--tags", remote], working_dir.as_path())?,
-        GitOperation::Pull {
-            remote,
-            branch,
-            working_dir,
-        } => runner.execute_streaming(&["pull", remote, branch], working_dir.as_path())?,
-        GitOperation::PullDefault { working_dir } => {
-            runner.execute_streaming(&["pull"], working_dir.as_path())?
-        }
-        GitOperation::Checkout {
-            ref_name,
-            working_dir,
-        } => runner.execute_streaming(&["checkout", ref_name], working_dir.as_path())?,
-        GitOperation::DeleteBranch {
-            branch,
-            working_dir,
-        } => {
-            runner.execute_with_success(&["branch", "-d", branch], Some(working_dir.as_path()))?
-        }
-        GitOperation::RenameBranch {
-            old,
-            new,
-            working_dir,
-        } => runner.execute_streaming(&["branch", "-m", old, new], working_dir.as_path())?,
-        GitOperation::DeleteRemoteBranch {
-            remote,
-            branch,
-            working_dir,
-        } => runner
-            .execute_streaming(&["push", remote, "--delete", branch], working_dir.as_path())?,
-        GitOperation::RenameRemote {
-            old,
-            new,
-            working_dir,
-        } => runner
-            .execute_with_success(&["remote", "rename", old, new], Some(working_dir.as_path()))?,
-        GitOperation::PruneRemote {
-            remote,
-            working_dir,
-        } => runner
-            .execute_with_success(&["remote", "prune", remote], Some(working_dir.as_path()))?,
-        GitOperation::SetUpstream {
-            remote,
-            branch,
-            working_dir,
-        } => runner.execute_with_success(
-            &[
-                "branch",
-                "--set-upstream-to",
-                &format!("{}/{}", remote, branch),
-            ],
-            Some(working_dir.as_path()),
-        )?,
-        GitOperation::Gc { working_dir } => {
-            runner.execute_streaming(&["gc", "--aggressive"], working_dir.as_path())?
-        }
-    }
-    Ok(())
 }
 
 fn execute_shell(op: &ShellOperation) -> Result<()> {
