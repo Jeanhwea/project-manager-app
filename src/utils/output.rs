@@ -42,31 +42,13 @@ impl Output {
     }
 
     pub fn cmd(cmd: &str) {
-        let (dir, command) = split_cmd(cmd);
-        let arrow = ARROW_OUT.blue().bold().to_string();
-        match dir {
-            Some(d) => Self::print(&format!(
-                "{} {} {}",
-                arrow,
-                format!("[{}]", d).dimmed(),
-                command.yellow()
-            )),
-            None => Self::print(&format!("{} {}", arrow, command.yellow())),
-        }
+        let (_, command) = split_cmd(cmd);
+        Self::print(&format!("{} {}", ARROW_OUT.blue().bold(), command.yellow()));
     }
 
     pub fn dry_cmd(cmd: &str) {
-        let (dir, command) = split_cmd(cmd);
-        let arrow = ARROW_DRY.magenta().bold().to_string();
-        match dir {
-            Some(d) => Self::print(&format!(
-                "{} {} {}",
-                arrow,
-                format!("[{}]", d).dimmed(),
-                command.yellow()
-            )),
-            None => Self::print(&format!("{} {}", arrow, command.yellow())),
-        }
+        let (_, command) = split_cmd(cmd);
+        Self::print(&format!("{} {}", ARROW_DRY.magenta().bold(), command.yellow()));
     }
 
     pub fn success(msg: &str) {
@@ -120,7 +102,7 @@ impl Output {
     }
 
     pub fn dry_run_header(msg: &str) {
-        let tag = " DRY-RUN ".black().on_magenta().bold().to_string();
+        let tag = "[DRY]".magenta().bold().to_string();
         Self::print("");
         Self::print(&format!("{} {}", tag, msg.cyan().bold()));
     }
