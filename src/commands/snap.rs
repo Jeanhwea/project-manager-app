@@ -326,3 +326,48 @@ fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
 
     Ok(hash)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn debug_msg(m: &DisplayMessage) -> String {
+        format!("{:?}", m)
+    }
+
+    #[test]
+    fn snap_list_messages_byte_equal_baseline() {
+        let snap_commits = vec![
+            "abc1234 snap-000000".to_string(),
+            "def5678 snap-000001".to_string(),
+        ];
+        let ctx = SnapListContext {
+            snap_commits: snap_commits.clone(),
+        };
+        let args = ListArgs {
+            path: ".".to_string(),
+        };
+        let plan = args.plan(&ctx).expect("plan");
+
+        let actual: Vec<String> = plan.messages().iter().map(debug_msg).collect();
+
+        let expected = vec![
+            debug_msg(&DisplayMessage::Section {
+                title: "快照历史:".to_string(),
+            }),
+            debug_msg(&DisplayMessage::Skip {
+                msg: "#0 abc1234 snap-000000".to_string(),
+            }),
+            debug_msg(&DisplayMessage::Skip {
+                msg: "#1 def5678 snap-000001".to_string(),
+            }),
+            debug_msg(&DisplayMessage::Blank),
+            debug_msg(&DisplayMessage::Item {
+                label: "汇总".to_string(),
+                value: "共 2 个快照".to_string(),
+            }),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+}

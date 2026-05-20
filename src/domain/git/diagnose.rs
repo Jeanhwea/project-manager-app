@@ -21,31 +21,31 @@ pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
     let mut issues = Vec::new();
     let runner = GitCommandRunner::new();
 
-    let output = runner.execute(&["symbolic-ref", "HEAD"], Some(repo_path))?;
+    let output = runner.run_local(&["symbolic-ref", "HEAD"], Some(repo_path))?;
     if output.trim().is_empty() {
         issues.push(Diagnosis::DetachedHead);
     }
 
-    let output = runner.execute(&["remote"], Some(repo_path))?;
+    let output = runner.run_local(&["remote"], Some(repo_path))?;
     if output.trim().is_empty() {
         issues.push(Diagnosis::NoRemote);
     }
 
-    if let Ok(output) = runner.execute(&["branch", "-r"], Some(repo_path)) {
+    if let Ok(output) = runner.run_local(&["branch", "-r"], Some(repo_path)) {
         let remote_branches: Vec<&str> = output.lines().collect();
         if remote_branches.is_empty() {
             issues.push(Diagnosis::NoRemoteTrackingBranch);
         }
     }
 
-    if let Ok(output) = runner.execute(&["branch", "--list"], Some(repo_path)) {
+    if let Ok(output) = runner.run_local(&["branch", "--list"], Some(repo_path)) {
         let local_branches: Vec<&str> = output.lines().collect();
         if local_branches.len() == 1 {
             issues.push(Diagnosis::SingleLocalBranch);
         }
     }
 
-    if let Ok(output) = runner.execute(
+    if let Ok(output) = runner.run_local(
         &[
             "for-each-ref",
             "--sort=-creatordate",
@@ -58,14 +58,14 @@ pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
         issues.push(Diagnosis::StashExists);
     }
 
-    if let Ok(output) = runner.execute(&["remote", "show"], Some(repo_path)) {
+    if let Ok(output) = runner.run_local(&["remote", "show"], Some(repo_path)) {
         for remote in output.lines() {
             let remote = remote.trim();
             if remote.is_empty() {
                 continue;
             }
             if let Ok(remote_output) =
-                runner.execute(&["remote", "show", remote], Some(repo_path))
+                runner.run_local(&["remote", "show", remote], Some(repo_path))
                 && remote_output.contains("(stale)")
             {
                 issues.push(Diagnosis::StaleRefs {
@@ -75,7 +75,7 @@ pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
         }
     }
 
-    if let Ok(output) = runner.execute(&["count-objects", "-v"], Some(repo_path)) {
+    if let Ok(output) = runner.run_local(&["count-objects", "-v"], Some(repo_path)) {
         for line in output.lines() {
             if let Some(size_str) = line.strip_prefix("size-pack:")
                 && let Some(size_num) = size_str.split_whitespace().next()

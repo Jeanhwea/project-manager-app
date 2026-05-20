@@ -15,7 +15,7 @@ pub struct ReleaseGitState {
 
 pub fn resolve_git_root() -> crate::error::Result<PathBuf> {
     let runner = GitCommandRunner::new();
-    let root = runner.execute(&["rev-parse", "--show-toplevel"], None)?;
+    let root = runner.run_local(&["rev-parse", "--show-toplevel"], None)?;
     if root.is_empty() {
         return Err(AppError::release("无法确定 git 根目录"));
     }
@@ -37,7 +37,7 @@ pub fn validate_git_state(
 
     let runner = GitCommandRunner::new();
     let previous_tag = runner
-        .execute(&["describe", "--tags", "--match", "v*"], Some(repo_path))
+        .run_local(&["describe", "--tags", "--match", "v*"], Some(repo_path))
         .ok()
         .and_then(|o| o.split('-').next().map(|s| s.to_string()));
 
@@ -55,8 +55,8 @@ pub fn validate_git_state(
     };
 
     if let Some(ref tag) = previous_tag {
-        let rev_current_tag = runner.execute(&["rev-parse", tag], Some(repo_path))?;
-        let rev_head = runner.execute(&["rev-parse", "HEAD"], Some(repo_path))?;
+        let rev_current_tag = runner.run_local(&["rev-parse", tag], Some(repo_path))?;
+        let rev_head = runner.run_local(&["rev-parse", "HEAD"], Some(repo_path))?;
         if rev_current_tag.trim() == rev_head.trim() {
             return Err(AppError::release(format!("当前 HEAD 已被标记为 {}", tag)));
         }

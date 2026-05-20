@@ -360,3 +360,54 @@ impl GitOperation {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dry_run_descriptions_byte_equal_baseline() {
+        let init = GitOperation::Init {
+            working_dir: PathBuf::from("."),
+        };
+        assert_eq!(init.description(), "[.] git init");
+
+        let add = GitOperation::Add {
+            path: ".".to_string(),
+            working_dir: PathBuf::from("."),
+        };
+        assert_eq!(add.description(), "[.] git add .");
+
+        let commit = GitOperation::Commit {
+            message: "snap-000001".to_string(),
+            working_dir: PathBuf::from("."),
+        };
+        assert_eq!(commit.description(), "[.] git commit -m \"snap-000001\"");
+
+        let push_tag = GitOperation::PushTag {
+            remote: "origin".to_string(),
+            tag: "v1.0.0".to_string(),
+            working_dir: PathBuf::from("."),
+        };
+        assert_eq!(push_tag.description(), "[.] git push origin v1.0.0");
+
+        let push_branch = GitOperation::PushBranch {
+            remote: "origin".to_string(),
+            branch: "master".to_string(),
+            working_dir: PathBuf::from("."),
+        };
+        assert_eq!(push_branch.description(), "[.] git push origin master");
+
+        let clone = GitOperation::Clone {
+            url: "https://x".to_string(),
+            target_dir: PathBuf::from("repo"),
+            working_dir: PathBuf::from("."),
+        };
+        assert_eq!(clone.description(), "[.] git clone https://x repo");
+
+        let gc = GitOperation::Gc {
+            working_dir: PathBuf::from("."),
+        };
+        assert_eq!(gc.description(), "[.] git gc --aggressive");
+    }
+}

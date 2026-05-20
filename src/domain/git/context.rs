@@ -11,7 +11,7 @@ pub fn collect_context_with_runner(
     runner: &GitCommandRunner,
     repo_path: &Path,
 ) -> Result<GitContext> {
-    let root = runner.execute(&["rev-parse", "--show-toplevel"], Some(repo_path))?;
+    let root = runner.run_local(&["rev-parse", "--show-toplevel"], Some(repo_path))?;
     let root = std::path::PathBuf::from(root);
 
     let current_branch = runner.get_current_branch(&root)?;
@@ -33,7 +33,7 @@ pub fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Rem
     let names = runner.get_remote_list(root)?;
     let mut remotes = Vec::new();
     for name in &names {
-        if let Ok(url) = runner.execute(&["remote", "get-url", name], Some(root)) {
+        if let Ok(url) = runner.run_local(&["remote", "get-url", name], Some(root)) {
             remotes.push(Remote {
                 name: name.to_string(),
                 url,
@@ -44,7 +44,7 @@ pub fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Rem
 }
 
 fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch>> {
-    let output = runner.execute(&["branch", "-vv", "--all"], Some(root))?;
+    let output = runner.run_local(&["branch", "-vv", "--all"], Some(root))?;
     let mut branches = Vec::new();
 
     for line in output.lines() {
@@ -75,7 +75,7 @@ fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch
 }
 
 fn collect_tags(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Tag>> {
-    let output = runner.execute(
+    let output = runner.run_local(
         &[
             "for-each-ref",
             "--format=%(refname:short)",
@@ -109,7 +109,7 @@ fn extract_tracking_branch(
         return None;
     }
     runner
-        .execute(&["rev-parse", "--abbrev-ref", "@{upstream}"], Some(root))
+        .run_local(&["rev-parse", "--abbrev-ref", "@{upstream}"], Some(root))
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())

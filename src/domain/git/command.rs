@@ -1,12 +1,6 @@
 use super::{GitError, Result};
-use crate::domain::runner::{CommandResult, CommandRunner, ExecutionContext, OutputMode};
+use crate::domain::runner::{CommandRunner, ExecutionContext, OutputMode};
 use std::path::Path;
-use std::process::{ExitStatus, Output as ProcessOutput};
-
-#[cfg(unix)]
-use std::os::unix::process::ExitStatusExt;
-#[cfg(windows)]
-use std::os::windows::process::ExitStatusExt;
 
 pub struct GitCommandRunner;
 
@@ -52,93 +46,6 @@ impl GitCommandRunner {
             )));
         }
         Ok(())
-    }
-
-    fn run(&self, context: &ExecutionContext) -> Result<CommandResult> {
-        CommandRunner
-            .execute(context)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))
-    }
-
-    pub fn execute(&self, args: &[&str], dir: Option<&Path>) -> Result<String> {
-        let mut ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .output_mode(OutputMode::Capture);
-
-        if let Some(dir) = dir {
-            ctx = ctx.working_dir(dir);
-        }
-
-        let result = self.run(&ctx)?;
-
-        if !result.success {
-            let stderr = result.stderr.unwrap_or_default();
-            return Err(GitError::CommandFailed(stderr));
-        }
-
-        Ok(result.stdout.unwrap_or_default().trim().to_string())
-    }
-
-    pub fn execute_with_success(&self, args: &[&str], dir: Option<&Path>) -> Result<()> {
-        let mut ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .output_mode(OutputMode::Capture);
-
-        if let Some(dir) = dir {
-            ctx = ctx.working_dir(dir);
-        }
-
-        let result = self.run(&ctx)?;
-
-        if !result.success {
-            let stderr = result.stderr.unwrap_or_default();
-            return Err(GitError::CommandFailed(format!(
-                "Git command failed: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(())
-    }
-
-    pub fn execute_streaming(&self, args: &[&str], dir: &Path) -> Result<()> {
-        let ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .working_dir(dir)
-            .output_mode(OutputMode::Streaming);
-
-        let result = self.run(&ctx)?;
-
-        if !result.success {
-            return Err(GitError::CommandFailed(format!(
-                "Git command exited with code {}",
-                result.exit_code
-            )));
-        }
-
-        Ok(())
-    }
-
-    pub fn execute_raw(&self, args: &[&str], dir: &Path) -> Result<ProcessOutput> {
-        let ctx = ExecutionContext::new("git")
-            .args(args.iter().copied())
-            .working_dir(dir)
-            .output_mode(OutputMode::Capture);
-
-        let result = self.run(&ctx)?;
-
-        #[cfg(unix)]
-        let status = ExitStatus::from_raw(result.exit_code);
-        #[cfg(windows)]
-        let status = ExitStatus::from_raw(result.exit_code as u32);
-
-        let stdout = result.stdout.unwrap_or_default().into_bytes();
-        let stderr = result.stderr.unwrap_or_default().into_bytes();
-
-        Ok(ProcessOutput {
-            status,
-            stdout,
-            stderr,
-        })
     }
 
     pub fn get_current_branch(&self, repo_path: &Path) -> Result<String> {
