@@ -300,10 +300,7 @@ impl GitOperation {
                 new,
                 working_dir,
             } => {
-                runner.run_local(
-                    &["remote", "rename", old, new],
-                    Some(working_dir.as_path()),
-                )?;
+                runner.run_local(&["remote", "rename", old, new], Some(working_dir.as_path()))?;
             }
             GitOperation::PruneRemote {
                 remote,

@@ -1,9 +1,9 @@
 use crate::commands::MultiRepo;
 use crate::commands::{RepoPathArgs, init_repo_walker};
+use crate::domain::git::GitOperation;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::domain::git::GitOperation;
 use crate::model::git::GitContext;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::Path;

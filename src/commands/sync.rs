@@ -1,11 +1,11 @@
 use crate::commands::MultiRepo;
 use crate::commands::RepoPathArgs;
 use crate::domain::config::ConfigManager;
+use crate::domain::git::GitOperation;
 use crate::domain::git::collect_context;
 use crate::domain::git::repository::RepoWalker;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::domain::git::GitOperation;
 use crate::model::git::GitContext;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use crate::utils::output::Output;

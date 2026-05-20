@@ -1,10 +1,10 @@
 use crate::commands::MultiRepo;
 use crate::commands::RepoPathArgs;
 use crate::domain::git::GitCommandRunner;
+use crate::domain::git::GitOperation;
 use crate::domain::git::collect_context;
 use crate::engine::plan;
 use crate::error::Result;
-use crate::domain::git::GitOperation;
 use crate::model::git::{Branch, GitContext};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::Path;
