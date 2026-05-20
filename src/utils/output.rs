@@ -48,7 +48,11 @@ impl Output {
 
     pub fn dry_cmd(cmd: &str) {
         let (_, command) = split_cmd(cmd);
-        Self::print(&format!("{} {}", ARROW_DRY.magenta().bold(), command.yellow()));
+        Self::print(&format!(
+            "{} {}",
+            ARROW_DRY.magenta().bold(),
+            command.yellow()
+        ));
     }
 
     pub fn success(msg: &str) {
