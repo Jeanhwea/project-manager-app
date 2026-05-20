@@ -35,7 +35,7 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
                         result.add_executed();
                         continue;
                     }
-                    output::cmd(&op.description());
+                    output::command(&op.description());
                     match execute_operation(op, &runner) {
                         Ok(()) => {
                             result.add_executed();
@@ -85,7 +85,7 @@ pub fn display_plan(plan: &ExecutionPlan) {
         output::section(&format!("▸ {}", phase.label()));
         for step in phase.steps() {
             match step {
-                Step::Op(op) => output::dry_cmd(&op.description()),
+                Step::Op(op) => output::dry_command(&op.description()),
                 Step::Msg(msg) => render_message(msg),
             }
         }
@@ -121,10 +121,10 @@ pub fn render_message(msg: &DisplayMessage) {
                 old_start, old_count, new_start, new_count
             ));
             for line in old_lines {
-                output::diff_old(line);
+                output::removed_line(line);
             }
             for line in new_lines {
-                output::diff_new(line);
+                output::added_line(line);
             }
         }
         DisplayMessage::Success { msg } => output::success(msg),

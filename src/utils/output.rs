@@ -4,20 +4,20 @@ use std::path::Path;
 const LABEL_WIDTH: usize = 8;
 const HEADER_BAR_WIDTH: usize = 60;
 
-mod glyph {
-    pub const ARROW_IN: &str = "<==";
-    pub const ARROW_OUT: &str = "==>";
-    pub const ARROW_DRY: &str = "~~>";
+mod symbols {
+    pub const RESULT_PREFIX: &str = "<==";
+    pub const COMMAND_PREFIX: &str = "==>";
+    pub const DRY_COMMAND_PREFIX: &str = "~~>";
     pub const HEADER_PREFIX: &str = "===";
     pub const SECTION_PREFIX: &str = "##";
-    pub const DRY_TAG: &str = "[DRY]";
-    pub const HEADER_FILL: char = '=';
-    pub const DIFF_OLD: char = '-';
-    pub const DIFF_NEW: char = '+';
+    pub const DRY_RUN_LABEL: &str = "[DRY]";
+    pub const HEADER_FILL_CHAR: char = '=';
+    pub const REMOVED_LINE_PREFIX: char = '-';
+    pub const ADDED_LINE_PREFIX: char = '+';
 }
 
 #[derive(Clone, Copy)]
-enum Tone {
+enum Color {
     Green,
     Red,
     Yellow,
@@ -29,7 +29,7 @@ enum Tone {
 
 #[derive(Clone, Copy, Default)]
 struct Style {
-    fg: Option<Tone>,
+    fg: Option<Color>,
     bold: bool,
     dim: bool,
     underline: bool,
@@ -45,9 +45,9 @@ impl Style {
         }
     }
 
-    const fn fg(t: Tone) -> Self {
+    const fn fg(c: Color) -> Self {
         Self {
-            fg: Some(t),
+            fg: Some(c),
             ..Self::plain()
         }
     }
@@ -68,17 +68,17 @@ impl Style {
     }
 }
 
-fn paint(text: &str, style: Style) -> String {
+fn style_text(text: &str, style: Style) -> String {
     let mut s = text.normal();
-    if let Some(t) = style.fg {
-        s = match t {
-            Tone::Green => s.green(),
-            Tone::Red => s.red(),
-            Tone::Yellow => s.yellow(),
-            Tone::Cyan => s.cyan(),
-            Tone::Blue => s.blue(),
-            Tone::Magenta => s.magenta(),
-            Tone::White => s.white(),
+    if let Some(c) = style.fg {
+        s = match c {
+            Color::Green => s.green(),
+            Color::Red => s.red(),
+            Color::Yellow => s.yellow(),
+            Color::Cyan => s.cyan(),
+            Color::Blue => s.blue(),
+            Color::Magenta => s.magenta(),
+            Color::White => s.white(),
         };
     }
     if style.bold {
@@ -93,47 +93,47 @@ fn paint(text: &str, style: Style) -> String {
     s.to_string()
 }
 
-fn line(s: &str) {
+fn print_line(s: &str) {
     println!("{}", s);
 }
 
-fn tagged(tag: &str, tag_style: Style, body: &str, body_style: Style) {
-    line(&format!("{} {}", paint(tag, tag_style), paint(body, body_style)));
+fn print_with_tag(tag: &str, tag_style: Style, body: &str, body_style: Style) {
+    print_line(&format!(
+        "{} {}",
+        style_text(tag, tag_style),
+        style_text(body, body_style)
+    ));
 }
 
-// === Style presets ===
-
-const TAG_BLUE: Style = Style::fg(Tone::Blue).bold();
-const TAG_MAGENTA: Style = Style::fg(Tone::Magenta).bold();
-const TAG_GREEN: Style = Style::fg(Tone::Green).bold();
-const TAG_RED: Style = Style::fg(Tone::Red).bold();
-const TAG_YELLOW: Style = Style::fg(Tone::Yellow).bold();
-const TAG_CYAN: Style = Style::fg(Tone::Cyan).bold();
+const TAG_BLUE: Style = Style::fg(Color::Blue).bold();
+const TAG_MAGENTA: Style = Style::fg(Color::Magenta).bold();
+const TAG_GREEN: Style = Style::fg(Color::Green).bold();
+const TAG_RED: Style = Style::fg(Color::Red).bold();
+const TAG_YELLOW: Style = Style::fg(Color::Yellow).bold();
+const TAG_CYAN: Style = Style::fg(Color::Cyan).bold();
 const TAG_DIM: Style = Style::plain().dim();
 
-const BODY_GREEN: Style = Style::fg(Tone::Green);
-const BODY_RED: Style = Style::fg(Tone::Red);
-const BODY_YELLOW: Style = Style::fg(Tone::Yellow);
+const BODY_GREEN: Style = Style::fg(Color::Green);
+const BODY_RED: Style = Style::fg(Color::Red);
+const BODY_YELLOW: Style = Style::fg(Color::Yellow);
 const BODY_DIM: Style = Style::plain().dim();
 
-// === Public API ===
-
 pub fn header(title: &str) {
-    let head = format!("{} {} ", glyph::HEADER_PREFIX, title);
+    let head = format!("{} {} ", symbols::HEADER_PREFIX, title);
     let pad = HEADER_BAR_WIDTH.saturating_sub(display_width(&head));
-    let fill: String = std::iter::repeat(glyph::HEADER_FILL).take(pad).collect();
-    line("");
-    line(&format!(
+    let fill: String = std::iter::repeat_n(symbols::HEADER_FILL_CHAR, pad).collect();
+    print_line("");
+    print_line(&format!(
         "{}{}",
-        paint(&head, TAG_GREEN),
-        paint(&fill, TAG_GREEN)
+        style_text(&head, TAG_GREEN),
+        style_text(&fill, TAG_GREEN)
     ));
 }
 
 pub fn section(title: &str) {
-    line("");
-    line(&paint(
-        &format!("{} {}", glyph::SECTION_PREFIX, title),
+    print_line("");
+    print_line(&style_text(
+        &format!("{} {}", symbols::SECTION_PREFIX, title),
         TAG_CYAN,
     ));
 }
@@ -141,35 +141,35 @@ pub fn section(title: &str) {
 pub fn repo_header(index: usize, total: usize, path: &Path) {
     let total_str = total.to_string();
     let progress = format!("[{:>w$}/{}]", index, total, w = total_str.len());
-    let progress = paint(&progress, Style::fg(Tone::White).bold());
-    let path_str = paint(
+    let progress = style_text(&progress, Style::fg(Color::White).bold());
+    let path_str = style_text(
         &crate::utils::path::format_path(path),
-        Style::fg(Tone::Cyan).underline(),
+        Style::fg(Color::Cyan).underline(),
     );
-    line("");
-    line(&format!("{} {}", progress, path_str));
+    print_line("");
+    print_line(&format!("{} {}", progress, path_str));
 }
 
-pub fn cmd(cmd: &str) {
-    let (_, body) = split_cmd(cmd);
-    tagged(glyph::ARROW_OUT, TAG_BLUE, body, BODY_YELLOW);
+pub fn command(cmd: &str) {
+    let (_, body) = split_command_prefix(cmd);
+    print_with_tag(symbols::COMMAND_PREFIX, TAG_BLUE, body, BODY_YELLOW);
 }
 
-pub fn dry_cmd(cmd: &str) {
-    let (_, body) = split_cmd(cmd);
-    tagged(glyph::ARROW_DRY, TAG_MAGENTA, body, BODY_YELLOW);
+pub fn dry_command(cmd: &str) {
+    let (_, body) = split_command_prefix(cmd);
+    print_with_tag(symbols::DRY_COMMAND_PREFIX, TAG_MAGENTA, body, BODY_YELLOW);
 }
 
 pub fn success(msg: &str) {
-    tagged(glyph::ARROW_IN, TAG_GREEN, msg, BODY_GREEN);
+    print_with_tag(symbols::RESULT_PREFIX, TAG_GREEN, msg, BODY_GREEN);
 }
 
 pub fn error(msg: &str) {
-    tagged(glyph::ARROW_IN, TAG_RED, msg, BODY_RED);
+    print_with_tag(symbols::RESULT_PREFIX, TAG_RED, msg, BODY_RED);
 }
 
 pub fn warning(msg: &str) {
-    tagged(glyph::ARROW_IN, TAG_YELLOW, msg, BODY_YELLOW);
+    print_with_tag(symbols::RESULT_PREFIX, TAG_YELLOW, msg, BODY_YELLOW);
 }
 
 pub fn not_found(msg: &str) {
@@ -177,52 +177,62 @@ pub fn not_found(msg: &str) {
 }
 
 pub fn info(msg: &str) {
-    line(&format!("{} {}", paint(glyph::ARROW_IN, TAG_CYAN), msg));
-}
-
-pub fn skip(msg: &str) {
-    tagged(glyph::ARROW_IN, TAG_DIM, msg, BODY_DIM);
-}
-
-pub fn item(label: &str, value: &str) {
-    let label = paint(&pad_display(label, LABEL_WIDTH), TAG_GREEN);
-    let value = paint(value, BODY_YELLOW);
-    line(&format!("{} {}", label, value));
-}
-
-pub fn detail(label: &str, value: &str) {
-    let label = paint(&pad_display(label, LABEL_WIDTH + 2), TAG_DIM);
-    line(&format!("{} {}", label, value));
-}
-
-pub fn message(msg: &str) {
-    line(msg);
-}
-
-pub fn blank() {
-    line("");
-}
-
-pub fn diff_old(s: &str) {
-    line(&format!("{}{}", glyph::DIFF_OLD, paint(s, BODY_RED)));
-}
-
-pub fn diff_new(s: &str) {
-    line(&format!("{}{}", glyph::DIFF_NEW, paint(s, BODY_GREEN)));
-}
-
-pub fn dry_run_header(msg: &str) {
-    line("");
-    line(&format!(
+    print_line(&format!(
         "{} {}",
-        paint(glyph::DRY_TAG, TAG_MAGENTA),
-        paint(msg, TAG_CYAN),
+        style_text(symbols::RESULT_PREFIX, TAG_CYAN),
+        msg
     ));
 }
 
-// === Internal helpers ===
+pub fn skip(msg: &str) {
+    print_with_tag(symbols::RESULT_PREFIX, TAG_DIM, msg, BODY_DIM);
+}
 
-fn split_cmd(cmd: &str) -> (Option<&str>, &str) {
+pub fn item(label: &str, value: &str) {
+    let label = style_text(&pad_to_width(label, LABEL_WIDTH), TAG_GREEN);
+    let value = style_text(value, BODY_YELLOW);
+    print_line(&format!("{} {}", label, value));
+}
+
+pub fn detail(label: &str, value: &str) {
+    let label = style_text(&pad_to_width(label, LABEL_WIDTH + 2), TAG_DIM);
+    print_line(&format!("{} {}", label, value));
+}
+
+pub fn message(msg: &str) {
+    print_line(msg);
+}
+
+pub fn blank() {
+    print_line("");
+}
+
+pub fn removed_line(s: &str) {
+    print_line(&format!(
+        "{}{}",
+        symbols::REMOVED_LINE_PREFIX,
+        style_text(s, BODY_RED)
+    ));
+}
+
+pub fn added_line(s: &str) {
+    print_line(&format!(
+        "{}{}",
+        symbols::ADDED_LINE_PREFIX,
+        style_text(s, BODY_GREEN)
+    ));
+}
+
+pub fn dry_run_header(msg: &str) {
+    print_line("");
+    print_line(&format!(
+        "{} {}",
+        style_text(symbols::DRY_RUN_LABEL, TAG_MAGENTA),
+        style_text(msg, TAG_CYAN),
+    ));
+}
+
+fn split_command_prefix(cmd: &str) -> (Option<&str>, &str) {
     if let Some(rest) = cmd.strip_prefix('[')
         && let Some((dir, tail)) = rest.split_once(']')
         && let Some(body) = tail.strip_prefix(' ')
@@ -239,7 +249,7 @@ fn display_width(s: &str) -> usize {
         .sum()
 }
 
-fn pad_display(s: &str, width: usize) -> String {
+fn pad_to_width(s: &str, width: usize) -> String {
     let w = display_width(s);
     if w >= width {
         s.to_string()
