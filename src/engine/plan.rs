@@ -1,9 +1,7 @@
-use crate::domain::git::GitCommandRunner;
+use crate::domain::git::{GitCommandRunner, GitOperation};
 use crate::domain::selfupdate::{download_asset, install_binary};
 use crate::error::{AppError, Result};
-use crate::model::operation::{
-    EditOperation, GitOperation, Operation, SelfUpdateOperation, ShellOperation,
-};
+use crate::model::operation::{EditOperation, Operation, SelfUpdateOperation, ShellOperation};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Step};
 use crate::utils::output::Output;
 

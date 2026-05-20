@@ -1,13 +1,16 @@
 mod command;
 mod context;
 mod diagnose;
+pub mod operation;
 pub mod release;
 mod remote;
 pub mod repository;
+pub mod snapshot;
 
 pub use command::GitCommandRunner;
 pub use context::collect_context;
 pub use diagnose::{Diagnosis, diagnose_repo};
+pub use operation::GitOperation;
 pub use release::{ReleaseGitState, resolve_git_root, validate_git_state};
 
 use thiserror::Error;

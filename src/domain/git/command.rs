@@ -15,6 +15,45 @@ impl GitCommandRunner {
         Self
     }
 
+    pub fn run_local(&self, args: &[&str], dir: Option<&Path>) -> Result<String> {
+        let mut ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .output_mode(OutputMode::Capture);
+
+        if let Some(d) = dir {
+            ctx = ctx.working_dir(d);
+        }
+
+        let result = CommandRunner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            let stderr = result.stderr.unwrap_or_default().trim().to_string();
+            return Err(GitError::CommandFailed(stderr));
+        }
+        Ok(result.stdout.unwrap_or_default().trim().to_string())
+    }
+
+    pub fn run_streaming(&self, args: &[&str], dir: &Path) -> Result<()> {
+        let ctx = ExecutionContext::new("git")
+            .args(args.iter().copied())
+            .working_dir(dir)
+            .output_mode(OutputMode::Streaming);
+
+        let result = CommandRunner
+            .execute(&ctx)
+            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+
+        if !result.success {
+            return Err(GitError::CommandFailed(format!(
+                "Git command exited with code {}",
+                result.exit_code
+            )));
+        }
+        Ok(())
+    }
+
     fn run(&self, context: &ExecutionContext) -> Result<CommandResult> {
         CommandRunner
             .execute(context)
@@ -103,11 +142,11 @@ impl GitCommandRunner {
     }
 
     pub fn get_current_branch(&self, repo_path: &Path) -> Result<String> {
-        self.execute(&["branch", "--show-current"], Some(repo_path))
+        self.run_local(&["branch", "--show-current"], Some(repo_path))
     }
 
     pub fn get_remote_list(&self, repo_path: &Path) -> Result<Vec<String>> {
-        let output = self.execute(&["remote"], Some(repo_path))?;
+        let output = self.run_local(&["remote"], Some(repo_path))?;
         Ok(output
             .lines()
             .map(|l| l.trim().to_string())
@@ -116,12 +155,12 @@ impl GitCommandRunner {
     }
 
     pub fn has_uncommitted_changes(&self, repo_path: &Path) -> Result<bool> {
-        let output = self.execute(&["status", "--porcelain"], Some(repo_path))?;
+        let output = self.run_local(&["status", "--porcelain"], Some(repo_path))?;
         Ok(!output.is_empty())
     }
 
     pub fn is_merged_branch(&self, name: &str, repo_path: &Path) -> bool {
-        self.execute(&["branch", "--merged", "master"], Some(repo_path))
+        self.run_local(&["branch", "--merged", "master"], Some(repo_path))
             .map(|output| {
                 output
                     .lines()

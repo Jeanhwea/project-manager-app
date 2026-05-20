@@ -93,10 +93,7 @@ pub fn is_gitignored(file_path: &Path) -> bool {
     };
 
     let runner = GitCommandRunner::new();
-    let output = runner.execute_raw(&["check-ignore", file_name], parent);
-
-    match output {
-        Ok(output) => output.status.success(),
-        Err(_) => false,
-    }
+    runner
+        .run_local(&["check-ignore", file_name], Some(parent))
+        .is_ok()
 }

@@ -1,9 +1,10 @@
 use crate::commands::Command;
 use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
+use crate::domain::git::GitOperation;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::model::operation::{EditOperation, GitOperation};
+use crate::model::operation::EditOperation;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use serde::Deserialize;
 use std::path::PathBuf;

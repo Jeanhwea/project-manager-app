@@ -1,6 +1,6 @@
 use super::{EditorRegistry, FileEditor};
+use crate::domain::git::GitOperation;
 use crate::error::AppError;
-use crate::model::operation::GitOperation;
 use crate::model::plan::AddOperation;
 use regex::Regex;
 use std::path::{Path, PathBuf};

@@ -4,8 +4,8 @@ use crate::domain::git::GitCommandRunner;
 use crate::domain::git::collect_context;
 use crate::engine::plan;
 use crate::error::Result;
+use crate::domain::git::GitOperation;
 use crate::model::git::{Branch, GitContext};
-use crate::model::operation::GitOperation;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::Path;
 

@@ -8,9 +8,10 @@ use crate::domain::git::{
 };
 use crate::domain::project_config;
 use crate::engine::plan;
+use crate::domain::git::GitOperation;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
-use crate::model::operation::{EditOperation, GitOperation};
+use crate::model::operation::EditOperation;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use crate::model::project_config::ProjectConfig;
 use crate::utils::output::Output;
