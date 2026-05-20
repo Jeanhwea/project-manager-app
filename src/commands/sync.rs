@@ -8,7 +8,7 @@ use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
-use crate::utils::output::Output;
+use crate::utils::output;
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
@@ -189,7 +189,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
     let walker = RepoWalker::new(&effective_path, args.repo_path.max_depth)?;
 
     if walker.is_empty() {
-        Output::not_found("未找到 Git 仓库");
+        output::not_found("未找到 Git 仓库");
         return Ok(());
     }
 

@@ -12,7 +12,7 @@ pub mod sync;
 use crate::domain::git::repository::RepoWalker;
 use crate::error::Result;
 use crate::model::plan::ExecutionResult;
-use crate::utils::output::Output;
+use crate::utils::output;
 use std::path::Path;
 
 pub(crate) trait Command {
@@ -31,9 +31,9 @@ pub(crate) trait Command {
         let result = self.execute(&plan)?;
         if !result.is_success() {
             for err in result.errors() {
-                Output::error(&format!("执行失败: {}", err.description()));
+                output::error(&format!("执行失败: {}", err.description()));
                 if let Some(hint) = err.recovery_hint() {
-                    Output::detail("恢复指引", hint);
+                    output::detail("恢复指引", hint);
                 }
             }
         }
@@ -54,19 +54,19 @@ pub(crate) fn run_multi_repo<C: MultiRepo>(cmd: &C, walker: &RepoWalker) -> Resu
     let total = walker.total();
     for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
-        Output::repo_header(index + 1, total, repo_path);
+        output::repo_header(index + 1, total, repo_path);
 
         match cmd.collect(repo_path) {
             Ok(ctx) => match cmd.plan(&ctx, repo_path) {
                 Ok(plan) => {
                     if let Err(e) = cmd.execute(&plan) {
-                        Output::error(&format!("{}", e));
+                        output::error(&format!("{}", e));
                     }
                 }
-                Err(e) => Output::error(&format!("{}", e)),
+                Err(e) => output::error(&format!("{}", e)),
             },
             Err(e) => {
-                Output::warning(&format!("跳过 {}: {}", repo_path.display(), e));
+                output::warning(&format!("跳过 {}: {}", repo_path.display(), e));
                 continue;
             }
         }
@@ -91,7 +91,7 @@ pub fn init_repo_walker(args: &RepoPathArgs) -> Result<Option<RepoWalker>> {
     let search_path = crate::utils::path::canonicalize_path(&args.path)?;
     let walker = RepoWalker::new(&search_path, args.max_depth)?;
     if walker.is_empty() {
-        Output::not_found("未找到 Git 仓库");
+        output::not_found("未找到 Git 仓库");
         return Ok(None);
     }
     Ok(Some(walker))

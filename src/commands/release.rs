@@ -14,7 +14,7 @@ use crate::model::git::GitContext;
 use crate::model::operation::EditOperation;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use crate::model::project_config::ProjectConfig;
-use crate::utils::output::Output;
+use crate::utils::output;
 use crate::utils::path::canonicalize_path;
 use std::path::Path;
 use std::path::PathBuf;
@@ -156,12 +156,12 @@ fn init_project_config(args: &ReleaseArgs) -> Result<()> {
     let content = ProjectConfig::render(&detected);
     std::fs::write(&target, content)?;
 
-    Output::item("已创建", &target.display().to_string());
+    output::item("已创建", &target.display().to_string());
     if detected.is_empty() {
-        Output::warning("未自动探测到任何版本文件，请手动编辑 files 字段");
+        output::warning("未自动探测到任何版本文件，请手动编辑 files 字段");
     } else {
         for f in &detected {
-            Output::item("文件", f);
+            output::item("文件", f);
         }
     }
     Ok(())

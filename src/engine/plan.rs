@@ -3,12 +3,12 @@ use crate::domain::selfupdate::{download_asset, install_binary};
 use crate::error::{AppError, Result};
 use crate::model::operation::{EditOperation, Operation, SelfUpdateOperation, ShellOperation};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Step};
-use crate::utils::output::Output;
+use crate::utils::output;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
     if plan.dry_run() {
         let count = plan.operation_count();
-        Output::dry_run_header(&format!("将要执行的操作 ({} 条):", count));
+        output::dry_run_header(&format!("将要执行的操作 ({} 条):", count));
         display_plan(plan);
         return Ok(ExecutionResult::new());
     }
@@ -23,7 +23,7 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
             continue;
         }
 
-        Output::section(&format!("▸ {}", phase.label()));
+        output::section(&format!("▸ {}", phase.label()));
 
         for step in phase.steps() {
             match step {
@@ -31,11 +31,11 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
                     if let Operation::Git(git_op) = op
                         && let Some(reason) = git_op.should_skip()
                     {
-                        Output::skip(&reason);
+                        output::skip(&reason);
                         result.add_executed();
                         continue;
                     }
-                    Output::cmd(&op.description());
+                    output::cmd(&op.description());
                     match execute_operation(op, &runner) {
                         Ok(()) => {
                             result.add_executed();
@@ -45,7 +45,7 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
                             let error =
                                 OperationError::new(op.description()).with_recovery_hint(hint);
                             result.add_error(error);
-                            Output::error(&format!("执行失败: {}", e));
+                            output::error(&format!("执行失败: {}", e));
                             return Ok(result);
                         }
                     }
@@ -72,7 +72,7 @@ fn recovery_hint(failed_op: &Operation, executed_count: usize) -> String {
 pub fn display_plan(plan: &ExecutionPlan) {
     let has_operations = plan.operation_count() > 0;
     if !has_operations && plan.messages().is_empty() {
-        Output::skip("无操作");
+        output::skip("无操作");
         return;
     }
 
@@ -82,10 +82,10 @@ pub fn display_plan(plan: &ExecutionPlan) {
         if phase.is_empty() {
             continue;
         }
-        Output::section(&format!("▸ {}", phase.label()));
+        output::section(&format!("▸ {}", phase.label()));
         for step in phase.steps() {
             match step {
-                Step::Op(op) => Output::dry_cmd(&op.description()),
+                Step::Op(op) => output::dry_cmd(&op.description()),
                 Step::Msg(msg) => render_message(msg),
             }
         }
@@ -100,10 +100,10 @@ pub fn render_messages(messages: &[DisplayMessage]) {
 
 pub fn render_message(msg: &DisplayMessage) {
     match msg {
-        DisplayMessage::Header { title } => Output::header(title),
-        DisplayMessage::Section { title } => Output::section(title),
-        DisplayMessage::Item { label, value } => Output::item(label, value),
-        DisplayMessage::Detail { label, value } => Output::detail(label, value),
+        DisplayMessage::Header { title } => output::header(title),
+        DisplayMessage::Section { title } => output::section(title),
+        DisplayMessage::Item { label, value } => output::item(label, value),
+        DisplayMessage::Detail { label, value } => output::detail(label, value),
         DisplayMessage::Diff {
             file,
             old_start,
@@ -113,24 +113,24 @@ pub fn render_message(msg: &DisplayMessage) {
             old_count,
             new_count,
         } => {
-            Output::message(&format!("diff --git a/{} b/{}", file, file));
-            Output::message(&format!("--- a/{}", file));
-            Output::message(&format!("+++ b/{}", file));
-            Output::message(&format!(
+            output::message(&format!("diff --git a/{} b/{}", file, file));
+            output::message(&format!("--- a/{}", file));
+            output::message(&format!("+++ b/{}", file));
+            output::message(&format!(
                 "@@ -{},{} +{},{} @@",
                 old_start, old_count, new_start, new_count
             ));
             for line in old_lines {
-                Output::diff_old(line);
+                output::diff_old(line);
             }
             for line in new_lines {
-                Output::diff_new(line);
+                output::diff_new(line);
             }
         }
-        DisplayMessage::Success { msg } => Output::success(msg),
-        DisplayMessage::Warning { msg } => Output::warning(msg),
-        DisplayMessage::Skip { msg } => Output::skip(msg),
-        DisplayMessage::Blank => Output::blank(),
+        DisplayMessage::Success { msg } => output::success(msg),
+        DisplayMessage::Warning { msg } => output::warning(msg),
+        DisplayMessage::Skip { msg } => output::skip(msg),
+        DisplayMessage::Blank => output::blank(),
     }
 }
 
@@ -220,10 +220,10 @@ fn execute_self_update(op: &SelfUpdateOperation) -> Result<()> {
             asset_name,
             ..
         } => {
-            Output::info(&format!("下载 {}...", asset_name));
+            output::info(&format!("下载 {}...", asset_name));
             let data = download_asset(api_url, browser_url, asset_name)
                 .map_err(|e| AppError::self_update(format!("下载资源失败: {}", e)))?;
-            Output::success("下载完成");
+            output::success("下载完成");
 
             let current_exe = std::env::current_exe().map_err(|e| {
                 AppError::self_update(format!("无法获取当前可执行文件路径: {}", e))
