@@ -3,14 +3,9 @@ use std::path::Path;
 
 const LABEL_WIDTH: usize = 8;
 const HEADER_WIDTH: usize = 60;
-
-const ICON_RUN: &str = "→";
-const ICON_OK: &str = "✓";
-const ICON_FAIL: &str = "✗";
-const ICON_WARN: &str = "⚠";
-const ICON_INFO: &str = "ℹ";
-const ICON_SKIP: &str = "·";
-const ICON_DRY: &str = "~";
+const ARROW_IN: &str = "<==";
+const ARROW_OUT: &str = "==>";
+const ARROW_DRY: &str = "~~>";
 
 pub struct Output;
 
@@ -20,16 +15,16 @@ impl Output {
     }
 
     pub fn header(title: &str) {
-        let line = format!("═══ {} ", title);
+        let line = format!("=== {} ", title);
         let pad = HEADER_WIDTH.saturating_sub(display_width(&line));
-        let fill = "═".repeat(pad);
+        let fill = "=".repeat(pad);
         Self::print("");
         Self::print(&format!("{}{}", line.green().bold(), fill.green().bold()));
     }
 
     pub fn section(title: &str) {
         Self::print("");
-        Self::print(&format!("▎ {}", title).cyan().bold().to_string());
+        Self::print(&format!("## {}", title).cyan().bold().to_string());
     }
 
     pub fn repo_header(index: usize, total: usize, path: &Path) {
@@ -48,42 +43,42 @@ impl Output {
 
     pub fn cmd(cmd: &str) {
         let (dir, command) = split_cmd(cmd);
-        let icon = ICON_RUN.blue().bold().to_string();
+        let arrow = ARROW_OUT.blue().bold().to_string();
         match dir {
             Some(d) => Self::print(&format!(
                 "{} {} {}",
-                icon,
+                arrow,
                 format!("[{}]", d).dimmed(),
                 command.yellow()
             )),
-            None => Self::print(&format!("{} {}", icon, command.yellow())),
+            None => Self::print(&format!("{} {}", arrow, command.yellow())),
         }
     }
 
     pub fn dry_cmd(cmd: &str) {
         let (dir, command) = split_cmd(cmd);
-        let icon = ICON_DRY.magenta().bold().to_string();
+        let arrow = ARROW_DRY.magenta().bold().to_string();
         match dir {
             Some(d) => Self::print(&format!(
                 "{} {} {}",
-                icon,
+                arrow,
                 format!("[{}]", d).dimmed(),
                 command.yellow()
             )),
-            None => Self::print(&format!("{} {}", icon, command.yellow())),
+            None => Self::print(&format!("{} {}", arrow, command.yellow())),
         }
     }
 
     pub fn success(msg: &str) {
-        Self::print(&format!("{} {}", ICON_OK.green().bold(), msg.green()));
+        Self::print(&format!("{} {}", ARROW_IN.green().bold(), msg.green()));
     }
 
     pub fn error(msg: &str) {
-        Self::print(&format!("{} {}", ICON_FAIL.red().bold(), msg.red()));
+        Self::print(&format!("{} {}", ARROW_IN.red().bold(), msg.red()));
     }
 
     pub fn warning(msg: &str) {
-        Self::print(&format!("{} {}", ICON_WARN.yellow().bold(), msg.yellow()));
+        Self::print(&format!("{} {}", ARROW_IN.yellow().bold(), msg.yellow()));
     }
 
     pub fn not_found(msg: &str) {
@@ -91,11 +86,11 @@ impl Output {
     }
 
     pub fn info(msg: &str) {
-        Self::print(&format!("{} {}", ICON_INFO.cyan().bold(), msg));
+        Self::print(&format!("{} {}", ARROW_IN.cyan().bold(), msg));
     }
 
     pub fn skip(msg: &str) {
-        Self::print(&format!("{} {}", ICON_SKIP.dimmed(), msg.dimmed()));
+        Self::print(&format!("{} {}", ARROW_IN.dimmed(), msg.dimmed()));
     }
 
     pub fn item(label: &str, value: &str) {
