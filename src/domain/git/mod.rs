@@ -12,6 +12,7 @@ pub use context::collect_context;
 pub use diagnose::{Diagnosis, diagnose_repo};
 pub use operation::GitOperation;
 pub use release::{ReleaseGitState, resolve_git_root, validate_git_state};
+pub use remote::resolve_remote_name;
 
 use thiserror::Error;
 

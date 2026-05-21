@@ -4,9 +4,10 @@ use crate::domain::config::ConfigManager;
 use crate::domain::git::GitOperation;
 use crate::domain::git::collect_context;
 use crate::domain::git::repository::RepoWalker;
+use crate::domain::git::resolve_remote_name;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
-use crate::model::git::GitContext;
+use crate::model::git::{GitContext, Remote};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use crate::utils::output;
 use std::path::Path;
@@ -66,8 +67,13 @@ impl MultiRepo for SyncArgs {
         let target_remotes =
             resolve_target_remotes(&git_ctx, self.remote.as_deref(), self.all_remotes)?;
 
-        let should_push = !target_remotes.is_empty()
-            && target_remotes
+        let target_remote_objs: Vec<&Remote> = target_remotes
+            .iter()
+            .filter_map(|name| git_ctx.remotes.iter().find(|r| &r.name == name))
+            .collect();
+
+        let should_push = !target_remote_objs.is_empty()
+            && target_remote_objs
                 .iter()
                 .any(|remote| should_push_to_remote(remote));
 
@@ -155,13 +161,22 @@ impl MultiRepo for SyncArgs {
 
         if ctx.should_push {
             let mut push_phase = Phase::new("推送");
-            for remote in &ctx.target_remotes {
+            for remote_name in &ctx.target_remotes {
+                let remote_obj = ctx.git_ctx.remotes.iter().find(|r| &r.name == remote_name);
+                if let Some(remote) = remote_obj {
+                    if !should_push_to_remote(remote) {
+                        push_phase.add_message(DisplayMessage::Skip {
+                            msg: skip_push_reason(remote),
+                        });
+                        continue;
+                    }
+                }
                 push_phase.add(GitOperation::PushAll {
-                    remote: remote.clone(),
+                    remote: remote_name.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
                 push_phase.add(GitOperation::PushTags {
-                    remote: remote.clone(),
+                    remote: remote_name.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
             }
@@ -169,10 +184,13 @@ impl MultiRepo for SyncArgs {
                 plan.add_phase(push_phase);
             }
         } else {
-            for remote in &ctx.target_remotes {
-                plan.add_message(DisplayMessage::Skip {
-                    msg: format!("跳过推送到 {} (配置 skip_push_remotes)", remote),
-                });
+            for remote_name in &ctx.target_remotes {
+                let remote_obj = ctx.git_ctx.remotes.iter().find(|r| &r.name == remote_name);
+                let msg = match remote_obj {
+                    Some(remote) => skip_push_reason(remote),
+                    None => format!("跳过推送到 {}", remote_name),
+                };
+                plan.add_message(DisplayMessage::Skip { msg });
             }
         }
 
@@ -224,14 +242,37 @@ fn resolve_target_remotes(
     Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect())
 }
 
-fn should_push_to_remote(remote_name: &str) -> bool {
+fn should_push_to_remote(remote: &Remote) -> bool {
+    if is_github_http_remote(remote) {
+        return false;
+    }
+
     let config = ConfigManager::load_config();
 
     !config
         .sync
         .skip_push_remotes
         .iter()
-        .any(|r| r == remote_name)
+        .any(|r| r == &remote.name)
+}
+
+fn is_github_http_remote(remote: &Remote) -> bool {
+    let url = remote.url.as_str();
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return false;
+    }
+    match remote.extract_host() {
+        Some(host) => resolve_remote_name(&host).as_deref() == Some("github"),
+        None => false,
+    }
+}
+
+fn skip_push_reason(remote: &Remote) -> String {
+    if is_github_http_remote(remote) {
+        format!("跳过推送到 {} (GitHub http/https 协议)", remote.name)
+    } else {
+        format!("跳过推送到 {} (配置 skip_push_remotes)", remote.name)
+    }
 }
 
 fn skip_plan(msg: &str) -> Result<ExecutionPlan> {
