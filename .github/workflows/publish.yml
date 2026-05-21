@@ -5,6 +5,10 @@ on:
     workflows: [Release]
     types: [completed]
 
+permissions:
+  contents: read
+  id-token: write  # Required for npm Trusted Publishing (OIDC)
+
 jobs:
   publish:
     name: Publish to npm
@@ -19,6 +23,9 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+
+      - name: Upgrade npm to latest (Trusted Publishing requires >= 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install pandoc for README conversion
         run: sudo apt-get update && sudo apt-get install -y pandoc
@@ -37,14 +44,14 @@ jobs:
         shell: bash
         run: |
           VERSION=${{ steps.meta.outputs.version }}
-          
+
           # Update all platform packages
           for pkg in pma-linux-x64 pma-win32-x64 pma-win32-arm64 pma-darwin-x64 pma-darwin-arm64; do
             cd npm/$pkg
             npm version $VERSION --no-git-tag-version --allow-same-version
             cd ../..
           done
-          
+
           # Update main package and its optionalDependencies
           cd npm/pma
           npm version $VERSION --no-git-tag-version --allow-same-version
@@ -83,18 +90,14 @@ jobs:
 
       - name: Publish platform packages
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for pkg in pma-linux-x64 pma-win32-x64 pma-win32-arm64 pma-darwin-x64 pma-darwin-arm64; do
             cd npm/$pkg
-            npm publish --access public
+            npm publish --access public --provenance
             cd ../..
           done
 
       - name: Publish main package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd npm/pma
-          npm publish --access public
+          npm publish --access public --provenance
