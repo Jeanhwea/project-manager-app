@@ -163,13 +163,13 @@ impl MultiRepo for SyncArgs {
             let mut push_phase = Phase::new("推送");
             for remote_name in &ctx.target_remotes {
                 let remote_obj = ctx.git_ctx.remotes.iter().find(|r| &r.name == remote_name);
-                if let Some(remote) = remote_obj {
-                    if !should_push_to_remote(remote) {
-                        push_phase.add_message(DisplayMessage::Skip {
-                            msg: skip_push_reason(remote),
-                        });
-                        continue;
-                    }
+                if let Some(remote) = remote_obj
+                    && !should_push_to_remote(remote)
+                {
+                    push_phase.add_message(DisplayMessage::Skip {
+                        msg: skip_push_reason(remote),
+                    });
+                    continue;
                 }
                 push_phase.add(GitOperation::PushAll {
                     remote: remote_name.clone(),
