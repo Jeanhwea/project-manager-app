@@ -87,34 +87,12 @@ impl Command for CreateArgs {
             )));
         }
 
-        if !project_path.join(".git").exists() {
-            return Ok(SnapCreateContext {
-                project_path,
-                needs_init: true,
-                has_changes: true,
-                commit_count: 0,
-            });
-        }
-
-        let runner = GitCommandRunner::new();
-        let has_changes = runner
-            .has_uncommitted_changes(&project_path)
-            .unwrap_or(true);
-        if !has_changes {
-            return Ok(SnapCreateContext {
-                project_path,
-                needs_init: false,
-                has_changes: false,
-                commit_count: 0,
-            });
-        }
-
-        let commit_count = git::snapshot::head_commit_count(&project_path)?;
+        let (needs_init, has_changes, commit_count) = inspect_project(&project_path)?;
 
         Ok(SnapCreateContext {
             project_path,
-            needs_init: false,
-            has_changes: true,
+            needs_init,
+            has_changes,
             commit_count,
         })
     }
@@ -134,24 +112,15 @@ impl Command for CreateArgs {
             snap_phase.add(GitOperation::Init {
                 working_dir: ctx.project_path.clone(),
             });
-            snap_phase.add(GitOperation::Add {
-                path: ".".to_string(),
-                working_dir: ctx.project_path.clone(),
-            });
-            snap_phase.add(GitOperation::Commit {
-                message: "snap-000000".to_string(),
-                working_dir: ctx.project_path.clone(),
-            });
-        } else {
-            snap_phase.add(GitOperation::Add {
-                path: ".".to_string(),
-                working_dir: ctx.project_path.clone(),
-            });
-            snap_phase.add(GitOperation::Commit {
-                message: format!("snap-{:06}", ctx.commit_count),
-                working_dir: ctx.project_path.clone(),
-            });
         }
+        snap_phase.add(GitOperation::Add {
+            path: ".".to_string(),
+            working_dir: ctx.project_path.clone(),
+        });
+        snap_phase.add(GitOperation::Commit {
+            message: snap_commit_message(ctx),
+            working_dir: ctx.project_path.clone(),
+        });
         plan.add_phase(snap_phase);
 
         Ok(plan)
@@ -282,6 +251,31 @@ pub fn run(args: SnapArgs) -> Result<()> {
         SnapArgs::Create(args) => Command::run(&args),
         SnapArgs::List(args) => Command::run(&args),
         SnapArgs::Restore(args) => Command::run(&args),
+    }
+}
+
+fn inspect_project(project_path: &Path) -> Result<(bool, bool, usize)> {
+    if !project_path.join(".git").exists() {
+        return Ok((true, true, 0));
+    }
+
+    let runner = GitCommandRunner::new();
+    let has_changes = runner
+        .has_uncommitted_changes(project_path)
+        .unwrap_or(true);
+    if !has_changes {
+        return Ok((false, false, 0));
+    }
+
+    let commit_count = git::snapshot::head_commit_count(project_path)?;
+    Ok((false, true, commit_count))
+}
+
+fn snap_commit_message(ctx: &SnapCreateContext) -> String {
+    if ctx.needs_init {
+        "snap-000000".to_string()
+    } else {
+        format!("snap-{:06}", ctx.commit_count)
     }
 }
 
