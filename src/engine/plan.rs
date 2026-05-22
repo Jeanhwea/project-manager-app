@@ -32,7 +32,6 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
     Ok(result)
 }
 
-/// 执行单个 phase；遇到错误返回 false 表示中断后续 phase
 fn run_phase(
     phase: &crate::model::plan::Phase,
     runner: &GitCommandRunner,
@@ -51,7 +50,6 @@ fn run_phase(
     true
 }
 
-/// 执行单个 Op step；返回 false 表示遇到错误且需要中断
 fn run_op_step(op: &Operation, runner: &GitCommandRunner, result: &mut ExecutionResult) -> bool {
     if let Operation::Git(git_op) = op
         && let Some(reason) = git_op.should_skip()

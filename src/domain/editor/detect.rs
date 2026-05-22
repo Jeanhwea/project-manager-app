@@ -230,7 +230,6 @@ pub fn read_file_version(
     Ok(version_str.to_string())
 }
 
-/// 从配置文件中提取最高版本号，作为 git describe 无 tag 时的 fallback
 pub fn extract_fallback_version(
     registry: &EditorRegistry,
     config_files: &[String],
