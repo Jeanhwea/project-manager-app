@@ -195,8 +195,27 @@ fn build_execution_plan(
     registry: &EditorRegistry,
 ) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
-    let mut has_changes = false;
+    add_release_metadata(&mut plan, args, state);
 
+    let edit_phase = build_edit_phase(config_files, state, registry)?;
+    let has_changes = edit_phase
+        .steps()
+        .iter()
+        .any(|step| matches!(step, crate::model::plan::Step::Op(_)));
+
+    if !edit_phase.is_empty() {
+        plan.add_phase(edit_phase);
+    }
+
+    let git_phase = build_git_phase(args, state, ctx, has_changes);
+    if !git_phase.is_empty() {
+        plan.add_phase(git_phase);
+    }
+
+    Ok(plan)
+}
+
+fn add_release_metadata(plan: &mut ExecutionPlan, args: &ReleaseArgs, state: &ReleaseGitState) {
     plan.add_message(DisplayMessage::Item {
         label: "当前版本".to_string(),
         value: state.current_tag.clone(),
@@ -216,7 +235,13 @@ fn build_execution_plan(
             value: state.commit_message.clone(),
         });
     }
+}
 
+fn build_edit_phase(
+    config_files: &[String],
+    state: &ReleaseGitState,
+    registry: &EditorRegistry,
+) -> Result<Phase> {
     let mut edit_phase = Phase::new("版本修改");
 
     for file_path in config_files {
@@ -238,51 +263,64 @@ fn build_execution_plan(
             }
         }
 
-        if original != edited {
-            has_changes = true;
-            let old_lines: Vec<&str> = original.lines().collect();
-            let new_lines: Vec<&str> = edited.lines().collect();
-
-            let mut changed_lines: Vec<(String, String)> = Vec::new();
-            for (_line_num, (old_line, new_line)) in
-                (1..).zip(old_lines.iter().zip(new_lines.iter()))
-            {
-                if old_line != new_line {
-                    changed_lines.push((old_line.to_string(), new_line.to_string()));
-                }
-            }
-
-            edit_phase.add(EditOperation::WriteFile {
-                path: file_path.clone(),
-                content: edited.clone(),
-                description: format!("edit {}", file_path),
-            });
-
-            if !changed_lines.is_empty() {
-                edit_phase.add_message(DisplayMessage::Diff {
-                    file: file_path.clone(),
-                    old_start: 1,
-                    new_start: 1,
-                    old_lines: changed_lines.iter().map(|(old, _)| old.clone()).collect(),
-                    new_lines: changed_lines.iter().map(|(_, new)| new.clone()).collect(),
-                    old_count: changed_lines.len(),
-                    new_count: changed_lines.len(),
-                });
-            }
-
-            add_lockfile_operations(&mut edit_phase, file_path);
-
-            edit_phase.add(GitOperation::Add {
-                path: file_path.clone(),
-                working_dir: PathBuf::from("."),
-            });
+        if original == edited {
+            continue;
         }
+
+        edit_phase.add(EditOperation::WriteFile {
+            path: file_path.clone(),
+            content: edited.clone(),
+            description: format!("edit {}", file_path),
+        });
+
+        if let Some(diff) = compute_line_diff(file_path, &original, &edited) {
+            edit_phase.add_message(diff);
+        }
+
+        add_lockfile_operations(&mut edit_phase, file_path);
+
+        edit_phase.add(GitOperation::Add {
+            path: file_path.clone(),
+            working_dir: PathBuf::from("."),
+        });
     }
 
-    if !edit_phase.is_empty() {
-        plan.add_phase(edit_phase);
+    Ok(edit_phase)
+}
+
+fn compute_line_diff(file_path: &str, original: &str, edited: &str) -> Option<DisplayMessage> {
+    let old_lines: Vec<&str> = original.lines().collect();
+    let new_lines: Vec<&str> = edited.lines().collect();
+
+    let changed_lines: Vec<(String, String)> = old_lines
+        .iter()
+        .zip(new_lines.iter())
+        .filter(|(old, new)| old != new)
+        .map(|(old, new)| (old.to_string(), new.to_string()))
+        .collect();
+
+    if changed_lines.is_empty() {
+        return None;
     }
 
+    let count = changed_lines.len();
+    Some(DisplayMessage::Diff {
+        file: file_path.to_string(),
+        old_start: 1,
+        new_start: 1,
+        old_lines: changed_lines.iter().map(|(old, _)| old.clone()).collect(),
+        new_lines: changed_lines.iter().map(|(_, new)| new.clone()).collect(),
+        old_count: count,
+        new_count: count,
+    })
+}
+
+fn build_git_phase(
+    args: &ReleaseArgs,
+    state: &ReleaseGitState,
+    ctx: &GitContext,
+    has_changes: bool,
+) -> Phase {
     let mut git_phase = Phase::new("Git 提交推送");
 
     if has_changes {
@@ -312,11 +350,7 @@ fn build_execution_plan(
         }
     }
 
-    if !git_phase.is_empty() {
-        plan.add_phase(git_phase);
-    }
-
-    Ok(plan)
+    git_phase
 }
 
 /// 从配置文件中提取最高版本号，作为 git describe 无 tag 时的 fallback
