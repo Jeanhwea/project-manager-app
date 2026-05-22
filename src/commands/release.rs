@@ -1,7 +1,7 @@
 use crate::commands::Command;
 use crate::domain::editor::{
     BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content,
-    detect_config_files, read_file_version, resolve_config_files,
+    detect_config_files, extract_fallback_version, read_file_version, resolve_config_files,
 };
 use crate::domain::git::GitOperation;
 use crate::domain::git::{
@@ -351,24 +351,4 @@ fn build_git_phase(
     }
 
     git_phase
-}
-
-/// 从配置文件中提取最高版本号，作为 git describe 无 tag 时的 fallback
-fn extract_fallback_version(
-    registry: &EditorRegistry,
-    config_files: &[String],
-) -> Option<String> {
-    use crate::domain::editor::Version;
-
-    let mut best: Option<Version> = None;
-    for file_path in config_files {
-        let editor = registry.detect_editor(Path::new(file_path))?;
-        if let Ok(ver_str) = read_file_version(editor, file_path)
-            && let Ok(ver) = Version::parse(&ver_str)
-            && best.as_ref().is_none_or(|b| ver > *b)
-        {
-            best = Some(ver);
-        }
-    }
-    best.map(|v| v.to_string())
 }

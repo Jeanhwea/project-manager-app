@@ -213,6 +213,26 @@ pub fn read_file_version(
     Ok(version_str.to_string())
 }
 
+/// 从配置文件中提取最高版本号，作为 git describe 无 tag 时的 fallback
+pub fn extract_fallback_version(
+    registry: &EditorRegistry,
+    config_files: &[String],
+) -> Option<String> {
+    use super::Version;
+
+    let mut best: Option<Version> = None;
+    for file_path in config_files {
+        let editor = registry.detect_editor(Path::new(file_path))?;
+        if let Ok(ver_str) = read_file_version(editor, file_path)
+            && let Ok(ver) = Version::parse(&ver_str)
+            && best.as_ref().is_none_or(|b| ver > *b)
+        {
+            best = Some(ver);
+        }
+    }
+    best.map(|v| v.to_string())
+}
+
 pub fn read_cargo_package_name(cargo_toml_path: &str) -> crate::error::Result<String> {
     let content = std::fs::read_to_string(cargo_toml_path)
         .map_err(|e| AppError::release(format!("无法读取 {}: {}", cargo_toml_path, e)))?;

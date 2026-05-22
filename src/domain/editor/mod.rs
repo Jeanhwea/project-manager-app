@@ -15,8 +15,8 @@ mod version_bump;
 mod version_text;
 
 pub use detect::{
-    add_lockfile_operations, compute_edited_content, detect_config_files, read_file_version,
-    resolve_config_files,
+    add_lockfile_operations, compute_edited_content, detect_config_files, extract_fallback_version,
+    read_file_version, resolve_config_files,
 };
 pub use error::{EditorError, Result};
 pub use file_editor::{FileEditor, write_with_backup};
