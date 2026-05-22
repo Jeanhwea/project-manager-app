@@ -25,7 +25,7 @@ pub enum AppError {
     InvalidInput(String),
 
     #[error("GitLab API error: {0}")]
-    GitLabApi(String),
+    GitlabApi(String),
 
     #[error("{0}")]
     Release(String),
@@ -66,7 +66,7 @@ impl AppError {
     }
 
     pub fn gitlab_api(msg: impl Into<String>) -> Self {
-        AppError::GitLabApi(msg.into())
+        AppError::GitlabApi(msg.into())
     }
 
     pub fn release(msg: impl Into<String>) -> Self {
