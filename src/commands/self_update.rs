@@ -39,8 +39,8 @@ pub struct UpdateArgs {
 
 #[derive(Debug)]
 pub(crate) struct VersionContext {
-    pkg_name: &'static str,
-    pkg_version: &'static str,
+    package_name: &'static str,
+    package_version: &'static str,
     os: &'static str,
     arch: &'static str,
 }
@@ -53,8 +53,8 @@ impl Command for VersionMarker {
 
     fn collect(&self) -> Result<VersionContext> {
         Ok(VersionContext {
-            pkg_name: PKG_NAME,
-            pkg_version: PKG_VERSION,
+            package_name: PKG_NAME,
+            package_version: PKG_VERSION,
             os: env::consts::OS,
             arch: env::consts::ARCH,
         })
@@ -65,7 +65,7 @@ impl Command for VersionMarker {
         plan.add_message(DisplayMessage::Skip {
             msg: format!(
                 "{} v{} ({}-{})",
-                ctx.pkg_name, ctx.pkg_version, ctx.os, ctx.arch
+                ctx.package_name, ctx.package_version, ctx.os, ctx.arch
             ),
         });
         Ok(plan)

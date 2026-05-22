@@ -95,7 +95,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
         return;
     }
 
-    let Ok(pkg_name) = read_cargo_package_name(cargo_toml_path) else {
+    let Ok(package_name) = read_cargo_package_name(cargo_toml_path) else {
         return;
     };
 
@@ -104,10 +104,10 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
         args: vec![
             "update".to_string(),
             "--package".to_string(),
-            pkg_name.clone(),
+            package_name.clone(),
         ],
         dir: Some(dir.to_path_buf()),
-        description: format!("cargo update --package {}", pkg_name),
+        description: format!("cargo update --package {}", package_name),
     });
 
     let path_str = lock_path.to_string_lossy().replace('\\', "/");

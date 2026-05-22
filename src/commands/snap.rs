@@ -60,7 +60,7 @@ pub(crate) struct SnapCreateContext {
     project_path: PathBuf,
     needs_init: bool,
     has_changes: bool,
-    num_commit: usize,
+    commit_count: usize,
 }
 
 #[derive(Debug)]
@@ -92,7 +92,7 @@ impl Command for CreateArgs {
                 project_path,
                 needs_init: true,
                 has_changes: true,
-                num_commit: 0,
+                commit_count: 0,
             });
         }
 
@@ -105,17 +105,17 @@ impl Command for CreateArgs {
                 project_path,
                 needs_init: false,
                 has_changes: false,
-                num_commit: 0,
+                commit_count: 0,
             });
         }
 
-        let num_commit = git::snapshot::head_commit_count(&project_path)?;
+        let commit_count = git::snapshot::head_commit_count(&project_path)?;
 
         Ok(SnapCreateContext {
             project_path,
             needs_init: false,
             has_changes: true,
-            num_commit,
+            commit_count,
         })
     }
 
@@ -148,7 +148,7 @@ impl Command for CreateArgs {
                 working_dir: ctx.project_path.clone(),
             });
             snap_phase.add(GitOperation::Commit {
-                message: format!("snap-{:06}", ctx.num_commit),
+                message: format!("snap-{:06}", ctx.commit_count),
                 working_dir: ctx.project_path.clone(),
             });
         }
