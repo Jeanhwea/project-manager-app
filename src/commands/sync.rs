@@ -3,13 +3,11 @@ use crate::commands::RepoPathArgs;
 use crate::domain::config::ConfigManager;
 use crate::domain::git::GitOperation;
 use crate::domain::git::collect_context;
-use crate::domain::git::repository::RepoWalker;
 use crate::domain::git::resolve_remote_name;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::{GitContext, Remote};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
-use crate::utils::output;
 use std::path::Path;
 
 #[derive(Debug, clap::Args)]
@@ -203,24 +201,7 @@ impl MultiRepo for SyncArgs {
 }
 
 pub fn run(args: SyncArgs) -> Result<()> {
-    let effective_path = resolve_effective_path(&args.repo_path.path)?;
-    let walker = RepoWalker::new(&effective_path, args.repo_path.max_depth)?;
-
-    if walker.is_empty() {
-        output::not_found("未找到 Git 仓库");
-        return Ok(());
-    }
-
-    crate::commands::run_multi_repo(&args, &walker)
-}
-
-fn resolve_effective_path(path: &str) -> Result<std::path::PathBuf> {
-    if path == "." {
-        let cwd = std::env::current_dir()?;
-        Ok(find_git_repository_upwards(&cwd).unwrap_or(cwd))
-    } else {
-        Ok(crate::utils::path::canonicalize_path(path)?)
-    }
+    crate::commands::run_multi_repo_cmd(&args, &args.repo_path)
 }
 
 fn resolve_target_remotes(
@@ -281,16 +262,4 @@ fn skip_plan(msg: &str) -> Result<ExecutionPlan> {
         msg: msg.to_string(),
     });
     Ok(plan)
-}
-
-fn find_git_repository_upwards(start_dir: &Path) -> Option<std::path::PathBuf> {
-    let mut current = start_dir.to_path_buf();
-    loop {
-        if current.join(".git").exists() {
-            return Some(current);
-        }
-        if !current.pop() {
-            return None;
-        }
-    }
 }

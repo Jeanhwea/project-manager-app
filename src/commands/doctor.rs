@@ -1,5 +1,5 @@
 use crate::commands::MultiRepo;
-use crate::commands::{RepoPathArgs, init_repo_walker};
+use crate::commands::RepoPathArgs;
 use crate::domain::git::GitOperation;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::engine::plan;
@@ -118,9 +118,5 @@ impl MultiRepo for DoctorArgs {
 }
 
 pub fn run(args: DoctorArgs) -> Result<()> {
-    let Some(walker) = init_repo_walker(&args.repo_path)? else {
-        return Ok(());
-    };
-
-    crate::commands::run_multi_repo(&args, &walker)
+    crate::commands::run_multi_repo_cmd(&args, &args.repo_path)
 }

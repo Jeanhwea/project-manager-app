@@ -76,6 +76,19 @@ impl RepoWalker {
     }
 }
 
+/// 从给定目录向上查找最近的 git 仓库根目录
+pub fn find_repository_upwards(start_dir: &Path) -> Option<PathBuf> {
+    let mut current = start_dir.to_path_buf();
+    loop {
+        if current.join(".git").exists() {
+            return Some(current);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

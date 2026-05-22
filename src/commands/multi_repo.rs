@@ -26,14 +26,23 @@ pub struct RepoPathArgs {
     pub path: String,
 }
 
-pub fn init_repo_walker(args: &RepoPathArgs) -> Result<Option<RepoWalker>> {
-    let search_path = crate::utils::path::canonicalize_path(&args.path)?;
+fn init_repo_walker(args: &RepoPathArgs) -> Result<Option<RepoWalker>> {
+    let search_path = resolve_walker_path(&args.path)?;
     let walker = RepoWalker::new(&search_path, args.max_depth)?;
     if walker.is_empty() {
         output::not_found("未找到 Git 仓库");
         return Ok(None);
     }
     Ok(Some(walker))
+}
+
+fn resolve_walker_path(path: &str) -> Result<std::path::PathBuf> {
+    if path == "." {
+        let cwd = std::env::current_dir()?;
+        Ok(crate::domain::git::repository::find_repository_upwards(&cwd).unwrap_or(cwd))
+    } else {
+        Ok(crate::utils::path::canonicalize_path(path)?)
+    }
 }
 
 pub fn run_multi_repo_cmd(cmd: &impl MultiRepo, repo_path: &RepoPathArgs) -> Result<()> {
@@ -43,7 +52,7 @@ pub fn run_multi_repo_cmd(cmd: &impl MultiRepo, repo_path: &RepoPathArgs) -> Res
     run_multi_repo(cmd, &walker)
 }
 
-pub fn run_multi_repo<C: MultiRepo>(cmd: &C, walker: &RepoWalker) -> Result<()> {
+fn run_multi_repo<C: MultiRepo>(cmd: &C, walker: &RepoWalker) -> Result<()> {
     let total = walker.total();
     for (index, repo_info) in walker.repositories().iter().enumerate() {
         let repo_path = &repo_info.path;
