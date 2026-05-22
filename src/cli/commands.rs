@@ -59,7 +59,7 @@ pub enum Commands {
 
     /// Self management commands
     #[command(name = "self")]
-    Self_ {
+    SelfManage {
         #[command(subcommand)]
         command: SelfManageArgs,
     },
@@ -81,7 +81,7 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         Commands::Snap { command } => crate::commands::snap::run(command),
         Commands::Status(args) => crate::commands::status::run(args),
         Commands::Branch { command } => crate::commands::branch::run(command),
-        Commands::Self_ { command } => crate::commands::self_update::run(command),
+        Commands::SelfManage { command } => crate::commands::self_update::run(command),
         Commands::Config { command } => crate::commands::config::run(command),
     }
 }
