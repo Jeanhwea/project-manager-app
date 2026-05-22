@@ -260,9 +260,7 @@ fn inspect_project(project_path: &Path) -> Result<(bool, bool, usize)> {
     }
 
     let runner = GitCommandRunner::new();
-    let has_changes = runner
-        .has_uncommitted_changes(project_path)
-        .unwrap_or(true);
+    let has_changes = runner.has_uncommitted_changes(project_path).unwrap_or(true);
     if !has_changes {
         return Ok((false, false, 0));
     }
