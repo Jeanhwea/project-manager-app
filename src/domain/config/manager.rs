@@ -1,4 +1,4 @@
-use super::schema::{AppConfig, GitLabConfig};
+use super::schema::{AppConfig, GitlabConfig};
 use std::io;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -74,10 +74,10 @@ impl ConfigManager {
             .clone()
     }
 
-    pub fn load_gitlab() -> GitLabConfig {
-        static GITLAB_CONFIG: OnceLock<GitLabConfig> = OnceLock::new();
+    pub fn load_gitlab() -> GitlabConfig {
+        static GITLAB_CONFIG: OnceLock<GitlabConfig> = OnceLock::new();
         GITLAB_CONFIG
-            .get_or_init(|| load_toml_config::<GitLabConfig>(&Self::gitlab_path(), " GitLab"))
+            .get_or_init(|| load_toml_config::<GitlabConfig>(&Self::gitlab_path(), " GitLab"))
             .clone()
     }
 

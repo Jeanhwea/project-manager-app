@@ -130,13 +130,13 @@ fn default_skip_push_remotes() -> Vec<String> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct GitLabConfig {
+pub struct GitlabConfig {
     #[serde(default)]
-    pub servers: Vec<GitLabServer>,
+    pub servers: Vec<GitlabServer>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct GitLabServer {
+pub struct GitlabServer {
     #[serde(default, deserialize_with = "deserialize_trimmed_string")]
     pub url: String,
     #[serde(default)]
@@ -182,7 +182,7 @@ where
     deserializer.deserialize_string(TrimmedStringVisitor)
 }
 
-impl Default for GitLabServer {
+impl Default for GitlabServer {
     fn default() -> Self {
         Self {
             url: String::new(),

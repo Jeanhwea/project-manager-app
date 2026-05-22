@@ -2,7 +2,7 @@ use clap::Parser;
 
 use crate::commands::{
     branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs,
-    gitlab::GitLabArgs, release::ReleaseArgs, self_update::SelfManageArgs, snap::SnapArgs,
+    gitlab::GitlabArgs, release::ReleaseArgs, self_update::SelfManageArgs, snap::SnapArgs,
     status::StatusArgs, sync::SyncArgs,
 };
 use crate::error::Result;
@@ -37,7 +37,7 @@ pub enum Commands {
     #[command(visible_alias = "gl")]
     Gitlab {
         #[command(subcommand)]
-        command: GitLabArgs,
+        command: GitlabArgs,
     },
 
     /// Snapshot a project

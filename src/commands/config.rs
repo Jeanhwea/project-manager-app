@@ -29,7 +29,7 @@ pub(crate) struct ConfigShowContext {
     base_dir: PathBuf,
     dir_exists: bool,
     config: schema::AppConfig,
-    gitlab_config: schema::GitLabConfig,
+    gitlab_config: schema::GitlabConfig,
 }
 
 #[derive(Debug)]

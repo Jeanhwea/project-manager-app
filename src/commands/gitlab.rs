@@ -10,7 +10,7 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 #[derive(Debug, clap::Subcommand)]
-pub enum GitLabArgs {
+pub enum GitlabArgs {
     Login(LoginArgs),
     Clone(CloneArgs),
 }
@@ -45,7 +45,7 @@ pub struct CloneArgs {
 
 #[derive(Debug)]
 pub(crate) struct LoginContext {
-    config: schema::GitLabConfig,
+    config: schema::GitlabConfig,
     is_update: bool,
 }
 
@@ -73,7 +73,7 @@ impl Command for LoginArgs {
         let is_update = config.servers.iter().any(|s| s.url == trimmed_url);
 
         if !is_update {
-            config.servers.push(schema::GitLabServer {
+            config.servers.push(schema::GitlabServer {
                 url: trimmed_url,
                 token: self.token.clone(),
                 protocol: self.protocol.clone(),
@@ -195,18 +195,18 @@ impl Command for CloneArgs {
     }
 }
 
-pub fn run(args: GitLabArgs) -> Result<()> {
+pub fn run(args: GitlabArgs) -> Result<()> {
     match args {
-        GitLabArgs::Login(args) => Command::run(&args),
-        GitLabArgs::Clone(args) => Command::run(&args),
+        GitlabArgs::Login(args) => Command::run(&args),
+        GitlabArgs::Clone(args) => Command::run(&args),
     }
 }
 
 fn resolve_server_and_group<'a>(
-    config: &'a schema::GitLabConfig,
+    config: &'a schema::GitlabConfig,
     group_input: &str,
     server_override: Option<&str>,
-) -> Result<(&'a schema::GitLabServer, String)> {
+) -> Result<(&'a schema::GitlabServer, String)> {
     let input = group_input.trim();
 
     if input.starts_with("http://") || input.starts_with("https://") {
@@ -231,9 +231,9 @@ fn resolve_server_and_group<'a>(
 }
 
 fn resolve_from_full_url<'a>(
-    config: &'a schema::GitLabConfig,
+    config: &'a schema::GitlabConfig,
     full_url: &str,
-) -> Result<(&'a schema::GitLabServer, String)> {
+) -> Result<(&'a schema::GitlabServer, String)> {
     let best_match = config
         .servers
         .iter()
@@ -263,7 +263,7 @@ fn resolve_from_full_url<'a>(
     }
 }
 
-fn api_base_url(server: &schema::GitLabServer) -> String {
+fn api_base_url(server: &schema::GitlabServer) -> String {
     let url = server.url.trim_end_matches('/');
     let prefix = server.prefix.trim_matches('/');
     if prefix.is_empty() {
@@ -279,13 +279,13 @@ fn api_base_url(server: &schema::GitLabServer) -> String {
 }
 
 #[derive(Debug, Deserialize)]
-struct GitLabGroup {
+struct GitlabGroup {
     id: u64,
     full_path: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct GitLabProject {
+struct GitlabProject {
     path_with_namespace: String,
     ssh_url_to_repo: String,
     http_url_to_repo: String,
@@ -307,7 +307,7 @@ fn gitlab_get(base_url: &str, token: &str, path: &str) -> Result<ureq::Response>
 fn find_group_id(base_url: &str, token: &str, group_path: &str) -> Result<u64> {
     let search_path = format!("/groups?search={}", group_path.replace('/', "%2F"));
     let response = gitlab_get(base_url, token, &search_path)?;
-    let groups: Vec<GitLabGroup> = response
+    let groups: Vec<GitlabGroup> = response
         .into_json()
         .map_err(|e| AppError::gitlab_api(format!("解析 group 列表失败: {}", e)))?;
 
@@ -327,7 +327,7 @@ fn fetch_group_projects(
     let projects_path = format!("/groups/{}/projects?per_page=100", group_id);
     let response = gitlab_get(base_url, token, &projects_path)?;
 
-    let projects: Vec<GitLabProject> = response
+    let projects: Vec<GitlabProject> = response
         .into_json()
         .map_err(|e| AppError::gitlab_api(format!("解析项目列表失败: {}", e)))?;
 
