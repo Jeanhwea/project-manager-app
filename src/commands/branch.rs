@@ -160,17 +160,27 @@ impl MultiRepo for BranchCleanArgs {
                 .unwrap_or_else(|| self.remote.clone())
         };
 
+        let pattern_re = match self.pattern.as_deref() {
+            Some(p) => Some(compile_glob_pattern(p)?),
+            None => None,
+        };
+
+        let merged_branches = if pattern_re.is_none() {
+            GitCommandRunner::new()
+                .merged_branches(repo_path)
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
         let branches_to_delete: Vec<String> = git_ctx
             .local_branches()
             .iter()
             .map(|b| b.name.as_str())
             .filter(|name| *name != git_ctx.current_branch)
-            .filter(|name| {
-                if let Some(ref pattern) = self.pattern {
-                    match_pattern(name, pattern)
-                } else {
-                    GitCommandRunner::new().is_merged_branch(name, repo_path)
-                }
+            .filter(|name| match &pattern_re {
+                Some(re) => re.is_match(name),
+                None => merged_branches.iter().any(|b| b == name),
             })
             .map(|s| s.to_string())
             .collect();
@@ -380,13 +390,13 @@ pub fn run(args: BranchArgs) -> Result<()> {
     }
 }
 
-fn match_pattern(name: &str, pattern: &str) -> bool {
+fn compile_glob_pattern(pattern: &str) -> Result<regex::Regex> {
     if pattern.contains('*') {
         let regex_pattern = pattern.replace('*', ".*");
         regex::Regex::new(&format!("^{}$", regex_pattern))
-            .map(|re| re.is_match(name))
-            .unwrap_or(false)
+            .map_err(|e| crate::error::AppError::invalid_input(format!("无效的分支模式: {}", e)))
     } else {
-        name == pattern
+        regex::Regex::new(&format!("^{}$", regex::escape(pattern)))
+            .map_err(|e| crate::error::AppError::invalid_input(format!("无效的分支模式: {}", e)))
     }
 }

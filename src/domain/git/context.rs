@@ -44,30 +44,52 @@ pub fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Rem
 }
 
 fn collect_branches(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Branch>> {
-    let output = runner.run_local(&["branch", "-vv", "--all"], Some(root))?;
+    let format = "%(refname)%09%(HEAD)%09%(upstream:short)";
+    let output = runner.run_local(
+        &[
+            "for-each-ref",
+            &format!("--format={}", format),
+            "refs/heads",
+            "refs/remotes",
+        ],
+        Some(root),
+    )?;
+
     let mut branches = Vec::new();
 
     for line in output.lines() {
-        let line = line.trim();
         if line.is_empty() {
             continue;
         }
 
-        let is_current = line.starts_with("* ");
-        let line = line.trim_start_matches("* ").trim_start_matches("  ");
+        let mut parts = line.splitn(3, '\t');
+        let refname = parts.next().unwrap_or("");
+        let head_marker = parts.next().unwrap_or(" ");
+        let upstream = parts.next().unwrap_or("");
 
-        let parts: Vec<&str> = line.splitn(2, ' ').collect();
-        let name = parts.first().unwrap_or(&line).to_string();
-        let name = name.trim_start_matches("remotes/").to_string();
+        let (name, is_remote) = if let Some(remote_name) = refname.strip_prefix("refs/remotes/") {
+            if remote_name.ends_with("/HEAD") {
+                continue;
+            }
+            (remote_name.to_string(), true)
+        } else if let Some(local_name) = refname.strip_prefix("refs/heads/") {
+            (local_name.to_string(), false)
+        } else {
+            continue;
+        };
 
-        let is_remote = line.contains("remotes/");
-        let info = parts.get(1).unwrap_or(&"");
+        let is_current = !is_remote && head_marker == "*";
+        let tracking_branch = if !upstream.is_empty() && !is_remote {
+            Some(upstream.to_string())
+        } else {
+            None
+        };
 
         branches.push(Branch {
             name,
-            is_current: is_current && !is_remote,
+            is_current,
             is_remote,
-            tracking_branch: extract_tracking_branch(runner, root, is_current, info),
+            tracking_branch,
         });
     }
 
@@ -97,20 +119,4 @@ fn collect_tags(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Tag>> {
     }
 
     Ok(tags)
-}
-
-fn extract_tracking_branch(
-    runner: &GitCommandRunner,
-    root: &Path,
-    is_current: bool,
-    _info: &str,
-) -> Option<String> {
-    if !is_current {
-        return None;
-    }
-    runner
-        .run_local(&["rev-parse", "--abbrev-ref", "@{upstream}"], Some(root))
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
 }
