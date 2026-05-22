@@ -1,6 +1,6 @@
 use crate::commands::Command;
-use crate::domain::selfupdate::Release;
-use crate::domain::selfupdate::{fetch_latest_release, get_asset_name};
+use crate::domain::self_update::Release;
+use crate::domain::self_update::{fetch_latest_release, get_asset_name};
 use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::operation::SelfUpdateOperation;

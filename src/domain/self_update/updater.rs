@@ -33,7 +33,7 @@ pub struct Asset {
 
 pub fn fetch_latest_release() -> Result<Release> {
     let mut req = ureq::get(GITHUB_API_URL)
-        .set("User-Agent", "pma-selfupdate")
+        .set("User-Agent", "pma-self-update")
         .set("Accept", "application/vnd.github.v3+json");
 
     if let Ok(token) = env::var("GITHUB_TOKEN") {
