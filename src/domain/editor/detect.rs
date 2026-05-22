@@ -122,6 +122,18 @@ fn add_js_lockfile_operations(plan: &mut impl AddOperation, package_json_path: &
 
     let pkg_dir = parent_dir(Path::new(package_json_path));
 
+    if try_existing_js_lockfile(plan, pkg_dir, &is_gitignored) {
+        return;
+    }
+
+    add_pnpm_fallback(plan, pkg_dir, &is_gitignored);
+}
+
+fn try_existing_js_lockfile(
+    plan: &mut impl AddOperation,
+    pkg_dir: &Path,
+    is_gitignored: &dyn Fn(&Path) -> bool,
+) -> bool {
     let lockfiles: &[(&str, &str, &[&str])] = &[
         ("pnpm-lock.yaml", "pnpm", &["install", "--lockfile-only"]),
         (
@@ -138,24 +150,32 @@ fn add_js_lockfile_operations(plan: &mut impl AddOperation, package_json_path: &
 
     for (lock_name, cmd, args) in lockfiles {
         let lock_path = pkg_dir.join(lock_name);
-        if lock_path.exists() && !is_gitignored(&lock_path) {
-            let args_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-            plan.add_op(crate::model::operation::ShellOperation::Run {
-                program: cmd.to_string(),
-                args: args_vec,
-                dir: Some(pkg_dir.to_path_buf()),
-                description: format!("{} {}", cmd, args.join(" ")),
-            });
-
-            let path_str = lock_path.to_string_lossy().replace('\\', "/");
-            plan.add_op(GitOperation::Add {
-                path: path_str,
-                working_dir: PathBuf::from("."),
-            });
-            return;
+        if !lock_path.exists() || is_gitignored(&lock_path) {
+            continue;
         }
-    }
+        let args_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+        plan.add_op(crate::model::operation::ShellOperation::Run {
+            program: cmd.to_string(),
+            args: args_vec,
+            dir: Some(pkg_dir.to_path_buf()),
+            description: format!("{} {}", cmd, args.join(" ")),
+        });
 
+        let path_str = lock_path.to_string_lossy().replace('\\', "/");
+        plan.add_op(GitOperation::Add {
+            path: path_str,
+            working_dir: PathBuf::from("."),
+        });
+        return true;
+    }
+    false
+}
+
+fn add_pnpm_fallback(
+    plan: &mut impl AddOperation,
+    pkg_dir: &Path,
+    is_gitignored: &dyn Fn(&Path) -> bool,
+) {
     if crate::utils::is_command_available("pnpm") {
         let lock_path = pkg_dir.join("pnpm-lock.yaml");
         if !is_gitignored(&lock_path) {
@@ -166,20 +186,17 @@ fn add_js_lockfile_operations(plan: &mut impl AddOperation, package_json_path: &
                 description: "pnpm install --lockfile-only".to_string(),
             });
         }
-    } else {
-        #[cfg(target_os = "windows")]
-        {
-            plan.add_msg(crate::model::plan::DisplayMessage::Warning {
-                msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm".to_string(),
-            });
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            plan.add_msg(crate::model::plan::DisplayMessage::Warning {
-                msg: "未检测到 pnpm 命令，跳过 pnpm lockfile 更新".to_string(),
-            });
-        }
+        return;
     }
+
+    #[cfg(target_os = "windows")]
+    let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
+    #[cfg(not(target_os = "windows"))]
+    let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新";
+
+    plan.add_msg(crate::model::plan::DisplayMessage::Warning {
+        msg: warning_msg.to_string(),
+    });
 }
 
 pub fn compute_edited_content(
