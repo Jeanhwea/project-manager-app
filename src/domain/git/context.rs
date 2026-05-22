@@ -14,7 +14,7 @@ pub fn collect_context_with_runner(
     let root = runner.run_local(&["rev-parse", "--show-toplevel"], Some(repo_path))?;
     let root = std::path::PathBuf::from(root);
 
-    let current_branch = runner.get_current_branch(&root)?;
+    let current_branch = runner.current_branch(&root)?;
     let remotes = collect_remotes(runner, &root)?;
     let branches = collect_branches(runner, &root)?;
     let tags = collect_tags(runner, &root)?;
@@ -30,7 +30,7 @@ pub fn collect_context_with_runner(
 }
 
 pub fn collect_remotes(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Remote>> {
-    let names = runner.get_remote_list(root)?;
+    let names = runner.remote_names(root)?;
     let mut remotes = Vec::new();
     for name in &names {
         if let Ok(url) = runner.run_local(&["remote", "get-url", name], Some(root)) {

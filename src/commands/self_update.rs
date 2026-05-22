@@ -1,6 +1,6 @@
 use crate::commands::Command;
 use crate::domain::self_update::Release;
-use crate::domain::self_update::{fetch_latest_release, get_asset_name};
+use crate::domain::self_update::{asset_name, fetch_latest_release};
 use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::operation::SelfUpdateOperation;
@@ -158,7 +158,7 @@ impl Command for UpdateArgs {
             });
         }
 
-        let asset_name = get_asset_name(&ctx.release.tag_name)?;
+        let asset_name = asset_name(&ctx.release.tag_name)?;
         let asset = ctx
             .release
             .assets

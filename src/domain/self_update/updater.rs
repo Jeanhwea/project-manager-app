@@ -169,7 +169,7 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
     read_response_with_progress(resp)
 }
 
-pub fn get_asset_name(tag: &str) -> Result<String> {
+pub fn asset_name(tag: &str) -> Result<String> {
     let (os, arch, ext) = match (env::consts::OS, env::consts::ARCH) {
         ("linux", "x86_64") => ("linux", "x86_64", "tar.gz"),
         ("macos", "x86_64") => ("macos", "x86_64", "tar.gz"),

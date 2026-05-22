@@ -4,7 +4,7 @@ pub use commands::{Cli, dispatch};
 
 use clap::builder::styling::Styles;
 
-pub fn get_styles() -> Styles {
+pub fn styles() -> Styles {
     Styles::styled()
         .header(
             anstyle::Style::new()

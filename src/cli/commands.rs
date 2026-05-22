@@ -11,7 +11,7 @@ use crate::error::Result;
 #[command(name = "pma")]
 #[command(about = "Project Manager Application (项目管理工具)")]
 #[command(version)]
-#[command(styles = crate::cli::get_styles())]
+#[command(styles = crate::cli::styles())]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,

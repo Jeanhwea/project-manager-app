@@ -48,11 +48,11 @@ impl GitCommandRunner {
         Ok(())
     }
 
-    pub fn get_current_branch(&self, repo_path: &Path) -> Result<String> {
+    pub fn current_branch(&self, repo_path: &Path) -> Result<String> {
         self.run_local(&["branch", "--show-current"], Some(repo_path))
     }
 
-    pub fn get_remote_list(&self, repo_path: &Path) -> Result<Vec<String>> {
+    pub fn remote_names(&self, repo_path: &Path) -> Result<Vec<String>> {
         let output = self.run_local(&["remote"], Some(repo_path))?;
         Ok(output
             .lines()
