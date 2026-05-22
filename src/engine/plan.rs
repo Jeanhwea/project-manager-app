@@ -15,49 +15,66 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
 
     render_messages(plan.messages());
 
-    let mut result = ExecutionResult::new();
     let runner = GitCommandRunner::new();
+    let mut result = ExecutionResult::new();
 
     for phase in plan.phases() {
         if phase.is_empty() {
             continue;
         }
-
         output::section(&format!("▸ {}", phase.label()));
 
-        for step in phase.steps() {
-            match step {
-                Step::Op(op) => {
-                    if let Operation::Git(git_op) = op
-                        && let Some(reason) = git_op.should_skip()
-                    {
-                        output::skip(&reason);
-                        result.add_executed();
-                        continue;
-                    }
-                    output::command(&op.description());
-                    match execute_operation(op, &runner) {
-                        Ok(()) => {
-                            result.add_executed();
-                        }
-                        Err(e) => {
-                            let hint = recovery_hint(op, result.executed_count());
-                            let error =
-                                OperationError::new(op.description()).with_recovery_hint(hint);
-                            result.add_error(error);
-                            output::error(&format!("执行失败: {}", e));
-                            return Ok(result);
-                        }
-                    }
-                }
-                Step::Msg(msg) => {
-                    render_message(msg);
-                }
-            }
+        if !run_phase(phase, &runner, &mut result) {
+            return Ok(result);
         }
     }
 
     Ok(result)
+}
+
+/// 执行单个 phase；遇到错误返回 false 表示中断后续 phase
+fn run_phase(
+    phase: &crate::model::plan::Phase,
+    runner: &GitCommandRunner,
+    result: &mut ExecutionResult,
+) -> bool {
+    for step in phase.steps() {
+        match step {
+            Step::Op(op) => {
+                if !run_op_step(op, runner, result) {
+                    return false;
+                }
+            }
+            Step::Msg(msg) => render_message(msg),
+        }
+    }
+    true
+}
+
+/// 执行单个 Op step；返回 false 表示遇到错误且需要中断
+fn run_op_step(op: &Operation, runner: &GitCommandRunner, result: &mut ExecutionResult) -> bool {
+    if let Operation::Git(git_op) = op
+        && let Some(reason) = git_op.should_skip()
+    {
+        output::skip(&reason);
+        result.add_executed();
+        return true;
+    }
+
+    output::command(&op.description());
+    match execute_operation(op, runner) {
+        Ok(()) => {
+            result.add_executed();
+            true
+        }
+        Err(e) => {
+            let hint = recovery_hint(op, result.executed_count());
+            let error = OperationError::new(op.description()).with_recovery_hint(hint);
+            result.add_error(error);
+            output::error(&format!("执行失败: {}", e));
+            false
+        }
+    }
 }
 
 fn recovery_hint(failed_op: &Operation, executed_count: usize) -> String {
