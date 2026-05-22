@@ -52,7 +52,7 @@ pub trait AddOperation {
 pub struct Phase {
     label: String,
     steps: Vec<Step>,
-    op_count: usize,
+    operation_count: usize,
 }
 
 impl Phase {
@@ -60,7 +60,7 @@ impl Phase {
         Self {
             label: label.into(),
             steps: Vec::new(),
-            op_count: 0,
+            operation_count: 0,
         }
     }
 
@@ -72,13 +72,13 @@ impl Phase {
         &self.steps
     }
 
-    pub fn op_count(&self) -> usize {
-        self.op_count
+    pub fn operation_count(&self) -> usize {
+        self.operation_count
     }
 
     pub fn add(&mut self, op: impl Into<Operation>) {
         self.steps.push(Step::Op(op.into()));
-        self.op_count += 1;
+        self.operation_count += 1;
     }
 
     pub fn add_message(&mut self, msg: DisplayMessage) {
@@ -149,7 +149,7 @@ impl ExecutionPlan {
     }
 
     pub fn operation_count(&self) -> usize {
-        self.phases.iter().map(|p| p.op_count()).sum()
+        self.phases.iter().map(|p| p.operation_count()).sum()
     }
 }
 
