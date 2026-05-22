@@ -1,6 +1,7 @@
 mod command;
 mod context;
 mod diagnose;
+mod error;
 pub mod operation;
 pub mod release;
 mod remote;
@@ -10,18 +11,7 @@ pub mod snapshot;
 pub use command::GitCommandRunner;
 pub use context::collect_context;
 pub use diagnose::{Diagnosis, diagnose_repo};
+pub use error::{GitError, Result};
 pub use operation::GitOperation;
 pub use release::{ReleaseGitState, resolve_git_root, validate_git_state};
 pub use remote::resolve_remote_name;
-
-use thiserror::Error;
-
-pub type Result<T> = std::result::Result<T, GitError>;
-
-#[derive(Debug, Error)]
-pub enum GitError {
-    #[error("{0}")]
-    CommandFailed(String),
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-}
