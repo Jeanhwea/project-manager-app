@@ -1,3 +1,8 @@
-mod updater;
+mod archive;
+mod download;
+mod installer;
+mod release;
 
-pub use updater::{Release, asset_name, download_asset, fetch_latest_release, install_binary};
+pub use download::download_asset;
+pub use installer::{asset_name, install_binary};
+pub use release::{Release, fetch_latest_release};
