@@ -1,8 +1,38 @@
 use super::GitCommandRunner;
 use crate::domain::editor::{BumpType, Version};
-use crate::error::AppError;
 use crate::model::git::GitContext;
 use std::path::{Path, PathBuf};
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReleaseError {
+    #[error("无法确定 git 根目录")]
+    GitRootNotFound,
+
+    #[error("只能在 master 分支上执行 release")]
+    NotOnMaster,
+
+    #[error("当前 HEAD 已被标记为 {tag}")]
+    HeadAlreadyTagged { tag: String },
+
+    #[error("未检测到可编辑的配置文件")]
+    NoConfigFiles,
+
+    #[error("无法识别文件类型: {path}")]
+    UnknownFileType { path: String },
+
+    #[error("无法读取 {path}")]
+    ReadFile {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("{path}: 未找到版本字段")]
+    VersionFieldNotFound { path: String },
+
+    #[error("未在 {path} 中找到 [package] name")]
+    PackageNameNotFound { path: String },
+}
 
 #[derive(Debug)]
 pub struct ReleaseGitState {
@@ -17,7 +47,7 @@ pub fn resolve_git_root() -> crate::error::Result<PathBuf> {
     let runner = GitCommandRunner::new();
     let root = runner.run_local(&["rev-parse", "--show-toplevel"], None)?;
     if root.is_empty() {
-        return Err(AppError::release("无法确定 git 根目录"));
+        return Err(ReleaseError::GitRootNotFound.into());
     }
     Ok(PathBuf::from(root))
 }
@@ -32,7 +62,7 @@ pub fn validate_git_state(
     fallback_version: Option<&str>,
 ) -> crate::error::Result<ReleaseGitState> {
     if !force && ctx.current_branch != "master" {
-        return Err(AppError::release("只能在 master 分支上执行 release"));
+        return Err(ReleaseError::NotOnMaster.into());
     }
 
     let runner = GitCommandRunner::new();
@@ -58,7 +88,7 @@ pub fn validate_git_state(
         let rev_current_tag = runner.run_local(&["rev-parse", tag], Some(repo_path))?;
         let rev_head = runner.run_local(&["rev-parse", "HEAD"], Some(repo_path))?;
         if rev_current_tag.trim() == rev_head.trim() {
-            return Err(AppError::release(format!("当前 HEAD 已被标记为 {}", tag)));
+            return Err(ReleaseError::HeadAlreadyTagged { tag: tag.clone() }.into());
         }
     }
 

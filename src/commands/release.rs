@@ -5,7 +5,7 @@ use crate::domain::editor::{
 };
 use crate::domain::git::GitOperation;
 use crate::domain::git::{
-    ReleaseGitState, collect_context, resolve_git_root, validate_git_state,
+    ReleaseError, ReleaseGitState, collect_context, resolve_git_root, validate_git_state,
 };
 use crate::domain::project_config;
 use crate::engine::plan;
@@ -144,10 +144,10 @@ fn init_project_config(args: &ReleaseArgs) -> Result<()> {
 
     let target = project_config::config_path(&work_dir);
     if target.exists() {
-        return Err(AppError::already_exists(format!(
-            "{} 已存在",
-            target.display()
-        )));
+        return Err(AppError::AlreadyExists {
+            resource: "项目配置".into(),
+            name: target.display().to_string(),
+        });
     }
 
     let registry = EditorRegistry::default_with_editors();
@@ -247,7 +247,9 @@ fn build_edit_phase(
     for file_path in config_files {
         let editor = registry
             .detect_editor(Path::new(file_path))
-            .ok_or_else(|| AppError::release(format!("无法识别文件类型: {}", file_path)))?;
+            .ok_or_else(|| ReleaseError::UnknownFileType {
+                path: file_path.clone(),
+            })?;
 
         let (original, edited) = compute_edited_content(editor, &state.new_tag, file_path)?;
 

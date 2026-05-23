@@ -1,8 +1,8 @@
 use crate::commands::Command;
 use crate::domain::self_update::Release;
-use crate::domain::self_update::{asset_name, fetch_latest_release};
+use crate::domain::self_update::{SelfUpdateError, asset_name, fetch_latest_release};
 use crate::engine::plan;
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use crate::model::operation::SelfUpdateOperation;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::env;
@@ -93,14 +93,21 @@ impl Command for UpdateArgs {
     fn collect(&self) -> Result<UpdateContext> {
         let is_npm = env::var("PMA_NPM_INSTALL").is_ok();
 
-        let release = fetch_latest_release()
-            .map_err(|e| AppError::self_update(format!("获取发布信息失败: {}", e)))?;
+        let release = fetch_latest_release()?;
         let latest = release.tag_name.trim_start_matches('v').to_string();
 
-        let latest_ver = semver::Version::parse(&latest)
-            .map_err(|_| AppError::self_update(format!("无法解析最新版本号: {}", latest)))?;
-        let current_ver = semver::Version::parse(PKG_VERSION)
-            .map_err(|_| AppError::self_update(format!("无法解析当前版本号: {}", PKG_VERSION)))?;
+        let latest_ver = semver::Version::parse(&latest).map_err(|e| {
+            SelfUpdateError::InvalidLatestVersion {
+                version: latest.clone(),
+                source: e,
+            }
+        })?;
+        let current_ver = semver::Version::parse(PKG_VERSION).map_err(|e| {
+            SelfUpdateError::InvalidCurrentVersion {
+                version: PKG_VERSION.into(),
+                source: e,
+            }
+        })?;
 
         let is_latest = current_ver >= latest_ver;
 
@@ -116,7 +123,7 @@ impl Command for UpdateArgs {
         }
 
         if is_latest && !self.force {
-            return Err(AppError::self_update("已经是最新版本，无需更新。"));
+            return Err(SelfUpdateError::AlreadyLatest.into());
         }
 
         Ok(UpdateContext {
@@ -140,7 +147,7 @@ impl Command for UpdateArgs {
                 label: "更新命令".to_string(),
                 value: "npm update -g @jeansoft/pma".to_string(),
             });
-            return Err(AppError::self_update("请使用 npm 更新"));
+            return Err(SelfUpdateError::UseNpmUpdate.into());
         }
 
         plan.add_message(DisplayMessage::Item {
@@ -164,8 +171,8 @@ impl Command for UpdateArgs {
             .assets
             .iter()
             .find(|a| a.name == asset_name)
-            .ok_or_else(|| {
-                AppError::self_update(format!("未找到适合当前平台的安装包: {}", asset_name))
+            .ok_or_else(|| SelfUpdateError::AssetNotFound {
+                asset_name: asset_name.clone(),
             })?;
 
         let mut update_phase = Phase::new("下载更新");

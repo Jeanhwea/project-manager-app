@@ -1,4 +1,5 @@
 use super::archive::extract_binary;
+use crate::domain::self_update::SelfUpdateError;
 use crate::error::{AppError, Result};
 use std::env;
 use std::fs;
@@ -12,7 +13,9 @@ pub fn asset_name(tag: &str) -> Result<String> {
         ("windows", "x86_64") => ("windows", "x86_64", "zip"),
         ("windows", "aarch64") => ("windows", "arm64", "zip"),
         (os, arch) => {
-            return Err(AppError::not_supported(format!("{}-{}", os, arch)));
+            return Err(AppError::NotSupported {
+                what: format!("{}-{}", os, arch),
+            });
         }
     };
     Ok(format!("pma-{}-{}-{}.{}", os, arch, tag, ext))
@@ -29,10 +32,8 @@ fn replace_binary(new_binary: &[u8], target: &PathBuf) -> Result<()> {
     if backup.exists() {
         let _ = fs::remove_file(&backup);
     }
-    fs::rename(target, &backup)
-        .map_err(|e| AppError::self_update(format!("备份旧版本失败: {}", e)))?;
-    fs::write(target, new_binary)
-        .map_err(|e| AppError::self_update(format!("写入新版本失败: {}", e)))?;
+    fs::rename(target, &backup).map_err(|e| SelfUpdateError::BackupOld { source: e })?;
+    fs::write(target, new_binary).map_err(|e| SelfUpdateError::WriteNew { source: e })?;
 
     #[cfg(unix)]
     {

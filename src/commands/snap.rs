@@ -5,6 +5,15 @@ use crate::error::{AppError, Result};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, thiserror::Error)]
+pub enum SnapshotError {
+    #[error("快照索引 #{index} 超出范围 (共 {total} 个快照)")]
+    IndexOutOfRange { index: usize, total: usize },
+
+    #[error("无法解析快照引用: {snapshot}")]
+    UnresolvedRef { snapshot: String },
+}
+
 #[derive(Debug, clap::Subcommand)]
 pub enum SnapArgs {
     Create(CreateArgs),
@@ -81,10 +90,10 @@ impl Command for CreateArgs {
         let project_path = Path::new(&self.path).to_path_buf();
 
         if !project_path.exists() {
-            return Err(AppError::not_found(format!(
-                "项目路径不存在: {}",
-                self.path
-            )));
+            return Err(AppError::NotFound {
+                resource: "项目路径".into(),
+                name: self.path.clone(),
+            });
         }
 
         let (needs_init, has_changes, commit_count) = inspect_project(&project_path)?;
@@ -139,10 +148,10 @@ impl Command for ListArgs {
         let project_path = Path::new(&self.path);
 
         if !project_path.exists() {
-            return Err(AppError::not_found(format!(
-                "项目路径不存在: {}",
-                self.path
-            )));
+            return Err(AppError::NotFound {
+                resource: "项目路径".into(),
+                name: self.path.clone(),
+            });
         }
 
         if !project_path.join(".git").exists() {
@@ -205,16 +214,17 @@ impl Command for RestoreArgs {
         let project_path = Path::new(&self.path);
 
         if !project_path.exists() {
-            return Err(AppError::not_found(format!(
-                "项目路径不存在: {}",
-                self.path
-            )));
+            return Err(AppError::NotFound {
+                resource: "项目路径".into(),
+                name: self.path.clone(),
+            });
         }
 
         if !project_path.join(".git").exists() {
-            return Err(AppError::not_found(
-                "项目尚未初始化快照，无法恢复".to_string(),
-            ));
+            return Err(AppError::NotFound {
+                resource: "快照仓库".into(),
+                name: self.path.clone(),
+            });
         }
 
         let commit_ref = resolve_snapshot_ref(project_path, &self.snapshot)?;
@@ -299,21 +309,21 @@ fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
                 .unwrap_or(snapshot);
             return Ok(hash.to_string());
         } else {
-            return Err(AppError::snapshot(format!(
-                "快照索引 #{} 超出范围 (共 {} 个快照)",
+            return Err(SnapshotError::IndexOutOfRange {
                 index,
-                snap_commits.len()
-            )));
+                total: snap_commits.len(),
+            }
+            .into());
         }
     }
 
     let hash = git::snapshot::rev_parse_verify(project_path, snapshot)?;
     let hash = hash.trim().to_string();
     if hash.is_empty() {
-        return Err(AppError::snapshot(format!(
-            "无法解析快照引用: {}",
-            snapshot
-        )));
+        return Err(SnapshotError::UnresolvedRef {
+            snapshot: snapshot.to_string(),
+        }
+        .into());
     }
 
     Ok(hash)

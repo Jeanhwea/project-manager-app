@@ -211,7 +211,10 @@ fn resolve_target_remotes(
 ) -> Result<Vec<String>> {
     if let Some(name) = explicit_remote {
         if !git_ctx.has_remote(name) {
-            return Err(AppError::not_found(format!("远程仓库 {} 不存在", name)));
+            return Err(AppError::NotFound {
+                resource: "远程仓库".into(),
+                name: name.to_string(),
+            });
         }
         return Ok(vec![name.to_string()]);
     }

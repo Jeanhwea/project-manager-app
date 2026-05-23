@@ -1,4 +1,5 @@
-use crate::error::{AppError, Result};
+use crate::domain::self_update::SelfUpdateError;
+use crate::error::Result;
 use serde::Deserialize;
 use std::env;
 
@@ -29,9 +30,11 @@ pub fn fetch_latest_release() -> Result<Release> {
 
     let resp = req
         .call()
-        .map_err(|e| AppError::self_update(format!("请求 GitHub API 失败: {}", e)))?;
+        .map_err(|e| SelfUpdateError::FetchReleaseRequest {
+            source: Box::new(e),
+        })?;
     let release: Release = resp
         .into_json()
-        .map_err(|e| AppError::self_update(format!("解析 release 信息失败: {}", e)))?;
+        .map_err(|e| SelfUpdateError::ParseReleaseJson { source: e })?;
     Ok(release)
 }

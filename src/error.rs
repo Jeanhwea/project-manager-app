@@ -1,83 +1,52 @@
+use crate::commands::gitlab::GitlabApiError;
+use crate::commands::snap::SnapshotError;
 use crate::domain::editor::EditorError;
-use crate::domain::git::GitError;
+use crate::domain::git::{GitError, ReleaseError};
+use crate::domain::self_update::SelfUpdateError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    #[error("{0}")]
+    #[error(transparent)]
     Editor(#[from] EditorError),
 
-    #[error("{0}")]
+    #[error(transparent)]
     Git(#[from] GitError),
+
+    #[error(transparent)]
+    Release(#[from] ReleaseError),
+
+    #[error(transparent)]
+    SelfUpdate(#[from] SelfUpdateError),
+
+    #[error(transparent)]
+    Snapshot(#[from] SnapshotError),
+
+    #[error(transparent)]
+    GitlabApi(#[from] GitlabApiError),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
-    #[error("{0}")]
-    NotFound(String),
-
-    #[error("{0}")]
-    AlreadyExists(String),
-
-    #[error("{0}")]
-    NotSupported(String),
-
-    #[error("{0}")]
-    InvalidInput(String),
-
-    #[error("GitLab API error: {0}")]
-    GitlabApi(String),
-
-    #[error("{0}")]
-    Release(String),
-
-    #[error("{0}")]
-    SelfUpdate(String),
-
-    #[error("{0}")]
-    Snapshot(String),
-
-    #[error("Regex error: {0}")]
+    #[error("Regex error")]
     Regex(#[from] regex::Error),
 
-    #[error("Parse error: {0}")]
+    #[error("Parse error")]
     ParseInt(#[from] std::num::ParseIntError),
 
-    #[error("Version parsing error: {0}")]
+    #[error("Version parsing error")]
     SemVer(#[from] semver::Error),
+
+    #[error("未找到 {resource}: {name}")]
+    NotFound { resource: String, name: String },
+
+    #[error("{resource}已存在: {name}")]
+    AlreadyExists { resource: String, name: String },
+
+    #[error("非法输入: {reason}")]
+    InvalidInput { reason: String },
+
+    #[error("不支持: {what}")]
+    NotSupported { what: String },
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
-
-impl AppError {
-    pub fn not_found(msg: impl Into<String>) -> Self {
-        AppError::NotFound(msg.into())
-    }
-
-    pub fn already_exists(msg: impl Into<String>) -> Self {
-        AppError::AlreadyExists(msg.into())
-    }
-
-    pub fn not_supported(msg: impl Into<String>) -> Self {
-        AppError::NotSupported(msg.into())
-    }
-
-    pub fn invalid_input(msg: impl Into<String>) -> Self {
-        AppError::InvalidInput(msg.into())
-    }
-
-    pub fn gitlab_api(msg: impl Into<String>) -> Self {
-        AppError::GitlabApi(msg.into())
-    }
-
-    pub fn release(msg: impl Into<String>) -> Self {
-        AppError::Release(msg.into())
-    }
-
-    pub fn self_update(msg: impl Into<String>) -> Self {
-        AppError::SelfUpdate(msg.into())
-    }
-
-    pub fn snapshot(msg: impl Into<String>) -> Self {
-        AppError::Snapshot(msg.into())
-    }
-}

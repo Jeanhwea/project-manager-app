@@ -35,17 +35,17 @@ impl Command for ForkArgs {
         let target = Path::new(&self.target);
 
         if !source.exists() {
-            return Err(AppError::not_found(format!(
-                "源路径不存在: {}",
-                self.source
-            )));
+            return Err(AppError::NotFound {
+                resource: "源路径".into(),
+                name: self.source.clone(),
+            });
         }
 
         if target.exists() {
-            return Err(AppError::already_exists(format!(
-                "目标路径已存在: {}",
-                self.target
-            )));
+            return Err(AppError::AlreadyExists {
+                resource: "目标路径".into(),
+                name: self.target.clone(),
+            });
         }
 
         Ok(ForkContext {

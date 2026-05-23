@@ -37,14 +37,12 @@ impl CommandRunner {
 
         let mut child = cmd.spawn().map_err(AppError::Io)?;
 
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| AppError::invalid_input("Failed to capture stdout"))?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| AppError::invalid_input("Failed to capture stderr"))?;
+        let stdout = child.stdout.take().ok_or_else(|| AppError::InvalidInput {
+            reason: "Failed to capture stdout".into(),
+        })?;
+        let stderr = child.stderr.take().ok_or_else(|| AppError::InvalidInput {
+            reason: "Failed to capture stderr".into(),
+        })?;
 
         let stdout_thread = thread::spawn(move || {
             let reader = BufReader::new(stdout);

@@ -1,6 +1,5 @@
 use super::{EditorRegistry, FileEditor};
-use crate::domain::git::GitOperation;
-use crate::error::AppError;
+use crate::domain::git::{GitOperation, ReleaseError};
 use crate::model::plan::AddOperation;
 use regex::Regex;
 use std::path::{Path, PathBuf};
@@ -40,7 +39,7 @@ pub fn detect_config_files(registry: &EditorRegistry) -> crate::error::Result<Ve
     }
 
     if result.is_empty() {
-        return Err(AppError::release("未检测到可编辑的配置文件"));
+        return Err(ReleaseError::NoConfigFiles.into());
     }
 
     Ok(result)
@@ -205,8 +204,10 @@ pub fn compute_edited_content(
     config_file: &str,
 ) -> crate::error::Result<(String, String)> {
     let version = tag.trim_start_matches('v');
-    let content = std::fs::read_to_string(config_file)
-        .map_err(|e| AppError::release(format!("无法读取 {}: {}", config_file, e)))?;
+    let content = std::fs::read_to_string(config_file).map_err(|e| ReleaseError::ReadFile {
+        path: config_file.to_string(),
+        source: e,
+    })?;
 
     let location = editor.parse(&content)?;
     let edited = editor.edit(&content, &location, version)?;
@@ -219,13 +220,18 @@ pub fn read_file_version(
     editor: &dyn FileEditor,
     config_file: &str,
 ) -> crate::error::Result<String> {
-    let content = std::fs::read_to_string(config_file)
-        .map_err(|e| AppError::release(format!("无法读取 {}: {}", config_file, e)))?;
+    let content = std::fs::read_to_string(config_file).map_err(|e| ReleaseError::ReadFile {
+        path: config_file.to_string(),
+        source: e,
+    })?;
     let location = editor.parse(&content)?;
-    let pos = location
-        .project_version
-        .as_ref()
-        .ok_or_else(|| AppError::release(format!("{}: 未找到版本字段", config_file)))?;
+    let pos =
+        location
+            .project_version
+            .as_ref()
+            .ok_or_else(|| ReleaseError::VersionFieldNotFound {
+                path: config_file.to_string(),
+            })?;
     let version_str = &content[pos.start..pos.end];
     Ok(version_str.to_string())
 }
@@ -250,8 +256,11 @@ pub fn extract_fallback_version(
 }
 
 pub fn read_cargo_package_name(cargo_toml_path: &str) -> crate::error::Result<String> {
-    let content = std::fs::read_to_string(cargo_toml_path)
-        .map_err(|e| AppError::release(format!("无法读取 {}: {}", cargo_toml_path, e)))?;
+    let content =
+        std::fs::read_to_string(cargo_toml_path).map_err(|e| ReleaseError::ReadFile {
+            path: cargo_toml_path.to_string(),
+            source: e,
+        })?;
     let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)?;
     let mut in_package = false;
     for line in content.lines() {
@@ -264,10 +273,10 @@ pub fn read_cargo_package_name(cargo_toml_path: &str) -> crate::error::Result<St
             return Ok(caps[1].to_string());
         }
     }
-    Err(AppError::release(format!(
-        "未在 {} 中找到 [package] name",
-        cargo_toml_path
-    )))
+    Err(ReleaseError::PackageNameNotFound {
+        path: cargo_toml_path.to_string(),
+    }
+    .into())
 }
 
 fn parent_dir(path: &Path) -> &Path {

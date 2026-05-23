@@ -9,6 +9,33 @@ use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use serde::Deserialize;
 use std::path::PathBuf;
 
+#[derive(Debug, thiserror::Error)]
+pub enum GitlabApiError {
+    #[error("HTTP {status}，请求路径: {path}")]
+    HttpStatus { status: u16, path: String },
+
+    #[error("请求失败")]
+    Request {
+        #[source]
+        source: Box<ureq::Error>,
+    },
+
+    #[error("解析 group 列表失败")]
+    ParseGroups {
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("解析项目列表失败")]
+    ParseProjects {
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("序列化配置失败: {reason}")]
+    SerializeConfig { reason: String },
+}
+
 #[derive(Debug, clap::Subcommand)]
 pub enum GitlabArgs {
     Login(LoginArgs),
@@ -96,8 +123,10 @@ impl Command for LoginArgs {
             });
         }
 
-        let config_content = toml::to_string_pretty(&ctx.config)
-            .map_err(|e| AppError::Io(std::io::Error::other(format!("序列化配置失败: {}", e))))?;
+        let config_content =
+            toml::to_string_pretty(&ctx.config).map_err(|e| GitlabApiError::SerializeConfig {
+                reason: e.to_string(),
+            })?;
 
         plan.add(EditOperation::WriteFile {
             path: ConfigManager::gitlab_path().to_string_lossy().to_string(),
@@ -219,14 +248,17 @@ fn resolve_server_and_group<'a>(
             .servers
             .iter()
             .find(|s| s.url.trim() == trimmed)
-            .ok_or_else(|| AppError::not_found(format!("GitLab 服务器 {} 未配置", server_url)))?;
+            .ok_or_else(|| AppError::NotFound {
+                resource: "GitLab 服务器".into(),
+                name: server_url.to_string(),
+            })?;
         return Ok((server, input.to_string()));
     }
 
-    let server = config
-        .servers
-        .first()
-        .ok_or_else(|| AppError::not_found("未配置 GitLab 服务器，请先执行 pma gitlab login"))?;
+    let server = config.servers.first().ok_or_else(|| AppError::NotFound {
+        resource: "GitLab 服务器".into(),
+        name: "未配置, 请先执行 pma gitlab login".into(),
+    })?;
     Ok((server, input.to_string()))
 }
 
@@ -249,17 +281,17 @@ fn resolve_from_full_url<'a>(
             let base = api_base_url(server);
             let group_path = full_url[base.len()..].trim_start_matches('/').to_string();
             if group_path.is_empty() {
-                return Err(AppError::not_found(format!(
-                    "URL '{}' 中未包含 group 路径",
-                    full_url
-                )));
+                return Err(AppError::NotFound {
+                    resource: "URL 中的 group 路径".into(),
+                    name: full_url.to_string(),
+                });
             }
             Ok((server, group_path))
         }
-        None => Err(AppError::not_found(format!(
-            "未找到匹配 URL '{}' 的 GitLab 服务器配置",
-            full_url
-        ))),
+        None => Err(AppError::NotFound {
+            resource: "GitLab 服务器配置".into(),
+            name: full_url.to_string(),
+        }),
     }
 }
 
@@ -297,10 +329,13 @@ fn gitlab_get(base_url: &str, token: &str, path: &str) -> Result<ureq::Response>
         .set("PRIVATE-TOKEN", token)
         .call()
         .map_err(|e| match e {
-            ureq::Error::Status(code, _) => {
-                AppError::gitlab_api(format!("HTTP {}，请求路径: {}", code, path))
-            }
-            _ => AppError::gitlab_api(format!("请求失败: {}", e)),
+            ureq::Error::Status(code, _) => AppError::GitlabApi(GitlabApiError::HttpStatus {
+                status: code,
+                path: path.to_string(),
+            }),
+            _ => AppError::GitlabApi(GitlabApiError::Request {
+                source: Box::new(e),
+            }),
         })
 }
 
@@ -309,13 +344,16 @@ fn find_group_id(base_url: &str, token: &str, group_path: &str) -> Result<u64> {
     let response = gitlab_get(base_url, token, &search_path)?;
     let groups: Vec<GitlabGroup> = response
         .into_json()
-        .map_err(|e| AppError::gitlab_api(format!("解析 group 列表失败: {}", e)))?;
+        .map_err(|e| GitlabApiError::ParseGroups { source: e })?;
 
     groups
         .iter()
         .find(|g| g.full_path == group_path)
         .map(|g| g.id)
-        .ok_or_else(|| AppError::not_found(format!("未找到 group '{}'", group_path)))
+        .ok_or_else(|| AppError::NotFound {
+            resource: "GitLab group".into(),
+            name: group_path.to_string(),
+        })
 }
 
 fn fetch_group_projects(
@@ -329,7 +367,7 @@ fn fetch_group_projects(
 
     let projects: Vec<GitlabProject> = response
         .into_json()
-        .map_err(|e| AppError::gitlab_api(format!("解析项目列表失败: {}", e)))?;
+        .map_err(|e| GitlabApiError::ParseProjects { source: e })?;
 
     Ok(projects
         .into_iter()

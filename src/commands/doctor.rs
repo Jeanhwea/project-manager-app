@@ -3,7 +3,7 @@ use crate::commands::RepoPathArgs;
 use crate::domain::git::GitOperation;
 use crate::domain::git::{Diagnosis, collect_context, diagnose_repo};
 use crate::engine::plan;
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use crate::model::git::GitContext;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::Path;
@@ -38,9 +38,7 @@ impl MultiRepo for DoctorArgs {
     type Plan = ExecutionPlan;
 
     fn collect(&self, repo_path: &Path) -> Result<DoctorContext> {
-        let issues = diagnose_repo(repo_path).map_err(|e| {
-            AppError::release(format!("诊断仓库 {} 失败: {}", repo_path.display(), e))
-        })?;
+        let issues = diagnose_repo(repo_path)?;
         let git_ctx = if self.fix && !issues.is_empty() {
             collect_context(repo_path).ok()
         } else {

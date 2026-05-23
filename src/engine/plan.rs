@@ -1,5 +1,5 @@
 use crate::domain::git::GitCommandRunner;
-use crate::domain::self_update::{download_asset, install_binary};
+use crate::domain::self_update::{SelfUpdateError, download_asset, install_binary};
 use crate::error::{AppError, Result};
 use crate::model::operation::{EditOperation, Operation, SelfUpdateOperation, ShellOperation};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Step};
@@ -174,15 +174,14 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
             }
 
             let runner = CommandRunner;
-            let result = runner
-                .execute(&ctx)
-                .map_err(|e| AppError::invalid_input(format!("无法执行 {}: {}", program, e)))?;
+            let result = runner.execute(&ctx).map_err(|e| AppError::InvalidInput {
+                reason: format!("无法执行 {}: {}", program, e),
+            })?;
 
             if !result.success {
-                return Err(AppError::invalid_input(format!(
-                    "{} 执行失败 (exit code {})",
-                    program, result.exit_code
-                )));
+                return Err(AppError::InvalidInput {
+                    reason: format!("{} 执行失败 (exit code {})", program, result.exit_code),
+                });
             }
         }
     }
@@ -236,15 +235,12 @@ fn execute_self_update(op: &SelfUpdateOperation) -> Result<()> {
             ..
         } => {
             output::info(&format!("下载 {}...", asset_name));
-            let data = download_asset(api_url, browser_url, asset_name)
-                .map_err(|e| AppError::self_update(format!("下载资源失败: {}", e)))?;
+            let data = download_asset(api_url, browser_url, asset_name)?;
             output::success("下载完成");
 
-            let current_exe = std::env::current_exe().map_err(|e| {
-                AppError::self_update(format!("无法获取当前可执行文件路径: {}", e))
-            })?;
-            install_binary(&data, asset_name, &current_exe)
-                .map_err(|e| AppError::self_update(format!("安装二进制文件失败: {}", e)))?;
+            let current_exe = std::env::current_exe()
+                .map_err(|e| SelfUpdateError::CurrentExePath { source: e })?;
+            install_binary(&data, asset_name, &current_exe)?;
         }
     }
     Ok(())

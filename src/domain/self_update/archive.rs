@@ -1,4 +1,5 @@
-use crate::error::{AppError, Result};
+use crate::domain::self_update::SelfUpdateError;
+use crate::error::Result;
 use std::io::{self, Read};
 
 pub fn extract_binary(data: &[u8], asset_name: &str, bin_name: &str) -> Result<Vec<u8>> {
@@ -7,10 +8,10 @@ pub fn extract_binary(data: &[u8], asset_name: &str, bin_name: &str) -> Result<V
     } else if asset_name.ends_with(".zip") {
         extract_from_zip(data, bin_name)
     } else {
-        Err(AppError::self_update(format!(
-            "未知的安装包格式: {}",
-            asset_name
-        )))
+        Err(SelfUpdateError::UnknownArchiveFormat {
+            asset_name: asset_name.to_string(),
+        }
+        .into())
     }
 }
 
@@ -20,34 +21,34 @@ fn extract_from_tar_gz(data: &[u8], bin_name: &str) -> Result<Vec<u8>> {
 
     for entry in archive
         .entries()
-        .map_err(|e| AppError::self_update(format!("读取 tar.gz 失败: {}", e)))?
+        .map_err(|e| SelfUpdateError::TarRead { source: e })?
     {
-        let mut entry =
-            entry.map_err(|e| AppError::self_update(format!("读取 tar entry 失败: {}", e)))?;
+        let mut entry = entry.map_err(|e| SelfUpdateError::TarEntry { source: e })?;
         let path = entry
             .path()
-            .map_err(|e| AppError::self_update(format!("读取 entry 路径失败: {}", e)))?;
+            .map_err(|e| SelfUpdateError::TarEntryPath { source: e })?;
         if path.file_name().and_then(|n| n.to_str()) == Some(bin_name) {
             let mut buf = Vec::new();
             entry.read_to_end(&mut buf)?;
             return Ok(buf);
         }
     }
-    Err(AppError::self_update(format!(
-        "在 tar.gz 中未找到 {}",
-        bin_name
-    )))
+    Err(SelfUpdateError::BinaryNotFoundInTar {
+        bin_name: bin_name.to_string(),
+    }
+    .into())
 }
 
 fn extract_from_zip(data: &[u8], bin_name: &str) -> Result<Vec<u8>> {
     let cursor = io::Cursor::new(data);
-    let mut archive = zip::ZipArchive::new(cursor)
-        .map_err(|e| AppError::self_update(format!("读取 zip 失败: {}", e)))?;
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| SelfUpdateError::ZipRead {
+        source: Box::new(e),
+    })?;
 
     for i in 0..archive.len() {
-        let mut file = archive
-            .by_index(i)
-            .map_err(|e| AppError::self_update(format!("读取 zip entry 失败: {}", e)))?;
+        let mut file = archive.by_index(i).map_err(|e| SelfUpdateError::ZipEntry {
+            source: Box::new(e),
+        })?;
         let name = file.name().to_string();
         if name.ends_with(bin_name) {
             let mut buf = Vec::new();
@@ -55,8 +56,8 @@ fn extract_from_zip(data: &[u8], bin_name: &str) -> Result<Vec<u8>> {
             return Ok(buf);
         }
     }
-    Err(AppError::self_update(format!(
-        "在 zip 中未找到 {}",
-        bin_name
-    )))
+    Err(SelfUpdateError::BinaryNotFoundInZip {
+        bin_name: bin_name.to_string(),
+    }
+    .into())
 }

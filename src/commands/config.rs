@@ -48,10 +48,10 @@ impl Command for InitArgs {
     fn collect(&self) -> Result<ConfigInitContext> {
         let base_dir = ConfigManager::base_dir();
         if base_dir.exists() {
-            return Err(AppError::already_exists(format!(
-                "配置目录已存在: {}",
-                base_dir.display()
-            )));
+            return Err(AppError::AlreadyExists {
+                resource: "配置目录".into(),
+                name: base_dir.display().to_string(),
+            });
         }
 
         Ok(ConfigInitContext {

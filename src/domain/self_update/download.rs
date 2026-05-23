@@ -1,4 +1,5 @@
-use crate::error::{AppError, Result};
+use crate::domain::self_update::SelfUpdateError;
+use crate::error::Result;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::env;
 use std::io::Read;
@@ -44,12 +45,10 @@ pub fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Res
         }
     }
 
-    Err(AppError::self_update(format!(
-        "所有下载方式均失败，请手动下载: {}\n\
-             提示: 可设置 PMA_DOWNLOAD_URL 环境变量指定下载地址，\n\
-             或设置 GITHUB_TOKEN 环境变量提高 API 下载成功率",
-        browser_url
-    )))
+    Err(SelfUpdateError::AllDownloadAttemptsFailed {
+        browser_url: browser_url.to_string(),
+    }
+    .into())
 }
 
 fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
@@ -62,7 +61,7 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
     };
 
     if !valid {
-        return Err(AppError::self_update("下载的文件格式无效"));
+        return Err(SelfUpdateError::InvalidArchiveMagic.into());
     }
     Ok(())
 }
@@ -76,9 +75,9 @@ fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
         req = req.set("Authorization", &format!("Bearer {}", token));
     }
 
-    let resp = req
-        .call()
-        .map_err(|e| AppError::self_update(format!("API 下载失败: {}", e)))?;
+    let resp = req.call().map_err(|e| SelfUpdateError::ApiDownload {
+        source: Box::new(e),
+    })?;
     read_response_with_progress(resp)
 }
 
@@ -86,7 +85,9 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
     let resp = ureq::get(url)
         .set("User-Agent", "pma-self-update")
         .call()
-        .map_err(|e| AppError::self_update(format!("下载安装包失败: {}", e)))?;
+        .map_err(|e| SelfUpdateError::AssetDownload {
+            source: Box::new(e),
+        })?;
 
     read_response_with_progress(resp)
 }
@@ -122,7 +123,7 @@ fn read_response_with_progress(resp: ureq::Response) -> Result<Vec<u8>> {
     loop {
         let n = reader
             .read(&mut buf)
-            .map_err(|e| AppError::self_update(format!("读取下载内容失败: {}", e)))?;
+            .map_err(|e| SelfUpdateError::ReadDownload { source: e })?;
         if n == 0 {
             break;
         }
