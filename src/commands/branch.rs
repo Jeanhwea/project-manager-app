@@ -391,18 +391,8 @@ pub fn run(args: BranchArgs) -> Result<()> {
 }
 
 fn compile_glob_pattern(pattern: &str) -> Result<regex::Regex> {
-    if pattern.contains('*') {
-        let regex_pattern = pattern.replace('*', ".*");
-        regex::Regex::new(&format!("^{}$", regex_pattern)).map_err(|e| {
-            crate::error::AppError::InvalidInput {
-                reason: format!("无效的分支模式: {}", e),
-            }
-        })
-    } else {
-        regex::Regex::new(&format!("^{}$", regex::escape(pattern))).map_err(|e| {
-            crate::error::AppError::InvalidInput {
-                reason: format!("无效的分支模式: {}", e),
-            }
-        })
-    }
+    let body = regex::escape(pattern).replace(r"\*", ".*");
+    regex::Regex::new(&format!("^{}$", body)).map_err(|e| crate::error::AppError::InvalidInput {
+        reason: format!("无效的分支模式: {}", e),
+    })
 }

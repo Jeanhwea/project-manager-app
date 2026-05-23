@@ -160,7 +160,8 @@ impl Command for ListArgs {
             });
         }
 
-        let snap_commits = git::snapshot::list_snapshot_oneline(project_path)?;
+        let snap_commits =
+            git::snapshot::list_snapshot_oneline(&GitCommandRunner::new(), project_path)?;
 
         Ok(SnapListContext { snap_commits })
     }
@@ -275,7 +276,7 @@ fn inspect_project(project_path: &Path) -> Result<(bool, bool, usize)> {
         return Ok((false, false, 0));
     }
 
-    let commit_count = git::snapshot::head_commit_count(project_path)?;
+    let commit_count = git::snapshot::head_commit_count(&runner, project_path)?;
     Ok((false, true, commit_count))
 }
 
@@ -288,8 +289,10 @@ fn snap_commit_message(ctx: &SnapCreateContext) -> String {
 }
 
 fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
+    let runner = GitCommandRunner::new();
+
     if snapshot.starts_with("snap-") {
-        let lines = git::snapshot::search_oneline(project_path, snapshot)?;
+        let lines = git::snapshot::search_oneline(&runner, project_path, snapshot)?;
         if let Some(first_line) = lines.first() {
             let hash = first_line.split_whitespace().next().unwrap_or(snapshot);
             return Ok(hash.to_string());
@@ -300,7 +303,7 @@ fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
     if let Some(index_str) = snapshot.strip_prefix('#')
         && let Ok(index) = index_str.parse::<usize>()
     {
-        let snap_commits = git::snapshot::list_snapshot_oneline(project_path)?;
+        let snap_commits = git::snapshot::list_snapshot_oneline(&runner, project_path)?;
 
         if index < snap_commits.len() {
             let hash = snap_commits[index]
@@ -317,7 +320,7 @@ fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
         }
     }
 
-    let hash = git::snapshot::rev_parse_verify(project_path, snapshot)?;
+    let hash = git::snapshot::rev_parse_verify(&runner, project_path, snapshot)?;
     let hash = hash.trim().to_string();
     if hash.is_empty() {
         return Err(SnapshotError::UnresolvedRef {

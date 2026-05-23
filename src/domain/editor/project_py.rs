@@ -1,5 +1,4 @@
 use super::{EditorError, FileEditor, Result, VersionPosition, extract_version_position};
-use std::path::Path;
 
 pub struct PythonVersionEditor;
 
@@ -26,31 +25,6 @@ impl FileEditor for PythonVersionEditor {
             "__version__.py",
             "{}/__version__.py",
         ]
-    }
-
-    fn matches_file(&self, path: &Path) -> bool {
-        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        self.file_patterns().iter().any(|pattern| {
-            if pattern.contains("{parent}") {
-                let parent_dir = path
-                    .parent()
-                    .and_then(|p| p.file_name())
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("");
-                let replaced = pattern.replace("{parent}", parent_dir);
-                file_name == replaced || path.ends_with(&replaced)
-            } else if pattern.contains("{}") {
-                if let Some(parent) = path.parent() {
-                    let parent_name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    let replaced = pattern.replace("{}", parent_name);
-                    file_name == replaced || path.ends_with(&replaced)
-                } else {
-                    false
-                }
-            } else {
-                file_name == *pattern || path.ends_with(pattern)
-            }
-        })
     }
 
     fn find_version(&self, content: &str) -> Option<VersionPosition> {
