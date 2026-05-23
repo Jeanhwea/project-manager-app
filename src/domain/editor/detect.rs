@@ -94,26 +94,43 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
         return;
     }
 
-    let Ok(package_name) = read_cargo_package_name(cargo_toml_path) else {
+    if let Ok(package_name) = read_cargo_package_name(cargo_toml_path) {
+        plan.add_op(crate::model::operation::ShellOperation::Run {
+            program: "cargo".to_string(),
+            args: vec![
+                "update".to_string(),
+                "--package".to_string(),
+                package_name.clone(),
+            ],
+            dir: Some(dir.to_path_buf()),
+            description: format!("cargo update --package {}", package_name),
+        });
+    } else if is_cargo_workspace_root(cargo_toml_path) {
+        plan.add_op(crate::model::operation::ShellOperation::Run {
+            program: "cargo".to_string(),
+            args: vec!["update".to_string(), "--workspace".to_string()],
+            dir: Some(dir.to_path_buf()),
+            description: "cargo update --workspace".to_string(),
+        });
+    } else {
         return;
-    };
-
-    plan.add_op(crate::model::operation::ShellOperation::Run {
-        program: "cargo".to_string(),
-        args: vec![
-            "update".to_string(),
-            "--package".to_string(),
-            package_name.clone(),
-        ],
-        dir: Some(dir.to_path_buf()),
-        description: format!("cargo update --package {}", package_name),
-    });
+    }
 
     let path_str = lock_path.to_string_lossy().replace('\\', "/");
     plan.add_op(GitOperation::Add {
         path: path_str,
         working_dir: PathBuf::from("."),
     });
+}
+
+fn is_cargo_workspace_root(cargo_toml_path: &str) -> bool {
+    let Ok(content) = std::fs::read_to_string(cargo_toml_path) else {
+        return false;
+    };
+    content
+        .parse::<toml_edit::DocumentMut>()
+        .map(|doc| doc.contains_key("workspace"))
+        .unwrap_or(false)
 }
 
 fn add_js_lockfile_operations(plan: &mut impl AddOperation, package_json_path: &str) {

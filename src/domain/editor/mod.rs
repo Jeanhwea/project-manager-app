@@ -64,6 +64,45 @@ serde = "1.0""#;
     }
 
     #[test]
+    fn test_cargo_toml_workspace_package_version() {
+        let content = r#"[workspace]
+resolver = "2"
+members = ["crates/foo"]
+
+[workspace.package]
+version = "0.1.5"
+edition = "2024"
+
+[workspace.dependencies]
+serde = "1"
+"#;
+
+        let editor = CargoTomlEditor;
+        let location = editor.parse(content).unwrap();
+
+        assert!(location.project_version.is_some());
+        assert!(!location.is_workspace_root);
+
+        let edited = editor.edit(content, &location, "0.2.0").unwrap();
+        assert!(edited.contains("version = \"0.2.0\""));
+        assert!(!edited.contains("version = \"0.1.5\""));
+    }
+
+    #[test]
+    fn test_cargo_toml_workspace_root_without_package_version() {
+        let content = r#"[workspace]
+resolver = "2"
+members = ["crates/foo"]
+"#;
+
+        let editor = CargoTomlEditor;
+        let location = editor.parse(content).unwrap();
+
+        assert!(location.is_workspace_root);
+        assert!(location.project_version.is_none());
+    }
+
+    #[test]
     fn test_package_json_editor() {
         let content = r#"{
   "name": "test",

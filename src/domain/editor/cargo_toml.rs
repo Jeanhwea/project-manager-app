@@ -6,23 +6,28 @@ pub struct CargoTomlEditor;
 
 impl CargoTomlEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
-        let package_start = content.find("[package]")?;
-        let package_end = content[package_start..]
-            .find("\n[")
-            .map(|p| package_start + p)
-            .unwrap_or(content.len());
-
-        let package_section = &content[package_start..package_end];
-
-        let pattern = regex::Regex::new(r#"version\s*=\s*"([^"]*)""#).ok()?;
-        let caps = pattern.captures(package_section)?;
-        let version_match = caps.get(1)?;
-
-        Some(VersionPosition {
-            start: package_start + version_match.start(),
-            end: package_start + version_match.end(),
-        })
+        find_version_in_section(content, "[package]")
+            .or_else(|| find_version_in_section(content, "[workspace.package]"))
     }
+}
+
+fn find_version_in_section(content: &str, section_header: &str) -> Option<VersionPosition> {
+    let section_start = content.find(section_header)?;
+    let section_end = content[section_start + section_header.len()..]
+        .find("\n[")
+        .map(|p| section_start + section_header.len() + p)
+        .unwrap_or(content.len());
+
+    let section = &content[section_start..section_end];
+
+    let pattern = regex::Regex::new(r#"version\s*=\s*"([^"]*)""#).ok()?;
+    let caps = pattern.captures(section)?;
+    let version_match = caps.get(1)?;
+
+    Some(VersionPosition {
+        start: section_start + version_match.start(),
+        end: section_start + version_match.end(),
+    })
 }
 
 impl FileEditor for CargoTomlEditor {
@@ -50,7 +55,29 @@ impl FileEditor for CargoTomlEditor {
         let has_package = doc.contains_key("package");
         let has_workspace = doc.contains_key("workspace");
 
+        let workspace_has_package_version = has_workspace
+            && doc
+                .get("workspace")
+                .and_then(|w| w.as_table())
+                .and_then(|t| t.get("package"))
+                .and_then(|p| p.as_table())
+                .map(|pkg| pkg.contains_key("version"))
+                .unwrap_or(false);
+
         if !has_package && has_workspace {
+            if workspace_has_package_version {
+                let project_version = self.find_version(content);
+                if project_version.is_none() {
+                    return Err(EditorError::VersionNotFound(
+                        "Cargo.toml [workspace.package] section does not have version field"
+                            .to_string(),
+                    ));
+                }
+                return Ok(VersionLocation {
+                    project_version,
+                    is_workspace_root: false,
+                });
+            }
             return Ok(VersionLocation {
                 project_version: None,
                 is_workspace_root: true,
