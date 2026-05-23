@@ -168,6 +168,15 @@ pub fn error(msg: &str) {
     print_with_tag(symbols::RESULT_PREFIX, TAG_RED, msg, BODY_RED);
 }
 
+pub fn error_chain(err: &(impl std::error::Error + ?Sized)) {
+    error(&err.to_string());
+    let mut current = err.source();
+    while let Some(cause) = current {
+        detail("caused by", &cause.to_string());
+        current = cause.source();
+    }
+}
+
 pub fn warning(msg: &str) {
     print_with_tag(symbols::RESULT_PREFIX, TAG_YELLOW, msg, BODY_YELLOW);
 }

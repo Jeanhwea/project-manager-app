@@ -62,10 +62,10 @@ fn run_multi_repo<C: MultiRepo>(cmd: &C, walker: &RepoWalker) -> Result<()> {
             Ok(ctx) => match cmd.plan(&ctx, repo_path) {
                 Ok(plan) => {
                     if let Err(e) = cmd.execute(&plan) {
-                        output::error(&format!("{}", e));
+                        output::error_chain(&e);
                     }
                 }
-                Err(e) => output::error(&format!("{}", e)),
+                Err(e) => output::error_chain(&e),
             },
             Err(e) => {
                 output::warning(&format!("跳过 {}: {}", repo_path.display(), e));
