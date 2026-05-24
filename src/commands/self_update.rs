@@ -141,13 +141,13 @@ impl Command for UpdateArgs {
 
         if ctx.is_npm {
             plan.add_message(DisplayMessage::Warning {
-                msg: "检测到通过 npm 安装".to_string(),
+                msg: "检测到通过 npm 安装，请使用 npm 更新".to_string(),
             });
             plan.add_message(DisplayMessage::Item {
                 label: "更新命令".to_string(),
                 value: "npm update -g @jeansoft/pma".to_string(),
             });
-            return Err(SelfUpdateError::UseNpmUpdate.into());
+            return Ok(plan);
         }
 
         plan.add_message(DisplayMessage::Item {

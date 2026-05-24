@@ -29,9 +29,6 @@ pub enum SelfUpdateError {
     #[error("已经是最新版本，无需更新。")]
     AlreadyLatest,
 
-    #[error("请使用 npm 更新")]
-    UseNpmUpdate,
-
     #[error("未找到适合当前平台的安装包: {asset_name}")]
     AssetNotFound { asset_name: String },
 
