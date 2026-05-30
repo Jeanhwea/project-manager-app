@@ -196,10 +196,7 @@ impl GitOperation {
             GitOperation::FetchTags {
                 remote,
                 working_dir,
-            } => GitInvocation::streaming(
-                working_dir.clone(),
-                &["fetch", remote, "--tags", "--prune-tags"],
-            ),
+            } => GitInvocation::streaming(working_dir.clone(), &["fetch", remote, "--tags"]),
             GitOperation::Checkout {
                 ref_name,
                 working_dir,
