@@ -66,10 +66,7 @@ pub fn validate_git_state(
     }
 
     let runner = GitCommandRunner::new();
-    let previous_tag = runner
-        .run_local(&["describe", "--tags", "--match", "v*"], Some(repo_path))
-        .ok()
-        .and_then(|o| o.split('-').next().map(|s| s.to_string()));
+    let previous_tag = find_max_semver_tag(&runner, repo_path);
 
     let (current_tag, used_fallback) = if let Some(ref tag) = previous_tag {
         (tag.clone(), false)
@@ -126,4 +123,29 @@ pub fn is_gitignored(file_path: &Path) -> bool {
     runner
         .run_local(&["check-ignore", file_name], Some(parent))
         .is_ok()
+}
+
+fn find_max_semver_tag(runner: &GitCommandRunner, repo_path: &Path) -> Option<String> {
+    let output = runner
+        .run_local(
+            &["tag", "--list", "v*", "--format=%(refname:short)"],
+            Some(repo_path),
+        )
+        .ok()?;
+
+    let mut best: Option<(Version, String)> = None;
+    for line in output.lines() {
+        let tag = line.trim();
+        if tag.is_empty() {
+            continue;
+        }
+        let Some(ver) = Version::from_tag(tag) else {
+            continue;
+        };
+        if best.as_ref().is_none_or(|(b, _)| ver > *b) {
+            best = Some((ver, tag.to_string()));
+        }
+    }
+
+    best.map(|(_, tag)| tag)
 }
