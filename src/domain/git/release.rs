@@ -66,7 +66,11 @@ pub fn validate_git_state(
     }
 
     let runner = GitCommandRunner::new();
-    let previous_tag = find_max_semver_tag(&runner, repo_path);
+    let previous_tag = runner
+        .run_local(&["describe", "--tags", "--match", "v*"], Some(repo_path))
+        .ok()
+        .and_then(|o| o.split('-').next().map(|s| s.to_string()))
+        .or_else(|| find_max_semver_tag(&runner, repo_path));
 
     let (current_tag, used_fallback) = if let Some(ref tag) = previous_tag {
         (tag.clone(), false)
