@@ -81,7 +81,40 @@ pub fn add_lockfile_operations(plan: &mut impl AddOperation, config_file: &str) 
         add_cargo_lock_operations(plan, config_file);
     } else if config_file.ends_with("package.json") {
         add_js_lockfile_operations(plan, config_file);
+    } else if config_file.ends_with("pyproject.toml") {
+        add_uv_lock_operations(plan, config_file);
     }
+}
+
+fn add_uv_lock_operations(plan: &mut impl AddOperation, pyproject_path: &str) {
+    use crate::domain::git::release::is_gitignored;
+
+    let dir = parent_dir(Path::new(pyproject_path));
+    let lock_path = dir.join("uv.lock");
+
+    if !lock_path.exists() || is_gitignored(&lock_path) {
+        return;
+    }
+
+    if !crate::utils::is_command_available("uv") {
+        plan.add_msg(crate::model::plan::DisplayMessage::Warning {
+            msg: "未检测到 uv 命令，跳过 uv.lock 更新".to_string(),
+        });
+        return;
+    }
+
+    plan.add_op(crate::model::operation::ShellOperation::Run {
+        program: "uv".to_string(),
+        args: vec!["lock".to_string()],
+        dir: Some(dir.to_path_buf()),
+        description: "uv lock".to_string(),
+    });
+
+    let path_str = lock_path.to_string_lossy().replace('\\', "/");
+    plan.add_op(GitOperation::Add {
+        path: path_str,
+        working_dir: PathBuf::from("."),
+    });
 }
 
 fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str) {
