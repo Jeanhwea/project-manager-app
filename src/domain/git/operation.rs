@@ -49,6 +49,10 @@ pub enum GitOperation {
     PullDefault {
         working_dir: PathBuf,
     },
+    FetchTags {
+        remote: String,
+        working_dir: PathBuf,
+    },
     Checkout {
         ref_name: String,
         working_dir: PathBuf,
@@ -189,6 +193,13 @@ impl GitOperation {
             GitOperation::PullDefault { working_dir } => {
                 GitInvocation::streaming(working_dir.clone(), &["pull"])
             }
+            GitOperation::FetchTags {
+                remote,
+                working_dir,
+            } => GitInvocation::streaming(
+                working_dir.clone(),
+                &["fetch", remote, "--tags", "--prune-tags"],
+            ),
             GitOperation::Checkout {
                 ref_name,
                 working_dir,

@@ -157,6 +157,17 @@ impl MultiRepo for SyncArgs {
             plan.add_phase(pull_phase);
         }
 
+        let mut tag_phase = Phase::new("拉取标签");
+        for remote in &ctx.target_remotes {
+            tag_phase.add(GitOperation::FetchTags {
+                remote: remote.clone(),
+                working_dir: repo_path.to_path_buf(),
+            });
+        }
+        if !tag_phase.is_empty() {
+            plan.add_phase(tag_phase);
+        }
+
         if ctx.should_push {
             let mut push_phase = Phase::new("推送");
             for remote_name in &ctx.target_remotes {
