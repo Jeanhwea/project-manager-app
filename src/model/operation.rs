@@ -9,6 +9,7 @@ pub enum ShellOperation {
         args: Vec<String>,
         dir: Option<PathBuf>,
         description: String,
+        optional: bool,
     },
 }
 

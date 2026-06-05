@@ -161,7 +161,11 @@ fn execute_operation(op: &Operation, runner: &GitCommandRunner) -> Result<()> {
 fn execute_shell(op: &ShellOperation) -> Result<()> {
     match op {
         ShellOperation::Run {
-            program, args, dir, ..
+            program,
+            args,
+            dir,
+            optional,
+            ..
         } => {
             use crate::domain::runner::{CommandRunner, ExecutionContext, OutputMode};
 
@@ -179,6 +183,13 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
             })?;
 
             if !result.success {
+                if *optional {
+                    output::warning(&format!(
+                        "{} 执行失败 (exit code {})、已跳过继续执行",
+                        program, result.exit_code
+                    ));
+                    return Ok(());
+                }
                 return Err(AppError::InvalidInput {
                     reason: format!("{} 执行失败 (exit code {})", program, result.exit_code),
                 });
@@ -187,6 +198,7 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
     }
     Ok(())
 }
+
 
 fn execute_edit(op: &EditOperation) -> Result<()> {
     match op {

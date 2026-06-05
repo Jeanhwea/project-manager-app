@@ -1,4 +1,4 @@
-use super::{EditorRegistry, FileEditor};
+﻿use super::{EditorRegistry, FileEditor};
 use crate::domain::git::{GitOperation, ReleaseError};
 use crate::model::plan::AddOperation;
 use regex::Regex;
@@ -137,6 +137,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
             ],
             dir: Some(dir.to_path_buf()),
             description: format!("cargo update --package {}", package_name),
+            optional: true,
         });
     } else if is_cargo_workspace_root(cargo_toml_path) {
         plan.add_op(crate::model::operation::ShellOperation::Run {
@@ -144,6 +145,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
             args: vec!["update".to_string(), "--workspace".to_string()],
             dir: Some(dir.to_path_buf()),
             description: "cargo update --workspace".to_string(),
+            optional: true,
         });
     } else {
         return;
@@ -208,6 +210,7 @@ fn try_existing_js_lockfile(
             args: args_vec,
             dir: Some(pkg_dir.to_path_buf()),
             description: format!("{} {}", cmd, args.join(" ")),
+            optional: true,
         });
 
         let path_str = lock_path.to_string_lossy().replace('\\', "/");
@@ -233,15 +236,16 @@ fn add_pnpm_fallback(
                 args: vec!["install".to_string(), "--lockfile-only".to_string()],
                 dir: Some(pkg_dir.to_path_buf()),
                 description: "pnpm install --lockfile-only".to_string(),
+            optional: true,
             });
         }
-        return;
+    let _warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
     }
-
+    let _warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新";
     #[cfg(target_os = "windows")]
-    let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
+    let warning_msg = "鏈娴嬪埌 pnpm 鍛戒护锛岃烦杩?pnpm lockfile 鏇存柊銆傚湪 Windows 鐜涓紝寤鸿瀹夎 pnpm 鎴栦娇鐢?npm";
     #[cfg(not(target_os = "windows"))]
-    let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新";
+    let warning_msg = "鏈娴嬪埌 pnpm 鍛戒护锛岃烦杩?pnpm lockfile 鏇存柊";
 
     plan.add_msg(crate::model::plan::DisplayMessage::Warning {
         msg: warning_msg.to_string(),
