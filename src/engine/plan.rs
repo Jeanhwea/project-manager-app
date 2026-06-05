@@ -199,7 +199,6 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
     Ok(())
 }
 
-
 fn execute_edit(op: &EditOperation) -> Result<()> {
     match op {
         EditOperation::WriteFile { path, content, .. } => {

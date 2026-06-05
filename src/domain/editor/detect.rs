@@ -108,6 +108,7 @@ fn add_uv_lock_operations(plan: &mut impl AddOperation, pyproject_path: &str) {
         args: vec!["lock".to_string()],
         dir: Some(dir.to_path_buf()),
         description: "uv lock".to_string(),
+        optional: true,
     });
 
     let path_str = lock_path.to_string_lossy().replace('\\', "/");
@@ -236,10 +237,10 @@ fn add_pnpm_fallback(
                 args: vec!["install".to_string(), "--lockfile-only".to_string()],
                 dir: Some(pkg_dir.to_path_buf()),
                 description: "pnpm install --lockfile-only".to_string(),
-            optional: true,
+                optional: true,
             });
         }
-    let _warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
+        let _warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
     }
     let _warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新";
     #[cfg(target_os = "windows")]
