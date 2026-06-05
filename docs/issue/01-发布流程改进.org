@@ -1,0 +1,7 @@
+#+TITLE: 发版流程改进
+#+AUTHOR: Jinghui Hu
+#+EMAIL: hujinghui@buaa.edu.cn
+#+DATE: <2026-06-05 Fri>
+
+* 问题
+pma re 流程优化，如果没有 pnpm/npm 更新 lock 文件失败可以打印一个 warning 继续后续执行动作；另外添加 bun.lock 文件支持
