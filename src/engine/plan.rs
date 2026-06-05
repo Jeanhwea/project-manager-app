@@ -2,7 +2,9 @@ use crate::domain::git::GitCommandRunner;
 use crate::domain::self_update::{SelfUpdateError, download_asset, install_binary};
 use crate::error::{AppError, Result};
 use crate::model::operation::{EditOperation, Operation, SelfUpdateOperation, ShellOperation};
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Step};
+use crate::model::plan::{
+    DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Phase, Step,
+};
 use crate::utils::output;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
@@ -32,11 +34,7 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
     Ok(result)
 }
 
-fn run_phase(
-    phase: &crate::model::plan::Phase,
-    runner: &GitCommandRunner,
-    result: &mut ExecutionResult,
-) -> bool {
+fn run_phase(phase: &Phase, runner: &GitCommandRunner, result: &mut ExecutionResult) -> bool {
     for step in phase.steps() {
         match step {
             Step::Op(op) => {
@@ -161,7 +159,11 @@ fn execute_operation(op: &Operation, runner: &GitCommandRunner) -> Result<()> {
 fn execute_shell(op: &ShellOperation) -> Result<()> {
     match op {
         ShellOperation::Run {
-            program, args, dir, ..
+            program,
+            args,
+            dir,
+            optional,
+            ..
         } => {
             use crate::domain::runner::{CommandRunner, ExecutionContext, OutputMode};
 
@@ -179,6 +181,13 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
             })?;
 
             if !result.success {
+                if *optional {
+                    output::warning(&format!(
+                        "{} 执行失败 (exit code {})、已跳过继续执行",
+                        program, result.exit_code
+                    ));
+                    return Ok(());
+                }
                 return Err(AppError::InvalidInput {
                     reason: format!("{} 执行失败 (exit code {})", program, result.exit_code),
                 });

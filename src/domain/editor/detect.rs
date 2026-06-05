@@ -1,13 +1,13 @@
 use super::{EditorRegistry, FileEditor};
 use crate::domain::git::{GitOperation, ReleaseError};
-use crate::model::plan::AddOperation;
+use crate::error::Result;
+use crate::model::operation::ShellOperation;
+use crate::model::plan::{AddOperation, DisplayMessage};
+use crate::utils;
 use regex::Regex;
 use std::path::{Path, PathBuf};
 
-pub fn resolve_config_files(
-    registry: &EditorRegistry,
-    files: &[String],
-) -> crate::error::Result<Vec<String>> {
+pub fn resolve_config_files(registry: &EditorRegistry, files: &[String]) -> Result<Vec<String>> {
     if files.is_empty() {
         return detect_config_files(registry);
     }
@@ -20,7 +20,7 @@ pub fn resolve_config_files(
         .collect()
 }
 
-pub fn detect_config_files(registry: &EditorRegistry) -> crate::error::Result<Vec<String>> {
+pub fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     let mut result = Vec::new();
 
     for candidate in registry.candidate_files() {
@@ -96,18 +96,19 @@ fn add_uv_lock_operations(plan: &mut impl AddOperation, pyproject_path: &str) {
         return;
     }
 
-    if !crate::utils::is_command_available("uv") {
-        plan.add_msg(crate::model::plan::DisplayMessage::Warning {
+    if !utils::is_command_available("uv") {
+        plan.add_msg(DisplayMessage::Warning {
             msg: "未检测到 uv 命令，跳过 uv.lock 更新".to_string(),
         });
         return;
     }
 
-    plan.add_op(crate::model::operation::ShellOperation::Run {
+    plan.add_op(ShellOperation::Run {
         program: "uv".to_string(),
         args: vec!["lock".to_string()],
         dir: Some(dir.to_path_buf()),
         description: "uv lock".to_string(),
+        optional: true,
     });
 
     let path_str = lock_path.to_string_lossy().replace('\\', "/");
@@ -128,7 +129,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
     }
 
     if let Ok(package_name) = read_cargo_package_name(cargo_toml_path) {
-        plan.add_op(crate::model::operation::ShellOperation::Run {
+        plan.add_op(ShellOperation::Run {
             program: "cargo".to_string(),
             args: vec![
                 "update".to_string(),
@@ -137,13 +138,15 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
             ],
             dir: Some(dir.to_path_buf()),
             description: format!("cargo update --package {}", package_name),
+            optional: true,
         });
     } else if is_cargo_workspace_root(cargo_toml_path) {
-        plan.add_op(crate::model::operation::ShellOperation::Run {
+        plan.add_op(ShellOperation::Run {
             program: "cargo".to_string(),
             args: vec!["update".to_string(), "--workspace".to_string()],
             dir: Some(dir.to_path_buf()),
             description: "cargo update --workspace".to_string(),
+            optional: true,
         });
     } else {
         return;
@@ -195,6 +198,7 @@ fn try_existing_js_lockfile(
             "npm",
             &["install", "--package-lock-only"],
         ),
+        ("bun.lock", "bun", &["install"]),
     ];
 
     for (lock_name, cmd, args) in lockfiles {
@@ -203,11 +207,12 @@ fn try_existing_js_lockfile(
             continue;
         }
         let args_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-        plan.add_op(crate::model::operation::ShellOperation::Run {
+        plan.add_op(ShellOperation::Run {
             program: cmd.to_string(),
             args: args_vec,
             dir: Some(pkg_dir.to_path_buf()),
             description: format!("{} {}", cmd, args.join(" ")),
+            optional: true,
         });
 
         let path_str = lock_path.to_string_lossy().replace('\\', "/");
@@ -225,25 +230,24 @@ fn add_pnpm_fallback(
     pkg_dir: &Path,
     is_gitignored: &dyn Fn(&Path) -> bool,
 ) {
-    if crate::utils::is_command_available("pnpm") {
+    if utils::is_command_available("pnpm") {
         let lock_path = pkg_dir.join("pnpm-lock.yaml");
         if !is_gitignored(&lock_path) {
-            plan.add_op(crate::model::operation::ShellOperation::Run {
+            plan.add_op(ShellOperation::Run {
                 program: "pnpm".to_string(),
                 args: vec!["install".to_string(), "--lockfile-only".to_string()],
                 dir: Some(pkg_dir.to_path_buf()),
                 description: "pnpm install --lockfile-only".to_string(),
+                optional: true,
             });
         }
-        return;
     }
-
     #[cfg(target_os = "windows")]
     let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
     #[cfg(not(target_os = "windows"))]
     let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新";
 
-    plan.add_msg(crate::model::plan::DisplayMessage::Warning {
+    plan.add_msg(DisplayMessage::Warning {
         msg: warning_msg.to_string(),
     });
 }
@@ -252,7 +256,7 @@ pub fn compute_edited_content(
     editor: &dyn FileEditor,
     tag: &str,
     config_file: &str,
-) -> crate::error::Result<(String, String)> {
+) -> Result<(String, String)> {
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file).map_err(|e| ReleaseError::ReadFile {
         path: config_file.to_string(),
@@ -266,10 +270,7 @@ pub fn compute_edited_content(
     Ok((content, edited))
 }
 
-pub fn read_file_version(
-    editor: &dyn FileEditor,
-    config_file: &str,
-) -> crate::error::Result<String> {
+pub fn read_file_version(editor: &dyn FileEditor, config_file: &str) -> Result<String> {
     let content = std::fs::read_to_string(config_file).map_err(|e| ReleaseError::ReadFile {
         path: config_file.to_string(),
         source: e,
@@ -305,7 +306,7 @@ pub fn extract_fallback_version(
     best.map(|v| v.to_string())
 }
 
-pub fn read_cargo_package_name(cargo_toml_path: &str) -> crate::error::Result<String> {
+pub fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
     let content =
         std::fs::read_to_string(cargo_toml_path).map_err(|e| ReleaseError::ReadFile {
             path: cargo_toml_path.to_string(),
