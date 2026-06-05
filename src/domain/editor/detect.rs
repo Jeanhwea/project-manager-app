@@ -1,4 +1,4 @@
-﻿use super::{EditorRegistry, FileEditor};
+use super::{EditorRegistry, FileEditor};
 use crate::domain::git::{GitOperation, ReleaseError};
 use crate::model::plan::AddOperation;
 use regex::Regex;
@@ -243,9 +243,9 @@ fn add_pnpm_fallback(
     }
     let _warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新";
     #[cfg(target_os = "windows")]
-    let warning_msg = "鏈娴嬪埌 pnpm 鍛戒护锛岃烦杩?pnpm lockfile 鏇存柊銆傚湪 Windows 鐜涓紝寤鸿瀹夎 pnpm 鎴栦娇鐢?npm";
+    let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
     #[cfg(not(target_os = "windows"))]
-    let warning_msg = "鏈娴嬪埌 pnpm 鍛戒护锛岃烦杩?pnpm lockfile 鏇存柊";
+    let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新";
 
     plan.add_msg(crate::model::plan::DisplayMessage::Warning {
         msg: warning_msg.to_string(),
