@@ -12,7 +12,7 @@ use crate::engine::plan;
 use crate::error::{AppError, Result};
 use crate::model::git::GitContext;
 use crate::model::operation::EditOperation;
-use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase, Step};
 use crate::model::project_config::ProjectConfig;
 use crate::utils::output;
 use crate::utils::path::canonicalize_path;
@@ -201,7 +201,7 @@ fn build_execution_plan(
     let has_changes = edit_phase
         .steps()
         .iter()
-        .any(|step| matches!(step, crate::model::plan::Step::Op(_)));
+        .any(|step| matches!(step, Step::Op(_)));
 
     if !edit_phase.is_empty() {
         plan.add_phase(edit_phase);
