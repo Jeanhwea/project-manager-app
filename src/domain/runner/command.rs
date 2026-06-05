@@ -72,30 +72,29 @@ impl CommandRunner {
     }
 
     fn build_command(&self, context: &ExecutionContext) -> Result<StdCommand> {
-        let mut cmd = StdCommand::new(&context.program);
-        cmd.args(&context.args);
-
-        if let Some(dir) = &context.working_dir {
-            cmd.current_dir(dir);
-        }
-
         #[cfg(target_os = "windows")]
         {
-            if let Ok(path) = std::env::var("PATH") {
-                cmd.env("PATH", path);
+            let mut cmd = StdCommand::new("cmd");
+            cmd.arg("/c").arg(&context.program).args(&context.args);
+
+            if let Some(dir) = &context.working_dir {
+                cmd.current_dir(dir);
             }
 
-            if context.program == "pnpm" {
-                let mut new_cmd = StdCommand::new("cmd");
-                new_cmd.arg("/c").arg("pnpm").args(&context.args);
-                if let Some(dir) = &context.working_dir {
-                    new_cmd.current_dir(dir);
-                }
-                return Ok(new_cmd);
-            }
+            return Ok(cmd);
         }
 
-        Ok(cmd)
+        #[cfg(not(target_os = "windows"))]
+        {
+            let mut cmd = StdCommand::new(&context.program);
+            cmd.args(&context.args);
+
+            if let Some(dir) = &context.working_dir {
+                cmd.current_dir(dir);
+            }
+
+            Ok(cmd)
+        }
     }
 }
 
