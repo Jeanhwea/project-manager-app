@@ -206,6 +206,12 @@ fn try_existing_js_lockfile(
         if !lock_path.exists() || is_gitignored(&lock_path) {
             continue;
         }
+        if !utils::is_command_available(cmd) {
+            plan.add_msg(DisplayMessage::Warning {
+                msg: format!("未检测到 {} 命令，跳过 {} 更新", cmd, lock_name),
+            });
+            return true;
+        }
         let args_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
         plan.add_op(ShellOperation::Run {
             program: cmd.to_string(),
