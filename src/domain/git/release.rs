@@ -66,11 +66,31 @@ pub fn validate_git_state(
     }
 
     let runner = GitCommandRunner::new();
-    let previous_tag = runner
+    let describe_tag = runner
         .run_local(&["describe", "--tags", "--match", "v*"], Some(repo_path))
         .ok()
-        .and_then(|o| o.split('-').next().map(|s| s.to_string()))
-        .or_else(|| find_max_semver_tag(&runner, repo_path));
+        .and_then(|o| o.split('-').next().map(|s| s.to_string()));
+    let max_tag = find_max_semver_tag(&runner, repo_path);
+
+    let previous_tag = match (&describe_tag, &max_tag) {
+        (Some(d), Some(m)) => {
+            let dv = Version::from_tag(d);
+            let mv = Version::from_tag(m);
+            match (dv, mv) {
+                (Some(dv), Some(mv)) => {
+                    if mv > dv {
+                        Some(m.clone())
+                    } else {
+                        Some(d.clone())
+                    }
+                }
+                _ => Some(d.clone()),
+            }
+        }
+        (Some(d), None) => Some(d.clone()),
+        (None, Some(m)) => Some(m.clone()),
+        (None, None) => None,
+    };
 
     let (current_tag, used_fallback) = if let Some(ref tag) = previous_tag {
         (tag.clone(), false)
