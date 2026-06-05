@@ -1,5 +1,6 @@
 use super::{EditorRegistry, FileEditor};
 use crate::domain::git::{GitOperation, ReleaseError};
+use crate::model::operation::ShellOperation;
 use crate::model::plan::AddOperation;
 use regex::Regex;
 use std::path::{Path, PathBuf};
@@ -103,7 +104,7 @@ fn add_uv_lock_operations(plan: &mut impl AddOperation, pyproject_path: &str) {
         return;
     }
 
-    plan.add_op(crate::model::operation::ShellOperation::Run {
+    plan.add_op(ShellOperation::Run {
         program: "uv".to_string(),
         args: vec!["lock".to_string()],
         dir: Some(dir.to_path_buf()),
@@ -129,7 +130,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
     }
 
     if let Ok(package_name) = read_cargo_package_name(cargo_toml_path) {
-        plan.add_op(crate::model::operation::ShellOperation::Run {
+        plan.add_op(ShellOperation::Run {
             program: "cargo".to_string(),
             args: vec![
                 "update".to_string(),
@@ -141,7 +142,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
             optional: true,
         });
     } else if is_cargo_workspace_root(cargo_toml_path) {
-        plan.add_op(crate::model::operation::ShellOperation::Run {
+        plan.add_op(ShellOperation::Run {
             program: "cargo".to_string(),
             args: vec!["update".to_string(), "--workspace".to_string()],
             dir: Some(dir.to_path_buf()),
@@ -206,7 +207,7 @@ fn try_existing_js_lockfile(
             continue;
         }
         let args_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-        plan.add_op(crate::model::operation::ShellOperation::Run {
+        plan.add_op(ShellOperation::Run {
             program: cmd.to_string(),
             args: args_vec,
             dir: Some(pkg_dir.to_path_buf()),
@@ -232,7 +233,7 @@ fn add_pnpm_fallback(
     if crate::utils::is_command_available("pnpm") {
         let lock_path = pkg_dir.join("pnpm-lock.yaml");
         if !is_gitignored(&lock_path) {
-            plan.add_op(crate::model::operation::ShellOperation::Run {
+            plan.add_op(ShellOperation::Run {
                 program: "pnpm".to_string(),
                 args: vec!["install".to_string(), "--lockfile-only".to_string()],
                 dir: Some(pkg_dir.to_path_buf()),
@@ -240,9 +241,7 @@ fn add_pnpm_fallback(
                 optional: true,
             });
         }
-        let _warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
     }
-    let _warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新";
     #[cfg(target_os = "windows")]
     let warning_msg = "未检测到 pnpm 命令，跳过 pnpm lockfile 更新。在 Windows 环境中，建议安装 pnpm 或使用 npm";
     #[cfg(not(target_os = "windows"))]
