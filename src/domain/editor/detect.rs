@@ -198,6 +198,7 @@ fn try_existing_js_lockfile(
             "npm",
             &["install", "--package-lock-only"],
         ),
+        ("bun.lock", "bun", &["install"]),
     ];
 
     for (lock_name, cmd, args) in lockfiles {
