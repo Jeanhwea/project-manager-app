@@ -176,9 +176,18 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
             }
 
             let runner = CommandRunner;
-            let result = runner.execute(&ctx).map_err(|e| AppError::InvalidInput {
-                reason: format!("无法执行 {}: {}", program, e),
-            })?;
+            let result = match runner.execute(&ctx) {
+                Ok(r) => r,
+                Err(e) => {
+                    if *optional {
+                        output::warning(&format!("无法执行 {}: {}", program, e));
+                        return Ok(());
+                    }
+                    return Err(AppError::InvalidInput {
+                        reason: format!("无法执行 {}: {}", program, e),
+                    });
+                }
+            };
 
             if !result.success {
                 if *optional {
