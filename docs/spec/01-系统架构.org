@@ -1,0 +1,309 @@
+#+TITLE: 系统架构
+#+AUTHOR: Jinghui Hu
+#+EMAIL: hujinghui@buaa.edu.cn
+#+DATE: <2026-06-14 Sun>
+#+STARTUP: overview num indent
+#+OPTIONS: ^:nil
+
+* 概述
+
+=project-manager-app= (=pma=) 是一个用 Rust 编写的命令行工具，用于批量管理
+Git 仓库。项目采用分层架构，分为 CLI 层、命令层、领域层、模型层、引擎层、
+工具层和错误层，各层职责清晰、单向依赖。
+
+* 项目结构
+
+#+BEGIN_SRC text
+src/
+├── main.rs              # 程序入口
+├── cli/                 # CLI 层 - 命令行解析与调度
+│   ├── mod.rs           #   Styles 定义与 dispatch
+│   └── commands.rs      #   Clap Cli/Commands 结构体定义
+├── commands/            # 命令层 - 业务命令实现
+│   ├── mod.rs           #   模块声明
+│   ├── branch.rs        #   branch 子命令
+│   ├── config.rs        #   config 子命令
+│   ├── doctor.rs        #   doctor 子命令
+│   ├── fork.rs          #   fork 子命令
+│   ├── gitlab.rs        #   gitlab 子命令
+│   ├── multi_repo.rs    #   多仓库通用执行框架
+│   ├── release.rs       #   release 子命令
+│   ├── runtime.rs       #   运行时命令抽象
+│   ├── self_update.rs   #   self 子命令
+│   ├── snap.rs          #   snap 子命令
+│   ├── status.rs        #   status 子命令
+│   └── sync.rs          #   sync 子命令
+├── domain/              # 领域层 - 核心业务逻辑
+│   ├── mod.rs
+│   ├── config/          #   应用配置管理
+│   │   ├── mod.rs
+│   │   ├── manager.rs
+│   │   └── schema.rs
+│   ├── editor/          #   版本文件编辑器 (Cargo.toml, pom.xml, ...)
+│   │   ├── mod.rs
+│   │   ├── ...          #   各文件类型的编辑器实现
+│   │   ├── registry.rs  #   编辑器注册表
+│   │   └── version_bump.rs
+│   ├── git/             #   Git 操作封装
+│   │   ├── mod.rs
+│   │   ├── command.rs   #   Git 命令执行器
+│   │   ├── context.rs   #   Git 上下文收集
+│   │   ├── release.rs   #   发布流程 Git 状态
+│   │   ├── repository.rs
+│   │   └── ...
+│   ├── project_config/  #   项目级配置文件 (.pma.json)
+│   │   └── mod.rs
+│   ├── runner/          #   外部命令执行器
+│   │   ├── mod.rs
+│   │   ├── command.rs
+│   │   └── context.rs
+│   └── self_update/     #   自更新模块
+│       ├── mod.rs
+│       ├── download.rs
+│       ├── install.rs
+│       └── ...
+├── engine/              # 引擎层 - 计划执行引擎
+│   ├── mod.rs
+│   └── plan.rs          #   ExecutionPlan 执行器
+├── model/               # 模型层 - 数据模型定义
+│   ├── mod.rs
+│   ├── git.rs           #   GitContext, Branch, Remote, Tag
+│   ├── operation.rs     #   Operation 枚举 (Git/Shell/Edit/SelfUpdate)
+│   ├── plan.rs          #   ExecutionPlan, Phase, Step, ExecutionResult
+│   └── project_config.rs
+├── utils/               # 工具层 - 通用工具
+│   ├── mod.rs
+│   ├── output.rs        #   终端输出渲染
+│   ├── path.rs          #   路径工具
+│   └── process.rs       #   进程工具
+└── error.rs             # 错误层 - AppError 定义
+#+END_SRC
+
+* 分层架构
+
+各层之间的依赖关系为（从上到下单向依赖）：
+
+#+BEGIN_SRC text
+main.rs  ──→ cli ──→ commands ──→ domain, engine, model, utils, error
+                             \         ↑
+                              └──→ model
+#+END_SRC
+
+** CLI 层 (=cli/=)
+
+定义命令行接口结构体（=Cli=、=Commands=），使用 =clap= 框架解析命令行参数。
+=dispatch()= 函数将解析结果路由到对应的 =commands::run()= 函数。
+
+设计要点：
+- =Commands= 枚举的每个变体对应一个子命令
+- 使用 =visible_alias= 提供短别名（如 =re= 对应 =release=, =s= 对应 =sync=）
+- =styles()= 函数定义终端中 --help 输出的色彩风格
+
+** 命令层 (=commands/=)
+
+每个命令模块提供 =run()= 函数，接收 CLI 解析后的参数结构体，编排领域层对象
+完成业务逻辑。
+
+关键设计：
+- =multi_repo.rs= 提供多仓库操作的通用框架，用于 =sync=、=status=、=doctor=、
+  =branch= 等需要遍历多个仓库的命令。其核心是 =MultiRepo= 结构体和
+  =run_multi_repo_cmd()= 函数
+- =runtime.rs= 定义了 =Command= trait，作为多仓库命令的统一接口，
+  =run_multi_repo_cmd()= 泛型于 =Command= trait
+
+** 领域层 (=domain/=)
+
+领域层封装了核心业务逻辑，是系统最核心的部分：
+
+*** Git 模块 (=domain/git/=)
+
+封装 Git 命令调用和 Git 仓库信息收集：
+
+- =GitCommandRunner=: 将 Git 操作抽象为 =GitOperation= 枚举，支持 plan-execute
+  模式（预收集操作、批量执行）。提供 =collect()= 方法收集 =GitOperation= 列表
+- =collect_context()=: 收集仓库的完整上下文（当前分支、远程、标签、未提交变更等）
+- =GitOperation=: 枚举了所有 Git 操作原语（commit, push, tag, fetch, pull 等），
+  每个变体携带 =should_skip()= 条件和 =recovery_hint()= 恢复提示
+- =diagnose_repo()=: 仓库健康诊断，检查 remote 命名是否规范、是否需要 GC
+- =validate_git_state()= + =resolve_git_root()=: release 流程的 Git 状态校验
+
+*** 编辑器模块 (=domain/editor/=)
+
+支持多种项目版本文件的版本号检测和编辑：
+
+- =EditorRegistry=: 注册表模式，注册了 Cargo.toml、package.json、pom.xml、
+  pyproject.toml、CMakeLists.txt、Homebrew Formula 等多种编辑器
+- 每个编辑器实现 =FileEditor= trait，提供 =parse()= 和 =edit()= 方法
+- =detect.rs=: 自动检测项目中的版本配置文件
+- =version_bump.rs=: 语义化版本递增逻辑（patch/minor/major）
+
+*** 运行器模块 (=domain/runner/=)
+
+封装外部命令执行：
+
+- =CommandRunner=: 通用的外部命令执行器
+- =ExecutionContext=: 命令执行上下文（程序、参数、工作目录、输出模式）
+- 支持 =OutputMode::Streaming= 和 =OutputMode::Captured= 两种输出模式
+
+*** 自更新模块 (=domain/self_update/=)
+
+实现 =pma self update= 功能：
+
+- 从 GitHub Release 下载最新二进制
+- 解压归档并替换当前可执行文件
+- 支持 GitHub API 和浏览器直链两种下载方式
+
+*** 项目配置模块 (=domain/project_config/=)
+
+读写项目级配置 =.pma.json=，配置文件记录 fork 操作中需要初始化的文件列表。
+
+*** 配置管理模块 (=domain/config/=)
+
+管理应用级配置（存储路径、版本等），使用 TOML 格式。
+
+** 模型层 (=model/=)
+
+定义了系统中的核心数据结构：
+
+- =GitContext= + =Branch= + =Remote= + =Tag=: Git 仓库状态的数据表示
+- =Operation= 枚举: 统一的操作抽象，包括 Git、Shell、Edit、SelfUpdate 四种
+  操作类型，每种操作携带描述信息和执行参数
+- =ExecutionPlan= + =Phase= + =Step=: 用于 plan-execute 模式的计划数据结构。
+  支持 dry-run 模式（预览不执行），操作错误包含恢复提示
+- =ExecutionResult=: 执行结果，记录已执行操作数和错误列表
+- =ProjectConfig=: =.pma.json= 的数据结构
+
+** 引擎层 (=engine/=)
+
+实现 =run_plan()= 函数，按阶段执行 =ExecutionPlan=：
+
+- 支持 dry-run 模式
+- 按 phase 顺序执行，遇到错误可选择中止
+- 执行前检查 =should_skip()= 条件
+- 执行失败时生成恢复提示
+
+** 工具层 (=utils/=)
+
+- =output.rs=: 统一的终端输出渲染，支持彩色输出、各种前缀标签（==>、~~>、
+  <== 等），用于命令执行、diff 显示、进度展示等
+- =path.rs=: 路径格式化工具（简化 Home 路径）
+- =process.rs=: 检查命令是否可用的工具函数
+
+** 错误层 (=error.rs=)
+
+定义 =AppError= 枚举，使用 =thiserror= 派生宏实现：
+- 透明包装各领域模块的错误类型
+- 自定义错误变体（=NotFound=、=AlreadyExists=、=InvalidInput=、=NotSupported=）
+- 定义 =Result<T>= 类型别名
+
+* 核心流程
+
+** Release 工作流
+
+执行 =pma release [patch|minor|major]= 的流程：
+
+1. CLI 层解析命令行参数，生成 =ReleaseArgs=
+2. 命令层 =release::run()= 被调用：
+   a. 调用编辑器的 =read_file_version()= 读取当前版本
+   b. 调用 =version_bump.rs= 计算新版本号
+   c. 调用 =compute_edited_content()= 创建版本文件编辑计划
+   d. 构建 =ExecutionPlan=，包含：
+      - version file edit operations (阶段 1)
+      - Git commit + tag operations (阶段 2)
+      - Git push operations (阶段 3)
+   e. 调用引擎 =run_plan()= 执行计划
+
+** Sync 工作流
+
+执行 =pma sync= 的流程：
+
+1. CLI 层解析参数，生成 =SyncArgs=
+2. 命令层 =sync::run()= 被调用：
+   a. 扫描目录获取所有 Git 仓库列表
+   b. 对每个仓库调用 Git 领域层的 =collect_context()=
+   c. 构建 =ExecutionPlan=，为每个仓库生成 fetch/pull/push 操作
+   d. 调用引擎 =run_plan()= 执行
+
+** 多仓库命令框架
+
+=status=、=doctor=、=branch=、=sync= 等命令使用同一框架：
+1. =MultiRepo= 结构体管理仓库列表和命令行参数
+2. 每个命令实现 =Command trait=，提供 =run_on_repo()= 方法
+3. =run_multi_repo_cmd()= 遍历仓库、显示进度、调用 =run_on_repo()=
+4. 可选地使用 =indicatif= 进度条（=sync= 命令）或直接输出（=status= 命令）
+
+* 数据流
+
+#+BEGIN_SRC text
+User Input
+   │
+   ▼
+CLI (clap parse)
+   │
+   ▼
+Command Layer (orchestrate)
+   │
+   ├──► Domain Layer (business logic)
+   │     ├── git: GitOperation collector
+   │     ├── editor: read/edit version files
+   │     ├── runner: execute shell commands
+   │     └── ...
+   │
+   ├──► Model Layer (data structures)
+   │     └── ExecutionPlan, Operation, GitContext, ...
+   │
+   └──► Engine Layer (execute plan)
+         └── run_plan() → ExecutionResult
+                │
+                ▼
+         Utils::output (render to terminal)
+#+END_SRC
+
+关键设计模式：
+- **Plan-Execute 模式**: 领域层先收集所有操作（=GitOperation= 列表），构建为
+  =ExecutionPlan=，再由引擎层统一执行。这允许 dry-run 预览和批量执行
+- **Command Trait 模式**: 多仓库命令通过 =Command trait= 实现多态，避免重复的
+  仓库遍历逻辑
+- **注册表模式**: =EditorRegistry= 将不同版本文件格式的编辑器统一注册，便于
+  扩展新的版本文件类型
+
+* 配置体系
+
+** 应用级配置 (=domain/config/=)
+
+存储在用户配置目录下（通过 =dirs= crate 获取），使用 TOML 格式。
+由 =ConfigManager= 管理，提供读写接口。
+
+** 项目级配置 (=domain/project_config/=)
+
+存储在项目根目录下的 =.pma.json= 文件中，记录 fork 初始化所需的文件列表。
+使用 JSON 格式，通过 serde 序列化/反序列化。
+
+* 错误处理策略
+
+所有错误统一转换为 =AppError= 枚举：
+- 领域层错误通过 =#[from]= 自动转换为 =AppError=
+- 执行计划中的操作错误携带恢复提示 (=recovery_hint=)
+- 错误链在终端渲染时显示完整的 cause 链
+
+* 主要依赖
+
+| 依赖            | 用途                            |
+|-----------------+---------------------------------|
+| clap            | 命令行参数解析                  |
+| serde + serde_json | 序列化/反序列化            |
+| toml + toml_edit | TOML 解析与编辑                |
+| ureq             | HTTP 请求（自更新）            |
+| colored          | 终端彩色输出                   |
+| indicatif        | 进度条显示                     |
+| thiserror        | 错误类型推导                   |
+| anyhow           | 错误处理                       |
+| zip + tar + flate2 | 归档处理（自更新）          |
+| regex            | 正则表达式                     |
+| semver           | 语义化版本解析                 |
+| roxmltree        | XML 解析 (pom.xml)            |
+| dirs             | 系统用户目录                   |
+| heck             | 字符串格式转换                 |
+| rpassword        | 密码输入                       |
+| url              | URL 解析                       |
+| tempfile         | 测试时的临时文件               |
