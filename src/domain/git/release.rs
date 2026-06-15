@@ -135,20 +135,6 @@ pub fn validate_git_state(
     })
 }
 
-pub fn is_gitignored(file_path: &Path) -> bool {
-    let Some(file_name) = file_path.file_name().and_then(|n| n.to_str()) else {
-        return false;
-    };
-    let Some(parent) = file_path.parent() else {
-        return false;
-    };
-
-    let runner = GitCommandRunner::new();
-    runner
-        .run_local(&["check-ignore", file_name], Some(parent))
-        .is_ok()
-}
-
 fn find_max_semver_tag(runner: &GitCommandRunner, repo_path: &Path) -> Option<String> {
     let output = runner
         .run_local(

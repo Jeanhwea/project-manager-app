@@ -1,5 +1,6 @@
 mod cargo_toml;
 mod cmake;
+mod lockfile;
 mod detect;
 mod error;
 mod file_editor;
@@ -15,11 +16,12 @@ mod version_bump;
 mod version_text;
 
 pub use detect::{
-    add_lockfile_operations, compute_edited_content, detect_config_files,
-    extract_fallback_version, read_file_version, resolve_config_files,
+    compute_edited_content, detect_config_files, extract_fallback_version,
+    read_file_version, resolve_config_files,
 };
 pub use error::{EditorError, Result};
 pub use file_editor::{FileEditor, write_with_backup};
+pub use lockfile::add_lockfile_operations;
 pub use position::{
     VersionLocation, VersionPosition, extract_version_position, replace_at_position,
 };
