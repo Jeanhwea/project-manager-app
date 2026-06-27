@@ -1,0 +1,115 @@
+#+TITLE: 架构优化建议
+#+AUTHOR: Jinghui Hu
+#+DATE: <2026-06-14 Sun>
+#+STARTUP: overview num indent
+#+OPTIONS: ^:nil
+
+* 概述
+
+项目 =pma= 经过反复迭代，功能逐步增多，部分模块因历史原因存在职责混杂、
+循环依赖、文件过重等问题。此 issue 汇总了当前的架构摩擦点，便于后续分步
+优化。
+
+* A. domain::editor::detect.rs 职责混杂
+
+** 问题
+
+当前 =src/domain/editor/detect.rs= 达 407 行，混入了多种互不相关的职责：
+
+1. 配置文件检测（=detect_config_files()=）
+2. Glob 模式展开（=expand_glob_pattern()=）
+3. Lockfile 操作（=add_lockfile_operations()= 及其下属 5 个子函数，占文件一半以上）
+4. 版本文件读取（=read_file_version()=, =compute_edited_content()=）
+5. Cargo package name 解析（=read_cargo_package_name()=）
+
+其中 lockfile 操作还跨模块引用了 =domain::git::release::is_gitignored()=，形成了
+=editor ⇄ release= 的循环依赖。
+
+** 建议
+
+- 将 lockfile 相关的所有函数提取到独立的 =domain/editor/lockfile.rs= 模块
+- 将 is_gitignored() 移到 =domain/git/command.rs= 消除循环
+
+* B. GitOperation 枚举接口过浅
+
+** 问题
+
+=operation.rs= 定义了 18 个 =GitOperation= 变体，每个变体需要在 5 个方法中各加一个
+匹配 arm（=invocation()=, =description()=, =execute()=, =recovery_hint()=,
+=should_skip()=）。新增一个操作涉及 5 路 match 共约 90 处匹配点。
+
+同时 =working_dir: PathBuf= 字段出现在几乎所有变体中，而调用处全部硬编码
+=PathBuf::from(".")=，依赖当前工作目录恰好是 Git 根目录，脆弱且冗余。
+
+** 建议
+
+- 考虑合并变体，如 =GitOperation::Raw { args, working_dir, streaming }=
+- 在 plan 构造时就将 working_dir 解析为绝对路径
+
+* C. engine/plan.rs 混合多种职责
+
+** 问题
+
+=engine/plan.rs= 266 行同时承担了：
+
+- 计划执行（=run_plan()=, =run_phase()=）
+- 终端渲染（=render_message()=, =render_messages()=）
+- 文件 I/O（=copy_dir_recursive()=）
+- 错误恢复提示生成（=recovery_hint()=）
+
+** 建议
+
+- 渲染逻辑移到 =utils/output.rs=
+- 目录复制移到 =utils/=
+
+* D. 大面积测试空白
+
+** 问题
+
+以下文件无任何单元测试（约 1800+ 行逻辑）：
+
+| 文件                            | 行数 |
+|---------------------------------+------|
+| src/commands/release.rs         |  357 |
+| src/commands/sync.rs            |  280 |
+| src/commands/doctor.rs          |  121 |
+| src/commands/fork.rs            |  105 |
+| src/domain/git/release.rs       |  176 |
+| src/domain/git/context.rs       |  123 |
+| src/domain/git/diagnose.rs      |   99 |
+| src/domain/git/remote.rs        |    ? |
+| src/engine/plan.rs              |  266 |
+| src/model/plan.rs               |  240 |
+| src/model/operation.rs          |  118 |
+
+另外无任何集成测试文件（=tests/= 目录不存在）。
+
+** 建议
+
+- 优先为 release 流程和 plan 引擎添加测试
+- 之后逐步填补 sync、doctor、fork、git context 的测试空白
+
+* E. Command trait 与 MultiRepo trait 重复
+
+** 问题
+
+=runtime.rs= 中定义了 =Command= trait，=multi_repo.rs= 中定义了 =MultiRepo= trait，
+二者均是 =collect → plan → execute= 三阶段模式，只是 =MultiRepo= 多了一个仓库路径参数。
+新命令需要在两个 trait 中选一个实现。
+
+** 建议
+
+- 让 =MultiRepo= 组合 =Command=，或将共同逻辑抽取为共享 trait
+
+* 优先级
+
+| 项目 | 优先级 | 建议独立处理 |
+|------+--------+--------------|
+| A    | 高     | 是           |
+| B    | 中     | 是           |
+| C    | 中     | 否，可随 A 处理 |
+| D    | 高     | 是           |
+| E    | 低     | 否           |
+
+A 和 D 建议优先处理。C 可在 A 的 lockfile 拆分过程中顺带整理。B 涉及面广建议
+单独立项。E 收益有限建议搁置。

@@ -8,7 +8,7 @@ mod remote;
 pub mod repository;
 pub mod snapshot;
 
-pub use command::GitCommandRunner;
+pub use command::{GitCommandRunner, is_gitignored};
 pub use context::collect_context;
 pub use diagnose::{Diagnosis, diagnose_repo};
 pub use error::{GitError, Result};
