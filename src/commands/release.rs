@@ -90,7 +90,13 @@ impl Command for ReleaseArgs {
 
         let git_ctx = collect_context(&work_dir)?;
         let registry = EditorRegistry::default_with_editors();
-        let config_files = resolve_config_files(&registry, &resolved_files)?;
+        let config_files = match resolve_config_files(&registry, &resolved_files) {
+            Ok(files) => files,
+            Err(AppError::Release(ReleaseError::NoConfigFiles)) if resolved_files.is_empty() => {
+                vec![init_version_file(&work_dir)?]
+            }
+            Err(e) => return Err(e),
+        };
 
         let fallback_version = extract_fallback_version(&registry, &config_files);
 
@@ -165,6 +171,17 @@ fn init_project_config(args: &ReleaseArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn init_version_file(work_dir: &Path) -> Result<String> {
+    let target = work_dir.join("version.txt");
+    std::fs::write(&target, "0.0.0\n")?;
+    let path_str = canonicalize_path(&target)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| target.to_string_lossy().replace('\\', "/"));
+    output::warning("未检测到版本文件，已初始化 version.txt");
+    output::item("已创建", &path_str);
+    Ok(path_str)
 }
 
 fn resolve_file_paths(files: &[String], base_dir: &Path) -> Vec<String> {
