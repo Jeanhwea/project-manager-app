@@ -47,6 +47,9 @@ pub enum AppError {
 
     #[error("不支持: {what}")]
     NotSupported { what: String },
+
+    #[error("{count} 个操作执行失败")]
+    ExecutionFailed { count: usize },
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;

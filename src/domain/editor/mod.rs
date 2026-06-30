@@ -19,7 +19,7 @@ pub use detect::{
     extract_fallback_version, read_file_version, resolve_config_files,
 };
 pub use error::{EditorError, Result};
-pub use file_editor::{FileEditor, write_with_backup};
+pub use file_editor::{FileEditor, write_atomic};
 pub use position::{
     VersionLocation, VersionPosition, extract_version_position, replace_at_position,
 };

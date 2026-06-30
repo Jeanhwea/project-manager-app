@@ -53,7 +53,7 @@ fn run_op_step(op: &Operation, runner: &GitCommandRunner, result: &mut Execution
         && let Some(reason) = git_op.should_skip()
     {
         output::skip(&reason);
-        result.add_executed();
+        result.add_skipped();
         return true;
     }
 
@@ -209,7 +209,7 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
 fn execute_edit(op: &EditOperation) -> Result<()> {
     match op {
         EditOperation::WriteFile { path, content, .. } => {
-            crate::domain::editor::write_with_backup(path, content)?;
+            crate::domain::editor::write_atomic(path, content)?;
         }
         EditOperation::CopyDir { source, target, .. } => {
             copy_dir_recursive(std::path::Path::new(source), std::path::Path::new(target))?;
@@ -218,26 +218,83 @@ fn execute_edit(op: &EditOperation) -> Result<()> {
     Ok(())
 }
 
+fn io_err(kind: std::io::ErrorKind, msg: String) -> AppError {
+    AppError::Io(std::io::Error::new(kind, msg))
+}
+
 fn copy_dir_recursive(source: &std::path::Path, target: &std::path::Path) -> Result<()> {
+    let canonical_source = source.canonicalize().map_err(|e| {
+        io_err(
+            e.kind(),
+            format!("读取目录 {} 失败: {}", source.display(), e),
+        )
+    })?;
+    if let Ok(canonical_target) = target.canonicalize()
+        && canonical_target.starts_with(&canonical_source)
+    {
+        return Err(io_err(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "目标目录 {} 位于源目录 {} 内部，无法复制",
+                target.display(),
+                source.display()
+            ),
+        ));
+    }
+
     std::fs::create_dir_all(target).map_err(|e| {
-        AppError::Io(std::io::Error::new(
+        io_err(
             e.kind(),
             format!("创建目录 {} 失败: {}", target.display(), e),
-        ))
+        )
     })?;
 
-    for entry in std::fs::read_dir(source).map_err(AppError::Io)? {
-        let entry = entry.map_err(AppError::Io)?;
+    let entries = std::fs::read_dir(source).map_err(|e| {
+        io_err(
+            e.kind(),
+            format!("读取目录 {} 失败: {}", source.display(), e),
+        )
+    })?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| {
+            io_err(
+                e.kind(),
+                format!("读取 {} 条目失败: {}", source.display(), e),
+            )
+        })?;
         let src_path = entry.path();
         let dst_path = target.join(entry.file_name());
 
-        if src_path.is_dir() {
-            if entry.file_name() == ".git" {
-                continue;
-            }
+        if entry.file_name() == ".git" {
+            continue;
+        }
+
+        let file_type = entry.file_type().map_err(|e| {
+            io_err(
+                e.kind(),
+                format!("读取 {} 类型失败: {}", src_path.display(), e),
+            )
+        })?;
+
+        if file_type.is_symlink() {
+            continue;
+        }
+
+        if file_type.is_dir() {
             copy_dir_recursive(&src_path, &dst_path)?;
         } else {
-            std::fs::copy(&src_path, &dst_path).map_err(AppError::Io)?;
+            std::fs::copy(&src_path, &dst_path).map_err(|e| {
+                io_err(
+                    e.kind(),
+                    format!(
+                        "复制 {} 到 {} 失败: {}",
+                        src_path.display(),
+                        dst_path.display(),
+                        e
+                    ),
+                )
+            })?;
         }
     }
 

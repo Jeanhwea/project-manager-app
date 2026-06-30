@@ -71,7 +71,7 @@ pub trait FileEditor: Send + Sync {
     }
 }
 
-pub fn write_with_backup(path: &str, content: &str) -> Result<()> {
+pub fn write_atomic(path: &str, content: &str) -> Result<()> {
     let tmp_path = format!("{}.tmp", path);
     std::fs::write(&tmp_path, content).map_err(EditorError::WriteError)?;
     std::fs::rename(&tmp_path, path).map_err(|e| {

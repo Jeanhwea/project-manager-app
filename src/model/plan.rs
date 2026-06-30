@@ -172,6 +172,7 @@ impl AddOperation for ExecutionPlan {
 #[derive(Debug, Clone)]
 pub struct ExecutionResult {
     executed: usize,
+    skipped: usize,
     errors: Vec<OperationError>,
 }
 
@@ -179,6 +180,7 @@ impl ExecutionResult {
     pub fn new() -> Self {
         Self {
             executed: 0,
+            skipped: 0,
             errors: Vec::new(),
         }
     }
@@ -197,6 +199,10 @@ impl ExecutionResult {
 
     pub fn add_executed(&mut self) {
         self.executed += 1;
+    }
+
+    pub fn add_skipped(&mut self) {
+        self.skipped += 1;
     }
 
     pub fn add_error(&mut self, err: OperationError) {
