@@ -19,7 +19,6 @@ pub struct SyncArgs {
     #[arg(
         long,
         short = 'A',
-        default_value = "true",
         help = "Push to all remotes when no remote is specified"
     )]
     pub all_remotes: bool,
@@ -172,9 +171,13 @@ impl MultiRepo for SyncArgs {
             let mut push_phase = Phase::new("推送");
             for remote_name in &ctx.target_remotes {
                 let remote_obj = ctx.git_ctx.remotes.iter().find(|r| &r.name == remote_name);
-                if let Some(remote) = remote_obj
-                    && !should_push_to_remote(remote)
-                {
+                let Some(remote) = remote_obj else {
+                    push_phase.add_message(DisplayMessage::Skip {
+                        msg: format!("跳过推送到 {remote_name} (未找到远程配置)"),
+                    });
+                    continue;
+                };
+                if !should_push_to_remote(remote) {
                     push_phase.add_message(DisplayMessage::Skip {
                         msg: skip_push_reason(remote),
                     });
@@ -234,7 +237,13 @@ fn resolve_target_remotes(
         return Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect());
     }
 
-    Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect())
+    // Default: push to preferred remote only
+    let preferred = git_ctx.preferred_remote();
+    if let Some(name) = preferred {
+        Ok(vec![name])
+    } else {
+        Ok(Vec::new())
+    }
 }
 
 fn should_push_to_remote(remote: &Remote) -> bool {
