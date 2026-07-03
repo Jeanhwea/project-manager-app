@@ -312,7 +312,16 @@ fn compute_line_diff(file_path: &str, original: &str, edited: &str) -> Option<Di
     let new_lines: Vec<&str> = edited.lines().collect();
 
     let max_len = old_lines.len().max(new_lines.len());
-    let changed_lines: Vec<(String, String)> = (0..max_len)
+    let first_change = (0..max_len).position(|i| {
+        let old = old_lines.get(i).copied().unwrap_or("");
+        let new = new_lines.get(i).copied().unwrap_or("");
+        old != new
+    });
+
+    let old_start = first_change?;
+    let new_start = old_start;
+
+    let changed_lines: Vec<(String, String)> = (old_start..max_len)
         .filter_map(|i| {
             let old = old_lines.get(i).copied().unwrap_or("");
             let new = new_lines.get(i).copied().unwrap_or("");
@@ -332,8 +341,8 @@ fn compute_line_diff(file_path: &str, original: &str, edited: &str) -> Option<Di
     let new_count = new_lines.len();
     Some(DisplayMessage::Diff {
         file: file_path.to_string(),
-        old_start: 1,
-        new_start: 1,
+        old_start: old_start + 1,
+        new_start: new_start + 1,
         old_lines: changed_lines.iter().map(|(old, _)| old.clone()).collect(),
         new_lines: changed_lines.iter().map(|(_, new)| new.clone()).collect(),
         old_count,
