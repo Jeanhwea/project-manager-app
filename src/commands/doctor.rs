@@ -39,21 +39,49 @@ impl MultiRepo for DoctorArgs {
 
     fn collect(&self, repo_path: &Path) -> Result<DoctorContext> {
         let issues = diagnose_repo(repo_path)?;
-        let git_ctx = if self.fix && !issues.is_empty() {
-            collect_context(repo_path).ok()
-        } else {
-            None
-        };
+        let git_ctx = collect_context(repo_path).ok();
 
         Ok(DoctorContext { git_ctx, issues })
     }
 
     fn plan(&self, ctx: &DoctorContext, repo_path: &Path) -> Result<ExecutionPlan> {
+        let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
+
+        if !self.fix {
+            for issue in &ctx.issues {
+                let msg = match issue {
+                    Diagnosis::DetachedHead => {
+                        format!("HEAD 处于分离状态 (仓库 {})", repo_path.display())
+                    }
+                    Diagnosis::NoRemote => {
+                        format!("仓库 {} 没有配置远程仓库", repo_path.display())
+                    }
+                    Diagnosis::NoRemoteTrackingBranch => {
+                        format!("仓库 {} 没有远程跟踪分支", repo_path.display())
+                    }
+                    Diagnosis::SingleLocalBranch => {
+                        format!("仓库 {} 只有一个本地分支", repo_path.display())
+                    }
+                    Diagnosis::StashExists => "stash 条目存在".to_string(),
+                    Diagnosis::StaleRefs { remote } => {
+                        format!("远程 {} 存在过时引用", remote)
+                    }
+                    Diagnosis::LargeRepo => {
+                        format!("仓库 {} 体积过大", repo_path.display())
+                    }
+                    Diagnosis::RemoteNameMismatch { current, expected } => {
+                        format!("远程名称不匹配: 当前 {} 期望 {}", current, expected)
+                    }
+                };
+                plan.add_message(DisplayMessage::Warning { msg });
+            }
+            return Ok(plan);
+        }
+
         let Some(git_ctx) = &ctx.git_ctx else {
             return Ok(ExecutionPlan::new());
         };
 
-        let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
         let mut fix_phase = Phase::new("修复问题");
 
         for issue in &ctx.issues {
@@ -99,7 +127,22 @@ impl MultiRepo for DoctorArgs {
                         });
                     }
                 }
-                Diagnosis::DetachedHead | Diagnosis::NoRemote => {}
+                Diagnosis::DetachedHead => {
+                    fix_phase.add_message(DisplayMessage::Skip {
+                        msg: format!(
+                            "HEAD 处于分离状态 (仓库 {})，需要手动检出分支",
+                            repo_path.display()
+                        ),
+                    });
+                }
+                Diagnosis::NoRemote => {
+                    fix_phase.add_message(DisplayMessage::Skip {
+                        msg: format!(
+                            "仓库 {} 没有配置远程仓库，跳过自动修复",
+                            repo_path.display()
+                        ),
+                    });
+                }
             }
         }
 
