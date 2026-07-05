@@ -64,15 +64,8 @@ impl MultiRepo for SyncArgs {
         let target_remotes =
             resolve_target_remotes(&git_ctx, self.remote.as_deref(), self.all_remotes)?;
 
-        let target_remote_objs: Vec<&Remote> = target_remotes
-            .iter()
-            .filter_map(|name| git_ctx.remotes.iter().find(|r| &r.name == name))
-            .collect();
-
-        let should_push = !target_remote_objs.is_empty()
-            && target_remote_objs
-                .iter()
-                .any(|remote| should_push_to_remote(remote));
+        let should_push =
+            !git_ctx.remotes.is_empty() && git_ctx.remotes.iter().any(should_push_to_remote);
 
         Ok(SyncContext {
             git_ctx,
@@ -169,14 +162,7 @@ impl MultiRepo for SyncArgs {
 
         if ctx.should_push {
             let mut push_phase = Phase::new("推送");
-            for remote_name in &ctx.target_remotes {
-                let remote_obj = ctx.git_ctx.remotes.iter().find(|r| &r.name == remote_name);
-                let Some(remote) = remote_obj else {
-                    push_phase.add_message(DisplayMessage::Skip {
-                        msg: format!("跳过推送到 {remote_name} (未找到远程配置)"),
-                    });
-                    continue;
-                };
+            for remote in &ctx.git_ctx.remotes {
                 if !should_push_to_remote(remote) {
                     push_phase.add_message(DisplayMessage::Skip {
                         msg: skip_push_reason(remote),
@@ -184,11 +170,11 @@ impl MultiRepo for SyncArgs {
                     continue;
                 }
                 push_phase.add(GitOperation::PushAll {
-                    remote: remote_name.clone(),
+                    remote: remote.name.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
                 push_phase.add(GitOperation::PushTags {
-                    remote: remote_name.clone(),
+                    remote: remote.name.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
             }
@@ -196,12 +182,8 @@ impl MultiRepo for SyncArgs {
                 plan.add_phase(push_phase);
             }
         } else {
-            for remote_name in &ctx.target_remotes {
-                let remote_obj = ctx.git_ctx.remotes.iter().find(|r| &r.name == remote_name);
-                let msg = match remote_obj {
-                    Some(remote) => skip_push_reason(remote),
-                    None => format!("跳过推送到 {}", remote_name),
-                };
+            for remote in &ctx.git_ctx.remotes {
+                let msg = skip_push_reason(remote);
                 plan.add_message(DisplayMessage::Skip { msg });
             }
         }
