@@ -5,7 +5,7 @@
 #+STARTUP: overview num indent
 
 [[https://www.npmjs.com/package/@jeansoft/pma][https://img.shields.io/npm/v/@jeansoft/pma.svg]]
-[[https://www.npmjs.com/package/@jeansoft/pma][https://img.shields.io/npm/l/@jeansoft/pma.svg]]
+[[https://github.com/Jeanhwea/project-manager-app/blob/master/LICENSE][https://img.shields.io/npm/l/@jeansoft/pma.svg]]
 
 * 简介
 
