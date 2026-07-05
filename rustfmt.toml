@@ -1,12 +1,13 @@
-# https://github.com/rust-lang/rustfmt/blob/master/Configurations.md
-
-# common
-max_width = 98
+max_width = 120
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Auto"
+use_small_heuristics = "Default"
+reorder_imports = true
+reorder_modules = true
+remove_nested_parens = true
 edition = "2024"
-
-# imports style
-# group_imports = "StdExternalCrate"
-# imports_granularity = "Crate"
-
-# drive
-merge_derives = false
+merge_derives = true
+use_try_shorthand = false
+use_field_init_shorthand = false
+force_explicit_abi = true
