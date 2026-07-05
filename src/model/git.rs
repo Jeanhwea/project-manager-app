@@ -89,8 +89,6 @@ impl GitContext {
 
     pub fn has_remote_branch(&self, remote: &str, branch: &str) -> bool {
         let remote_branch = format!("{}/{}", remote, branch);
-        self.branches
-            .iter()
-            .any(|b| b.is_remote && b.name == remote_branch)
+        self.branches.iter().any(|b| b.is_remote && b.name == remote_branch)
     }
 }

@@ -16,20 +16,12 @@ pub fn list_snapshot_oneline(runner: &GitCommandRunner, repo: &Path) -> AppResul
         .collect())
 }
 
-pub fn search_oneline(
-    runner: &GitCommandRunner,
-    repo: &Path,
-    grep: &str,
-) -> AppResult<Vec<String>> {
+pub fn search_oneline(runner: &GitCommandRunner, repo: &Path, grep: &str) -> AppResult<Vec<String>> {
     let out = runner.run_local(&["log", "--oneline", "--grep", grep], Some(repo))?;
     Ok(out.lines().map(|s| s.to_string()).collect())
 }
 
-pub fn rev_parse_verify(
-    runner: &GitCommandRunner,
-    repo: &Path,
-    refname: &str,
-) -> AppResult<String> {
+pub fn rev_parse_verify(runner: &GitCommandRunner, repo: &Path, refname: &str) -> AppResult<String> {
     runner
         .run_local(&["rev-parse", "--verify", refname], Some(repo))
         .map_err(AppError::from)

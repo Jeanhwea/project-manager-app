@@ -24,9 +24,7 @@ impl std::fmt::Debug for EditorRegistry {
 
 impl EditorRegistry {
     pub fn new() -> Self {
-        Self {
-            editors: Vec::new(),
-        }
+        Self { editors: Vec::new() }
     }
 
     pub fn default_with_editors() -> Self {

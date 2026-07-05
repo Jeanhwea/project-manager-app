@@ -20,9 +20,7 @@ pub fn canonicalize_path(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
 }
 
 pub fn format_path(path: &Path) -> String {
-    path.to_string_lossy()
-        .trim_start_matches(r"\\?\")
-        .to_string()
+    path.to_string_lossy().trim_start_matches(r"\\?\").to_string()
 }
 
 #[cfg(test)]

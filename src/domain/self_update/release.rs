@@ -3,8 +3,7 @@ use crate::error::Result;
 use serde::Deserialize;
 use std::env;
 
-const GITHUB_API_URL: &str =
-    "https://api.github.com/repos/Jeanhwea/project-manager-app/releases/latest";
+const GITHUB_API_URL: &str = "https://api.github.com/repos/Jeanhwea/project-manager-app/releases/latest";
 
 #[derive(Debug, Deserialize)]
 pub struct Release {
@@ -30,9 +29,7 @@ pub fn fetch_latest_release() -> Result<Release> {
 
     let resp = req
         .call()
-        .map_err(|e| SelfUpdateError::FetchReleaseRequest {
-            source: Box::new(e),
-        })?;
+        .map_err(|e| SelfUpdateError::FetchReleaseRequest { source: Box::new(e) })?;
     let release: Release = resp
         .into_json()
         .map_err(|e| SelfUpdateError::ParseReleaseJson { source: e })?;

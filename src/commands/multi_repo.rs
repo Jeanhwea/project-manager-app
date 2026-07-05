@@ -15,12 +15,7 @@ pub(crate) trait MultiRepo {
 
 #[derive(Debug, clap::Args)]
 pub struct RepoPathArgs {
-    #[arg(
-        long,
-        short,
-        default_value = "3",
-        help = "Maximum depth to search for repositories"
-    )]
+    #[arg(long, short, default_value = "3", help = "Maximum depth to search for repositories")]
     pub max_depth: usize,
     #[arg(default_value = ".", help = "Path to search for repositories")]
     pub path: String,

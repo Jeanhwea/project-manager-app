@@ -96,17 +96,13 @@ impl Command for UpdateArgs {
         let release = fetch_latest_release()?;
         let latest = release.tag_name.trim_start_matches('v').to_string();
 
-        let latest_ver = semver::Version::parse(&latest).map_err(|e| {
-            SelfUpdateError::InvalidLatestVersion {
-                version: latest.clone(),
-                source: e,
-            }
+        let latest_ver = semver::Version::parse(&latest).map_err(|e| SelfUpdateError::InvalidLatestVersion {
+            version: latest.clone(),
+            source: e,
         })?;
-        let current_ver = semver::Version::parse(PKG_VERSION).map_err(|e| {
-            SelfUpdateError::InvalidCurrentVersion {
-                version: PKG_VERSION.into(),
-                source: e,
-            }
+        let current_ver = semver::Version::parse(PKG_VERSION).map_err(|e| SelfUpdateError::InvalidCurrentVersion {
+            version: PKG_VERSION.into(),
+            source: e,
         })?;
 
         let is_latest = current_ver >= latest_ver;

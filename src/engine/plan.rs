@@ -2,9 +2,7 @@ use crate::domain::git::GitCommandRunner;
 use crate::domain::self_update::{SelfUpdateError, download_asset, install_binary};
 use crate::error::{AppError, Result};
 use crate::model::operation::{EditOperation, Operation, SelfUpdateOperation, ShellOperation};
-use crate::model::plan::{
-    DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Phase, Step,
-};
+use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Phase, Step};
 use crate::utils::output;
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
@@ -223,12 +221,9 @@ fn io_err(kind: std::io::ErrorKind, msg: String) -> AppError {
 }
 
 fn copy_dir_recursive(source: &std::path::Path, target: &std::path::Path) -> Result<()> {
-    let canonical_source = source.canonicalize().map_err(|e| {
-        io_err(
-            e.kind(),
-            format!("读取目录 {} 失败: {}", source.display(), e),
-        )
-    })?;
+    let canonical_source = source
+        .canonicalize()
+        .map_err(|e| io_err(e.kind(), format!("读取目录 {} 失败: {}", source.display(), e)))?;
     if let Ok(canonical_target) = target.canonicalize()
         && canonical_target.starts_with(&canonical_source)
     {
@@ -242,27 +237,14 @@ fn copy_dir_recursive(source: &std::path::Path, target: &std::path::Path) -> Res
         ));
     }
 
-    std::fs::create_dir_all(target).map_err(|e| {
-        io_err(
-            e.kind(),
-            format!("创建目录 {} 失败: {}", target.display(), e),
-        )
-    })?;
+    std::fs::create_dir_all(target)
+        .map_err(|e| io_err(e.kind(), format!("创建目录 {} 失败: {}", target.display(), e)))?;
 
-    let entries = std::fs::read_dir(source).map_err(|e| {
-        io_err(
-            e.kind(),
-            format!("读取目录 {} 失败: {}", source.display(), e),
-        )
-    })?;
+    let entries = std::fs::read_dir(source)
+        .map_err(|e| io_err(e.kind(), format!("读取目录 {} 失败: {}", source.display(), e)))?;
 
     for entry in entries {
-        let entry = entry.map_err(|e| {
-            io_err(
-                e.kind(),
-                format!("读取 {} 条目失败: {}", source.display(), e),
-            )
-        })?;
+        let entry = entry.map_err(|e| io_err(e.kind(), format!("读取 {} 条目失败: {}", source.display(), e)))?;
         let src_path = entry.path();
         let dst_path = target.join(entry.file_name());
 
@@ -270,12 +252,9 @@ fn copy_dir_recursive(source: &std::path::Path, target: &std::path::Path) -> Res
             continue;
         }
 
-        let file_type = entry.file_type().map_err(|e| {
-            io_err(
-                e.kind(),
-                format!("读取 {} 类型失败: {}", src_path.display(), e),
-            )
-        })?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| io_err(e.kind(), format!("读取 {} 类型失败: {}", src_path.display(), e)))?;
 
         if file_type.is_symlink() {
             continue;
@@ -287,12 +266,7 @@ fn copy_dir_recursive(source: &std::path::Path, target: &std::path::Path) -> Res
             std::fs::copy(&src_path, &dst_path).map_err(|e| {
                 io_err(
                     e.kind(),
-                    format!(
-                        "复制 {} 到 {} 失败: {}",
-                        src_path.display(),
-                        dst_path.display(),
-                        e
-                    ),
+                    format!("复制 {} 到 {} 失败: {}", src_path.display(), dst_path.display(), e),
                 )
             })?;
         }
@@ -313,8 +287,7 @@ fn execute_self_update(op: &SelfUpdateOperation) -> Result<()> {
             let data = download_asset(api_url, browser_url, asset_name)?;
             output::success("下载完成");
 
-            let current_exe = std::env::current_exe()
-                .map_err(|e| SelfUpdateError::CurrentExePath { source: e })?;
+            let current_exe = std::env::current_exe().map_err(|e| SelfUpdateError::CurrentExePath { source: e })?;
             install_binary(&data, asset_name, &current_exe)?;
         }
     }

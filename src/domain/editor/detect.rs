@@ -26,14 +26,11 @@ pub fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     for candidate in registry.candidate_files() {
         if candidate.contains("{}") {
             for path in expand_glob_pattern(candidate) {
-                if Path::new(&path).exists() && registry.detect_editor(Path::new(&path)).is_some()
-                {
+                if Path::new(&path).exists() && registry.detect_editor(Path::new(&path)).is_some() {
                     result.push(path);
                 }
             }
-        } else if Path::new(candidate).exists()
-            && registry.detect_editor(Path::new(candidate)).is_some()
-        {
+        } else if Path::new(candidate).exists() && registry.detect_editor(Path::new(candidate)).is_some() {
             result.push(candidate.to_string());
         }
     }
@@ -131,11 +128,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
     if let Ok(package_name) = read_cargo_package_name(cargo_toml_path) {
         plan.add_op(ShellOperation::Run {
             program: "cargo".to_string(),
-            args: vec![
-                "update".to_string(),
-                "--package".to_string(),
-                package_name.clone(),
-            ],
+            args: vec!["update".to_string(), "--package".to_string(), package_name.clone()],
             dir: Some(dir.to_path_buf()),
             description: format!("cargo update --package {}", package_name),
             optional: true,
@@ -188,16 +181,8 @@ fn try_existing_js_lockfile(
 ) -> bool {
     let lockfiles: &[(&str, &str, &[&str])] = &[
         ("pnpm-lock.yaml", "pnpm", &["install", "--lockfile-only"]),
-        (
-            "yarn.lock",
-            "yarn",
-            &["install", "--mode", "update-lockfile"],
-        ),
-        (
-            "package-lock.json",
-            "npm",
-            &["install", "--package-lock-only"],
-        ),
+        ("yarn.lock", "yarn", &["install", "--mode", "update-lockfile"]),
+        ("package-lock.json", "npm", &["install", "--package-lock-only"]),
         ("bun.lock", "bun", &["install"]),
     ];
 
@@ -231,11 +216,7 @@ fn try_existing_js_lockfile(
     false
 }
 
-fn add_pnpm_fallback(
-    plan: &mut impl AddOperation,
-    pkg_dir: &Path,
-    is_gitignored: &dyn Fn(&Path) -> bool,
-) {
+fn add_pnpm_fallback(plan: &mut impl AddOperation, pkg_dir: &Path, is_gitignored: &dyn Fn(&Path) -> bool) {
     if utils::is_command_available("pnpm") {
         let lock_path = pkg_dir.join("pnpm-lock.yaml");
         if !is_gitignored(&lock_path) {
@@ -258,11 +239,7 @@ fn add_pnpm_fallback(
     });
 }
 
-pub fn compute_edited_content(
-    editor: &dyn FileEditor,
-    tag: &str,
-    config_file: &str,
-) -> Result<(String, String)> {
+pub fn compute_edited_content(editor: &dyn FileEditor, tag: &str, config_file: &str) -> Result<(String, String)> {
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file).map_err(|e| ReleaseError::ReadFile {
         path: config_file.to_string(),
@@ -282,21 +259,17 @@ pub fn read_file_version(editor: &dyn FileEditor, config_file: &str) -> Result<S
         source: e,
     })?;
     let location = editor.parse(&content)?;
-    let pos =
-        location
-            .project_version
-            .as_ref()
-            .ok_or_else(|| ReleaseError::VersionFieldNotFound {
-                path: config_file.to_string(),
-            })?;
+    let pos = location
+        .project_version
+        .as_ref()
+        .ok_or_else(|| ReleaseError::VersionFieldNotFound {
+            path: config_file.to_string(),
+        })?;
     let version_str = &content[pos.start..pos.end];
     Ok(version_str.to_string())
 }
 
-pub fn extract_fallback_version(
-    registry: &EditorRegistry,
-    config_files: &[String],
-) -> Option<String> {
+pub fn extract_fallback_version(registry: &EditorRegistry, config_files: &[String]) -> Option<String> {
     use super::Version;
 
     let mut best: Option<Version> = None;
@@ -313,11 +286,10 @@ pub fn extract_fallback_version(
 }
 
 pub fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
-    let content =
-        std::fs::read_to_string(cargo_toml_path).map_err(|e| ReleaseError::ReadFile {
-            path: cargo_toml_path.to_string(),
-            source: e,
-        })?;
+    let content = std::fs::read_to_string(cargo_toml_path).map_err(|e| ReleaseError::ReadFile {
+        path: cargo_toml_path.to_string(),
+        source: e,
+    })?;
     let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)?;
     let mut in_package = false;
     for line in content.lines() {

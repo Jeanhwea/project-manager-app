@@ -12,8 +12,7 @@ impl FileEditor for CMakeListsEditor {
     }
 
     fn find_version(&self, content: &str) -> Option<VersionPosition> {
-        let version_pattern =
-            regex::Regex::new(r"project\s*\([^)]*?VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)").ok()?;
+        let version_pattern = regex::Regex::new(r"project\s*\([^)]*?VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)").ok()?;
         if let Some(caps) = version_pattern.captures(content)
             && let Some(version_match) = caps.get(1)
         {

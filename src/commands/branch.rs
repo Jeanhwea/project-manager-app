@@ -42,17 +42,9 @@ pub struct BranchCleanArgs {
         help = "Remote name for deleting remote branches"
     )]
     pub remote: String,
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Also delete matching remote branches"
-    )]
+    #[arg(long, default_value = "false", help = "Also delete matching remote branches")]
     pub delete_remote: bool,
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Dry run: show what would be deleted"
-    )]
+    #[arg(long, default_value = "false", help = "Dry run: show what would be deleted")]
     pub dry_run: bool,
 }
 
@@ -166,9 +158,7 @@ impl MultiRepo for BranchCleanArgs {
         };
 
         let merged_branches = if pattern_re.is_none() {
-            GitCommandRunner::new()
-                .merged_branches(repo_path)
-                .unwrap_or_default()
+            GitCommandRunner::new().merged_branches(repo_path).unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -227,10 +217,7 @@ impl MultiRepo for BranchSwitchArgs {
 
     fn collect(&self, repo_path: &Path) -> Result<BranchSwitchContext> {
         let git_ctx = collect_context(repo_path)?;
-        let exists = git_ctx
-            .local_branches()
-            .iter()
-            .any(|b| b.name == self.branch);
+        let exists = git_ctx.local_branches().iter().any(|b| b.name == self.branch);
         Ok(BranchSwitchContext { exists })
     }
 
@@ -267,10 +254,7 @@ impl MultiRepo for BranchRenameArgs {
 
     fn collect(&self, repo_path: &Path) -> Result<BranchRenameContext> {
         let git_ctx = collect_context(repo_path)?;
-        let exists = git_ctx
-            .local_branches()
-            .iter()
-            .any(|b| b.name == self.old_name);
+        let exists = git_ctx.local_branches().iter().any(|b| b.name == self.old_name);
         Ok(BranchRenameContext { exists })
     }
 
@@ -365,11 +349,7 @@ impl MultiRepo for BranchAllArgs {
         plan.add_phase(sync_phase);
 
         plan.add_message(DisplayMessage::Success {
-            msg: format!(
-                "已处理 {} 个分支，当前分支: {}",
-                other_branches.len(),
-                current_branch
-            ),
+            msg: format!("已处理 {} 个分支，当前分支: {}", other_branches.len(), current_branch),
         });
 
         Ok(plan)

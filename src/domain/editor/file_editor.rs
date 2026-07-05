@@ -50,12 +50,7 @@ pub trait FileEditor: Send + Sync {
         })
     }
 
-    fn edit(
-        &self,
-        content: &str,
-        location: &VersionLocation,
-        new_version: &str,
-    ) -> Result<String> {
+    fn edit(&self, content: &str, location: &VersionLocation, new_version: &str) -> Result<String> {
         if let Some(ref pos) = location.project_version {
             Ok(replace_at_position(content, pos, new_version))
         } else {

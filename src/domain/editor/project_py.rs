@@ -19,12 +19,7 @@ impl FileEditor for PythonVersionEditor {
     }
 
     fn candidate_files(&self) -> Vec<&str> {
-        vec![
-            "__init__.py",
-            "version.py",
-            "__version__.py",
-            "{}/__version__.py",
-        ]
+        vec!["__init__.py", "version.py", "__version__.py", "{}/__version__.py"]
     }
 
     fn find_version(&self, content: &str) -> Option<VersionPosition> {

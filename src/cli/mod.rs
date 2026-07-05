@@ -17,9 +17,7 @@ pub fn styles() -> Styles {
                 .bold()
                 .fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::Green))),
         )
-        .placeholder(
-            anstyle::Style::new().fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::White))),
-        )
+        .placeholder(anstyle::Style::new().fg_color(Some(anstyle::Color::Ansi(anstyle::AnsiColor::White))))
         .error(
             anstyle::Style::new()
                 .bold()

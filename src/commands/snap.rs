@@ -40,10 +40,7 @@ pub struct CreateArgs {
 
 #[derive(Debug, clap::Args)]
 pub struct ListArgs {
-    #[arg(
-        default_value = ".",
-        help = "Path to the project, defaults to current directory"
-    )]
+    #[arg(default_value = ".", help = "Path to the project, defaults to current directory")]
     pub path: String,
 }
 
@@ -51,10 +48,7 @@ pub struct ListArgs {
 pub struct RestoreArgs {
     #[arg(help = "Snapshot reference (e.g. snap-000001, #0, or commit hash)")]
     pub snapshot: String,
-    #[arg(
-        default_value = ".",
-        help = "Path to the project, defaults to current directory"
-    )]
+    #[arg(default_value = ".", help = "Path to the project, defaults to current directory")]
     pub path: String,
     #[arg(
         long,
@@ -160,8 +154,7 @@ impl Command for ListArgs {
             });
         }
 
-        let snap_commits =
-            git::snapshot::list_snapshot_oneline(&GitCommandRunner::new(), project_path)?;
+        let snap_commits = git::snapshot::list_snapshot_oneline(&GitCommandRunner::new(), project_path)?;
 
         Ok(SnapListContext { snap_commits })
     }
@@ -306,10 +299,7 @@ fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
         let snap_commits = git::snapshot::list_snapshot_oneline(&runner, project_path)?;
 
         if index < snap_commits.len() {
-            let hash = snap_commits[index]
-                .split_whitespace()
-                .next()
-                .unwrap_or(snapshot);
+            let hash = snap_commits[index].split_whitespace().next().unwrap_or(snapshot);
             return Ok(hash.to_string());
         }
         return Err(SnapshotError::IndexOutOfRange {
@@ -341,16 +331,11 @@ mod tests {
 
     #[test]
     fn snap_list_messages_byte_equal_baseline() {
-        let snap_commits = vec![
-            "abc1234 snap-000000".to_string(),
-            "def5678 snap-000001".to_string(),
-        ];
+        let snap_commits = vec!["abc1234 snap-000000".to_string(), "def5678 snap-000001".to_string()];
         let ctx = SnapListContext {
             snap_commits: snap_commits.clone(),
         };
-        let args = ListArgs {
-            path: ".".to_string(),
-        };
+        let args = ListArgs { path: ".".to_string() };
         let plan = args.plan(&ctx).expect("plan");
 
         let actual: Vec<String> = plan.messages().iter().map(debug_msg).collect();

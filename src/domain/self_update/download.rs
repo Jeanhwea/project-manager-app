@@ -75,9 +75,9 @@ fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
         req = req.set("Authorization", &format!("Bearer {}", token));
     }
 
-    let resp = req.call().map_err(|e| SelfUpdateError::ApiDownload {
-        source: Box::new(e),
-    })?;
+    let resp = req
+        .call()
+        .map_err(|e| SelfUpdateError::ApiDownload { source: Box::new(e) })?;
     read_response_with_progress(resp)
 }
 
@@ -85,18 +85,13 @@ fn try_download(url: &str) -> Result<Vec<u8>> {
     let resp = ureq::get(url)
         .set("User-Agent", "pma-self-update")
         .call()
-        .map_err(|e| SelfUpdateError::AssetDownload {
-            source: Box::new(e),
-        })?;
+        .map_err(|e| SelfUpdateError::AssetDownload { source: Box::new(e) })?;
 
     read_response_with_progress(resp)
 }
 
 fn read_response_with_progress(resp: ureq::Response) -> Result<Vec<u8>> {
-    let total: u64 = resp
-        .header("Content-Length")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
+    let total: u64 = resp.header("Content-Length").and_then(|v| v.parse().ok()).unwrap_or(0);
 
     let pb = if total > 0 {
         let pb = ProgressBar::new(total);

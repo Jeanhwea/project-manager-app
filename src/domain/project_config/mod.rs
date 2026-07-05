@@ -49,10 +49,7 @@ mod tests {
         let cfg = load(dir.path()).expect("config should load");
         assert_eq!(
             cfg.files,
-            vec![
-                "Cargo.toml".to_string(),
-                "src-tauri/tauri.conf.json".to_string()
-            ]
+            vec!["Cargo.toml".to_string(), "src-tauri/tauri.conf.json".to_string()]
         );
     }
 

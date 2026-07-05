@@ -20,9 +20,8 @@ pub struct Version {
 
 impl Version {
     pub fn parse(s: &str) -> super::Result<Self> {
-        let ver = SemVersion::parse(s.trim()).map_err(|e| {
-            super::EditorError::VersionFormatError(format!("Invalid version format: {}", e))
-        })?;
+        let ver = SemVersion::parse(s.trim())
+            .map_err(|e| super::EditorError::VersionFormatError(format!("Invalid version format: {}", e)))?;
         Ok(Version {
             major: ver.major as u32,
             minor: ver.minor as u32,
