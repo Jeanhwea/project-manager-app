@@ -48,7 +48,11 @@ pub struct LoginArgs {
     pub url: String,
     #[arg(long, short, help = "Personal access token")]
     pub token: String,
-    #[arg(long, default_value = "ssh", help = "Protocol for clone operations (ssh or https)")]
+    #[arg(
+        long,
+        default_value = "ssh",
+        help = "Protocol for clone operations (ssh or https)"
+    )]
     pub protocol: String,
 }
 
@@ -119,8 +123,10 @@ impl Command for LoginArgs {
             });
         }
 
-        let config_content = toml::to_string_pretty(&ctx.config)
-            .map_err(|e| GitlabApiError::SerializeConfig { reason: e.to_string() })?;
+        let config_content =
+            toml::to_string_pretty(&ctx.config).map_err(|e| GitlabApiError::SerializeConfig {
+                reason: e.to_string(),
+            })?;
 
         plan.add(EditOperation::WriteFile {
             path: ConfigManager::gitlab_path().to_string_lossy().to_string(),
@@ -146,7 +152,8 @@ impl Command for CloneArgs {
 
     fn collect(&self) -> Result<CloneContext> {
         let config = ConfigManager::load_gitlab();
-        let (server, group_path) = resolve_server_and_group(&config, &self.group, self.server.as_deref())?;
+        let (server, group_path) =
+            resolve_server_and_group(&config, &self.group, self.server.as_deref())?;
         let api_base = api_base_url(server);
         let projects = fetch_group_projects(&api_base, &server.token, &group_path)?;
 
@@ -318,13 +325,18 @@ struct GitlabProject {
 
 fn gitlab_get(base_url: &str, token: &str, path: &str) -> Result<ureq::Response> {
     let url = format!("{}/api/v4{}", base_url, path);
-    ureq::get(&url).set("PRIVATE-TOKEN", token).call().map_err(|e| match e {
-        ureq::Error::Status(code, _) => AppError::GitlabApi(GitlabApiError::HttpStatus {
-            status: code,
-            path: path.to_string(),
-        }),
-        _ => AppError::GitlabApi(GitlabApiError::Request { source: Box::new(e) }),
-    })
+    ureq::get(&url)
+        .set("PRIVATE-TOKEN", token)
+        .call()
+        .map_err(|e| match e {
+            ureq::Error::Status(code, _) => AppError::GitlabApi(GitlabApiError::HttpStatus {
+                status: code,
+                path: path.to_string(),
+            }),
+            _ => AppError::GitlabApi(GitlabApiError::Request {
+                source: Box::new(e),
+            }),
+        })
 }
 
 fn find_group_id(base_url: &str, token: &str, group_path: &str) -> Result<u64> {
@@ -344,7 +356,11 @@ fn find_group_id(base_url: &str, token: &str, group_path: &str) -> Result<u64> {
         })
 }
 
-fn fetch_group_projects(base_url: &str, token: &str, group_path: &str) -> Result<Vec<CloneProject>> {
+fn fetch_group_projects(
+    base_url: &str,
+    token: &str,
+    group_path: &str,
+) -> Result<Vec<CloneProject>> {
     let group_id = find_group_id(base_url, token, group_path)?;
     let projects_path = format!("/groups/{}/projects?per_page=100", group_id);
     let response = gitlab_get(base_url, token, &projects_path)?;

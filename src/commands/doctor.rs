@@ -12,9 +12,18 @@ use std::path::Path;
 pub struct DoctorArgs {
     #[command(flatten)]
     pub repo_path: RepoPathArgs,
-    #[arg(long, short, default_value = "false", help = "Automatically fix detected issues")]
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Automatically fix detected issues"
+    )]
     pub fix: bool,
-    #[arg(long, default_value = "false", help = "Dry run: show what would be fixed")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show what would be fixed"
+    )]
     pub dry_run: bool,
 }
 
@@ -103,7 +112,9 @@ impl MultiRepo for DoctorArgs {
                         msg: "stash 条目需要手动处理".to_string(),
                     });
                 }
-                Diagnosis::RemoteNameMismatch { current, expected, .. } => {
+                Diagnosis::RemoteNameMismatch {
+                    current, expected, ..
+                } => {
                     if git_ctx.has_remote(expected) {
                         fix_phase.add_message(DisplayMessage::Warning {
                             msg: format!("目标 remote 名称 {} 已存在，跳过", expected),
@@ -118,12 +129,18 @@ impl MultiRepo for DoctorArgs {
                 }
                 Diagnosis::DetachedHead => {
                     fix_phase.add_message(DisplayMessage::Skip {
-                        msg: format!("HEAD 处于分离状态 (仓库 {})，需要手动检出分支", repo_path.display()),
+                        msg: format!(
+                            "HEAD 处于分离状态 (仓库 {})，需要手动检出分支",
+                            repo_path.display()
+                        ),
                     });
                 }
                 Diagnosis::NoRemote => {
                     fix_phase.add_message(DisplayMessage::Skip {
-                        msg: format!("仓库 {} 没有配置远程仓库，跳过自动修复", repo_path.display()),
+                        msg: format!(
+                            "仓库 {} 没有配置远程仓库，跳过自动修复",
+                            repo_path.display()
+                        ),
                     });
                 }
             }

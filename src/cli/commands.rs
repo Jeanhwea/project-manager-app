@@ -1,8 +1,9 @@
 use clap::Parser;
 
 use crate::commands::{
-    branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs, gitlab::GitlabArgs,
-    release::ReleaseArgs, self_update::SelfManageArgs, snap::SnapArgs, status::StatusArgs, sync::SyncArgs,
+    branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs,
+    gitlab::GitlabArgs, release::ReleaseArgs, self_update::SelfManageArgs, snap::SnapArgs,
+    status::StatusArgs, sync::SyncArgs,
 };
 use crate::error::Result;
 

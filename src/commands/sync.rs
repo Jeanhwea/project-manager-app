@@ -16,7 +16,11 @@ pub struct SyncArgs {
     pub repo_path: RepoPathArgs,
     #[arg(long, short, help = "Target remote name (e.g. origin, upstream)")]
     pub remote: Option<String>,
-    #[arg(long, short = 'A', help = "Push to all remotes when no remote is specified")]
+    #[arg(
+        long,
+        short = 'A',
+        help = "Push to all remotes when no remote is specified"
+    )]
     pub all_remotes: bool,
     #[arg(
         long,
@@ -25,7 +29,11 @@ pub struct SyncArgs {
         help = "Sync all branches before pulling (pull current branch first)"
     )]
     pub all_branches: bool,
-    #[arg(long, default_value = "false", help = "Dry run: show commands without executing")]
+    #[arg(
+        long,
+        default_value = "false",
+        help = "Dry run: show commands without executing"
+    )]
     pub dry_run: bool,
 }
 
@@ -53,15 +61,18 @@ impl MultiRepo for SyncArgs {
             });
         }
 
-        let target_remotes = resolve_target_remotes(&git_ctx, self.remote.as_deref(), self.all_remotes)?;
+        let target_remotes =
+            resolve_target_remotes(&git_ctx, self.remote.as_deref(), self.all_remotes)?;
 
         let target_remote_objs: Vec<&Remote> = target_remotes
             .iter()
             .filter_map(|name| git_ctx.remotes.iter().find(|r| &r.name == name))
             .collect();
 
-        let should_push =
-            !target_remote_objs.is_empty() && target_remote_objs.iter().any(|remote| should_push_to_remote(remote));
+        let should_push = !target_remote_objs.is_empty()
+            && target_remote_objs
+                .iter()
+                .any(|remote| should_push_to_remote(remote));
 
         Ok(SyncContext {
             git_ctx,
@@ -242,7 +253,11 @@ fn should_push_to_remote(remote: &Remote) -> bool {
 
     let config = ConfigManager::load_config();
 
-    !config.sync.skip_push_remotes.iter().any(|r| r == &remote.name)
+    !config
+        .sync
+        .skip_push_remotes
+        .iter()
+        .any(|r| r == &remote.name)
 }
 
 fn is_github_http_remote(remote: &Remote) -> bool {
@@ -266,6 +281,8 @@ fn skip_push_reason(remote: &Remote) -> String {
 
 fn skip_plan(msg: &str) -> Result<ExecutionPlan> {
     let mut plan = ExecutionPlan::new();
-    plan.add_message(DisplayMessage::Skip { msg: msg.to_string() });
+    plan.add_message(DisplayMessage::Skip {
+        msg: msg.to_string(),
+    });
     Ok(plan)
 }

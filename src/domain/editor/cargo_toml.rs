@@ -1,4 +1,6 @@
-use super::{EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position};
+use super::{
+    EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
+};
 
 pub struct CargoTomlEditor;
 
@@ -67,7 +69,8 @@ impl FileEditor for CargoTomlEditor {
                 let project_version = self.find_version(content);
                 if project_version.is_none() {
                     return Err(EditorError::VersionNotFound(
-                        "Cargo.toml [workspace.package] section does not have version field".to_string(),
+                        "Cargo.toml [workspace.package] section does not have version field"
+                            .to_string(),
                     ));
                 }
                 return Ok(VersionLocation {
@@ -101,7 +104,12 @@ impl FileEditor for CargoTomlEditor {
         })
     }
 
-    fn edit(&self, content: &str, location: &VersionLocation, new_version: &str) -> Result<String> {
+    fn edit(
+        &self,
+        content: &str,
+        location: &VersionLocation,
+        new_version: &str,
+    ) -> Result<String> {
         if location.is_workspace_root {
             return Err(EditorError::VersionNotFound(
                 "Cargo.toml is a workspace root file, no project version".to_string(),

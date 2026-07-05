@@ -65,7 +65,8 @@ pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
             if remote.is_empty() {
                 continue;
             }
-            if let Ok(remote_output) = runner.run_local(&["remote", "show", remote], Some(repo_path))
+            if let Ok(remote_output) =
+                runner.run_local(&["remote", "show", remote], Some(repo_path))
                 && remote_output.contains("(stale)")
             {
                 issues.push(Diagnosis::StaleRefs {

@@ -148,7 +148,8 @@ mod tests {
     #[test]
     fn test_capture_mode_with_nonexistent_command() {
         let runner = CommandRunner;
-        let ctx = ExecutionContext::new("nonexistent_command_xyz123").output_mode(OutputMode::Capture);
+        let ctx =
+            ExecutionContext::new("nonexistent_command_xyz123").output_mode(OutputMode::Capture);
 
         let result = runner.execute(&ctx);
 

@@ -7,7 +7,10 @@ pub fn collect_context(repo_path: &Path) -> Result<GitContext> {
     collect_context_with_runner(&runner, repo_path)
 }
 
-pub fn collect_context_with_runner(runner: &GitCommandRunner, repo_path: &Path) -> Result<GitContext> {
+pub fn collect_context_with_runner(
+    runner: &GitCommandRunner,
+    repo_path: &Path,
+) -> Result<GitContext> {
     let root = runner.run_local(&["rev-parse", "--show-toplevel"], Some(repo_path))?;
     let root = std::path::PathBuf::from(root);
 
@@ -110,7 +113,9 @@ fn collect_tags(runner: &GitCommandRunner, root: &Path) -> Result<Vec<Tag>> {
         if line.is_empty() {
             continue;
         }
-        tags.push(Tag { name: line.to_string() });
+        tags.push(Tag {
+            name: line.to_string(),
+        });
     }
 
     Ok(tags)

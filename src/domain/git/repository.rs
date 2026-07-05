@@ -8,7 +8,11 @@ pub struct RepoInfo {
     pub path: PathBuf,
 }
 
-fn find_git_repositories(root_dir: &Path, max_depth: usize, skip_dirs: &[String]) -> Result<Vec<RepoInfo>> {
+fn find_git_repositories(
+    root_dir: &Path,
+    max_depth: usize,
+    skip_dirs: &[String],
+) -> Result<Vec<RepoInfo>> {
     let mut repos = Vec::new();
 
     if max_depth == 0 {

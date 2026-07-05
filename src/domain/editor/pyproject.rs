@@ -38,9 +38,9 @@ impl FileEditor for PyprojectEditor {
     }
 
     fn parse(&self, content: &str) -> Result<super::VersionLocation> {
-        let doc = content
-            .parse::<toml_edit::DocumentMut>()
-            .map_err(|e| EditorError::ParseError(format!("Failed to parse pyproject.toml: {}", e)))?;
+        let doc = content.parse::<toml_edit::DocumentMut>().map_err(|e| {
+            EditorError::ParseError(format!("Failed to parse pyproject.toml: {}", e))
+        })?;
 
         if doc.contains_key("project") {
             let project_version = Self::find_version_in_section(content, "[project]");
@@ -67,7 +67,8 @@ impl FileEditor for PyprojectEditor {
         }
 
         Err(EditorError::VersionNotFound(
-            "pyproject.toml does not have version field in [project] or [tool.poetry] section".to_string(),
+            "pyproject.toml does not have version field in [project] or [tool.poetry] section"
+                .to_string(),
         ))
     }
 

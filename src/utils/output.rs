@@ -132,7 +132,10 @@ pub fn header(title: &str) {
 
 pub fn section(title: &str) {
     print_line("");
-    print_line(&style_text(&format!("{} {}", symbols::SECTION_PREFIX, title), TAG_CYAN));
+    print_line(&style_text(
+        &format!("{} {}", symbols::SECTION_PREFIX, title),
+        TAG_CYAN,
+    ));
 }
 
 pub fn repo_header(index: usize, total: usize, path: &Path) {
@@ -183,7 +186,11 @@ pub fn not_found(msg: &str) {
 }
 
 pub fn info(msg: &str) {
-    print_line(&format!("{} {}", style_text(symbols::RESULT_PREFIX, TAG_CYAN), msg));
+    print_line(&format!(
+        "{} {}",
+        style_text(symbols::RESULT_PREFIX, TAG_CYAN),
+        msg
+    ));
 }
 
 pub fn skip(msg: &str) {
@@ -210,11 +217,19 @@ pub fn blank() {
 }
 
 pub fn removed_line(s: &str) {
-    print_line(&format!("{}{}", symbols::REMOVED_LINE_PREFIX, style_text(s, BODY_RED)));
+    print_line(&format!(
+        "{}{}",
+        symbols::REMOVED_LINE_PREFIX,
+        style_text(s, BODY_RED)
+    ));
 }
 
 pub fn added_line(s: &str) {
-    print_line(&format!("{}{}", symbols::ADDED_LINE_PREFIX, style_text(s, BODY_GREEN)));
+    print_line(&format!(
+        "{}{}",
+        symbols::ADDED_LINE_PREFIX,
+        style_text(s, BODY_GREEN)
+    ));
 }
 
 pub fn dry_run_header(msg: &str) {
@@ -238,7 +253,9 @@ fn split_command_prefix(cmd: &str) -> (Option<&str>, &str) {
 }
 
 fn display_width(s: &str) -> usize {
-    s.chars().map(|c| if (c as u32) < 0x80 { 1 } else { 2 }).sum()
+    s.chars()
+        .map(|c| if (c as u32) < 0x80 { 1 } else { 2 })
+        .sum()
 }
 
 fn pad_to_width(s: &str, width: usize) -> String {

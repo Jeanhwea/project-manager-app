@@ -146,17 +146,27 @@ impl GitInvocation {
 impl GitOperation {
     fn invocation(&self) -> GitInvocation {
         match self {
-            GitOperation::Init { working_dir } => GitInvocation::local(working_dir.clone(), &["init"]),
+            GitOperation::Init { working_dir } => {
+                GitInvocation::local(working_dir.clone(), &["init"])
+            }
             GitOperation::Clone {
                 url,
                 target_dir,
                 working_dir,
-            } => GitInvocation::streaming(working_dir.clone(), &["clone", url, target_dir.to_str().unwrap_or(".")]),
-            GitOperation::Add { path, working_dir } => GitInvocation::local(working_dir.clone(), &["add", path]),
-            GitOperation::Commit { message, working_dir } => {
-                GitInvocation::local(working_dir.clone(), &["commit", "-m", message])
+            } => GitInvocation::streaming(
+                working_dir.clone(),
+                &["clone", url, target_dir.to_str().unwrap_or(".")],
+            ),
+            GitOperation::Add { path, working_dir } => {
+                GitInvocation::local(working_dir.clone(), &["add", path])
             }
-            GitOperation::CreateTag { tag, working_dir } => GitInvocation::local(working_dir.clone(), &["tag", tag]),
+            GitOperation::Commit {
+                message,
+                working_dir,
+            } => GitInvocation::local(working_dir.clone(), &["commit", "-m", message]),
+            GitOperation::CreateTag { tag, working_dir } => {
+                GitInvocation::local(working_dir.clone(), &["tag", tag])
+            }
             GitOperation::PushTag {
                 remote,
                 tag,
@@ -167,41 +177,56 @@ impl GitOperation {
                 branch,
                 working_dir,
             } => GitInvocation::streaming(working_dir.clone(), &["push", remote, branch]),
-            GitOperation::PushAll { remote, working_dir } => {
-                GitInvocation::streaming(working_dir.clone(), &["push", "--all", remote])
-            }
-            GitOperation::PushTags { remote, working_dir } => {
-                GitInvocation::streaming(working_dir.clone(), &["push", "--tags", remote])
-            }
+            GitOperation::PushAll {
+                remote,
+                working_dir,
+            } => GitInvocation::streaming(working_dir.clone(), &["push", "--all", remote]),
+            GitOperation::PushTags {
+                remote,
+                working_dir,
+            } => GitInvocation::streaming(working_dir.clone(), &["push", "--tags", remote]),
             GitOperation::Pull {
                 remote,
                 branch,
                 working_dir,
             } => GitInvocation::streaming(working_dir.clone(), &["pull", remote, branch]),
-            GitOperation::PullDefault { working_dir } => GitInvocation::streaming(working_dir.clone(), &["pull"]),
-            GitOperation::FetchTags { remote, working_dir } => {
-                GitInvocation::streaming(working_dir.clone(), &["fetch", remote, "--tags"])
+            GitOperation::PullDefault { working_dir } => {
+                GitInvocation::streaming(working_dir.clone(), &["pull"])
             }
-            GitOperation::Checkout { ref_name, working_dir } => {
-                GitInvocation::streaming(working_dir.clone(), &["checkout", ref_name])
-            }
-            GitOperation::DeleteBranch { branch, working_dir } => {
-                GitInvocation::local(working_dir.clone(), &["branch", "-d", branch])
-            }
-            GitOperation::RenameBranch { old, new, working_dir } => {
-                GitInvocation::streaming(working_dir.clone(), &["branch", "-m", old, new])
-            }
+            GitOperation::FetchTags {
+                remote,
+                working_dir,
+            } => GitInvocation::streaming(working_dir.clone(), &["fetch", remote, "--tags"]),
+            GitOperation::Checkout {
+                ref_name,
+                working_dir,
+            } => GitInvocation::streaming(working_dir.clone(), &["checkout", ref_name]),
+            GitOperation::DeleteBranch {
+                branch,
+                working_dir,
+            } => GitInvocation::local(working_dir.clone(), &["branch", "-d", branch]),
+            GitOperation::RenameBranch {
+                old,
+                new,
+                working_dir,
+            } => GitInvocation::streaming(working_dir.clone(), &["branch", "-m", old, new]),
             GitOperation::DeleteRemoteBranch {
                 remote,
                 branch,
                 working_dir,
-            } => GitInvocation::streaming(working_dir.clone(), &["push", remote, "--delete", branch]),
-            GitOperation::RenameRemote { old, new, working_dir } => {
-                GitInvocation::local(working_dir.clone(), &["remote", "rename", old, new])
-            }
-            GitOperation::PruneRemote { remote, working_dir } => {
-                GitInvocation::local(working_dir.clone(), &["remote", "prune", remote])
-            }
+            } => GitInvocation::streaming(
+                working_dir.clone(),
+                &["push", remote, "--delete", branch],
+            ),
+            GitOperation::RenameRemote {
+                old,
+                new,
+                working_dir,
+            } => GitInvocation::local(working_dir.clone(), &["remote", "rename", old, new]),
+            GitOperation::PruneRemote {
+                remote,
+                working_dir,
+            } => GitInvocation::local(working_dir.clone(), &["remote", "prune", remote]),
             GitOperation::SetUpstream {
                 remote,
                 branch,
@@ -209,12 +234,18 @@ impl GitOperation {
             } => {
                 let upstream = format!("{}/{}", remote, branch);
                 GitInvocation {
-                    args: vec!["branch".to_string(), "--set-upstream-to".to_string(), upstream],
+                    args: vec![
+                        "branch".to_string(),
+                        "--set-upstream-to".to_string(),
+                        upstream,
+                    ],
                     working_dir: working_dir.clone(),
                     streaming: false,
                 }
             }
-            GitOperation::Gc { working_dir } => GitInvocation::streaming(working_dir.clone(), &["gc", "--aggressive"]),
+            GitOperation::Gc { working_dir } => {
+                GitInvocation::streaming(working_dir.clone(), &["gc", "--aggressive"])
+            }
         }
     }
 
@@ -237,12 +268,14 @@ impl GitOperation {
                 "commit 已创建但未推送，请手动执行: git push {} {}",
                 remote, branch
             )),
-            GitOperation::PushAll { remote, .. } => {
-                Some(format!("commit 已创建但未推送，请手动执行: git push --all {}", remote))
-            }
-            GitOperation::PushTags { remote, .. } => {
-                Some(format!("tag 已创建但未推送，请手动执行: git push --tags {}", remote))
-            }
+            GitOperation::PushAll { remote, .. } => Some(format!(
+                "commit 已创建但未推送，请手动执行: git push --all {}",
+                remote
+            )),
+            GitOperation::PushTags { remote, .. } => Some(format!(
+                "tag 已创建但未推送，请手动执行: git push --tags {}",
+                remote
+            )),
             _ => None,
         }
     }

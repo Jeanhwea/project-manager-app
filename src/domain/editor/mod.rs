@@ -15,12 +15,14 @@ mod version_bump;
 mod version_text;
 
 pub use detect::{
-    add_lockfile_operations, compute_edited_content, detect_config_files, extract_fallback_version, read_file_version,
-    resolve_config_files,
+    add_lockfile_operations, compute_edited_content, detect_config_files,
+    extract_fallback_version, read_file_version, resolve_config_files,
 };
 pub use error::{EditorError, Result};
 pub use file_editor::{FileEditor, write_atomic};
-pub use position::{VersionLocation, VersionPosition, extract_version_position, replace_at_position};
+pub use position::{
+    VersionLocation, VersionPosition, extract_version_position, replace_at_position,
+};
 pub use registry::EditorRegistry;
 pub use version_bump::{BumpType, Version};
 

@@ -10,7 +10,9 @@ pub struct ProjectConfig {
 
 impl ProjectConfig {
     pub fn render(files: &[String]) -> String {
-        let cfg = ProjectConfig { files: files.to_vec() };
+        let cfg = ProjectConfig {
+            files: files.to_vec(),
+        };
         serde_json::to_string_pretty(&cfg).unwrap_or_else(|_| "{\n  \"files\": []\n}".to_string())
     }
 }

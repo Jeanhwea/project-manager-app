@@ -144,12 +144,17 @@ pub fn is_gitignored(file_path: &Path) -> bool {
     };
 
     let runner = GitCommandRunner::new();
-    runner.run_local(&["check-ignore", file_name], Some(parent)).is_ok()
+    runner
+        .run_local(&["check-ignore", file_name], Some(parent))
+        .is_ok()
 }
 
 fn find_max_semver_tag(runner: &GitCommandRunner, repo_path: &Path) -> Option<String> {
     let output = runner
-        .run_local(&["tag", "--list", "v*", "--format=%(refname:short)"], Some(repo_path))
+        .run_local(
+            &["tag", "--list", "v*", "--format=%(refname:short)"],
+            Some(repo_path),
+        )
         .ok()?;
 
     let mut best: Option<(Version, String)> = None;

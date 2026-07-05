@@ -23,8 +23,9 @@ impl FileEditor for PackageJsonEditor {
     }
 
     fn parse(&self, content: &str) -> Result<super::VersionLocation> {
-        let _: serde_json::Value = serde_json::from_str(content)
-            .map_err(|e| EditorError::ParseError(format!("Failed to parse package.json: {}", e)))?;
+        let _: serde_json::Value = serde_json::from_str(content).map_err(|e| {
+            EditorError::ParseError(format!("Failed to parse package.json: {}", e))
+        })?;
 
         let project_version = self.find_version(content);
 

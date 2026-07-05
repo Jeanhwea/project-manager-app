@@ -1,10 +1,12 @@
 use crate::commands::Command;
 use crate::domain::editor::{
-    BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content, detect_config_files,
-    extract_fallback_version, read_file_version, resolve_config_files,
+    BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content,
+    detect_config_files, extract_fallback_version, read_file_version, resolve_config_files,
 };
 use crate::domain::git::GitOperation;
-use crate::domain::git::{ReleaseError, ReleaseGitState, collect_context, resolve_git_root, validate_git_state};
+use crate::domain::git::{
+    ReleaseError, ReleaseGitState, collect_context, resolve_git_root, validate_git_state,
+};
 use crate::domain::project_config;
 use crate::engine::plan;
 use crate::error::{AppError, Result};
@@ -19,13 +21,27 @@ use std::path::PathBuf;
 
 #[derive(Debug, clap::Args)]
 pub struct ReleaseArgs {
-    #[arg(value_enum, default_value = "patch", help = "Bump type: major, minor, patch")]
+    #[arg(
+        value_enum,
+        default_value = "patch",
+        help = "Bump type: major, minor, patch"
+    )]
     pub bump_type: BumpType,
     #[arg(help = "Files to update version (auto-detect if not specified)")]
     pub files: Vec<String>,
-    #[arg(long, short = 'n', default_value = "false", help = "Stay in current directory")]
+    #[arg(
+        long,
+        short = 'n',
+        default_value = "false",
+        help = "Stay in current directory"
+    )]
     pub no_root: bool,
-    #[arg(long, short, default_value = "false", help = "Force release even if not on master")]
+    #[arg(
+        long,
+        short,
+        default_value = "false",
+        help = "Force release even if not on master"
+    )]
     pub force: bool,
     #[arg(long, default_value = "false", help = "Skip pushing tags and branches")]
     pub skip_push: bool,
@@ -63,7 +79,9 @@ impl Command for ReleaseArgs {
         };
 
         let cli_files = if self.files.is_empty() {
-            project_config::load(&work_dir).map(|c| c.files).unwrap_or_default()
+            project_config::load(&work_dir)
+                .map(|c| c.files)
+                .unwrap_or_default()
         } else {
             self.files.clone()
         };
@@ -101,7 +119,13 @@ impl Command for ReleaseArgs {
     }
 
     fn plan(&self, ctx: &ReleaseContext) -> Result<ExecutionPlan> {
-        let plan = build_execution_plan(self, &ctx.config_files, &ctx.state, &ctx.git_ctx, &ctx.registry)?;
+        let plan = build_execution_plan(
+            self,
+            &ctx.config_files,
+            &ctx.state,
+            &ctx.git_ctx,
+            &ctx.registry,
+        )?;
         Ok(plan.with_dry_run(self.dry_run))
     }
 
@@ -191,7 +215,10 @@ fn build_execution_plan(
     add_release_metadata(&mut plan, args, state);
 
     let edit_phase = build_edit_phase(config_files, state, registry)?;
-    let has_changes = edit_phase.steps().iter().any(|step| matches!(step, Step::Op(_)));
+    let has_changes = edit_phase
+        .steps()
+        .iter()
+        .any(|step| matches!(step, Step::Op(_)));
 
     if !edit_phase.is_empty() {
         plan.add_phase(edit_phase);
@@ -227,7 +254,11 @@ fn add_release_metadata(plan: &mut ExecutionPlan, args: &ReleaseArgs, state: &Re
     }
 }
 
-fn build_edit_phase(config_files: &[String], state: &ReleaseGitState, registry: &EditorRegistry) -> Result<Phase> {
+fn build_edit_phase(
+    config_files: &[String],
+    state: &ReleaseGitState,
+    registry: &EditorRegistry,
+) -> Result<Phase> {
     let mut edit_phase = Phase::new("版本修改");
 
     for file_path in config_files {
@@ -243,7 +274,10 @@ fn build_edit_phase(config_files: &[String], state: &ReleaseGitState, registry: 
             let git_ver = state.current_tag.trim_start_matches('v');
             if file_ver != git_ver {
                 edit_phase.add_message(DisplayMessage::Warning {
-                    msg: format!("文件版本 {} 与 git tag {} 不一致，以 git tag 为准", file_ver, git_ver),
+                    msg: format!(
+                        "文件版本 {} 与 git tag {} 不一致，以 git tag 为准",
+                        file_ver, git_ver
+                    ),
                 });
             }
         }
@@ -316,7 +350,12 @@ fn compute_line_diff(file_path: &str, original: &str, edited: &str) -> Option<Di
     })
 }
 
-fn build_git_phase(args: &ReleaseArgs, state: &ReleaseGitState, ctx: &GitContext, has_changes: bool) -> Phase {
+fn build_git_phase(
+    args: &ReleaseArgs,
+    state: &ReleaseGitState,
+    ctx: &GitContext,
+    has_changes: bool,
+) -> Phase {
     let mut git_phase = Phase::new("Git 提交推送");
 
     if has_changes {
