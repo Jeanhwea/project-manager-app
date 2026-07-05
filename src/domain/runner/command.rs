@@ -81,7 +81,7 @@ impl CommandRunner {
                 cmd.current_dir(dir);
             }
 
-            Ok(cmd)
+            return Ok(cmd);
         }
 
         #[cfg(not(target_os = "windows"))]

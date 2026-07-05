@@ -182,7 +182,7 @@ impl MultiRepo for BranchCleanArgs {
                 Some(re) => re.is_match(name),
                 None => merged_branches.iter().any(|b| b == name),
             })
-            .map(str::to_string)
+            .map(|s| s.to_string())
             .collect();
 
         Ok(BranchCleanContext {
@@ -320,7 +320,7 @@ impl MultiRepo for BranchAllArgs {
             .local_branches()
             .iter()
             .filter(|b| b.name != current_branch.as_str())
-            .copied()
+            .cloned()
             .collect();
 
         if other_branches.is_empty() {

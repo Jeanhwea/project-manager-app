@@ -311,12 +311,13 @@ fn resolve_snapshot_ref(project_path: &Path, snapshot: &str) -> Result<String> {
                 .next()
                 .unwrap_or(snapshot);
             return Ok(hash.to_string());
+        } else {
+            return Err(SnapshotError::IndexOutOfRange {
+                index,
+                total: snap_commits.len(),
+            }
+            .into());
         }
-        return Err(SnapshotError::IndexOutOfRange {
-            index,
-            total: snap_commits.len(),
-        }
-        .into());
     }
 
     let hash = git::snapshot::rev_parse_verify(&runner, project_path, snapshot)?;

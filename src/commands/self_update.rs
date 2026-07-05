@@ -116,8 +116,8 @@ impl Command for UpdateArgs {
                 current: PKG_VERSION,
                 latest,
                 is_npm: true,
-                force: self.force,
-                is_latest,
+                force: false,
+                is_latest: false,
                 release,
             });
         }

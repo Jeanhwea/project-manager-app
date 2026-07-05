@@ -12,7 +12,7 @@ impl FileEditor for VersionTextEditor {
     }
 
     fn find_version(&self, content: &str) -> Option<VersionPosition> {
-        let version_pattern = regex::Regex::new(r"\d+\.\d+\.\d+").ok()?;
+        let version_pattern = regex::Regex::new(r#"\d+\.\d+\.\d+"#).ok()?;
 
         if let Some(m) = version_pattern.find(content) {
             return Some(VersionPosition {

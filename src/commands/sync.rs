@@ -19,6 +19,7 @@ pub struct SyncArgs {
     #[arg(
         long,
         short = 'A',
+        default_value = "true",
         help = "Push to all remotes when no remote is specified"
     )]
     pub all_remotes: bool,
@@ -64,8 +65,15 @@ impl MultiRepo for SyncArgs {
         let target_remotes =
             resolve_target_remotes(&git_ctx, self.remote.as_deref(), self.all_remotes)?;
 
-        let should_push =
-            !git_ctx.remotes.is_empty() && git_ctx.remotes.iter().any(should_push_to_remote);
+        let target_remote_objs: Vec<&Remote> = target_remotes
+            .iter()
+            .filter_map(|name| git_ctx.remotes.iter().find(|r| &r.name == name))
+            .collect();
+
+        let should_push = !target_remote_objs.is_empty()
+            && target_remote_objs
+                .iter()
+                .any(|remote| should_push_to_remote(remote));
 
         Ok(SyncContext {
             git_ctx,
@@ -162,19 +170,22 @@ impl MultiRepo for SyncArgs {
 
         if ctx.should_push {
             let mut push_phase = Phase::new("推送");
-            for remote in &ctx.git_ctx.remotes {
-                if !should_push_to_remote(remote) {
+            for remote_name in &ctx.target_remotes {
+                let remote_obj = ctx.git_ctx.remotes.iter().find(|r| &r.name == remote_name);
+                if let Some(remote) = remote_obj
+                    && !should_push_to_remote(remote)
+                {
                     push_phase.add_message(DisplayMessage::Skip {
                         msg: skip_push_reason(remote),
                     });
                     continue;
                 }
                 push_phase.add(GitOperation::PushAll {
-                    remote: remote.name.clone(),
+                    remote: remote_name.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
                 push_phase.add(GitOperation::PushTags {
-                    remote: remote.name.clone(),
+                    remote: remote_name.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });
             }
@@ -182,8 +193,12 @@ impl MultiRepo for SyncArgs {
                 plan.add_phase(push_phase);
             }
         } else {
-            for remote in &ctx.git_ctx.remotes {
-                let msg = skip_push_reason(remote);
+            for remote_name in &ctx.target_remotes {
+                let remote_obj = ctx.git_ctx.remotes.iter().find(|r| &r.name == remote_name);
+                let msg = match remote_obj {
+                    Some(remote) => skip_push_reason(remote),
+                    None => format!("跳过推送到 {}", remote_name),
+                };
                 plan.add_message(DisplayMessage::Skip { msg });
             }
         }
@@ -219,13 +234,7 @@ fn resolve_target_remotes(
         return Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect());
     }
 
-    // Default: push to preferred remote only
-    let preferred = git_ctx.preferred_remote();
-    if let Some(name) = preferred {
-        Ok(vec![name])
-    } else {
-        Ok(Vec::new())
-    }
+    Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect())
 }
 
 fn should_push_to_remote(remote: &Remote) -> bool {

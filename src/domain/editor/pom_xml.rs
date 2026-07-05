@@ -4,7 +4,7 @@ pub struct PomXmlEditor;
 
 impl PomXmlEditor {
     fn find_version_position(content: &str) -> Option<VersionPosition> {
-        let pattern = regex::Regex::new(r"<version>([^<]+)</version>").ok()?;
+        let pattern = regex::Regex::new(r#"<version>([^<]+)</version>"#).ok()?;
         extract_version_position(content, &pattern)
     }
 }

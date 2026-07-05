@@ -1,4 +1,4 @@
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use crate::model::plan::ExecutionResult;
 use crate::utils::output;
 
@@ -23,9 +23,6 @@ pub(crate) trait Command {
                     output::detail("恢复指引", hint);
                 }
             }
-            return Err(AppError::ExecutionFailed {
-                count: result.errors().len(),
-            });
         }
         Ok(())
     }

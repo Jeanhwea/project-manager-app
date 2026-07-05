@@ -15,8 +15,7 @@ pub enum Diagnosis {
     RemoteNameMismatch { current: String, expected: String },
 }
 
-// git count-objects -v returns size-pack in KiB, so 100 MiB = 100 * 1024 KiB
-const LARGE_REPO_THRESHOLD_KIB: u64 = 100 * 1024;
+const LARGE_REPO_THRESHOLD_BYTES: u64 = 100 * 1024 * 1024;
 
 pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
     let mut issues = Vec::new();
@@ -59,7 +58,7 @@ pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
         issues.push(Diagnosis::StashExists);
     }
 
-    if let Ok(output) = runner.run_local(&["remote"], Some(repo_path)) {
+    if let Ok(output) = runner.run_local(&["remote", "show"], Some(repo_path)) {
         for remote in output.lines() {
             let remote = remote.trim();
             if remote.is_empty() {
@@ -80,8 +79,8 @@ pub fn diagnose_repo(repo_path: &Path) -> Result<Vec<Diagnosis>, GitError> {
         for line in output.lines() {
             if let Some(size_str) = line.strip_prefix("size-pack:")
                 && let Some(size_num) = size_str.split_whitespace().next()
-                && let Ok(size_kib) = size_num.parse::<u64>()
-                && size_kib > LARGE_REPO_THRESHOLD_KIB
+                && let Ok(size_bytes) = size_num.parse::<u64>()
+                && size_bytes > LARGE_REPO_THRESHOLD_BYTES
             {
                 issues.push(Diagnosis::LargeRepo);
             }
