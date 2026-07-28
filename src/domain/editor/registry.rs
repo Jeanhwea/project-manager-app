@@ -1,3 +1,4 @@
+use super::app_json::AppJsonEditor;
 use super::cargo_toml::CargoTomlEditor;
 use super::cmake::CMakeListsEditor;
 use super::file_editor::FileEditor;
@@ -40,6 +41,7 @@ impl EditorRegistry {
             .register(PythonVersionEditor)
             .register(PyprojectEditor)
             .register(TauriConfEditor)
+            .register(AppJsonEditor)
     }
 
     pub fn register(mut self, editor: impl FileEditor + 'static) -> Self {

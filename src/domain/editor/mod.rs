@@ -1,3 +1,4 @@
+mod app_json;
 mod cargo_toml;
 mod cmake;
 mod detect;
