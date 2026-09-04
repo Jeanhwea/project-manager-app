@@ -43,14 +43,14 @@ pub struct BranchCleanArgs {
     #[arg(
         long,
         default_value = "false",
-        help = "Dry run: show what would be deleted"
+        help = "Dry run: show what would be deleted without actually deleting"
     )]
     pub dry_run: bool,
     #[arg(
         short = 'D',
         long = "delete-unmerged",
         default_value = "false",
-        help = "Also delete B-class branches (not merged into master/dev)"
+        help = "Also delete B-class branches (branches not merged into master/dev)"
     )]
     pub delete_unmerged: bool,
 }
@@ -219,7 +219,7 @@ impl MultiRepo for BranchCleanArgs {
             let remote_branch_names: Vec<String> = remote_branches_output
                 .lines()
                 .map(|line: &str| line.trim().to_string())
-                .filter(|line: &String| !line.is_empty() && line != "->")
+                .filter(|line: &String| !line.is_empty() && !line.contains("->"))
                 .collect();
 
             // Build a set of local tracking refs: "<remote>/<branch>" for all local branches
@@ -228,8 +228,10 @@ impl MultiRepo for BranchCleanArgs {
                 .filter(|name| local_names.contains(name))
                 .map(|name| name.to_string())
                 .collect();
+            // Build the set of tracking refs for ALL local branches (not just C and protected)
             let local_tracking: std::collections::HashSet<String> = to_delete
                 .iter()
+                .chain(unmerged_branches.iter())
                 .chain(protected_strings.iter())
                 .map(|name| format!("{}/{}", remote_name, name))
                 .collect();
@@ -275,9 +277,10 @@ impl MultiRepo for BranchCleanArgs {
         let to_delete = &ctx.to_delete;
         let unmerged = &ctx.unmerged_branches;
 
-        let has_work = !to_delete.is_empty() || (!unmerged.is_empty() && self.delete_unmerged);
+        let has_c_or_b_work = !to_delete.is_empty() || (!unmerged.is_empty() && self.delete_unmerged);
+        let has_orphan_work = !ctx.remote_orphan_branches.is_empty();
 
-        if !has_work {
+        if !has_c_or_b_work && !has_orphan_work {
             let mut msg = String::new();
             if to_delete.is_empty() {
                 msg.push_str("没有 C 类分支（已合并分支）需要清理");
@@ -300,6 +303,11 @@ impl MultiRepo for BranchCleanArgs {
                 }
             }
             return Ok(plan);
+        }
+
+        // 当只有 D 类工作时，显示提示信息
+        if !has_c_or_b_work && has_orphan_work {
+            plan.add_message(DisplayMessage::Skip { msg: "没有本地分支需要清理，仅清理远端孤儿分支 (D类)".to_string() });
         }
 
         // C 类分支: 始终清理
