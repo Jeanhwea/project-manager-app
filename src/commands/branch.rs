@@ -253,6 +253,14 @@ impl MultiRepo for BranchCleanArgs {
         }
         plan.add_phase(clean_phase);
 
+        // 同步 remote: 清理远端已经不存在的跟踪分支 (git remote prune)
+        let mut prune_phase = Phase::new("同步远端跟踪分支");
+        prune_phase.add(GitOperation::PruneRemote {
+            remote: ctx.remote_name.clone(),
+            working_dir: repo_path.to_path_buf(),
+        });
+        plan.add_phase(prune_phase);
+
         Ok(plan)
     }
 
