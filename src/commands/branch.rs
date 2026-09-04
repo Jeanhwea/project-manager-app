@@ -211,9 +211,14 @@ impl MultiRepo for BranchCleanArgs {
                 .collect();
 
             // Build a set of local tracking refs: "<remote>/<branch>" for all local branches
+            let protected_strings: Vec<String> = protected_branches
+                .iter()
+                .filter(|name| local_names.contains(name))
+                .map(|name| name.to_string())
+                .collect();
             let local_tracking: std::collections::HashSet<String> = candidates
                 .iter()
-                .chain(protected_branches.iter().filter(|name| local_names.contains(name)))
+                .chain(protected_strings.iter())
                 .map(|name| format!("{}/{}", remote_name, name))
                 .collect();
 
