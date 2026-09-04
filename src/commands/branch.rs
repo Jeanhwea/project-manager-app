@@ -165,10 +165,8 @@ impl MultiRepo for BranchCleanArgs {
         let runner = GitCommandRunner::new();
         let mut merged_into_protected: Vec<String> = Vec::new();
         for base in &protected_branches {
-            if local_names.contains(base) {
-                if let Ok(merged) = runner.merged_branches_into(base, repo_path) {
-                    merged_into_protected.extend(merged);
-                }
+            if local_names.contains(base) && let Ok(merged) = runner.merged_branches_into(base, repo_path) {
+                merged_into_protected.extend(merged);
             }
         }
 
