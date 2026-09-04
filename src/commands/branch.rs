@@ -217,11 +217,6 @@ impl MultiRepo for BranchCleanArgs {
         let runner_for_remote = GitCommandRunner::new();
         let remote_branches_output =
             runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))?;
-        let local_names: Vec<&str> = git_ctx
-            .local_branches()
-            .iter()
-            .map(|b| b.name.as_str())
-            .collect();
         let remote_orphan_branches: Vec<(String, String)> = {
             let remote_branch_names: Vec<String> = remote_branches_output
                 .lines()
@@ -229,18 +224,13 @@ impl MultiRepo for BranchCleanArgs {
                 .filter(|line: &String| !line.is_empty() && !line.contains("->"))
                 .collect();
 
-            // Build a set of local tracking refs: "<remote>/<branch>" for all local branches
-            let protected_strings: Vec<String> = protected_branches
+            // Build the set of tracking refs for ALL local branches, so any remote branch
+            // that has a corresponding local branch (regardless of merge status) is excluded
+            // from the "orphan" set.
+            let local_tracking: std::collections::HashSet<String> = git_ctx
+                .local_branches()
                 .iter()
-                .filter(|name| local_names.contains(name))
-                .map(|name| name.to_string())
-                .collect();
-            // Build the set of tracking refs for ALL local branches (not just C and protected)
-            let local_tracking: std::collections::HashSet<String> = to_delete
-                .iter()
-                .chain(unmerged_branches.iter())
-                .chain(protected_strings.iter())
-                .map(|name| format!("{}/{}", remote_name, name))
+                .map(|b| format!("{}/{}", remote_name, b.name))
                 .collect();
 
             remote_branch_names
