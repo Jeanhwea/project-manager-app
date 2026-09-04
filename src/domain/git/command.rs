@@ -65,7 +65,6 @@ impl GitCommandRunner {
         let output = self.run_local(&["status", "--porcelain"], Some(repo_path))?;
         Ok(!output.is_empty())
     }
-
 }
 
 impl Default for GitCommandRunner {

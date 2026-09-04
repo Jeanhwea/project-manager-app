@@ -181,7 +181,9 @@ impl MultiRepo for BranchCleanArgs {
             let check_protected = ["master", "dev"];
             for target in &check_protected {
                 // git branch --merged <target> 列出已合并到 target 的所有分支
-                if let Ok(output) = runner.run_local(&["branch", "--merged", target], Some(repo_path)) {
+                if let Ok(output) =
+                    runner.run_local(&["branch", "--merged", target], Some(repo_path))
+                {
                     for line in output.lines() {
                         let name = line.trim().trim_start_matches("* ").trim();
                         if !name.is_empty() && name != *target {
@@ -208,8 +210,13 @@ impl MultiRepo for BranchCleanArgs {
             .collect();
 
         // D类: 远端孤儿分支 — 本地没有跟踪分支的远端分支
+        // 先 prune 远端缓存，确保 git branch -r 是最新状态
+        let prune_runner = GitCommandRunner::new();
+        let _ = prune_runner.run_local(&["remote", "prune", &remote_name], Some(repo_path));
+
         let runner_for_remote = GitCommandRunner::new();
-        let remote_branches_output = runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))?;
+        let remote_branches_output =
+            runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))?;
         let local_names: Vec<&str> = git_ctx
             .local_branches()
             .iter()
@@ -277,7 +284,8 @@ impl MultiRepo for BranchCleanArgs {
         let to_delete = &ctx.to_delete;
         let unmerged = &ctx.unmerged_branches;
 
-        let has_c_or_b_work = !to_delete.is_empty() || (!unmerged.is_empty() && self.delete_unmerged);
+        let has_c_or_b_work =
+            !to_delete.is_empty() || (!unmerged.is_empty() && self.delete_unmerged);
         let has_orphan_work = !ctx.remote_orphan_branches.is_empty();
 
         if !has_c_or_b_work && !has_orphan_work {
@@ -307,7 +315,9 @@ impl MultiRepo for BranchCleanArgs {
 
         // 当只有 D 类工作时，显示提示信息
         if !has_c_or_b_work && has_orphan_work {
-            plan.add_message(DisplayMessage::Skip { msg: "没有本地分支需要清理，仅清理远端孤儿分支 (D类)".to_string() });
+            plan.add_message(DisplayMessage::Skip {
+                msg: "没有本地分支需要清理，仅清理远端孤儿分支 (D类)".to_string(),
+            });
         }
 
         // C 类分支: 始终清理
