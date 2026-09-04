@@ -184,7 +184,7 @@ impl MultiRepo for BranchCleanArgs {
                 if let Ok(output) = runner.run_local(&["branch", "--merged", target], Some(repo_path)) {
                     for line in output.lines() {
                         let name = line.trim().trim_start_matches("* ").trim();
-                        if !name.is_empty() && name != target {
+                        if !name.is_empty() && name != *target {
                             merged_set.insert(name.to_string());
                         }
                     }
@@ -196,14 +196,14 @@ impl MultiRepo for BranchCleanArgs {
         // C 类: 已合并到 protected 分支的 → 始终删除
         let to_delete: Vec<String> = candidates
             .iter()
-            .filter(|name| merged.contains(*name))
+            .filter(|name| merged.contains(&name.to_string()))
             .map(|s| s.to_string())
             .collect();
 
         // B 类: 未合并到 protected 分支的 → 仅加 -D 时删除
         let unmerged_branches: Vec<String> = candidates
             .iter()
-            .filter(|name| !merged.contains(*name))
+            .filter(|name| !merged.contains(&name.to_string()))
             .map(|s| s.to_string())
             .collect();
 
