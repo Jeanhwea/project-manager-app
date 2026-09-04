@@ -46,13 +46,6 @@ pub struct BranchCleanArgs {
         help = "Dry run: show what would be deleted"
     )]
     pub dry_run: bool,
-    #[arg(
-        long,
-        short = 'D',
-        default_value = "false",
-        help = "Also delete branches that have NOT been merged into master/dev"
-    )]
-    pub force_delete_unmerged: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -86,10 +79,8 @@ pub(crate) struct BranchListContext {
 
 #[derive(Debug)]
 pub(crate) struct BranchCleanContext {
-    merged_to_protected: Vec<String>, // C类: 已合入protected的分支
-    unmerged_to_protected: Vec<String>, // B类: 未合入protected的分支
-    remote_orphan_branches: Vec<(String, String)>, // D类: 远端孤儿分支 (remote, branch_name)
-    force_delete_unmerged: bool,
+    to_delete: Vec<String>,
+    remote_orphan_branches: Vec<(String, String)>,
     remote_name: String,
 }
 
@@ -164,15 +155,8 @@ impl MultiRepo for BranchCleanArgs {
         // Protected branches that should never be deleted
         let protected_branches = ["master", "main", "develop", "dev"];
 
-        // Determine which protected branches exist locally (to check merge status against them)
-        let local_names: Vec<&str> = git_ctx
-            .local_branches()
-            .iter()
-            .map(|b| b.name.as_str())
-            .collect();
-
         // All non-protected, non-current local branches
-        let candidates: Vec<String> = git_ctx
+        let to_delete: Vec<String> = git_ctx
             .local_branches()
             .iter()
             .map(|b| b.name.as_str())
@@ -181,33 +165,19 @@ impl MultiRepo for BranchCleanArgs {
             .map(|s| s.to_string())
             .collect();
 
-        let runner = GitCommandRunner::new();
-
-        // C类: 已合入protected的分支 → 默认删除
-        let mut merged_to_protected: Vec<String> = candidates.clone();
-        for base in &protected_branches {
-            if local_names.contains(base) {
-                if let Ok(merged) = runner.merged_branches_into(base, repo_path) {
-                    merged_to_protected.retain(|name| merged.contains(name));
-                }
-            }
-        }
-
-        // B类: 未合入protected的分支 = 候选集 减去 C类
-        let unmerged_to_protected: Vec<String> = candidates
-            .iter()
-            .filter(|name| !merged_to_protected.contains(name))
-            .cloned()
-            .collect();
-
         // D类: 远端孤儿分支 — 本地没有跟踪分支的远端分支
         let runner_for_remote = GitCommandRunner::new();
         let remote_branches_output = runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))?;
+        let local_names: Vec<&str> = git_ctx
+            .local_branches()
+            .iter()
+            .map(|b| b.name.as_str())
+            .collect();
         let remote_orphan_branches: Vec<(String, String)> = {
             let remote_branch_names: Vec<String> = remote_branches_output
                 .lines()
-                .map(|line| line.trim().to_string())
-                .filter(|line| !line.is_empty() && line != "->")
+                .map(|line: &str| line.trim().to_string())
+                .filter(|line: &String| !line.is_empty() && line != "->")
                 .collect();
 
             // Build a set of local tracking refs: "<remote>/<branch>" for all local branches
@@ -216,7 +186,7 @@ impl MultiRepo for BranchCleanArgs {
                 .filter(|name| local_names.contains(name))
                 .map(|name| name.to_string())
                 .collect();
-            let local_tracking: std::collections::HashSet<String> = candidates
+            let local_tracking: std::collections::HashSet<String> = to_delete
                 .iter()
                 .chain(protected_strings.iter())
                 .map(|name| format!("{}/{}", remote_name, name))
@@ -224,11 +194,11 @@ impl MultiRepo for BranchCleanArgs {
 
             remote_branch_names
                 .into_iter()
-                .filter(|rb| {
+                .filter(|rb: &String| {
                     // Skip HEAD pointer
                     !rb.starts_with("HEAD")
                 })
-                .map(|rb| {
+                .map(|rb: String| {
                     // rb is like "origin/some-branch" or "github/some-branch"
                     // Split at first "/" to separate remote name and branch name
                     if let Some(pos) = rb.find('/') {
@@ -236,10 +206,10 @@ impl MultiRepo for BranchCleanArgs {
                         let bn = rb[pos + 1..].to_string();
                         (rem, bn)
                     } else {
-                        (remote_name.clone(), rb)
+                        (remote_name.clone(), rb.clone())
                     }
                 })
-                .filter(|(rem, bn)| {
+                .filter(|(rem, bn): &(String, String)| {
                     // Skip if this branch is a protected branch name
                     let is_protected = protected_branches.contains(&bn.as_str());
                     // Skip if there's a local branch that tracks this remote branch
@@ -250,10 +220,8 @@ impl MultiRepo for BranchCleanArgs {
         };
 
         Ok(BranchCleanContext {
-            merged_to_protected,
-            unmerged_to_protected,
+            to_delete,
             remote_orphan_branches,
-            force_delete_unmerged: self.force_delete_unmerged,
             remote_name,
         })
     }
@@ -261,37 +229,18 @@ impl MultiRepo for BranchCleanArgs {
     fn plan(&self, ctx: &BranchCleanContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        // Build the list of branches to delete
-        let mut to_delete: Vec<String> = vec![];
-
-        // C类: 已合入 protected 的分支 — 始终清理
-        to_delete.extend(ctx.merged_to_protected.clone());
-
-        // B类: 未合入 protected 的分支 — 只在 -D 时清理
-        if ctx.force_delete_unmerged {
-            to_delete.extend(ctx.unmerged_to_protected.clone());
-        }
+        let to_delete = &ctx.to_delete;
 
         if to_delete.is_empty() {
-            if ctx.force_delete_unmerged {
-                plan.add_message(DisplayMessage::Skip {
-                    msg: "没有需要清理的分支".to_string(),
-                });
-            } else {
-                plan.add_message(DisplayMessage::Skip {
-                    msg: "没有需要清理的已合入分支 (C类). 使用 -D 可清理未合入分支 (B类)".to_string(),
-                });
-            }
+            plan.add_message(DisplayMessage::Skip {
+                msg: "没有需要清理的分支".to_string(),
+            });
             return Ok(plan);
         }
 
-        let mut clean_phase = if ctx.force_delete_unmerged {
-            Phase::new("清理所有非受保护分支 (B类 + C类)")
-        } else {
-            Phase::new("清理已合入受保护分支 (C类)")
-        };
+        let mut clean_phase = Phase::new("清理所有非受保护分支");
 
-        for branch in &to_delete {
+        for branch in to_delete {
             clean_phase.add(GitOperation::DeleteBranch {
                 branch: branch.clone(),
                 working_dir: repo_path.to_path_buf(),
