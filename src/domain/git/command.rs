@@ -66,12 +66,15 @@ impl GitCommandRunner {
         Ok(!output.is_empty())
     }
 
-    pub fn merged_branches(&self, repo_path: &Path) -> Result<Vec<String>> {
-        let output = self.run_local(&["branch", "--merged", "master"], Some(repo_path))?;
+    pub fn merged_branches_into(&self, base_branch: &str, repo_path: &Path) -> Result<Vec<String>> {
+        let output = self.run_local(
+            &["branch", "--merged", base_branch],
+            Some(repo_path),
+        )?;
         Ok(output
             .lines()
             .map(|line| line.trim_start_matches("* ").trim().to_string())
-            .filter(|line| !line.is_empty())
+            .filter(|line| !line.is_empty() && line != base_branch)
             .collect())
     }
 }

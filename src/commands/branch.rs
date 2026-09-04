@@ -33,8 +33,6 @@ pub struct BranchListArgs {
 pub struct BranchCleanArgs {
     #[command(flatten)]
     pub repo_path: RepoPathArgs,
-    #[arg(long, short, help = "Branch name pattern to match (e.g. 'feature/*')")]
-    pub pattern: Option<String>,
     #[arg(
         long,
         short,
@@ -42,12 +40,6 @@ pub struct BranchCleanArgs {
         help = "Remote name for deleting remote branches"
     )]
     pub remote: String,
-    #[arg(
-        long,
-        default_value = "false",
-        help = "Also delete matching remote branches"
-    )]
-    pub delete_remote: bool,
     #[arg(
         long,
         default_value = "false",
@@ -89,7 +81,6 @@ pub(crate) struct BranchListContext {
 pub(crate) struct BranchCleanContext {
     branches_to_delete: Vec<String>,
     remote_name: String,
-    delete_remote: bool,
 }
 
 #[derive(Debug)]
@@ -160,58 +151,66 @@ impl MultiRepo for BranchCleanArgs {
                 .unwrap_or_else(|| self.remote.clone())
         };
 
-        let pattern_re = match self.pattern.as_deref() {
-            Some(p) => Some(compile_glob_pattern(p)?),
-            None => None,
-        };
+        // Protected branches that should never be deleted
+        let protected_branches = ["master", "main", "develop", "dev"];
 
-        let merged_branches = if pattern_re.is_none() {
-            GitCommandRunner::new()
-                .merged_branches(repo_path)
-                .unwrap_or_default()
-        } else {
-            Vec::new()
-        };
+        // Determine which protected branches exist locally (to check merge status against them)
+        let local_names: Vec<&str> = git_ctx
+            .local_branches()
+            .iter()
+            .map(|b| b.name.as_str())
+            .collect();
+
+        // Collect branches that have been merged into any protected branch
+        let runner = GitCommandRunner::new();
+        let mut merged_into_protected: Vec<String> = Vec::new();
+        for base in &protected_branches {
+            if local_names.contains(base) {
+                if let Ok(merged) = runner.merged_branches_into(base, repo_path) {
+                    merged_into_protected.extend(merged);
+                }
+            }
+        }
 
         let branches_to_delete: Vec<String> = git_ctx
             .local_branches()
             .iter()
             .map(|b| b.name.as_str())
+            .filter(|name| !protected_branches.contains(name))
             .filter(|name| *name != git_ctx.current_branch)
-            .filter(|name| match &pattern_re {
-                Some(re) => re.is_match(name),
-                None => merged_branches.iter().any(|b| b == name),
-            })
+            .filter(|name| merged_into_protected.iter().any(|b| b == name))
             .map(|s| s.to_string())
             .collect();
 
         Ok(BranchCleanContext {
             branches_to_delete,
             remote_name,
-            delete_remote: self.delete_remote,
         })
     }
 
     fn plan(&self, ctx: &BranchCleanContext, repo_path: &Path) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
-        let mut clean_phase = Phase::new("清理分支");
+        if ctx.branches_to_delete.is_empty() {
+            plan.add_message(DisplayMessage::Skip {
+                msg: "没有需要清理的已合入分支".to_string(),
+            });
+            return Ok(plan);
+        }
+
+        let mut clean_phase = Phase::new("清理已合入分支");
         for branch in &ctx.branches_to_delete {
             clean_phase.add(GitOperation::DeleteBranch {
                 branch: branch.clone(),
                 working_dir: repo_path.to_path_buf(),
             });
-            if ctx.delete_remote {
-                clean_phase.add(GitOperation::DeleteRemoteBranch {
-                    remote: ctx.remote_name.clone(),
-                    branch: branch.clone(),
-                    working_dir: repo_path.to_path_buf(),
-                });
-            }
+            clean_phase.add(GitOperation::DeleteRemoteBranch {
+                remote: ctx.remote_name.clone(),
+                branch: branch.clone(),
+                working_dir: repo_path.to_path_buf(),
+            });
         }
-        if !clean_phase.is_empty() {
-            plan.add_phase(clean_phase);
-        }
+        plan.add_phase(clean_phase);
 
         Ok(plan)
     }
@@ -388,11 +387,4 @@ pub fn run(args: BranchArgs) -> Result<()> {
         BranchArgs::Rename(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
         BranchArgs::All(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
     }
-}
-
-fn compile_glob_pattern(pattern: &str) -> Result<regex::Regex> {
-    let body = regex::escape(pattern).replace(r"\*", ".*");
-    regex::Regex::new(&format!("^{}$", body)).map_err(|e| crate::error::AppError::InvalidInput {
-        reason: format!("无效的分支模式: {}", e),
-    })
 }
