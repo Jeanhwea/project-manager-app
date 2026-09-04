@@ -88,6 +88,7 @@ pub(crate) struct BranchListContext {
 pub(crate) struct BranchCleanContext {
     merged_to_protected: Vec<String>, // C类: 已合入protected的分支
     unmerged_to_protected: Vec<String>, // B类: 未合入protected的分支
+    remote_orphan_branches: Vec<(String, String)>, // D类: 远端孤儿分支 (remote, branch_name)
     force_delete_unmerged: bool,
     remote_name: String,
 }
@@ -199,9 +200,57 @@ impl MultiRepo for BranchCleanArgs {
             .cloned()
             .collect();
 
+        // D类: 远端孤儿分支 — 本地没有跟踪分支的远端分支
+        let runner_for_remote = GitCommandRunner::new();
+        let remote_orphan_branches: Vec<(String, String)> = if let Ok(remote_branches_output) =
+            runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))
+        {
+            let remote_branch_names: Vec<String> = remote_branches_output
+                .lines()
+                .map(|line| line.trim().to_string())
+                .filter(|line| !line.is_empty() && line != "->")
+                .collect();
+
+            // Build a set of local tracking branch refs: "refs/heads/<name>" from local branches
+            let local_tracking: std::collections::HashSet<String> = candidates
+                .iter()
+                .chain(protected_branches.iter().filter(|name| local_names.contains(name)))
+                .map(|name| format!("{}/{}", remote_name, name))
+                .collect();
+
+            remote_branch_names
+                .into_iter()
+                .filter(|rb| {
+                    // Skip HEAD pointer
+                    !rb.starts_with("HEAD")
+                })
+                .map(|rb| {
+                    // rb is like "origin/some-branch" or "github/some-branch"
+                    // Split at first "/" to separate remote name and branch name
+                    if let Some(pos) = rb.find('/') {
+                        let rem = rb[..pos].to_string();
+                        let bn = rb[pos + 1..].to_string();
+                        (rem, bn)
+                    } else {
+                        (remote_name.clone(), rb)
+                    }
+                })
+                .filter(|(rem, bn)| {
+                    // Skip if this branch is a protected branch name
+                    let is_protected = protected_branches.contains(&bn.as_str());
+                    // Skip if there's a local branch that tracks this remote branch
+                    let is_local_tracked = local_tracking.contains(&format!("{}/{}", rem, bn));
+                    !is_protected && !is_local_tracked
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+
         Ok(BranchCleanContext {
             merged_to_protected,
             unmerged_to_protected,
+            remote_orphan_branches,
             force_delete_unmerged: self.force_delete_unmerged,
             remote_name,
         })
