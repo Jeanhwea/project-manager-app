@@ -202,16 +202,15 @@ impl MultiRepo for BranchCleanArgs {
 
         // D类: 远端孤儿分支 — 本地没有跟踪分支的远端分支
         let runner_for_remote = GitCommandRunner::new();
-        let remote_orphan_branches: Vec<(String, String)> = if let Ok(remote_branches_output) =
-            runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))
-        {
+        let remote_branches_output = runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))?;
+        let remote_orphan_branches: Vec<(String, String)> = {
             let remote_branch_names: Vec<String> = remote_branches_output
                 .lines()
                 .map(|line| line.trim().to_string())
                 .filter(|line| !line.is_empty() && line != "->")
                 .collect();
 
-            // Build a set of local tracking branch refs: "refs/heads/<name>" from local branches
+            // Build a set of local tracking refs: "<remote>/<branch>" for all local branches
             let local_tracking: std::collections::HashSet<String> = candidates
                 .iter()
                 .chain(protected_branches.iter().filter(|name| local_names.contains(name)))
@@ -243,8 +242,6 @@ impl MultiRepo for BranchCleanArgs {
                     !is_protected && !is_local_tracked
                 })
                 .collect()
-        } else {
-            vec![]
         };
 
         Ok(BranchCleanContext {
@@ -301,6 +298,19 @@ impl MultiRepo for BranchCleanArgs {
             });
         }
         plan.add_phase(clean_phase);
+
+        // D类: 远端孤儿分支 — 本地没有跟踪分支的远端分支，始终清理
+        if !ctx.remote_orphan_branches.is_empty() {
+            let mut orphan_phase = Phase::new("清理远端孤儿分支 (D类)");
+            for (remote, branch) in &ctx.remote_orphan_branches {
+                orphan_phase.add(GitOperation::DeleteRemoteBranch {
+                    remote: remote.clone(),
+                    branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
+                });
+            }
+            plan.add_phase(orphan_phase);
+        }
 
         // 同步 remote: 清理远端已经不存在的跟踪分支 (git remote prune)
         let mut prune_phase = Phase::new("同步远端跟踪分支");
