@@ -234,7 +234,7 @@ impl MultiRepo for BranchCleanArgs {
             return Ok(plan);
         }
 
-        let clean_phase = if ctx.force_delete_unmerged {
+        let mut clean_phase = if ctx.force_delete_unmerged {
             Phase::new("清理所有非受保护分支 (B类 + C类)")
         } else {
             Phase::new("清理已合入受保护分支 (C类)")
