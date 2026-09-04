@@ -1,7 +1,7 @@
 use clap::Parser;
 
 use crate::commands::{
-    branch::BranchArgs, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs,
+    branch::{BranchArgs, BranchCleanArgs}, config::ConfigArgs, doctor::DoctorArgs, fork::ForkArgs,
     gitlab::GitlabArgs, release::ReleaseArgs, self_update::SelfManageArgs, snap::SnapArgs,
     status::StatusArgs, sync::SyncArgs,
 };
@@ -50,6 +50,10 @@ pub enum Commands {
     #[command(visible_alias = "st")]
     Status(StatusArgs),
 
+    /// Clean branches (alias for branch clean)
+    #[command(visible_alias = "c")]
+    Clean(BranchCleanArgs),
+
     /// Manage branches across repositories
     #[command(visible_alias = "br")]
     Branch {
@@ -79,6 +83,7 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         Commands::Fork(args) => crate::commands::fork::run(args),
         Commands::Gitlab { command } => crate::commands::gitlab::run(command),
         Commands::Snap { command } => crate::commands::snap::run(command),
+        Commands::Clean(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
         Commands::Status(args) => crate::commands::status::run(args),
         Commands::Branch { command } => crate::commands::branch::run(command),
         Commands::SelfManage { command } => crate::commands::self_update::run(command),

@@ -13,7 +13,7 @@ use std::path::Path;
 pub enum BranchArgs {
     #[command(visible_alias = "ls")]
     List(BranchListArgs),
-    #[command(visible_alias = "cl")]
+    #[command(visible_alias = "cl", visible_alias = "pr")]
     Clean(BranchCleanArgs),
     #[command(visible_alias = "sw")]
     Switch(BranchSwitchArgs),
@@ -319,11 +319,11 @@ impl MultiRepo for BranchCleanArgs {
             plan.add_phase(clean_phase);
         }
 
-        // B 类分支: 仅当加 -D 时清理
+        // B 类分支: 仅当加 -D 时清理（使用强制删除 -D，因为 B 类分支未合并到保护分支）
         if !unmerged.is_empty() && self.delete_unmerged {
             let mut unmerged_phase = Phase::new("清理 B 类分支（未合并到 master/dev）");
             for branch in unmerged {
-                unmerged_phase.add(GitOperation::DeleteBranch {
+                unmerged_phase.add(GitOperation::DeleteBranchForce {
                     branch: branch.clone(),
                     working_dir: repo_path.to_path_buf(),
                 });

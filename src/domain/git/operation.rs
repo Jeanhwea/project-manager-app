@@ -61,6 +61,10 @@ pub enum GitOperation {
         branch: String,
         working_dir: PathBuf,
     },
+    DeleteBranchForce {
+        branch: String,
+        working_dir: PathBuf,
+    },
     RenameBranch {
         old: String,
         new: String,
@@ -205,6 +209,10 @@ impl GitOperation {
                 branch,
                 working_dir,
             } => GitInvocation::local(working_dir.clone(), &["branch", "-d", branch]),
+            GitOperation::DeleteBranchForce {
+                branch,
+                working_dir,
+            } => GitInvocation::local(working_dir.clone(), &["branch", "-D", branch]),
             GitOperation::RenameBranch {
                 old,
                 new,
