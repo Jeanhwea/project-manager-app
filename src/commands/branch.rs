@@ -46,6 +46,13 @@ pub struct BranchCleanArgs {
         help = "Dry run: show what would be deleted"
     )]
     pub dry_run: bool,
+    #[arg(
+        short = 'D',
+        long = "delete-unmerged",
+        default_value = "false",
+        help = "Also delete B-class branches (not merged into master/dev)"
+    )]
+    pub delete_unmerged: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -79,7 +86,10 @@ pub(crate) struct BranchListContext {
 
 #[derive(Debug)]
 pub(crate) struct BranchCleanContext {
+    /// C 类分支: 已合并到 protected 分支，始终删除
     to_delete: Vec<String>,
+    /// B 类分支: 未合并到 protected 分支，仅加 -D 时删除
+    unmerged_branches: Vec<String>,
     remote_orphan_branches: Vec<(String, String)>,
     remote_name: String,
 }
@@ -152,16 +162,48 @@ impl MultiRepo for BranchCleanArgs {
                 .unwrap_or_else(|| self.remote.clone())
         };
 
-        // Protected branches that should never be deleted
+        // A 类: 保护分支，永远不删
         let protected_branches = ["master", "main", "develop", "dev"];
 
-        // All non-protected, non-current local branches
-        let to_delete: Vec<String> = git_ctx
+        // 获取所有非保护、非当前分支
+        let candidates: Vec<&str> = git_ctx
             .local_branches()
             .iter()
             .map(|b| b.name.as_str())
             .filter(|name| !protected_branches.contains(name))
             .filter(|name| *name != git_ctx.current_branch)
+            .collect();
+
+        // 用 `git branch --merged` 判断哪些已合并到 master 或 dev
+        let merged: std::collections::HashSet<String> = {
+            let runner = GitCommandRunner::new();
+            let mut merged_set = std::collections::HashSet::new();
+            let check_protected = ["master", "dev"];
+            for target in &check_protected {
+                // git branch --merged <target> 列出已合并到 target 的所有分支
+                if let Ok(output) = runner.run_local(&["branch", "--merged", target], Some(repo_path)) {
+                    for line in output.lines() {
+                        let name = line.trim().trim_start_matches("* ").trim();
+                        if !name.is_empty() && name != target {
+                            merged_set.insert(name.to_string());
+                        }
+                    }
+                }
+            }
+            merged_set
+        };
+
+        // C 类: 已合并到 protected 分支的 → 始终删除
+        let to_delete: Vec<String> = candidates
+            .iter()
+            .filter(|name| merged.contains(*name))
+            .map(|s| s.to_string())
+            .collect();
+
+        // B 类: 未合并到 protected 分支的 → 仅加 -D 时删除
+        let unmerged_branches: Vec<String> = candidates
+            .iter()
+            .filter(|name| !merged.contains(*name))
             .map(|s| s.to_string())
             .collect();
 
@@ -221,6 +263,7 @@ impl MultiRepo for BranchCleanArgs {
 
         Ok(BranchCleanContext {
             to_delete,
+            unmerged_branches,
             remote_orphan_branches,
             remote_name,
         })
@@ -230,28 +273,68 @@ impl MultiRepo for BranchCleanArgs {
         let mut plan = ExecutionPlan::new().with_dry_run(self.dry_run);
 
         let to_delete = &ctx.to_delete;
+        let unmerged = &ctx.unmerged_branches;
 
-        if to_delete.is_empty() {
-            plan.add_message(DisplayMessage::Skip {
-                msg: "没有需要清理的分支".to_string(),
-            });
+        let has_work = !to_delete.is_empty() || (!unmerged.is_empty() && self.delete_unmerged);
+
+        if !has_work {
+            let mut msg = String::new();
+            if to_delete.is_empty() {
+                msg.push_str("没有 C 类分支（已合并分支）需要清理");
+            }
+            if !unmerged.is_empty() && !self.delete_unmerged {
+                if !msg.is_empty() {
+                    msg.push_str("，");
+                }
+                msg.push_str(&format!(
+                    "B 类分支（未合并分支）共 {} 个，使用 -D 可同时清理",
+                    unmerged.len()
+                ));
+            }
+            plan.add_message(DisplayMessage::Skip { msg });
+            if !unmerged.is_empty() {
+                for b in unmerged {
+                    plan.add_message(DisplayMessage::Skip {
+                        msg: format!("  [B 类 - 跳过] {}", b),
+                    });
+                }
+            }
             return Ok(plan);
         }
 
-        let mut clean_phase = Phase::new("清理所有非受保护分支");
-
-        for branch in to_delete {
-            clean_phase.add(GitOperation::DeleteBranch {
-                branch: branch.clone(),
-                working_dir: repo_path.to_path_buf(),
-            });
-            clean_phase.add(GitOperation::DeleteRemoteBranch {
-                remote: ctx.remote_name.clone(),
-                branch: branch.clone(),
-                working_dir: repo_path.to_path_buf(),
-            });
+        // C 类分支: 始终清理
+        if !to_delete.is_empty() {
+            let mut clean_phase = Phase::new("清理 C 类分支（已合并到 master/dev）");
+            for branch in to_delete {
+                clean_phase.add(GitOperation::DeleteBranch {
+                    branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
+                });
+                clean_phase.add(GitOperation::DeleteRemoteBranch {
+                    remote: ctx.remote_name.clone(),
+                    branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
+                });
+            }
+            plan.add_phase(clean_phase);
         }
-        plan.add_phase(clean_phase);
+
+        // B 类分支: 仅当加 -D 时清理
+        if !unmerged.is_empty() && self.delete_unmerged {
+            let mut unmerged_phase = Phase::new("清理 B 类分支（未合并到 master/dev）");
+            for branch in unmerged {
+                unmerged_phase.add(GitOperation::DeleteBranch {
+                    branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
+                });
+                unmerged_phase.add(GitOperation::DeleteRemoteBranch {
+                    remote: ctx.remote_name.clone(),
+                    branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
+                });
+            }
+            plan.add_phase(unmerged_phase);
+        }
 
         // D类: 远端孤儿分支 — 本地没有跟踪分支的远端分支，始终清理
         if !ctx.remote_orphan_branches.is_empty() {
