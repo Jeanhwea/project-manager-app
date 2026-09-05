@@ -260,7 +260,7 @@ impl MultiRepo for BranchCleanArgs {
                 let local_tracking: std::collections::HashSet<String> = git_ctx
                     .local_branches()
                     .iter()
-                    .filter_map(|b| b.tracking_branch.as_ref())
+                    .filter_map(|b| b.tracking_branch.clone())
                     .collect();
                 // Also add the simple "{remote}/{branch}" form for backward compatibility
                 // with branches that track the primary remote
@@ -273,12 +273,13 @@ impl MultiRepo for BranchCleanArgs {
                 for bn in &remote_branch_names {
                     // Skip if this branch is a protected branch name
                     let is_protected = protected_branches.contains(&bn.as_str());
-                    // Skip if there's a local branch that tracks this remote branch
-                    // (check using either the full tracking branch or the simple form)
-                    let full_ref = format!("refs/heads/{}", bn);
-                    let is_local_tracked = local_tracking.contains(&full_ref)
-                        || local_tracking.contains(&format!("{}/{}", rem, bn))
-                        || simple_local_tracking.contains(&format!("{}/{}", rem, bn));
+                    // Skip if there's a local branch that tracks this remote branch.
+                    // tracking_branch is in the format "refs/remotes/<remote>/<branch>"
+                    let tracking_ref = format!("refs/remotes/{}/{}", rem, bn);
+                    let simple_ref = format!("{}/{}", rem, bn);
+                    let is_local_tracked = local_tracking.contains(&tracking_ref)
+                        || local_tracking.contains(&simple_ref)
+                        || simple_local_tracking.contains(&simple_ref);
                     if !is_protected && !is_local_tracked {
                         orphan_branches.push((rem.clone(), bn.clone()));
                     }
