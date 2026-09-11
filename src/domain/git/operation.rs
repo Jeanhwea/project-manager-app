@@ -84,6 +84,11 @@ pub enum GitOperation {
         remote: String,
         working_dir: PathBuf,
     },
+    DeleteRemoteTrackingBranch {
+        remote: String,
+        branch: String,
+        working_dir: PathBuf,
+    },
     SetUpstream {
         remote: String,
         branch: String,
@@ -235,6 +240,14 @@ impl GitOperation {
                 remote,
                 working_dir,
             } => GitInvocation::local(working_dir.clone(), &["remote", "prune", remote]),
+            GitOperation::DeleteRemoteTrackingBranch {
+                remote,
+                branch,
+                working_dir,
+            } => GitInvocation::local(
+                working_dir.clone(),
+                &["branch", "-d", "-r", &format!("{}/{}", remote, branch)],
+            ),
             GitOperation::SetUpstream {
                 remote,
                 branch,
