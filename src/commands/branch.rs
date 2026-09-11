@@ -342,39 +342,28 @@ impl MultiRepo for BranchCleanArgs {
                     }
                 }
 
-                // NEW: 扫描所有 remote tracking refs (git branch -r)，即本地所有 remotes/<remote>/<branch>
-                // 检查它们在远端是否真实存在。有些 tracking ref 没有对应的本地分支（即没有被任何本地分支 tracking）
-                // 因此不会被上面的 local_tracking 循环捕获到，但仍需要被清理。
-                for branch in &git_ctx.branches {
-                    if !branch.is_remote {
-                        continue;
-                    }
-                    // branch.name is in format "remotes/origin/xxx" or "origin/xxx"
-                    let name_str = branch.name.as_str();
-                    let normalized = if let Some(stripped) = name_str.strip_prefix("remotes/") {
-                        stripped
-                    } else {
-                        name_str
-                    };
-                    // Extract remote and branch: "<remote>/<branch>"
-                    // Note: use find instead of rfind because the branch name itself may contain '/'
-                    // e.g., "origin/feat/mac-m2p" => remote: "origin", branch: "feat/mac-m2p"
-                    if let Some(slash_pos) = normalized.find('/') {
-                        let r = &normalized[..slash_pos];
-                        let bn = &normalized[slash_pos + 1..];
-                        // Skip if this is a protected branch
-                        if protected_branches.contains(&bn) {
+                // NEW: 使用 git branch -r 获取所有本地 remote tracking refs，
+                // 与 git ls-remote --heads 的结果对比，找出远端已删除但本地仍残留的 tracking refs。
+                // 这样直接读 Git 命令输出，比依赖 git_ctx.branches 对象的格式更可靠
+                if let Ok(branch_r_output) = runner_for_remote
+                    .run_local(&["branch", "-r"], Some(repo_path))
+                {
+                    for line in branch_r_output.lines() {
+                        let line = line.trim();
+                        if line.is_empty() || line.starts_with("origin/HEAD") {
                             continue;
                         }
-                        // Skip if it's for a different remote
-                        if r != rem {
-                            continue;
-                        }
-                        // Check if this remote branch actually exists on the remote
-                        if !remote_branch_names.iter().any(|rb| rb == bn) {
-                            // Avoid duplicates
-                            if !orphan_branches.iter().any(|(or, ob)| or == r && ob == bn) {
-                                orphan_branches.push((r.to_string(), bn.to_string()));
+                        // git branch -r 输出格式: "  origin/feat/mac-m2p"
+                        // 提取 remote 和 branch 名
+                        if let Some(rest) = line.strip_prefix(&format!("{}/", rem)) {
+                            let bn = rest.trim();
+                            // Skip protected branches
+                            if protected_branches.contains(&bn) {
+                                continue;
+                            }
+                            // Check if this remote branch actually exists on the remote
+                            if !remote_branch_names.iter().any(|rb| rb == bn) {
+                                orphan_branches.push((rem.clone(), bn.to_string()));
                             }
                         }
                     }
