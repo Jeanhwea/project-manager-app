@@ -53,6 +53,13 @@ pub struct BranchCleanArgs {
         help = "Also delete B-class branches (branches not merged into master/dev)"
     )]
     pub delete_unmerged: bool,
+    #[arg(
+        short = 'y',
+        long = "yes",
+        default_value = "false",
+        help = "Skip confirmation prompt for Branches Clean"
+    )]
+    pub yes: bool,
 }
 
 #[derive(Debug, clap::Args)]
@@ -92,6 +99,8 @@ pub(crate) struct BranchCleanContext {
     unmerged_branches: Vec<String>,
     remote_orphan_branches: Vec<(String, String)>,
     remote_name: String,
+    /// A 类分支: 保护分支，永远不删（仅显示提示）
+    protected_branches_to_skip: Vec<String>,
 }
 
 #[derive(Debug)]
