@@ -357,14 +357,16 @@ impl MultiRepo for BranchCleanArgs {
                         name_str
                     };
                     // Extract remote and branch: "<remote>/<branch>"
-                    if let Some(slash_pos) = normalized.rfind('/') {
+                    // Note: use find instead of rfind because the branch name itself may contain '/'
+                    // e.g., "origin/feat/mac-m2p" => remote: "origin", branch: "feat/mac-m2p"
+                    if let Some(slash_pos) = normalized.find('/') {
                         let r = &normalized[..slash_pos];
                         let bn = &normalized[slash_pos + 1..];
                         // Skip if this is a protected branch
                         if protected_branches.contains(&bn) {
                             continue;
                         }
-                        // Skip if it's in the correct remote (the one we're checking)
+                        // Skip if it's for a different remote
                         if r != rem {
                             continue;
                         }
