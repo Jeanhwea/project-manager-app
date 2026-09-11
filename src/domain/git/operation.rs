@@ -84,6 +84,11 @@ pub enum GitOperation {
         remote: String,
         working_dir: PathBuf,
     },
+    DeleteRemoteTrackingBranch {
+        remote: String,
+        branch: String,
+        working_dir: PathBuf,
+    },
     SetUpstream {
         remote: String,
         branch: String,
@@ -235,6 +240,14 @@ impl GitOperation {
                 remote,
                 working_dir,
             } => GitInvocation::local(working_dir.clone(), &["remote", "prune", remote]),
+            GitOperation::DeleteRemoteTrackingBranch {
+                remote,
+                branch,
+                working_dir,
+            } => GitInvocation::local(
+                working_dir.clone(),
+                &["branch", "-d", "-r", &format!("{}/{}", remote, branch)],
+            ),
             GitOperation::SetUpstream {
                 remote,
                 branch,
@@ -266,7 +279,10 @@ impl GitOperation {
         self.invocation().execute(runner)
     }
 
-    pub fn recovery_hint(&self, _executed_count: usize) -> Option<String> {
+    pub fn recovery_hint(&self, executed_count: usize) -> Option<String> {
+        if executed_count == 0 {
+            return None;
+        }
         match self {
             GitOperation::PushTag { remote, tag, .. } => Some(format!(
                 "tag {} 已创建但未推送，请手动执行: git push {} {}",
