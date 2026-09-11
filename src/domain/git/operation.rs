@@ -266,7 +266,10 @@ impl GitOperation {
         self.invocation().execute(runner)
     }
 
-    pub fn recovery_hint(&self, _executed_count: usize) -> Option<String> {
+    pub fn recovery_hint(&self, executed_count: usize) -> Option<String> {
+        if executed_count == 0 {
+            return None;
+        }
         match self {
             GitOperation::PushTag { remote, tag, .. } => Some(format!(
                 "tag {} 已创建但未推送，请手动执行: git push {} {}",
