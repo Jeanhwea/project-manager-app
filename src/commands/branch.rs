@@ -214,14 +214,18 @@ impl MultiRepo for BranchCleanArgs {
         let runner_for_remote = GitCommandRunner::new();
         let remote_orphan_branches: Vec<(String, String)> = {
             // 遍历所有 remote，分别查询 ls-remote 获取真实的分支列表
-            let all_remotes: Vec<String> = git_ctx.remote_names().iter().map(|s| s.to_string()).collect();
+            let all_remotes: Vec<String> = git_ctx
+                .remote_names()
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
             let remotes_to_check = if all_remotes.is_empty() {
                 vec![remote_name.clone()]
             } else {
                 all_remotes
             };
 
-            let mut orphan_branches = Vec::new();
+            let mut orphan_branches: Vec<(String, String)> = Vec::new();
 
             for rem in &remotes_to_check {
                 // 用 ls-remote 获取远端真实存在的分支列表（refs/heads/*）
@@ -282,6 +286,30 @@ impl MultiRepo for BranchCleanArgs {
                         || simple_local_tracking.contains(&simple_ref);
                     if !is_protected && !is_local_tracked {
                         orphan_branches.push((rem.clone(), bn.clone()));
+                    }
+                }
+
+                // Also check for local tracking refs that have no corresponding remote branch
+                // (e.g., the remote branch was deleted but the tracking ref remains)
+                for tracking in &local_tracking {
+                    // Extract remote name and branch name from tracking ref
+                    // tracking is in format "refs/remotes/<remote>/<branch>"
+                    if let Some(tracking_rem) = tracking.strip_prefix("refs/remotes/") {
+                        if let Some(slash_pos) = tracking_rem.rfind('/') {
+                            let rem = &tracking_rem[..slash_pos];
+                            let bn = &tracking_rem[slash_pos + 1..];
+                            // Check if this remote branch exists on the remote
+                            if !remote_branch_names.iter().any(|rb| rb == bn) {
+                                orphan_branches.push((rem.to_string(), bn.to_string()));
+                            }
+                        }
+                    } else if let Some(slash_pos) = tracking.rfind('/') {
+                        // Handle the case where tracking is in the format "remote/branch"
+                        let rem = &tracking[..slash_pos];
+                        let bn = &tracking[slash_pos + 1..];
+                        if !remote_branch_names.iter().any(|rb| rb == bn) {
+                            orphan_branches.push((rem.to_string(), bn.to_string()));
+                        }
                     }
                 }
             }
