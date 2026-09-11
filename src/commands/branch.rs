@@ -198,14 +198,14 @@ impl MultiRepo for BranchCleanArgs {
         // C 类: 已合并到 protected 分支的 → 始终删除
         let to_delete: Vec<String> = candidates
             .iter()
-            .filter(|name| merged.contains(&name.to_string()))
+            .filter(|name| merged.contains(&String::from(*name)))
             .map(|s| s.to_string())
             .collect();
 
         // B 类: 未合并到 protected 分支的 → 仅加 -D 时删除
         let unmerged_branches: Vec<String> = candidates
             .iter()
-            .filter(|name| !merged.contains(&name.to_string()))
+            .filter(|name| !merged.contains(&String::from(*name)))
             .map(|s| s.to_string())
             .collect();
 
@@ -342,7 +342,7 @@ impl MultiRepo for BranchCleanArgs {
             }
             if !unmerged.is_empty() && !self.delete_unmerged {
                 if !msg.is_empty() {
-                    msg.push_str("，");
+                    msg.push('，');
                 }
                 msg.push_str(&format!(
                     "B 类分支（未合并分支）共 {} 个，使用 -D 可同时清理",
