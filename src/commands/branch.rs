@@ -326,11 +326,18 @@ impl MultiRepo for BranchCleanArgs {
             orphan_branches
         };
 
+        // Collect A类: 保护分支的 tracking ref 信息
+        let protected_branches_to_skip: Vec<String> = protected_branches
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
         Ok(BranchCleanContext {
             to_delete,
             unmerged_branches,
             remote_orphan_branches,
             remote_name,
+            protected_branches_to_skip,
         })
     }
 
