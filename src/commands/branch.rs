@@ -16,10 +16,14 @@ fn try_readline(prompt: &str) -> Option<String> {
     let _ = io::stdout().flush();
     let mut line = String::new();
     match io::stdin().read_line(&mut line) {
-        Ok(0) => None,          // EOF
+        Ok(0) => None, // EOF
         Ok(_) => {
             let trimmed = line.trim().to_string();
-            if trimmed.is_empty() { None } else { Some(trimmed) }
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
         }
         Err(_) => None,
     }
@@ -343,10 +347,8 @@ impl MultiRepo for BranchCleanArgs {
         };
 
         // Collect A类: 保护分支的 tracking ref 信息
-        let protected_branches_to_skip: Vec<String> = protected_branches
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let protected_branches_to_skip: Vec<String> =
+            protected_branches.iter().map(|s| s.to_string()).collect();
 
         Ok(BranchCleanContext {
             to_delete,
@@ -426,10 +428,7 @@ impl MultiRepo for BranchCleanArgs {
             };
             if !confirmed {
                 plan.add_message(DisplayMessage::Skip {
-                    msg: format!(
-                        "用户取消：D 类 {} 条孤儿分支未清理",
-                        d_class_count
-                    ),
+                    msg: format!("用户取消：D 类 {} 条孤儿分支未清理", d_class_count),
                 });
                 // 跳过 D 类清理，但继续处理 C/B 类和 prune
                 // return Ok(plan); // We still process C/B below
@@ -493,7 +492,12 @@ impl MultiRepo for BranchCleanArgs {
 
         // 同步 remote: 清理远端已经不存在的跟踪分支 (git remote prune)
         let mut prune_phase = Phase::new("同步远端跟踪分支");
-        for rem in ctx.remote_orphan_branches.iter().map(|(r, _)| r).collect::<std::collections::HashSet<_>>() {
+        for rem in ctx
+            .remote_orphan_branches
+            .iter()
+            .map(|(r, _)| r)
+            .collect::<std::collections::HashSet<_>>()
+        {
             prune_phase.add(GitOperation::PruneRemote {
                 remote: rem.clone(),
                 working_dir: repo_path.to_path_buf(),
