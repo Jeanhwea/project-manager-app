@@ -341,6 +341,42 @@ impl MultiRepo for BranchCleanArgs {
                         }
                     }
                 }
+
+                // NEW: 扫描所有 remote tracking refs (git branch -r)，即本地所有 remotes/<remote>/<branch>
+                // 检查它们在远端是否真实存在。有些 tracking ref 没有对应的本地分支（即没有被任何本地分支 tracking）
+                // 因此不会被上面的 local_tracking 循环捕获到，但仍需要被清理。
+                for branch in &git_ctx.branches {
+                    if !branch.is_remote {
+                        continue;
+                    }
+                    // branch.name is in format "remotes/origin/xxx" or "origin/xxx"
+                    let name_str = branch.name.as_str();
+                    let normalized = if let Some(stripped) = name_str.strip_prefix("remotes/") {
+                        stripped
+                    } else {
+                        name_str
+                    };
+                    // Extract remote and branch: "<remote>/<branch>"
+                    if let Some(slash_pos) = normalized.rfind('/') {
+                        let r = &normalized[..slash_pos];
+                        let bn = &normalized[slash_pos + 1..];
+                        // Skip if this is a protected branch
+                        if protected_branches.contains(&bn) {
+                            continue;
+                        }
+                        // Skip if it's in the correct remote (the one we're checking)
+                        if r != rem {
+                            continue;
+                        }
+                        // Check if this remote branch actually exists on the remote
+                        if !remote_branch_names.iter().any(|rb| rb == bn) {
+                            // Avoid duplicates
+                            if !orphan_branches.iter().any(|(or, ob)| or == r && ob == bn) {
+                                orphan_branches.push((r.to_string(), bn.to_string()));
+                            }
+                        }
+                    }
+                }
             }
 
             orphan_branches
