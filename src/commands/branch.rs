@@ -345,8 +345,8 @@ impl MultiRepo for BranchCleanArgs {
                 // NEW: 使用 git branch -r 获取所有本地 remote tracking refs，
                 // 与 git ls-remote --heads 的结果对比，找出远端已删除但本地仍残留的 tracking refs。
                 // 这样直接读 Git 命令输出，比依赖 git_ctx.branches 对象的格式更可靠
-                if let Ok(branch_r_output) = runner_for_remote
-                    .run_local(&["branch", "-r"], Some(repo_path))
+                if let Ok(branch_r_output) =
+                    runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))
                 {
                     for line in branch_r_output.lines() {
                         let line = line.trim();
@@ -508,7 +508,7 @@ impl MultiRepo for BranchCleanArgs {
                         remote, branch
                     ),
                 });
-                orphan_phase.add(GitOperation::DeleteRemoteBranch {
+                orphan_phase.add(GitOperation::DeleteRemoteTrackingBranch {
                     remote: remote.clone(),
                     branch: branch.clone(),
                     working_dir: repo_path.to_path_buf(),
