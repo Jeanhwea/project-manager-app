@@ -870,7 +870,10 @@ mod tests {
 
     #[test]
     fn ignores_detached_head_line() {
-        assert_eq!(parse_local_branch_line("* (HEAD detached at abc1234)"), None);
+        assert_eq!(
+            parse_local_branch_line("* (HEAD detached at abc1234)"),
+            None
+        );
         assert_eq!(parse_local_branch_line(""), None);
     }
 
@@ -884,8 +887,14 @@ mod tests {
 
     #[test]
     fn ignores_symbolic_tracking_ref_for_any_remote() {
-        assert_eq!(parse_tracking_ref_line("  origin/HEAD -> origin/master"), None);
-        assert_eq!(parse_tracking_ref_line("  gitana/HEAD -> gitana/master"), None);
+        assert_eq!(
+            parse_tracking_ref_line("  origin/HEAD -> origin/master"),
+            None
+        );
+        assert_eq!(
+            parse_tracking_ref_line("  gitana/HEAD -> gitana/master"),
+            None
+        );
     }
 
     #[test]
