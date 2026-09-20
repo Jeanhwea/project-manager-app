@@ -115,6 +115,7 @@ impl AddOperation for Phase {
 pub struct ExecutionPlan {
     phases: Vec<Phase>,
     messages: Vec<DisplayMessage>,
+    footer_messages: Vec<DisplayMessage>,
     dry_run: bool,
 }
 
@@ -123,6 +124,7 @@ impl ExecutionPlan {
         Self {
             phases: Vec::new(),
             messages: Vec::new(),
+            footer_messages: Vec::new(),
             dry_run: false,
         }
     }
@@ -144,12 +146,21 @@ impl ExecutionPlan {
         &self.messages
     }
 
+    /// 所有 Phase 执行完之后才渲染的消息，用于结果汇总
+    pub fn footer_messages(&self) -> &[DisplayMessage] {
+        &self.footer_messages
+    }
+
     pub fn add_phase(&mut self, phase: Phase) {
         self.phases.push(phase);
     }
 
     pub fn add_message(&mut self, msg: DisplayMessage) {
         self.messages.push(msg);
+    }
+
+    pub fn add_footer_message(&mut self, msg: DisplayMessage) {
+        self.footer_messages.push(msg);
     }
 
     pub fn add(&mut self, op: impl Into<Operation>) {

@@ -31,6 +31,8 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
         }
     }
 
+    render_messages(plan.footer_messages());
+
     Ok(result)
 }
 
@@ -102,7 +104,7 @@ fn recovery_hint(failed_op: &Operation, executed_count: usize) -> String {
 
 pub fn display_plan(plan: &ExecutionPlan) {
     let has_operations = plan.operation_count() > 0;
-    if !has_operations && plan.messages().is_empty() {
+    if !has_operations && plan.messages().is_empty() && plan.footer_messages().is_empty() {
         output::skip("无操作");
         return;
     }
@@ -121,6 +123,8 @@ pub fn display_plan(plan: &ExecutionPlan) {
             }
         }
     }
+
+    render_messages(plan.footer_messages());
 }
 
 pub fn render_messages(messages: &[DisplayMessage]) {
