@@ -30,7 +30,10 @@ fn try_readline(prompt: &str) -> Option<String> {
 }
 
 /// 读取本地真实存在的远端跟踪引用（git branch -r），返回 (remote, branch) 列表
-fn list_local_tracking_refs(runner: &GitCommandRunner, repo_path: &Path) -> Vec<(String, String)> {
+fn list_local_tracking_refs(
+    runner: &GitCommandRunner,
+    repo_path: &Path,
+) -> Vec<(String, String)> {
     let Ok(output) = runner.run_local(&["branch", "-r"], Some(repo_path)) else {
         return Vec::new();
     };
