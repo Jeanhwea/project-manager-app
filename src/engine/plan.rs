@@ -31,6 +31,8 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
         }
     }
 
+    render_messages(plan.footer_messages());
+
     Ok(result)
 }
 
@@ -38,7 +40,8 @@ fn run_phase(phase: &Phase, runner: &GitCommandRunner, result: &mut ExecutionRes
     for step in phase.steps() {
         match step {
             Step::Op(op) => {
-                if !run_op_step(op, runner, result) {
+                let tolerate = phase.is_continue_on_error();
+                if !run_op_step(op, runner, result, tolerate) && !tolerate {
                     return false;
                 }
             }
@@ -48,7 +51,12 @@ fn run_phase(phase: &Phase, runner: &GitCommandRunner, result: &mut ExecutionRes
     true
 }
 
-fn run_op_step(op: &Operation, runner: &GitCommandRunner, result: &mut ExecutionResult) -> bool {
+fn run_op_step(
+    op: &Operation,
+    runner: &GitCommandRunner,
+    result: &mut ExecutionResult,
+    tolerate: bool,
+) -> bool {
     if let Operation::Git(git_op) = op
         && let Some(reason) = git_op.should_skip()
     {
@@ -64,6 +72,10 @@ fn run_op_step(op: &Operation, runner: &GitCommandRunner, result: &mut Execution
             true
         }
         Err(e) => {
+            if tolerate {
+                output::warning(&format!("执行失败，已跳过: {}", first_line(&e.to_string())));
+                return false;
+            }
             let hint = recovery_hint(op, result.executed_count());
             let error = OperationError::new(op.description()).with_recovery_hint(hint);
             result.add_error(error);
@@ -71,6 +83,14 @@ fn run_op_step(op: &Operation, runner: &GitCommandRunner, result: &mut Execution
             false
         }
     }
+}
+
+fn first_line(text: &str) -> String {
+    text.lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or(text)
+        .to_string()
 }
 
 fn recovery_hint(failed_op: &Operation, executed_count: usize) -> String {
@@ -84,7 +104,7 @@ fn recovery_hint(failed_op: &Operation, executed_count: usize) -> String {
 
 pub fn display_plan(plan: &ExecutionPlan) {
     let has_operations = plan.operation_count() > 0;
-    if !has_operations && plan.messages().is_empty() {
+    if !has_operations && plan.messages().is_empty() && plan.footer_messages().is_empty() {
         output::skip("无操作");
         return;
     }
@@ -103,6 +123,8 @@ pub fn display_plan(plan: &ExecutionPlan) {
             }
         }
     }
+
+    render_messages(plan.footer_messages());
 }
 
 pub fn render_messages(messages: &[DisplayMessage]) {
