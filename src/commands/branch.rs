@@ -29,6 +29,51 @@ fn try_readline(prompt: &str) -> Option<String> {
     }
 }
 
+/// 读取本地真实存在的远端跟踪引用（git branch -r），返回 (remote, branch) 列表
+fn list_local_tracking_refs(runner: &GitCommandRunner, repo_path: &Path) -> Vec<(String, String)> {
+    let Ok(output) = runner.run_local(&["branch", "-r"], Some(repo_path)) else {
+        return Vec::new();
+    };
+    output.lines().filter_map(parse_tracking_ref_line).collect()
+}
+
+/// 解析 git branch -r 的一行输出，跳过 `origin/HEAD -> origin/master` 这类符号引用
+fn parse_tracking_ref_line(line: &str) -> Option<(String, String)> {
+    let line = line.trim();
+    if line.is_empty() || line.contains("->") {
+        return None;
+    }
+    let (remote, branch) = line.split_once('/')?;
+    if remote.is_empty() || branch.is_empty() {
+        return None;
+    }
+    Some((remote.to_string(), branch.to_string()))
+}
+
+/// 查询远端真实存在的分支名（git ls-remote --heads），远端不可达时返回 None
+fn list_remote_heads(
+    runner: &GitCommandRunner,
+    repo_path: &Path,
+    remote: &str,
+) -> Option<std::collections::HashSet<String>> {
+    let output = runner
+        .run_local(&["ls-remote", "--heads", remote], Some(repo_path))
+        .ok()?;
+    Some(output.lines().filter_map(parse_ls_remote_line).collect())
+}
+
+/// 解析 git ls-remote 的一行输出 `<sha>\trefs/heads/<branch>`，提取分支名
+fn parse_ls_remote_line(line: &str) -> Option<String> {
+    const PREFIX: &str = "refs/heads/";
+    let pos = line.find(PREFIX)?;
+    let name = line[pos + PREFIX.len()..].trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
 #[derive(Debug, clap::Subcommand)]
 pub enum BranchArgs {
     #[command(visible_alias = "ls")]
@@ -238,144 +283,47 @@ impl MultiRepo for BranchCleanArgs {
             .map(|s| s.to_string())
             .collect();
 
-        // D类: 远端孤儿分支 — 本地没有跟踪分支的远端分支
-        // 使用 git ls-remote 直接查询远端真实存在的分支列表，避免本地缓存过时的问题
+        // D 类: 本地残留的远端跟踪引用 —— 本地还有 refs/remotes/<remote>/<branch>，
+        // 但 ls-remote 已经查不到对应的远端分支。
+        // git branch -d -r 只能删除本地真实存在的引用，所以候选集必须以 git branch -r 为准，
+        // 而不是以 ls-remote 返回的远端分支为准。
         let runner_for_remote = GitCommandRunner::new();
+        let local_tracking_refs = list_local_tracking_refs(&runner_for_remote, repo_path);
         let remote_orphan_branches: Vec<(String, String)> = {
-            // 遍历所有 remote，分别查询 ls-remote 获取真实的分支列表
-            let all_remotes: Vec<String> = git_ctx
-                .remote_names()
-                .iter()
-                .map(|s| s.to_string())
-                .collect();
-            let remotes_to_check = if all_remotes.is_empty() {
-                vec![remote_name.clone()]
-            } else {
-                all_remotes
-            };
+            let mut remotes_to_check: Vec<String> =
+                local_tracking_refs.iter().map(|(r, _)| r.clone()).collect();
+            remotes_to_check.sort();
+            remotes_to_check.dedup();
 
             let mut orphan_branches: Vec<(String, String)> = Vec::new();
-
             for rem in &remotes_to_check {
-                // 用 ls-remote 获取远端真实存在的分支列表（refs/heads/*）
-                let ls_remote_output = match runner_for_remote
-                    .run_local(&["ls-remote", "--heads", rem], Some(repo_path))
-                {
-                    Ok(output) => output,
-                    Err(_) => continue,
+                // ls-remote 失败（远端不可达 / remote 已失效）时无法判断，跳过该 remote
+                let Some(remote_heads) = list_remote_heads(&runner_for_remote, repo_path, rem)
+                else {
+                    continue;
                 };
-
-                // 从 ls-remote 输出中提取分支名
-                // 输出格式: "<sha>\trefs/heads/<branch_name>"
-                let remote_branch_names: Vec<String> = ls_remote_output
-                    .lines()
-                    .filter_map(|line| {
-                        let line = line.trim();
-                        if line.is_empty() {
-                            return None;
-                        }
-                        // 提取 refs/heads/ 之后的部分
-                        if let Some(pos) = line.find("refs/heads/") {
-                            let name = line[pos + "refs/heads/".len()..].to_string();
-                            Some(name)
-                        } else {
-                            None
-                        }
-                    })
-                    .filter(|name| !name.is_empty())
-                    .collect();
-
-                // Build the set of tracking refs for ALL local branches, so any remote branch
-                // that has a corresponding local branch (regardless of merge status) is excluded
-                // from the "orphan" set.
-                // Use the local branch's actual tracking_branch info for matching,
-                // since different remotes may track different branches.
-                let local_tracking: std::collections::HashSet<String> = git_ctx
-                    .local_branches()
-                    .iter()
-                    .filter_map(|b| b.tracking_branch.clone())
-                    .collect();
-                // Also add the simple "{remote}/{branch}" form for backward compatibility
-                // with branches that track the primary remote
-                let simple_local_tracking: std::collections::HashSet<String> = git_ctx
-                    .local_branches()
-                    .iter()
-                    .map(|b| format!("{}/{}", rem, b.name))
-                    .collect();
-
-                for bn in &remote_branch_names {
-                    // Skip if this branch is a protected branch name
-                    let is_protected = protected_branches.contains(&bn.as_str());
-                    // Skip if there's a local branch that tracks this remote branch.
-                    // tracking_branch is in the format "refs/remotes/<remote>/<branch>"
-                    let tracking_ref = format!("refs/remotes/{}/{}", rem, bn);
-                    let simple_ref = format!("{}/{}", rem, bn);
-                    let is_local_tracked = local_tracking.contains(&tracking_ref)
-                        || local_tracking.contains(&simple_ref)
-                        || simple_local_tracking.contains(&simple_ref);
-                    if !is_protected && !is_local_tracked {
-                        orphan_branches.push((rem.clone(), bn.clone()));
+                for (ref_remote, branch) in &local_tracking_refs {
+                    if ref_remote != rem
+                        || protected_branches.contains(&branch.as_str())
+                        || remote_heads.contains(branch)
+                    {
+                        continue;
                     }
-                }
-
-                // Also check for local tracking refs that have no corresponding remote branch
-                // (e.g., the remote branch was deleted but the tracking ref remains)
-                for tracking in &local_tracking {
-                    // Extract remote name and branch name from tracking ref
-                    // tracking is in format "refs/remotes/<remote>/<branch>"
-                    if let Some(tracking_rem) = tracking.strip_prefix("refs/remotes/") {
-                        if let Some(slash_pos) = tracking_rem.rfind('/') {
-                            let rem = &tracking_rem[..slash_pos];
-                            let bn = &tracking_rem[slash_pos + 1..];
-                            // Check if this remote branch exists on the remote
-                            if !remote_branch_names.iter().any(|rb| rb == bn) {
-                                orphan_branches.push((rem.to_string(), bn.to_string()));
-                            }
-                        }
-                    } else if let Some(slash_pos) = tracking.rfind('/') {
-                        // Handle the case where tracking is in the format "remote/branch"
-                        let rem = &tracking[..slash_pos];
-                        let bn = &tracking[slash_pos + 1..];
-                        if !remote_branch_names.iter().any(|rb| rb == bn) {
-                            orphan_branches.push((rem.to_string(), bn.to_string()));
-                        }
-                    }
-                }
-
-                // NEW: 使用 git branch -r 获取所有本地 remote tracking refs，
-                // 与 git ls-remote --heads 的结果对比，找出远端已删除但本地仍残留的 tracking refs。
-                // 这样直接读 Git 命令输出，比依赖 git_ctx.branches 对象的格式更可靠
-                if let Ok(branch_r_output) =
-                    runner_for_remote.run_local(&["branch", "-r"], Some(repo_path))
-                {
-                    for line in branch_r_output.lines() {
-                        let line = line.trim();
-                        if line.is_empty() || line.starts_with("origin/HEAD") {
-                            continue;
-                        }
-                        // git branch -r 输出格式: "  origin/feat/mac-m2p"
-                        // 提取 remote 和 branch 名
-                        if let Some(rest) = line.strip_prefix(&format!("{}/", rem)) {
-                            let bn = rest.trim();
-                            // Skip protected branches
-                            if protected_branches.contains(&bn) {
-                                continue;
-                            }
-                            // Check if this remote branch actually exists on the remote
-                            if !remote_branch_names.iter().any(|rb| rb == bn) {
-                                orphan_branches.push((rem.clone(), bn.to_string()));
-                            }
-                        }
-                    }
+                    orphan_branches.push((rem.clone(), branch.clone()));
                 }
             }
 
+            orphan_branches.sort();
+            orphan_branches.dedup();
             orphan_branches
         };
 
-        // Collect A类: 保护分支的 tracking ref 信息
-        let protected_branches_to_skip: Vec<String> =
-            protected_branches.iter().map(|s| s.to_string()).collect();
+        // A 类: 仓库中真实存在的保护分支，永远不删
+        let protected_branches_to_skip: Vec<String> = protected_branches
+            .iter()
+            .filter(|name| git_ctx.local_branches().iter().any(|b| b.name == **name))
+            .map(|s| s.to_string())
+            .collect();
 
         Ok(BranchCleanContext {
             to_delete,
@@ -438,6 +386,7 @@ impl MultiRepo for BranchCleanArgs {
 
         // === 确认提示：D 类分支数量超过阈值（10条）===
         let d_class_count = ctx.remote_orphan_branches.len();
+        let mut clean_orphans = true;
         if !self.dry_run && !self.yes && d_class_count > 10 {
             let d_names: Vec<String> = ctx
                 .remote_orphan_branches
@@ -449,22 +398,22 @@ impl MultiRepo for BranchCleanArgs {
                 d_class_count,
                 d_names.join(", ")
             );
-            let confirmed = match try_readline(&confirm_msg) {
+            clean_orphans = match try_readline(&confirm_msg) {
                 Some(line) => matches!(line.trim().to_lowercase().as_str(), "y" | "yes"),
                 None => false,
             };
-            if !confirmed {
+            if !clean_orphans {
                 plan.add_message(DisplayMessage::Skip {
                     msg: format!("用户取消：D 类 {} 条孤儿分支未清理", d_class_count),
                 });
-                // 跳过 D 类清理，但继续处理 C/B 类和 prune
-                // return Ok(plan); // We still process C/B below
             }
         }
 
         // C 类分支: 始终清理
+        // 清理类操作彼此独立且幂等，单条失败（引用已不存在、远端拒绝等）不应中断后续清理
         if !to_delete.is_empty() {
-            let mut clean_phase = Phase::new("清理 C 类分支（已合并到 master/dev）");
+            let mut clean_phase =
+                Phase::new("清理 C 类分支（已合并到 master/dev）").continue_on_error();
             for branch in to_delete {
                 clean_phase.add(GitOperation::DeleteBranch {
                     branch: branch.clone(),
@@ -481,7 +430,8 @@ impl MultiRepo for BranchCleanArgs {
 
         // B 类分支: 仅当加 -D 时清理（使用强制删除 -D，因为 B 类分支未合并到保护分支）
         if !unmerged.is_empty() && self.delete_unmerged {
-            let mut unmerged_phase = Phase::new("清理 B 类分支（未合并到 master/dev）");
+            let mut unmerged_phase =
+                Phase::new("清理 B 类分支（未合并到 master/dev）").continue_on_error();
             for branch in unmerged {
                 unmerged_phase.add(GitOperation::DeleteBranchForce {
                     branch: branch.clone(),
@@ -496,15 +446,15 @@ impl MultiRepo for BranchCleanArgs {
             plan.add_phase(unmerged_phase);
         }
 
-        // D类: 远端孤儿分支 — 本地没有跟踪分支的远端分支，始终清理
-        if !ctx.remote_orphan_branches.is_empty() {
-            let mut orphan_phase = Phase::new("清理远端孤儿分支 (D类)");
+        // D 类: 本地残留的远端跟踪引用（远端分支已删除）
+        if clean_orphans && !ctx.remote_orphan_branches.is_empty() {
+            let mut orphan_phase = Phase::new("清理远端孤儿分支 (D类)").continue_on_error();
             for (remote, branch) in &ctx.remote_orphan_branches {
                 // 添加判断依据输出
                 plan.add_message(DisplayMessage::Detail {
                     label: "D 类".to_string(),
                     value: format!(
-                        "{}/{} → ls-remote 未返回，分类为 D 类孤儿分支",
+                        "{}/{} → 本地存在跟踪引用但 ls-remote 未返回，分类为 D 类孤儿分支",
                         remote, branch
                     ),
                 });
@@ -517,23 +467,21 @@ impl MultiRepo for BranchCleanArgs {
             plan.add_phase(orphan_phase);
         }
 
-        // 同步 remote: 清理远端已经不存在的跟踪分支 (git remote prune)
-        let mut prune_phase = Phase::new("同步远端跟踪分支");
-        for rem in ctx
+        // 同步 remote: 兜底清理残留的跟踪引用 (git remote prune)
+        let mut prune_phase = Phase::new("同步远端跟踪分支").continue_on_error();
+        let mut prune_remotes: Vec<String> = ctx
             .remote_orphan_branches
             .iter()
-            .map(|(r, _)| r)
-            .collect::<std::collections::HashSet<_>>()
-        {
-            prune_phase.add(GitOperation::PruneRemote {
-                remote: rem.clone(),
-                working_dir: repo_path.to_path_buf(),
-            });
+            .map(|(r, _)| r.clone())
+            .collect();
+        if prune_remotes.is_empty() {
+            prune_remotes.push(ctx.remote_name.clone());
         }
-        // Also prune the primary remote even if no orphan branches found
-        if ctx.remote_orphan_branches.is_empty() {
+        prune_remotes.sort();
+        prune_remotes.dedup();
+        for rem in prune_remotes {
             prune_phase.add(GitOperation::PruneRemote {
-                remote: ctx.remote_name.clone(),
+                remote: rem,
                 working_dir: repo_path.to_path_buf(),
             });
         }
@@ -549,7 +497,7 @@ impl MultiRepo for BranchCleanArgs {
             label: "清理汇总".to_string(),
             value: format!(
                 "C类已合并 {}条 | B类未合并 {}条 | A类保护 {}条 | D类孤儿 {}条",
-                c_count, b_count, d_count, a_count,
+                c_count, b_count, a_count, d_count,
             ),
         });
 

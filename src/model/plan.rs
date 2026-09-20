@@ -53,6 +53,7 @@ pub struct Phase {
     label: String,
     steps: Vec<Step>,
     operation_count: usize,
+    continue_on_error: bool,
 }
 
 impl Phase {
@@ -61,7 +62,17 @@ impl Phase {
             label: label.into(),
             steps: Vec::new(),
             operation_count: 0,
+            continue_on_error: false,
         }
+    }
+
+    pub fn continue_on_error(mut self) -> Self {
+        self.continue_on_error = true;
+        self
+    }
+
+    pub fn is_continue_on_error(&self) -> bool {
+        self.continue_on_error
     }
 
     pub fn label(&self) -> &str {
