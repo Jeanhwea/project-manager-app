@@ -69,6 +69,12 @@ fn parse_tracking_ref_line(line: &str) -> Option<(String, String)> {
     if line.is_empty() || line.contains("->") {
         return None;
     }
+    // 去掉 "remotes/" 前缀
+    let line = if let Some(stripped) = line.strip_prefix("remotes/") {
+        stripped
+    } else {
+        line
+    };
     let (remote, branch) = line.split_once('/')?;
     if remote.is_empty() || branch.is_empty() {
         return None;
@@ -103,13 +109,15 @@ fn add_clean_summary(plan: &mut ExecutionPlan, ctx: &BranchCleanContext, delete_
     let b_count = ctx.unmerged_branches.len();
     let d_count = ctx.remote_orphan_branches.len();
     let a_count = ctx.protected_branches_to_skip.len();
+    let e_branches: Vec<(String, String)> = ctx.remote_merged_branches.clone();
+    let e_count = e_branches.len();
 
     plan.add_footer_message(DisplayMessage::Blank);
     plan.add_footer_message(DisplayMessage::Item {
         label: "清理汇总".to_string(),
         value: format!(
-            "C类已合并 {}条 | B类未合并 {}条 | A类保护 {}条 | D类孤儿 {}条",
-            c_count, b_count, a_count, d_count,
+            "C类已合并 {}条 | B类未合并 {}条 | A类保护 {}条 | D类孤儿 {}条 | E类远端已合并 {}条",
+            c_count, b_count, a_count, d_count, e_count,
         ),
     });
 
@@ -128,6 +136,16 @@ fn add_clean_summary(plan: &mut ExecutionPlan, ctx: &BranchCleanContext, delete_
         plan.add_footer_message(DisplayMessage::Detail {
             label: "D 类".to_string(),
             value: format!("清除 {} 条 → {}", d_count, names.join(", ")),
+        });
+    }
+    if e_count > 0 {
+        let names: Vec<String> = e_branches
+            .iter()
+            .map(|(rem, bn)| format!("{}/{}", rem, bn))
+            .collect();
+        plan.add_footer_message(DisplayMessage::Detail {
+            label: "E 类".to_string(),
+            value: format!("清除 {} 条 → {}", e_count, names.join(", ")),
         });
     }
     if b_count > 0 {
@@ -164,9 +182,8 @@ fn list_remote_heads(
     repo_path: &Path,
     remote: &str,
 ) -> Option<HashSet<String>> {
-    let output = runner
-        .run_local(&["ls-remote", "--heads", remote], Some(repo_path))
-        .ok()?;
+    let result = runner.run_local(&["ls-remote", "--heads", remote], Some(repo_path));
+    let output = result.ok()?;
     Some(output.lines().filter_map(parse_ls_remote_line).collect())
 }
 
@@ -272,6 +289,8 @@ pub(crate) struct BranchCleanContext {
     unmerged_branches: Vec<String>,
     /// D 类: 本地残留的远端跟踪引用 (remote, branch)，远端分支已不存在
     remote_orphan_branches: Vec<(String, String)>,
+    /// E 类: 本地分支已删除、远端仍存在且已合并到保护分支的跟踪引用 (remote, branch)
+    remote_merged_branches: Vec<(String, String)>,
     /// 保护分支的跟踪引用虽已在远端消失，但按安全底线保留，仅提示
     protected_stale_refs: Vec<(String, String)>,
     /// ls-remote 不可达的 remote，其 D 类检测已降级跳过
@@ -284,6 +303,8 @@ pub(crate) struct BranchCleanContext {
     /// 在其它 worktree 中已检出、无法删除的分支
     worktree_locked_branches: Vec<String>,
     local_branch_names: HashSet<String>,
+    /// 所有 remote 的远端分支列表（用于 E 类判断远端是否存在）
+    all_remote_heads: HashMap<String, HashSet<String>>,
 }
 
 impl BranchCleanContext {
@@ -444,6 +465,29 @@ impl MultiRepo for BranchCleanArgs {
             .cloned()
             .collect();
 
+        /// 获取所有非保护远端分支的 merge 状态（相对于本地保护分支）
+        /// 使用 `git branch -r --merged <ref>` 检查远程跟踪引用是否已合并到某个保护分支
+        fn list_merged_remote_refs(
+            runner: &GitCommandRunner,
+            repo_path: &Path,
+            protected_branches: &[String],
+        ) -> HashSet<String> {
+            let mut merged_refs = HashSet::new();
+            for pb in protected_branches {
+                let Ok(output) =
+                    runner.run_local(&["branch", "-r", "--merged", pb.as_str()], Some(repo_path))
+                else {
+                    continue;
+                };
+                for line in output.lines() {
+                    if let Some((_, branch)) = parse_tracking_ref_line(line) {
+                        merged_refs.insert(branch);
+                    }
+                }
+            }
+            merged_refs
+        }
+
         // D 类: 本地残留的远端跟踪引用 —— 本地还有 refs/remotes/<remote>/<branch>，
         // 但 ls-remote 已经查不到对应的远端分支。
         // git branch -d -r 只能删除本地真实存在的引用，所以候选集必须以 git branch -r 为准，
@@ -472,8 +516,9 @@ impl MultiRepo for BranchCleanArgs {
         let mut remote_orphan_branches: Vec<(String, String)> = Vec::new();
         let mut protected_stale_refs: Vec<(String, String)> = Vec::new();
         for (rem, branch) in &local_tracking_refs {
-            // remote 不可达时无法判断，保持原样（降级）
+            // remote 不可达时无法判断，默认加入 D 类孤儿分支
             let Some(heads) = remote_heads.get(rem) else {
+                remote_orphan_branches.push((rem.clone(), branch.clone()));
                 continue;
             };
             if heads.contains(branch) {
@@ -492,13 +537,51 @@ impl MultiRepo for BranchCleanArgs {
 
         let primary_remote_heads = remote_heads.remove(&remote_name);
 
+        // 完整远端分支表（含主 remote），供 E 类判定远端是否真实存在该分支
+        let mut all_heads = remote_heads.clone();
+        if let Some(heads) = &primary_remote_heads {
+            all_heads.insert(remote_name.clone(), heads.clone());
+        }
+
+        // E 类: 本地分支已删除、远端跟踪引用仍在，且远端分支已合并到保护分支。
+        // 这类分支在本地已清理过，但远端残留，属于无用远端分支，应删除远端分支与本地跟踪引用。
+        // 远端必须真实存在该分支（否则归 D 类），且本地已无同名分支（否则归 C 类）。
+        let merged_remote_refs =
+            list_merged_remote_refs(&runner, repo_path, &protected_branches_to_skip);
+        let mut remote_merged_branches: Vec<(String, String)> = Vec::new();
+        for (rem, branch) in &local_tracking_refs {
+            if is_protected(branch) {
+                continue;
+            }
+            // 本地仍有同名分支时由 C 类（已合并）处理，这里只处理本地已删除的远端残留
+            if local_branch_names.contains(branch) {
+                continue;
+            }
+            // 远端必须真实存在该分支，否则归属 D 类孤儿
+            let Some(heads) = all_heads.get(rem) else {
+                continue;
+            };
+            if !heads.contains(branch) {
+                continue;
+            }
+            // 必须已合并到某个保护分支才清理，未合并的远端分支保留
+            if !merged_remote_refs.contains(branch) {
+                continue;
+            }
+            remote_merged_branches.push((rem.clone(), branch.clone()));
+        }
+        remote_merged_branches.sort();
+        remote_merged_branches.dedup();
+
         Ok(BranchCleanContext {
             to_delete,
             unmerged_branches,
             remote_orphan_branches,
+            remote_merged_branches,
             protected_stale_refs,
             unreachable_remotes,
             primary_remote_heads,
+            all_remote_heads: all_heads,
             remote_name,
             protected_branches_to_skip,
             worktree_locked_branches,
@@ -566,7 +649,9 @@ impl MultiRepo for BranchCleanArgs {
             }
         }
 
-        let has_work = !to_delete.is_empty() || clean_unmerged || clean_orphans;
+        let e_class_count = ctx.remote_merged_branches.len();
+        let has_work =
+            !to_delete.is_empty() || clean_unmerged || clean_orphans || e_class_count > 0;
         if !has_work {
             if to_delete.is_empty() {
                 plan.add_message(DisplayMessage::Skip {
@@ -590,10 +675,10 @@ impl MultiRepo for BranchCleanArgs {
             return Ok(plan);
         }
 
-        // 当只有 D 类工作时，显示提示信息
+        // 当只有远端残留分支工作时，显示提示信息
         if to_delete.is_empty() && !clean_unmerged {
             plan.add_message(DisplayMessage::Skip {
-                msg: "没有本地分支需要清理，仅清理远端孤儿分支 (D类)".to_string(),
+                msg: "没有本地分支需要清理，仅清理远端残留分支 (D/E类)".to_string(),
             });
         }
         if !unmerged.is_empty() && !self.delete_unmerged {
@@ -660,6 +745,42 @@ impl MultiRepo for BranchCleanArgs {
                 });
             }
             plan.add_phase(orphan_phase);
+        }
+
+        // E 类: 本地已删除、远端仍存在且已合并到保护分支 → 删除远端分支及本地跟踪引用
+        if !ctx.remote_merged_branches.is_empty() {
+            let mut e_phase = Phase::new("清理 E 类分支（远端已合并分支）").continue_on_error();
+            for (remote, branch) in &ctx.remote_merged_branches {
+                let remote_exists = ctx
+                    .all_remote_heads
+                    .get(remote)
+                    .is_some_and(|heads| heads.contains(branch));
+                if remote_exists {
+                    e_phase.add_message(DisplayMessage::Detail {
+                        label: "E 类".to_string(),
+                        value: format!(
+                            "{}/{} → 已合并到保护分支且本地已删除，删除远端分支及跟踪引用",
+                            remote, branch
+                        ),
+                    });
+                    e_phase.add(GitOperation::DeleteRemoteBranch {
+                        remote: remote.clone(),
+                        branch: branch.clone(),
+                        working_dir: repo_path.to_path_buf(),
+                    });
+                } else {
+                    e_phase.add_message(DisplayMessage::Detail {
+                        label: "E 类".to_string(),
+                        value: format!("{}/{} → 远端不存在，仅删除本地跟踪引用", remote, branch),
+                    });
+                }
+                e_phase.add(GitOperation::DeleteRemoteTrackingBranch {
+                    remote: remote.clone(),
+                    branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
+                });
+            }
+            plan.add_phase(e_phase);
         }
 
         add_clean_summary(&mut plan, ctx, self.delete_unmerged);
