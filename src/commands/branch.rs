@@ -187,9 +187,9 @@ fn list_remote_heads(
     repo_path: &Path,
     remote: &str,
 ) -> Option<HashSet<String>> {
-    let output = runner
-        .run_local(&["ls-remote", "--heads", remote], Some(repo_path))
-        .ok()?;
+    let result = runner.run_local(&["ls-remote", "--heads", remote], Some(repo_path));
+    eprintln!("DEBUG: list_remote_heads({}): {:?}", remote, result);
+    let output = result.ok()?;
     Some(output.lines().filter_map(parse_ls_remote_line).collect())
 }
 
@@ -522,8 +522,10 @@ impl MultiRepo for BranchCleanArgs {
         let mut remote_orphan_branches: Vec<(String, String)> = Vec::new();
         let mut protected_stale_refs: Vec<(String, String)> = Vec::new();
         for (rem, branch) in &local_tracking_refs {
-            // remote 不可达时无法判断，保持原样（降级）
+            // remote 不可达时无法判断，默认加入 D 类孤儿分支
             let Some(heads) = remote_heads.get(rem) else {
+                eprintln!("DEBUG: D class candidate (remote unreachable): rem={}, branch={}", rem, branch);
+                remote_orphan_branches.push((rem.clone(), branch.clone()));
                 continue;
             };
             if heads.contains(branch) {
@@ -537,6 +539,7 @@ impl MultiRepo for BranchCleanArgs {
         }
         remote_orphan_branches.sort();
         remote_orphan_branches.dedup();
+        eprintln!("DEBUG: D class count: {}", remote_orphan_branches.len());
         protected_stale_refs.sort();
         protected_stale_refs.dedup();
 
@@ -551,19 +554,51 @@ impl MultiRepo for BranchCleanArgs {
         for (rem, branch) in &local_tracking_refs {
             // 跳过找不到远端的情况
             let Some(heads) = remote_heads.get(rem) else {
+                eprintln!("DEBUG: E class skipped - remote unavailable: {}", rem);
                 continue;
             };
             if !heads.contains(branch) {
+                eprintln!("DEBUG: E class skipped - remote branch not in heads (D class): {}", branch);
                 continue; // 远端已不存在，属于 D 类
             }
             if is_protected(branch) {
+                eprintln!("DEBUG: E class skipped - protected branch: {}", branch);
                 continue;
             }
             if merged_remote_refs.contains(branch) {
+                eprintln!("DEBUG: E class skipped - merged to protected: {}", branch);
                 continue; // 已合并到保护分支，无需清理
             }
             // 跳过当前分支
             if git_ctx.current_branch == *branch {
+                eprintln!("DEBUG: E class skipped - current branch: {}", branch);
+                continue;
+            }
+            // debug: trace E class detection
+            eprintln!("DEBUG: E class candidate: rem={}, branch={}", rem, branch);
+            remote_unmerged_branches.push((rem.clone(), branch.clone()));
+        }
+        for (rem, branch) in &local_tracking_refs {
+            // 跳过找不到远端的情况
+            let Some(heads) = remote_heads.get(rem) else {
+                eprintln!("DEBUG: E class skipped - remote unavailable: {}", rem);
+                continue;
+            };
+            if !heads.contains(branch) {
+                eprintln!("DEBUG: E class skipped - remote branch not in heads (D class): {}", branch);
+                continue; // 远端已不存在，属于 D 类
+            }
+            if is_protected(branch) {
+                eprintln!("DEBUG: E class skipped - protected branch: {}", branch);
+                continue;
+            }
+            if merged_remote_refs.contains(branch) {
+                eprintln!("DEBUG: E class skipped - merged to protected: {}", branch);
+                continue; // 已合并到保护分支，无需清理
+            }
+            // 跳过当前分支
+            if git_ctx.current_branch == *branch {
+                eprintln!("DEBUG: E class skipped - current branch: {}", branch);
                 continue;
             }
             // debug: trace E class detection
