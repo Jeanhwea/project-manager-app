@@ -748,7 +748,10 @@ impl MultiRepo for BranchCleanArgs {
         if !e_branches.is_empty() {
             let mut e_phase = Phase::new("清理 E 类分支（远端未合并分支）").continue_on_error();
             for (remote, branch) in &e_branches {
-                let remote_exists = ctx.all_remote_heads.get(remote).is_some_and(|heads| heads.contains(branch));
+                let remote_exists = ctx
+                    .all_remote_heads
+                    .get(remote)
+                    .is_some_and(|heads| heads.contains(branch));
                 if remote_exists {
                     e_phase.add_message(DisplayMessage::Detail {
                         label: "E 类".to_string(),
@@ -765,10 +768,7 @@ impl MultiRepo for BranchCleanArgs {
                 } else {
                     e_phase.add_message(DisplayMessage::Detail {
                         label: "E 类".to_string(),
-                        value: format!(
-                            "{}/{} → 远端不存在，仅删除本地跟踪引用",
-                            remote, branch
-                        ),
+                        value: format!("{}/{} → 远端不存在，仅删除本地跟踪引用", remote, branch),
                     });
                 }
                 e_phase.add(GitOperation::DeleteRemoteTrackingBranch {
