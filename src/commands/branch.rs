@@ -522,7 +522,8 @@ impl MultiRepo for BranchCleanArgs {
         // E 类: 远端存在但未合并到保护分支的远程跟踪引用
         // 这些分支在远端存在（非孤儿），但未合并到任何本地保护分支，因此属于"无用分支"。
         // 清理时会同时删除远端分支和本地跟踪引用。
-        let merged_remote_refs = list_merged_remote_refs(&runner, repo_path, &protected_branches_to_skip);
+        let merged_remote_refs =
+            list_merged_remote_refs(&runner, repo_path, &protected_branches_to_skip);
         let mut remote_unmerged_branches: Vec<(String, String)> = Vec::new();
         for (rem, branch) in &local_tracking_refs {
             // 跳过找不到远端的情况
@@ -555,6 +556,7 @@ impl MultiRepo for BranchCleanArgs {
             protected_stale_refs,
             unreachable_remotes,
             primary_remote_heads,
+            all_remote_heads: remote_heads,
             remote_name,
             protected_branches_to_skip,
             worktree_locked_branches,
