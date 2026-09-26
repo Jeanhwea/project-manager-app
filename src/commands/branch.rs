@@ -183,7 +183,6 @@ fn list_remote_heads(
     remote: &str,
 ) -> Option<HashSet<String>> {
     let result = runner.run_local(&["ls-remote", "--heads", remote], Some(repo_path));
-    eprintln!("DEBUG: list_remote_heads({}): {:?}", remote, result);
     let output = result.ok()?;
     Some(output.lines().filter_map(parse_ls_remote_line).collect())
 }
@@ -519,10 +518,6 @@ impl MultiRepo for BranchCleanArgs {
         for (rem, branch) in &local_tracking_refs {
             // remote 不可达时无法判断，默认加入 D 类孤儿分支
             let Some(heads) = remote_heads.get(rem) else {
-                eprintln!(
-                    "DEBUG: D class candidate (remote unreachable): rem={}, branch={}",
-                    rem, branch
-                );
                 remote_orphan_branches.push((rem.clone(), branch.clone()));
                 continue;
             };
@@ -537,7 +532,6 @@ impl MultiRepo for BranchCleanArgs {
         }
         remote_orphan_branches.sort();
         remote_orphan_branches.dedup();
-        eprintln!("DEBUG: D class count: {}", remote_orphan_branches.len());
         protected_stale_refs.sort();
         protected_stale_refs.dedup();
 
