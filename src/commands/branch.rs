@@ -103,13 +103,20 @@ fn add_clean_summary(plan: &mut ExecutionPlan, ctx: &BranchCleanContext, delete_
     let b_count = ctx.unmerged_branches.len();
     let d_count = ctx.remote_orphan_branches.len();
     let a_count = ctx.protected_branches_to_skip.len();
+    let e_branches: Vec<(String, String)> = ctx
+        .remote_unmerged_branches
+        .iter()
+        .filter(|(rem, _)| *rem != ctx.remote_name)
+        .cloned()
+        .collect();
+    let e_count = e_branches.len();
 
     plan.add_footer_message(DisplayMessage::Blank);
     plan.add_footer_message(DisplayMessage::Item {
         label: "清理汇总".to_string(),
         value: format!(
-            "C类已合并 {}条 | B类未合并 {}条 | A类保护 {}条 | D类孤儿 {}条",
-            c_count, b_count, a_count, d_count,
+            "C类已合并 {}条 | B类未合并 {}条 | A类保护 {}条 | D类孤儿 {}条 | E类远端未合并 {}条",
+            c_count, b_count, a_count, d_count, e_count,
         ),
     });
 
@@ -128,6 +135,16 @@ fn add_clean_summary(plan: &mut ExecutionPlan, ctx: &BranchCleanContext, delete_
         plan.add_footer_message(DisplayMessage::Detail {
             label: "D 类".to_string(),
             value: format!("清除 {} 条 → {}", d_count, names.join(", ")),
+        });
+    }
+    if e_count > 0 {
+        let names: Vec<String> = e_branches
+            .iter()
+            .map(|(rem, bn)| format!("{}/{}", rem, bn))
+            .collect();
+        plan.add_footer_message(DisplayMessage::Detail {
+            label: "E 类".to_string(),
+            value: format!("清除 {} 条 → {}", e_count, names.join(", ")),
         });
     }
     if b_count > 0 {
@@ -718,6 +735,49 @@ impl MultiRepo for BranchCleanArgs {
                 });
             }
             plan.add_phase(orphan_phase);
+        }
+
+        // E 类: 远端未合并分支（非主 remote 上还活着的分支，远端存在但未合并到保护分支）
+        // 这些分支在远端还活着，但已无用（非主 remote 上的老旧分支），需要清理远端分支本身及其跟踪引用
+        let e_branches: Vec<(String, String)> = ctx
+            .remote_unmerged_branches
+            .iter()
+            .filter(|(rem, _)| *rem != ctx.remote_name)
+            .cloned()
+            .collect();
+        if !e_branches.is_empty() {
+            let mut e_phase = Phase::new("清理 E 类分支（远端未合并分支）").continue_on_error();
+            for (remote, branch) in &e_branches {
+                let remote_exists = ctx.all_remote_heads.get(remote).is_some_and(|heads| heads.contains(branch));
+                if remote_exists {
+                    e_phase.add_message(DisplayMessage::Detail {
+                        label: "E 类".to_string(),
+                        value: format!(
+                            "{}/{} → 远端存在且未合并，删除远端分支及跟踪引用",
+                            remote, branch
+                        ),
+                    });
+                    e_phase.add(GitOperation::DeleteRemoteBranch {
+                        remote: remote.clone(),
+                        branch: branch.clone(),
+                        working_dir: repo_path.to_path_buf(),
+                    });
+                } else {
+                    e_phase.add_message(DisplayMessage::Detail {
+                        label: "E 类".to_string(),
+                        value: format!(
+                            "{}/{} → 远端不存在，仅删除本地跟踪引用",
+                            remote, branch
+                        ),
+                    });
+                }
+                e_phase.add(GitOperation::DeleteRemoteTrackingBranch {
+                    remote: remote.clone(),
+                    branch: branch.clone(),
+                    working_dir: repo_path.to_path_buf(),
+                });
+            }
+            plan.add_phase(e_phase);
         }
 
         add_clean_summary(&mut plan, ctx, self.delete_unmerged);
