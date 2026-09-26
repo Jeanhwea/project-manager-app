@@ -272,6 +272,8 @@ pub(crate) struct BranchCleanContext {
     unmerged_branches: Vec<String>,
     /// D 类: 本地残留的远端跟踪引用 (remote, branch)，远端分支已不存在
     remote_orphan_branches: Vec<(String, String)>,
+    /// E 类: 远端存在但未合并到保护分支的跟踪引用 (remote, branch)
+    remote_unmerged_branches: Vec<(String, String)>,
     /// 保护分支的跟踪引用虽已在远端消失，但按安全底线保留，仅提示
     protected_stale_refs: Vec<(String, String)>,
     /// ls-remote 不可达的 remote，其 D 类检测已降级跳过
@@ -284,6 +286,8 @@ pub(crate) struct BranchCleanContext {
     /// 在其它 worktree 中已检出、无法删除的分支
     worktree_locked_branches: Vec<String>,
     local_branch_names: HashSet<String>,
+    /// 所有 remote 的远端分支列表（用于 E 类判断远端是否存在）
+    all_remote_heads: HashMap<String, HashSet<String>>,
 }
 
 impl BranchCleanContext {
@@ -444,6 +448,29 @@ impl MultiRepo for BranchCleanArgs {
             .cloned()
             .collect();
 
+        /// 获取所有非保护远端分支的 merge 状态（相对于本地保护分支）
+        /// 使用 `git branch -r --merged <ref>` 检查远程跟踪引用是否已合并到某个保护分支
+        fn list_merged_remote_refs(
+            runner: &GitCommandRunner,
+            repo_path: &Path,
+            protected_branches: &[String],
+        ) -> HashSet<String> {
+            let mut merged_refs = HashSet::new();
+            for pb in protected_branches {
+                let Ok(output) =
+                    runner.run_local(&["branch", "-r", "--merged", pb.as_str()], Some(repo_path))
+                else {
+                    continue;
+                };
+                for line in output.lines() {
+                    if let Some((_, branch)) = parse_tracking_ref_line(line) {
+                        merged_refs.insert(branch);
+                    }
+                }
+            }
+            merged_refs
+        }
+
         // D 类: 本地残留的远端跟踪引用 —— 本地还有 refs/remotes/<remote>/<branch>，
         // 但 ls-remote 已经查不到对应的远端分支。
         // git branch -d -r 只能删除本地真实存在的引用，所以候选集必须以 git branch -r 为准，
@@ -492,10 +519,39 @@ impl MultiRepo for BranchCleanArgs {
 
         let primary_remote_heads = remote_heads.remove(&remote_name);
 
+        // E 类: 远端存在但未合并到保护分支的远程跟踪引用
+        // 这些分支在远端存在（非孤儿），但未合并到任何本地保护分支，因此属于"无用分支"。
+        // 清理时会同时删除远端分支和本地跟踪引用。
+        let merged_remote_refs = list_merged_remote_refs(&runner, repo_path, &protected_branches_to_skip);
+        let mut remote_unmerged_branches: Vec<(String, String)> = Vec::new();
+        for (rem, branch) in &local_tracking_refs {
+            // 跳过找不到远端的情况
+            let Some(heads) = remote_heads.get(rem) else {
+                continue;
+            };
+            if !heads.contains(branch) {
+                continue; // 远端已不存在，属于 D 类
+            }
+            if is_protected(branch) {
+                continue;
+            }
+            if merged_remote_refs.contains(branch) {
+                continue; // 已合并到保护分支，无需清理
+            }
+            // 跳过当前分支
+            if git_ctx.current_branch == *branch {
+                continue;
+            }
+            remote_unmerged_branches.push((rem.clone(), branch.clone()));
+        }
+        remote_unmerged_branches.sort();
+        remote_unmerged_branches.dedup();
+
         Ok(BranchCleanContext {
             to_delete,
             unmerged_branches,
             remote_orphan_branches,
+            remote_unmerged_branches,
             protected_stale_refs,
             unreachable_remotes,
             primary_remote_heads,
