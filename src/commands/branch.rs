@@ -69,6 +69,12 @@ fn parse_tracking_ref_line(line: &str) -> Option<(String, String)> {
     if line.is_empty() || line.contains("->") {
         return None;
     }
+    // 去掉 "remotes/" 前缀
+    let line = if let Some(stripped) = line.strip_prefix("remotes/") {
+        stripped
+    } else {
+        line
+    };
     let (remote, branch) = line.split_once('/')?;
     if remote.is_empty() || branch.is_empty() {
         return None;
