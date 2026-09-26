@@ -566,10 +566,13 @@ impl MultiRepo for BranchCleanArgs {
             if git_ctx.current_branch == *branch {
                 continue;
             }
+            // debug: trace E class detection
+            eprintln!("DEBUG: E class candidate: rem={}, branch={}", rem, branch);
             remote_unmerged_branches.push((rem.clone(), branch.clone()));
         }
         remote_unmerged_branches.sort();
         remote_unmerged_branches.dedup();
+        eprintln!("DEBUG: E class count: {}", remote_unmerged_branches.len());
 
         Ok(BranchCleanContext {
             to_delete,
