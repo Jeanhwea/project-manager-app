@@ -12,7 +12,7 @@
 =pma= 是一个用 Rust 编写的命令行工具，用于批量管理 Git 仓库。
 
 主要功能:
-- =release= (=re=): 语义化版本发布，自动编辑版本号、提交、打标签、推送
+- =release= (=re=): [[https://semver.org/lang/zh-CN/][语义化版本]]发布，自动编辑版本号、提交、打标签、推送
 - =sync= (=s=): 批量同步目录下的 Git 仓库 (pull + push)
 - =doctor=: 仓库健康检查，自动修正 remote 命名，可选 =git gc=
 - =fork=: 从模板项目 fork 新项目，支持 =.pma.json= 初始化动作
@@ -55,6 +55,8 @@
 
   pma sync                              # 同步当前目录下的仓库
   pma sync -m 5 -a s /path/to/repos     # 指定目录，深度 5，拉取所有分支
+  pma sync -j 4                         # 4 个仓库并行同步 (0 = 自动按 CPU 核数, 1 = 串行)
+  pma sync --timeout 60                 # 单仓库超时 60 分钟 (默认 30, 0 = 不限)
   pma doctor --gc                       # 健康检查并执行 git gc
   pma fork /path/to/template my-project # 从模板 fork 新项目
   pma snap                              # 快照当前目录

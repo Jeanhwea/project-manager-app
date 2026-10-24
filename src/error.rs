@@ -47,6 +47,9 @@ pub enum AppError {
 
     #[error("不支持: {what}")]
     NotSupported { what: String },
+
+    #[error("操作超时: 超过 {timeout} 未完成")]
+    Timeout { timeout: String },
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;

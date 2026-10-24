@@ -12,5 +12,7 @@ pub mod sync;
 mod multi_repo;
 mod runtime;
 
-pub(crate) use multi_repo::{MultiRepo, RepoPathArgs, run_multi_repo_cmd};
+pub(crate) use multi_repo::{
+    MultiRepo, RepoPathArgs, run_multi_repo_cmd, run_multi_repo_cmd_with_jobs,
+};
 pub(crate) use runtime::Command;

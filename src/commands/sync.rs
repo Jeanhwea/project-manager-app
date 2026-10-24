@@ -36,6 +36,19 @@ pub struct SyncArgs {
         help = "Dry run: show commands without executing"
     )]
     pub dry_run: bool,
+    #[arg(
+        long,
+        short,
+        default_value = "1",
+        help = "Parallel jobs across repositories: 1 = serial, 0 = auto (CPU threads), N >= 2 = N parallel"
+    )]
+    pub jobs: usize,
+    #[arg(
+        long,
+        default_value = "30",
+        help = "Per-repository sync timeout in minutes (0 = no timeout)"
+    )]
+    pub timeout: u64,
 }
 
 #[derive(Debug)]
@@ -207,12 +220,25 @@ impl MultiRepo for SyncArgs {
     }
 
     fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
-        plan::run_plan(plan)
+        let deadline = self
+            .timeout_duration()
+            .map(|timeout| std::time::Instant::now() + timeout);
+        plan::run_plan_with_deadline(plan, deadline)
     }
 }
 
 pub fn run(args: SyncArgs) -> Result<()> {
-    crate::commands::run_multi_repo_cmd(&args, &args.repo_path)
+    crate::commands::run_multi_repo_cmd_with_jobs(&args, &args.repo_path, args.jobs)
+}
+
+impl SyncArgs {
+    fn timeout_duration(&self) -> Option<std::time::Duration> {
+        if self.timeout == 0 {
+            None
+        } else {
+            Some(std::time::Duration::from_secs(self.timeout * 60))
+        }
+    }
 }
 
 fn resolve_target_remotes(
@@ -276,4 +302,46 @@ fn skip_plan(msg: &str) -> Result<ExecutionPlan> {
         msg: msg.to_string(),
     });
     Ok(plan)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn sync_args(timeout: u64) -> SyncArgs {
+        SyncArgs {
+            repo_path: RepoPathArgs {
+                max_depth: 3,
+                path: ".".to_string(),
+            },
+            remote: None,
+            all_remotes: true,
+            all_branches: false,
+            dry_run: false,
+            jobs: 1,
+            timeout,
+        }
+    }
+
+    #[test]
+    fn test_timeout_duration_default() {
+        assert_eq!(
+            sync_args(30).timeout_duration(),
+            Some(Duration::from_secs(30 * 60))
+        );
+    }
+
+    #[test]
+    fn test_timeout_duration_zero_disables_timeout() {
+        assert_eq!(sync_args(0).timeout_duration(), None);
+    }
+
+    #[test]
+    fn test_timeout_duration_custom() {
+        assert_eq!(
+            sync_args(5).timeout_duration(),
+            Some(Duration::from_secs(5 * 60))
+        );
+    }
 }
