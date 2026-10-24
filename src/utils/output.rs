@@ -52,12 +52,47 @@ pub fn emit_line(sink: Option<&OutputSink>, line: &str) {
     }
 }
 
-pub fn flush_block(lines: &[String]) {
-    if lines.is_empty() {
+#[derive(Debug, Clone, Copy)]
+pub struct ProgressCount {
+    pub done: usize,
+    pub total: usize,
+    pub in_flight: usize,
+}
+
+pub fn format_progress(done: usize, total: usize, in_flight: usize) -> String {
+    format!(
+        "进度 {}/{} · 进行中 {} · 剩余 {}",
+        done,
+        total,
+        in_flight,
+        total.saturating_sub(done)
+    )
+}
+
+pub fn parallel_start(total: usize, jobs: usize) {
+    let text = format!("并行同步开始: {} 个仓库, 并发度 {}", total, jobs);
+    print_line(&format!(
+        "{} {}",
+        style_text(symbols::PROGRESS_PREFIX, TAG_CYAN),
+        style_text(&text, BODY_DIM)
+    ));
+}
+
+pub fn flush_block(lines: &[String], progress: Option<ProgressCount>) {
+    if lines.is_empty() && progress.is_none() {
         return;
     }
     let _guard = output_lock();
     let mut stdout = std::io::stdout().lock();
+    if let Some(progress) = &progress {
+        let text = format_progress(progress.done, progress.total, progress.in_flight);
+        let _ = writeln!(
+            stdout,
+            "{} {}",
+            style_text(symbols::PROGRESS_PREFIX, TAG_CYAN),
+            style_text(&text, BODY_DIM)
+        );
+    }
     for line in lines {
         let _ = writeln!(stdout, "{}", line);
     }
@@ -70,6 +105,7 @@ mod symbols {
     pub const DRY_COMMAND_PREFIX: &str = "~~>";
     pub const HEADER_PREFIX: &str = "===";
     pub const SECTION_PREFIX: &str = "##";
+    pub const PROGRESS_PREFIX: &str = ">>>";
     pub const DRY_RUN_LABEL: &str = "[DRY]";
     pub const HEADER_FILL_CHAR: char = '=';
     pub const REMOVED_LINE_PREFIX: char = '-';
@@ -378,7 +414,38 @@ mod tests {
 
     #[test]
     fn test_flush_block_writes_lines() {
-        flush_block(&["line one".to_string(), "line two".to_string()]);
-        flush_block(&[]);
+        flush_block(&["line one".to_string(), "line two".to_string()], None);
+        flush_block(&[], None);
+    }
+
+    #[test]
+    fn test_flush_block_with_progress_writes_progress_line() {
+        flush_block(
+            &["repo block".to_string()],
+            Some(ProgressCount {
+                done: 2,
+                total: 6,
+                in_flight: 2,
+            }),
+        );
+        flush_block(
+            &[],
+            Some(ProgressCount {
+                done: 6,
+                total: 6,
+                in_flight: 0,
+            }),
+        );
+    }
+
+    #[test]
+    fn test_format_progress() {
+        assert_eq!(format_progress(3, 6, 1), "进度 3/6 · 进行中 1 · 剩余 3");
+        assert_eq!(format_progress(6, 6, 0), "进度 6/6 · 进行中 0 · 剩余 0");
+    }
+
+    #[test]
+    fn test_parallel_start_prints() {
+        parallel_start(6, 4);
     }
 }

@@ -6,8 +6,16 @@ use crate::model::plan::{
     DisplayMessage, ExecutionPlan, ExecutionResult, OperationError, Phase, Step,
 };
 use crate::utils::output;
+use std::time::{Duration, Instant};
 
 pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
+    run_plan_with_deadline(plan, None)
+}
+
+pub fn run_plan_with_deadline(
+    plan: &ExecutionPlan,
+    deadline: Option<Instant>,
+) -> Result<ExecutionResult> {
     if plan.dry_run() {
         let count = plan.operation_count();
         output::dry_run_header(&format!("将要执行的操作 ({} 条):", count));
@@ -26,7 +34,7 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
         }
         output::section(&format!("▸ {}", phase.label()));
 
-        if !run_phase(phase, &runner, &mut result) {
+        if !run_phase(phase, &runner, &mut result, deadline) {
             return Ok(result);
         }
     }
@@ -36,12 +44,26 @@ pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
     Ok(result)
 }
 
-fn run_phase(phase: &Phase, runner: &GitCommandRunner, result: &mut ExecutionResult) -> bool {
+fn run_phase(
+    phase: &Phase,
+    runner: &GitCommandRunner,
+    result: &mut ExecutionResult,
+    deadline: Option<Instant>,
+) -> bool {
     for step in phase.steps() {
+        if let Some(deadline) = deadline
+            && Instant::now() >= deadline
+        {
+            result.add_error(OperationError::new("同步超时"));
+            output::error("执行失败: 同步超时，跳过剩余操作");
+            return false;
+        }
+
         match step {
             Step::Op(op) => {
                 let tolerate = phase.is_continue_on_error();
-                if !run_op_step(op, runner, result, tolerate) && !tolerate {
+                let timeout = deadline.map(|d| d.saturating_duration_since(Instant::now()));
+                if !run_op_step(op, runner, result, tolerate, timeout) && !tolerate {
                     return false;
                 }
             }
@@ -56,6 +78,7 @@ fn run_op_step(
     runner: &GitCommandRunner,
     result: &mut ExecutionResult,
     tolerate: bool,
+    timeout: Option<Duration>,
 ) -> bool {
     if let Operation::Git(git_op) = op
         && let Some(reason) = git_op.should_skip()
@@ -66,7 +89,7 @@ fn run_op_step(
     }
 
     output::command(&op.description());
-    match execute_operation(op, runner) {
+    match execute_operation(op, runner, timeout) {
         Ok(()) => {
             result.add_executed();
             true
@@ -77,12 +100,24 @@ fn run_op_step(
                 return false;
             }
             let hint = recovery_hint(op, result.executed_count());
-            let error = OperationError::new(op.description()).with_recovery_hint(hint);
+            let description = if is_timeout(&e) {
+                format!("{} (超时)", op.description())
+            } else {
+                op.description()
+            };
+            let error = OperationError::new(description).with_recovery_hint(hint);
             result.add_error(error);
             output::error(&format!("执行失败: {}", e));
             false
         }
     }
+}
+
+fn is_timeout(err: &AppError) -> bool {
+    matches!(
+        err,
+        AppError::Git(crate::domain::git::GitError::Timeout { .. })
+    )
 }
 
 fn first_line(text: &str) -> String {
@@ -169,16 +204,20 @@ pub fn render_message(msg: &DisplayMessage) {
     }
 }
 
-fn execute_operation(op: &Operation, runner: &GitCommandRunner) -> Result<()> {
+fn execute_operation(
+    op: &Operation,
+    runner: &GitCommandRunner,
+    timeout: Option<Duration>,
+) -> Result<()> {
     match op {
-        Operation::Git(git_op) => git_op.execute(runner),
-        Operation::Shell(shell_op) => execute_shell(shell_op),
+        Operation::Git(git_op) => git_op.execute(runner, timeout),
+        Operation::Shell(shell_op) => execute_shell(shell_op, timeout),
         Operation::Edit(edit_op) => execute_edit(edit_op),
         Operation::SelfUpdate(update_op) => execute_self_update(update_op),
     }
 }
 
-fn execute_shell(op: &ShellOperation) -> Result<()> {
+fn execute_shell(op: &ShellOperation, timeout: Option<Duration>) -> Result<()> {
     match op {
         ShellOperation::Run {
             program,
@@ -191,7 +230,8 @@ fn execute_shell(op: &ShellOperation) -> Result<()> {
 
             let mut ctx = ExecutionContext::new(program)
                 .args(args.iter().cloned())
-                .output_mode(OutputMode::Streaming);
+                .output_mode(OutputMode::Streaming)
+                .timeout(timeout);
 
             if let Some(dir) = dir {
                 ctx = ctx.working_dir(dir);
@@ -284,4 +324,57 @@ fn execute_self_update(op: &SelfUpdateOperation) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::operation::ShellOperation;
+    use crate::model::plan::Phase;
+
+    fn echo_plan() -> ExecutionPlan {
+        let mut plan = ExecutionPlan::new();
+        let mut phase = Phase::new("测试阶段");
+        phase.add(ShellOperation::Run {
+            program: "echo".to_string(),
+            args: vec!["hello".to_string()],
+            dir: None,
+            description: "echo hello".to_string(),
+            optional: false,
+        });
+        plan.add_phase(phase);
+        plan
+    }
+
+    #[test]
+    fn test_run_plan_without_deadline_runs_all_steps() {
+        let result = run_plan(&echo_plan()).unwrap();
+        assert_eq!(result.executed_count(), 1);
+        assert!(result.is_success());
+    }
+
+    #[test]
+    fn test_deadline_in_future_runs_all_steps() {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let result = run_plan_with_deadline(&echo_plan(), Some(deadline)).unwrap();
+        assert_eq!(result.executed_count(), 1);
+        assert!(result.is_success());
+    }
+
+    #[test]
+    fn test_deadline_already_passed_skips_remaining_steps() {
+        let deadline = Instant::now() - Duration::from_secs(1);
+        let result = run_plan_with_deadline(&echo_plan(), Some(deadline)).unwrap();
+        assert_eq!(result.executed_count(), 0);
+        assert!(!result.is_success());
+        assert_eq!(result.errors()[0].description(), "同步超时");
+    }
+
+    #[test]
+    fn test_dry_run_ignores_deadline() {
+        let plan = echo_plan().with_dry_run(true);
+        let deadline = Instant::now() - Duration::from_secs(1);
+        let result = run_plan_with_deadline(&plan, Some(deadline)).unwrap();
+        assert!(result.is_success());
+    }
 }

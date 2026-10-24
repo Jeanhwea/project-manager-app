@@ -56,6 +56,7 @@
   pma sync                              # 同步当前目录下的仓库
   pma sync -m 5 -a s /path/to/repos     # 指定目录，深度 5，拉取所有分支
   pma sync -j 4                         # 4 个仓库并行同步 (0 = 自动按 CPU 核数, 1 = 串行)
+  pma sync --timeout 60                 # 单仓库超时 60 分钟 (默认 30, 0 = 不限)
   pma doctor --gc                       # 健康检查并执行 git gc
   pma fork /path/to/template my-project # 从模板 fork 新项目
   pma snap                              # 快照当前目录

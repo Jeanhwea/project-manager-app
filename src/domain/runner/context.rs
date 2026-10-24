@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputMode {
@@ -13,6 +14,7 @@ pub struct ExecutionContext {
     pub args: Vec<String>,
     pub working_dir: Option<PathBuf>,
     pub output_mode: OutputMode,
+    pub timeout: Option<Duration>,
 }
 
 impl ExecutionContext {
@@ -22,6 +24,7 @@ impl ExecutionContext {
             args: Vec::new(),
             working_dir: None,
             output_mode: OutputMode::default(),
+            timeout: None,
         }
     }
 
@@ -41,6 +44,11 @@ impl ExecutionContext {
 
     pub fn output_mode(mut self, mode: OutputMode) -> Self {
         self.output_mode = mode;
+        self
+    }
+
+    pub fn timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.timeout = timeout;
         self
     }
 }

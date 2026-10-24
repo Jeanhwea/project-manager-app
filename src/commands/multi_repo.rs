@@ -117,10 +117,40 @@ struct RepoOutcome {
     status: RepoStatus,
 }
 
+struct SyncProgress {
+    completed: AtomicUsize,
+    in_flight: AtomicUsize,
+}
+
+impl SyncProgress {
+    fn new() -> Self {
+        Self {
+            completed: AtomicUsize::new(0),
+            in_flight: AtomicUsize::new(0),
+        }
+    }
+
+    fn begin(&self) {
+        self.in_flight.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn complete(&self) -> usize {
+        self.in_flight.fetch_sub(1, Ordering::SeqCst);
+        self.completed.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    fn in_flight(&self) -> usize {
+        self.in_flight.load(Ordering::SeqCst)
+    }
+}
+
 fn run_parallel<C: MultiRepo + Sync>(cmd: &C, repos: &[RepoInfo], jobs: usize) {
     let total = repos.len();
     let cursor = AtomicUsize::new(0);
+    let progress = SyncProgress::new();
     let outcomes = Mutex::new(Vec::with_capacity(total));
+
+    output::parallel_start(total, jobs);
 
     thread::scope(|scope| {
         for _ in 0..jobs {
@@ -130,7 +160,9 @@ fn run_parallel<C: MultiRepo + Sync>(cmd: &C, repos: &[RepoInfo], jobs: usize) {
                     if index >= total {
                         break;
                     }
-                    let outcome = process_repo_buffered(cmd, index, total, &repos[index].path);
+                    progress.begin();
+                    let outcome =
+                        process_repo_buffered(cmd, index, total, &repos[index].path, &progress);
                     outcomes
                         .lock()
                         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -151,6 +183,7 @@ fn process_repo_buffered<C: MultiRepo>(
     index: usize,
     total: usize,
     repo_path: &Path,
+    progress: &SyncProgress,
 ) -> RepoOutcome {
     output::capture_start();
     output::repo_header(index + 1, total, repo_path);
@@ -185,7 +218,13 @@ fn process_repo_buffered<C: MultiRepo>(
     };
 
     let lines = output::capture_finish();
-    output::flush_block(&lines);
+    let done = progress.complete();
+    let count = output::ProgressCount {
+        done,
+        total,
+        in_flight: progress.in_flight(),
+    };
+    output::flush_block(&lines, Some(count));
 
     RepoOutcome {
         path: repo_path.to_path_buf(),
@@ -384,5 +423,19 @@ mod tests {
     fn test_first_line_picks_first_non_empty() {
         assert_eq!(first_line("\n  boom \nnext"), "boom");
         assert_eq!(first_line("solo"), "solo");
+    }
+
+    #[test]
+    fn test_sync_progress_counters() {
+        let progress = SyncProgress::new();
+        assert_eq!(progress.in_flight(), 0);
+        progress.begin();
+        assert_eq!(progress.in_flight(), 1);
+        progress.begin();
+        assert_eq!(progress.in_flight(), 2);
+        assert_eq!(progress.complete(), 1);
+        assert_eq!(progress.in_flight(), 1);
+        assert_eq!(progress.complete(), 2);
+        assert_eq!(progress.in_flight(), 0);
     }
 }

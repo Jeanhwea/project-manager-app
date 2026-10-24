@@ -1,6 +1,8 @@
 use super::{GitError, Result};
 use crate::domain::runner::{CommandRunner, ExecutionContext, OutputMode};
+use crate::error::AppError;
 use std::path::Path;
+use std::time::Duration;
 
 pub struct GitCommandRunner;
 
@@ -29,15 +31,28 @@ impl GitCommandRunner {
         Ok(result.stdout.unwrap_or_default().trim().to_string())
     }
 
-    pub fn run_streaming(&self, args: &[&str], dir: &Path) -> Result<()> {
+    pub fn run_streaming(
+        &self,
+        args: &[&str],
+        dir: &Path,
+        timeout: Option<Duration>,
+    ) -> Result<()> {
         let ctx = ExecutionContext::new("git")
             .args(args.iter().copied())
             .working_dir(dir)
-            .output_mode(OutputMode::Streaming);
+            .output_mode(OutputMode::Streaming)
+            .timeout(timeout);
 
-        let result = CommandRunner
-            .execute(&ctx)
-            .map_err(|e| GitError::CommandFailed(e.to_string()))?;
+        let result = match CommandRunner.execute(&ctx) {
+            Ok(result) => result,
+            Err(AppError::Timeout { .. }) => {
+                let secs = timeout.map(|t| t.as_secs()).unwrap_or_default();
+                return Err(GitError::Timeout {
+                    timeout: crate::utils::format_duration(secs),
+                });
+            }
+            Err(e) => return Err(GitError::CommandFailed(e.to_string())),
+        };
 
         if !result.success {
             return Err(GitError::CommandFailed(format!(

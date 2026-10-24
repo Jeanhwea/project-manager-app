@@ -1,5 +1,6 @@
 use super::GitCommandRunner;
 use std::path::PathBuf;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub enum GitOperation {
@@ -141,10 +142,14 @@ impl GitInvocation {
         parts.join(" ")
     }
 
-    fn execute(&self, runner: &GitCommandRunner) -> crate::error::Result<()> {
+    fn execute(
+        &self,
+        runner: &GitCommandRunner,
+        timeout: Option<Duration>,
+    ) -> crate::error::Result<()> {
         let args: Vec<&str> = self.args.iter().map(String::as_str).collect();
         if self.streaming {
-            runner.run_streaming(&args, self.working_dir.as_path())?;
+            runner.run_streaming(&args, self.working_dir.as_path(), timeout)?;
         } else {
             runner.run_local(&args, Some(self.working_dir.as_path()))?;
         }
@@ -275,8 +280,12 @@ impl GitOperation {
         format!("[{}] {}", inv.working_dir.display(), inv.display_command())
     }
 
-    pub fn execute(&self, runner: &GitCommandRunner) -> crate::error::Result<()> {
-        self.invocation().execute(runner)
+    pub fn execute(
+        &self,
+        runner: &GitCommandRunner,
+        timeout: Option<Duration>,
+    ) -> crate::error::Result<()> {
+        self.invocation().execute(runner, timeout)
     }
 
     pub fn recovery_hint(&self, executed_count: usize) -> Option<String> {
