@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
+use std::time::Instant;
 
 pub(crate) trait MultiRepo {
     type Context;
@@ -150,6 +151,7 @@ fn run_parallel<C: MultiRepo + Sync>(cmd: &C, repos: &[RepoInfo], jobs: usize) {
     let progress = SyncProgress::new();
     let outcomes = Mutex::new(Vec::with_capacity(total));
 
+    let started = Instant::now();
     output::parallel_start(total, jobs);
 
     thread::scope(|scope| {
@@ -175,7 +177,7 @@ fn run_parallel<C: MultiRepo + Sync>(cmd: &C, repos: &[RepoInfo], jobs: usize) {
     let outcomes = outcomes
         .into_inner()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    print_summary(outcomes, total);
+    print_summary(outcomes, total, started.elapsed());
 }
 
 fn process_repo_buffered<C: MultiRepo>(
@@ -252,7 +254,7 @@ fn first_line(text: &str) -> String {
         .to_string()
 }
 
-fn print_summary(outcomes: Vec<RepoOutcome>, total: usize) {
+fn print_summary(outcomes: Vec<RepoOutcome>, total: usize, elapsed: std::time::Duration) {
     let mut merged = ExecutionResult::new();
     let mut succeeded = 0usize;
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
@@ -275,6 +277,7 @@ fn print_summary(outcomes: Vec<RepoOutcome>, total: usize) {
     output::section("执行汇总");
     output::item("仓库", &format!("{}/{}", succeeded, total));
     output::item("操作", &merged.executed_count().to_string());
+    output::item("耗时", &crate::utils::format_duration(elapsed.as_secs()));
 
     if !failures.is_empty() {
         output::item("失败", &format!("{} 个", failures.len()));
