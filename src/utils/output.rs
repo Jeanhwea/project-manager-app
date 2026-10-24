@@ -1,8 +1,68 @@
 use colored::Colorize;
+use std::cell::RefCell;
+use std::io::Write;
 use std::path::Path;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 const LABEL_WIDTH: usize = 8;
 const HEADER_BAR_WIDTH: usize = 60;
+
+pub type OutputSink = Arc<Mutex<Vec<String>>>;
+
+thread_local! {
+    static CAPTURE_SINK: RefCell<Option<OutputSink>> = const { RefCell::new(None) };
+}
+
+static OUTPUT_LOCK: Mutex<()> = Mutex::new(());
+
+fn sink_lock(sink: &OutputSink) -> MutexGuard<'_, Vec<String>> {
+    sink.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn output_lock() -> MutexGuard<'static, ()> {
+    OUTPUT_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+pub fn capture_start() -> OutputSink {
+    let sink = Arc::new(Mutex::new(Vec::new()));
+    CAPTURE_SINK.with(|slot| {
+        *slot.borrow_mut() = Some(Arc::clone(&sink));
+    });
+    sink
+}
+
+pub fn capture_finish() -> Vec<String> {
+    let sink = CAPTURE_SINK.with(|slot| slot.borrow_mut().take());
+    match sink {
+        Some(sink) => std::mem::take(&mut *sink_lock(&sink)),
+        None => Vec::new(),
+    }
+}
+
+pub fn current_sink() -> Option<OutputSink> {
+    CAPTURE_SINK.with(|slot| slot.borrow().clone())
+}
+
+pub fn emit_line(sink: Option<&OutputSink>, line: &str) {
+    match sink {
+        Some(sink) => sink_lock(sink).push(line.to_string()),
+        None => println!("{}", line),
+    }
+}
+
+pub fn flush_block(lines: &[String]) {
+    if lines.is_empty() {
+        return;
+    }
+    let _guard = output_lock();
+    let mut stdout = std::io::stdout().lock();
+    for line in lines {
+        let _ = writeln!(stdout, "{}", line);
+    }
+    let _ = stdout.flush();
+}
 
 mod symbols {
     pub const RESULT_PREFIX: &str = "<==";
@@ -94,7 +154,13 @@ fn style_text(text: &str, style: Style) -> String {
 }
 
 fn print_line(s: &str) {
-    println!("{}", s);
+    CAPTURE_SINK.with(|slot| {
+        if let Some(sink) = &*slot.borrow() {
+            sink_lock(sink).push(s.to_string());
+        } else {
+            println!("{}", s);
+        }
+    });
 }
 
 fn print_with_tag(tag: &str, tag_style: Style, body: &str, body_style: Style) {
@@ -264,5 +330,55 @@ fn pad_to_width(s: &str, width: usize) -> String {
         s.to_string()
     } else {
         format!("{}{}", s, " ".repeat(width - w))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_capture_collects_output_and_finish_restores_direct_print() {
+        let _sink = capture_start();
+        assert!(current_sink().is_some());
+
+        message("hello");
+        warning("careful");
+        info("note");
+
+        let lines = capture_finish();
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0], "hello");
+        assert!(lines[1].contains("careful"));
+        assert!(lines[2].contains("note"));
+        assert!(current_sink().is_none());
+    }
+
+    #[test]
+    fn test_capture_is_thread_local() {
+        let _sink = capture_start();
+        std::thread::spawn(|| {
+            assert!(current_sink().is_none());
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
+    fn test_emit_line_routes_to_sink() {
+        let sink = Arc::new(Mutex::new(Vec::new()));
+        emit_line(Some(&sink), "streamed");
+        assert_eq!(sink_lock(&sink).as_slice(), &["streamed".to_string()]);
+    }
+
+    #[test]
+    fn test_emit_line_without_sink_prints() {
+        emit_line(None, "direct");
+    }
+
+    #[test]
+    fn test_flush_block_writes_lines() {
+        flush_block(&["line one".to_string(), "line two".to_string()]);
+        flush_block(&[]);
     }
 }

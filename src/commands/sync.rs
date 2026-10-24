@@ -36,6 +36,13 @@ pub struct SyncArgs {
         help = "Dry run: show commands without executing"
     )]
     pub dry_run: bool,
+    #[arg(
+        long,
+        short,
+        default_value = "1",
+        help = "Parallel jobs across repositories: 1 = serial, 0 = auto (CPU threads), N >= 2 = N parallel"
+    )]
+    pub jobs: usize,
 }
 
 #[derive(Debug)]
@@ -212,7 +219,7 @@ impl MultiRepo for SyncArgs {
 }
 
 pub fn run(args: SyncArgs) -> Result<()> {
-    crate::commands::run_multi_repo_cmd(&args, &args.repo_path)
+    crate::commands::run_multi_repo_cmd_with_jobs(&args, &args.repo_path, args.jobs)
 }
 
 fn resolve_target_remotes(

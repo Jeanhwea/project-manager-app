@@ -224,6 +224,11 @@ impl ExecutionResult {
     pub fn add_error(&mut self, err: OperationError) {
         self.errors.push(err);
     }
+
+    pub fn merge(&mut self, other: ExecutionResult) {
+        self.executed += other.executed;
+        self.errors.extend(other.errors);
+    }
 }
 
 impl Default for ExecutionResult {

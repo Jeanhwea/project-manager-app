@@ -44,17 +44,21 @@ impl CommandRunner {
             reason: "Failed to capture stderr".into(),
         })?;
 
+        let sink = crate::utils::output::current_sink();
+        let stdout_sink = sink.clone();
+        let stderr_sink = sink.clone();
+
         let stdout_thread = thread::spawn(move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines().map_while(std::result::Result::ok) {
-                crate::utils::output::message(&line);
+                crate::utils::output::emit_line(stdout_sink.as_ref(), &line);
             }
         });
 
         let stderr_thread = thread::spawn(move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines().map_while(std::result::Result::ok) {
-                crate::utils::output::message(&line);
+                crate::utils::output::emit_line(stderr_sink.as_ref(), &line);
             }
         });
 
