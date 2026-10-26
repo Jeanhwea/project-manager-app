@@ -15,6 +15,7 @@ date: 2026-09-26
 
 - [自动清理分支](feat/F01.自动清理分支.md) — `pma clean` / `pma branch clean` 功能规格
 - [并行同步代码仓库](feat/F02.并行同步代码仓库.md) — `pma sync` 仓库级并行化方案
+- [定期反馈当前状态](feat/F03.定期反馈当前状态.md) — `pma sync` 并行模式下实时进度监控
 
 ## 问题记录
 
