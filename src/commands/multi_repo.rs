@@ -97,8 +97,8 @@ fn run_serial<C: MultiRepo>(cmd: &C, repos: &[RepoInfo]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::plan::{DisplayMessage, ExecutionPlan};
     use crate::domain::runner::pool::SyncProgress;
+    use crate::model::plan::{DisplayMessage, ExecutionPlan};
     use std::fs;
     use std::path::PathBuf;
 
