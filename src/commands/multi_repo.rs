@@ -1,12 +1,9 @@
 use crate::domain::git::repository::{RepoInfo, RepoWalker};
+use crate::domain::runner::pool;
 use crate::error::Result;
 use crate::model::plan::ExecutionResult;
 use crate::utils::output;
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread;
-use std::time::Instant;
+use std::path::Path;
 
 pub(crate) trait MultiRepo {
     type Context;
@@ -65,22 +62,13 @@ pub fn run_multi_repo_cmd_with_jobs(
 }
 
 fn run_multi_repo<C: MultiRepo + Sync>(cmd: &C, walker: &RepoWalker, jobs: usize) -> Result<()> {
-    let jobs = resolve_jobs(jobs, walker.total());
+    let jobs = pool::resolve_jobs(jobs, walker.total());
     if jobs <= 1 {
         run_serial(cmd, walker.repositories());
     } else {
-        run_parallel(cmd, walker.repositories(), jobs);
+        pool::run_parallel(cmd, walker.repositories(), jobs);
     }
     Ok(())
-}
-
-fn resolve_jobs(jobs: usize, total: usize) -> usize {
-    let jobs = if jobs == 0 {
-        thread::available_parallelism().map_or(1, |n| n.get())
-    } else {
-        jobs
-    };
-    jobs.min(total)
 }
 
 fn run_serial<C: MultiRepo>(cmd: &C, repos: &[RepoInfo]) {
@@ -106,207 +94,13 @@ fn run_serial<C: MultiRepo>(cmd: &C, repos: &[RepoInfo]) {
     }
 }
 
-enum RepoStatus {
-    Success,
-    Failed(String),
-    Skipped(String),
-}
-
-struct RepoOutcome {
-    path: PathBuf,
-    result: ExecutionResult,
-    status: RepoStatus,
-}
-
-struct SyncProgress {
-    completed: AtomicUsize,
-    in_flight: AtomicUsize,
-}
-
-impl SyncProgress {
-    fn new() -> Self {
-        Self {
-            completed: AtomicUsize::new(0),
-            in_flight: AtomicUsize::new(0),
-        }
-    }
-
-    fn begin(&self) {
-        self.in_flight.fetch_add(1, Ordering::SeqCst);
-    }
-
-    fn complete(&self) -> usize {
-        self.in_flight.fetch_sub(1, Ordering::SeqCst);
-        self.completed.fetch_add(1, Ordering::SeqCst) + 1
-    }
-
-    fn in_flight(&self) -> usize {
-        self.in_flight.load(Ordering::SeqCst)
-    }
-}
-
-fn run_parallel<C: MultiRepo + Sync>(cmd: &C, repos: &[RepoInfo], jobs: usize) {
-    let total = repos.len();
-    let cursor = AtomicUsize::new(0);
-    let progress = SyncProgress::new();
-    let outcomes = Mutex::new(Vec::with_capacity(total));
-
-    let started = Instant::now();
-    output::parallel_start(total, jobs);
-
-    thread::scope(|scope| {
-        for _ in 0..jobs {
-            scope.spawn(|| {
-                loop {
-                    let index = cursor.fetch_add(1, Ordering::SeqCst);
-                    if index >= total {
-                        break;
-                    }
-                    progress.begin();
-                    let outcome =
-                        process_repo_buffered(cmd, index, total, &repos[index].path, &progress);
-                    outcomes
-                        .lock()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .push(outcome);
-                }
-            });
-        }
-    });
-
-    let outcomes = outcomes
-        .into_inner()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    print_summary(outcomes, total, started.elapsed());
-}
-
-fn process_repo_buffered<C: MultiRepo>(
-    cmd: &C,
-    index: usize,
-    total: usize,
-    repo_path: &Path,
-    progress: &SyncProgress,
-) -> RepoOutcome {
-    output::capture_start();
-    output::repo_header(index + 1, total, repo_path);
-
-    let mut result = ExecutionResult::new();
-    let status = match cmd.collect(repo_path) {
-        Ok(ctx) => match cmd.plan(&ctx, repo_path) {
-            Ok(plan) => match cmd.execute(&plan) {
-                Ok(executed) => {
-                    let status = if executed.is_success() {
-                        RepoStatus::Success
-                    } else {
-                        RepoStatus::Failed(failure_reason(&executed))
-                    };
-                    result = executed;
-                    status
-                }
-                Err(e) => {
-                    output::error_chain(&e);
-                    RepoStatus::Failed(first_line(&e.to_string()))
-                }
-            },
-            Err(e) => {
-                output::error_chain(&e);
-                RepoStatus::Failed(first_line(&e.to_string()))
-            }
-        },
-        Err(e) => {
-            output::warning(&format!("跳过 {}: {}", repo_path.display(), e));
-            RepoStatus::Skipped(first_line(&e.to_string()))
-        }
-    };
-
-    let lines = output::capture_finish();
-    let done = progress.complete();
-    let count = output::ProgressCount {
-        done,
-        total,
-        in_flight: progress.in_flight(),
-    };
-    output::flush_block(&lines, Some(count));
-
-    RepoOutcome {
-        path: repo_path.to_path_buf(),
-        result,
-        status,
-    }
-}
-
-fn failure_reason(result: &ExecutionResult) -> String {
-    let Some(err) = result.errors().first() else {
-        return "执行失败".to_string();
-    };
-    let description = err.description();
-    description
-        .strip_prefix('[')
-        .and_then(|rest| rest.split_once("] "))
-        .map_or_else(|| description.to_string(), |(_, body)| body.to_string())
-}
-
-fn first_line(text: &str) -> String {
-    text.lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
-        .unwrap_or(text)
-        .to_string()
-}
-
-fn print_summary(outcomes: Vec<RepoOutcome>, total: usize, elapsed: std::time::Duration) {
-    let mut merged = ExecutionResult::new();
-    let mut succeeded = 0usize;
-    let mut failures: Vec<(PathBuf, String)> = Vec::new();
-    let mut skips: Vec<(PathBuf, String)> = Vec::new();
-
-    for outcome in outcomes {
-        let RepoOutcome {
-            path,
-            result,
-            status,
-        } = outcome;
-        merged.merge(result);
-        match status {
-            RepoStatus::Success => succeeded += 1,
-            RepoStatus::Failed(reason) => failures.push((path, reason)),
-            RepoStatus::Skipped(reason) => skips.push((path, reason)),
-        }
-    }
-
-    output::section("执行汇总");
-    output::item("仓库", &format!("{}/{}", succeeded, total));
-    output::item("操作", &merged.executed_count().to_string());
-    output::item("耗时", &crate::utils::format_duration(elapsed.as_secs()));
-
-    if !failures.is_empty() {
-        output::item("失败", &format!("{} 个", failures.len()));
-        for (path, reason) in &failures {
-            output::error(&format!(
-                "{} ({})",
-                crate::utils::path::format_path(path),
-                reason
-            ));
-        }
-    }
-
-    if !skips.is_empty() {
-        output::item("跳过", &format!("{} 个", skips.len()));
-        for (path, reason) in &skips {
-            output::warning(&format!(
-                "{} ({})",
-                crate::utils::path::format_path(path),
-                reason
-            ));
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::runner::pool::SyncProgress;
     use crate::model::plan::{DisplayMessage, ExecutionPlan};
     use std::fs;
+    use std::path::PathBuf;
 
     struct FakeSync;
 
@@ -351,24 +145,24 @@ mod tests {
 
     #[test]
     fn test_resolve_jobs_serial_by_default() {
-        assert_eq!(resolve_jobs(1, 10), 1);
+        assert_eq!(pool::resolve_jobs(1, 10), 1);
     }
 
     #[test]
     fn test_resolve_jobs_explicit() {
-        assert_eq!(resolve_jobs(4, 10), 4);
-        assert_eq!(resolve_jobs(2, 1), 1);
+        assert_eq!(pool::resolve_jobs(4, 10), 4);
+        assert_eq!(pool::resolve_jobs(2, 1), 1);
     }
 
     #[test]
     fn test_resolve_jobs_clamped_to_total() {
-        assert_eq!(resolve_jobs(100, 3), 3);
+        assert_eq!(pool::resolve_jobs(100, 3), 3);
     }
 
     #[test]
     fn test_resolve_jobs_auto_converges() {
-        assert_eq!(resolve_jobs(0, 1), 1);
-        let jobs = resolve_jobs(0, 8);
+        assert_eq!(pool::resolve_jobs(0, 1), 1);
+        let jobs = pool::resolve_jobs(0, 8);
         assert!((1..=8).contains(&jobs));
     }
 
@@ -414,18 +208,18 @@ mod tests {
         result.add_error(crate::model::plan::OperationError::new(
             "[/data/repo] git pull origin main",
         ));
-        assert_eq!(failure_reason(&result), "git pull origin main");
+        assert_eq!(pool::failure_reason(&result), "git pull origin main");
     }
 
     #[test]
     fn test_failure_reason_without_errors() {
-        assert_eq!(failure_reason(&ExecutionResult::new()), "执行失败");
+        assert_eq!(pool::failure_reason(&ExecutionResult::new()), "执行失败");
     }
 
     #[test]
     fn test_first_line_picks_first_non_empty() {
-        assert_eq!(first_line("\n  boom \nnext"), "boom");
-        assert_eq!(first_line("solo"), "solo");
+        assert_eq!(pool::first_line("\n  boom \nnext"), "boom");
+        assert_eq!(pool::first_line("solo"), "solo");
     }
 
     #[test]
