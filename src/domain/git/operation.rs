@@ -1,7 +1,12 @@
+//! 声明式的 Git 变更操作：每个 `GitOperation` 变体自描述地展开成一条 git 命令行，
+//! plan 阶段据此预览（dry-run），execute 阶段据此真正执行。
+//! 这里是「命令该长什么样」的唯一来源，命令层不应自己拼 git 参数。
+
 use super::GitCommandRunner;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// 一个待执行的 git 变更：变体字段就是命令参数，`working_dir` 决定命令在哪里落盘
 #[derive(Debug, Clone)]
 pub enum GitOperation {
     Init {
@@ -100,6 +105,9 @@ pub enum GitOperation {
     },
 }
 
+/// 一条被具象化的 git 命令行：参数、工作目录，以及输出是转发还是捕获。
+///
+/// `local`（capture）用于能静默完成的命令，`streaming` 用于需要向用户展示进度的网络类命令。
 struct GitInvocation {
     args: Vec<String>,
     working_dir: PathBuf,
@@ -123,9 +131,11 @@ impl GitInvocation {
         }
     }
 
+    /// 渲染成给用户看的一行命令行（`git ...`）
     fn display_command(&self) -> String {
         let mut parts: Vec<String> = Vec::with_capacity(self.args.len() + 1);
         parts.push("git".to_string());
+        // 只给 commit -m 的消息加引号，避免含空格的 message 在预览里糊成一团
         let quotes_message = self.args.first().map(String::as_str) == Some("commit");
         let mut iter = self.args.iter().peekable();
         while let Some(arg) = iter.next() {
@@ -169,6 +179,8 @@ impl GitOperation {
                 working_dir,
             } => GitInvocation::streaming(
                 working_dir.clone(),
+                // 路径含非 UTF-8 字符时 to_str 失败，兜底成 "."（git 会以目标名 "."
+                // 报错退出，总好过在这里 panic）
                 &["clone", url, target_dir.to_str().unwrap_or(".")],
             ),
             GitOperation::Add { path, working_dir } => {
@@ -205,6 +217,7 @@ impl GitOperation {
                 working_dir,
             } => GitInvocation::streaming(working_dir.clone(), &["pull", remote, branch]),
             GitOperation::PullDefault { working_dir } => {
+                // 不带 remote/branch，完全交给 git 自己的 upstream 配置
                 GitInvocation::streaming(working_dir.clone(), &["pull"])
             }
             GitOperation::FetchTags {
@@ -270,16 +283,19 @@ impl GitOperation {
                 }
             }
             GitOperation::Gc { working_dir } => {
+                // --aggressive 压缩率更高但明显更慢，只在 doctor --gc 这种低频场景用
                 GitInvocation::streaming(working_dir.clone(), &["gc", "--aggressive"])
             }
         }
     }
 
+    /// dry-run 预览用的一行描述，形如 `[工作目录] git ...`
     pub fn description(&self) -> String {
         let inv = self.invocation();
         format!("[{}] {}", inv.working_dir.display(), inv.display_command())
     }
 
+    /// 真正执行这条命令；`timeout` 只对 streaming 类操作生效
     pub fn execute(
         &self,
         runner: &GitCommandRunner,
@@ -288,6 +304,8 @@ impl GitOperation {
         self.invocation().execute(runner, timeout)
     }
 
+    /// 计划中途失败时给用户的手动补救建议；`executed_count == 0`（还没落任何操作）
+    /// 或该操作没有副作用时返回 None
     pub fn recovery_hint(&self, executed_count: usize) -> Option<String> {
         if executed_count == 0 {
             return None;
@@ -313,6 +331,7 @@ impl GitOperation {
         }
     }
 
+    /// 执行前的跳过判定，返回 Some 表示应跳过并附上原因
     pub fn should_skip(&self) -> Option<String> {
         match self {
             GitOperation::Clone { target_dir, .. } if target_dir.exists() => {
@@ -327,6 +346,7 @@ impl GitOperation {
 mod tests {
     use super::*;
 
+    // dry-run 文案是用户可见的稳定输出，逐字节锁死以防无意改动
     #[test]
     fn dry_run_descriptions_byte_equal_baseline() {
         let init = GitOperation::Init {

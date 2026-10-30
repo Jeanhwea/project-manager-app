@@ -1,7 +1,12 @@
+//! Cargo.toml 编辑器。
+//! 版本号定位策略：按 TOML section 切分，先找 `[package]`，未命中再找 `[workspace.package]`；
+//! 只在命中的 section 内匹配 `version = "..."`，避免改到 `[dependencies]` 里的依赖版本。
+
 use super::{
     EditorError, FileEditor, Result, VersionLocation, VersionPosition, replace_at_position,
 };
 
+/// 处理 Cargo.toml 的包版本号，能区分普通包与 workspace 成员。
 pub struct CargoTomlEditor;
 
 impl CargoTomlEditor {
@@ -13,6 +18,7 @@ impl CargoTomlEditor {
 
 fn find_version_in_section(content: &str, section_header: &str) -> Option<VersionPosition> {
     let section_start = content.find(section_header)?;
+    // section 到下一个 "\n[" 结束；文件里没有后续 section 时以文件末尾兜底
     let section_end = content[section_start + section_header.len()..]
         .find("\n[")
         .map(|p| section_start + section_header.len() + p)
@@ -64,6 +70,8 @@ impl FileEditor for CargoTomlEditor {
                 .map(|pkg| pkg.contains_key("version"))
                 .unwrap_or(false);
 
+        // 有 [workspace] 但没有 [package] 时是 workspace 根文件；
+        // 只有当它同时带 [workspace.package].version 时才有可改的项目版本号
         if !has_package && has_workspace {
             if workspace_has_package_version {
                 let project_version = self.find_version(content);
@@ -110,6 +118,7 @@ impl FileEditor for CargoTomlEditor {
         location: &VersionLocation,
         new_version: &str,
     ) -> Result<String> {
+        // workspace 根没有自己的版本号，改版本交给各成员 crate 自己的 Cargo.toml
         if location.is_workspace_root {
             return Err(EditorError::VersionNotFound(
                 "Cargo.toml is a workspace root file, no project version".to_string(),

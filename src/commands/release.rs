@@ -1,3 +1,8 @@
+//! 语义化版本发布：`pma release patch|minor|major`，另外用 `--init` 生成/查看 `.pma.json`。
+//! 主线流程是「定位仓库根 → 由 tag（或文件版本）确定基准版本 → 算出新版本号 → 改写各版本文件
+//! → git add/commit → 打 tag → 推送到所有 remote」。
+//! 改动全部先攒成 ExecutionPlan，所以 `--dry-run` 能预览而不落盘，`--skip-push` 则停在本地。
+
 use crate::commands::Command;
 use crate::domain::editor::{
     BumpType, EditorRegistry, add_lockfile_operations, compute_edited_content,
@@ -19,6 +24,7 @@ use crate::utils::path::canonicalize_path;
 use std::path::Path;
 use std::path::PathBuf;
 
+/// `pma release` 的参数集合
 #[derive(Debug, clap::Args)]
 pub struct ReleaseArgs {
     #[arg(
@@ -27,8 +33,10 @@ pub struct ReleaseArgs {
         help = "Bump type: major, minor, patch"
     )]
     pub bump_type: BumpType,
+    /// 优先级：命令行 > `.pma.json` 的 files 字段 > 按编辑器候选路径自动探测
     #[arg(help = "Files to update version (auto-detect if not specified)")]
     pub files: Vec<String>,
+    /// true 表示留在当前目录；默认会切到 git 根目录再定位版本文件
     #[arg(
         long,
         short = 'n',
@@ -62,8 +70,11 @@ pub struct ReleaseArgs {
 #[derive(Debug)]
 pub(crate) struct ReleaseContext {
     git_ctx: GitContext,
+    /// 基准版本、目标版本、提交信息等发布前置计算结果
     state: ReleaseGitState,
+    /// 本次要改写的版本文件（绝对路径、正斜杠分隔）
     config_files: Vec<String>,
+    /// 改文件时需要按路径查编辑器，故把注册表一并带上给 plan 阶段用
     registry: EditorRegistry,
 }
 
@@ -135,6 +146,7 @@ impl Command for ReleaseArgs {
 }
 
 pub fn run(args: ReleaseArgs) -> Result<()> {
+    // --init 只负责生成配置，短路返回，不进入 release 的 collect/plan/execute
     if args.init {
         return init_project_config(&args);
     }
@@ -149,6 +161,7 @@ fn init_project_config(args: &ReleaseArgs) -> Result<()> {
     };
 
     let target = project_config::config_path(&work_dir);
+    // 已存在时不覆盖：里面可能是用户手工挑选/调整过的 files 列表
     if target.exists() {
         return Err(AppError::AlreadyExists {
             resource: "项目配置".into(),
@@ -157,6 +170,7 @@ fn init_project_config(args: &ReleaseArgs) -> Result<()> {
     }
 
     let registry = EditorRegistry::default_with_editors();
+    // 自动探测走的是相对候选路径，因此结果取决于当前目录（通常就是仓库根）
     let detected = detect_config_files(&registry).unwrap_or_default();
 
     let content = ProjectConfig::render(&detected);
@@ -174,6 +188,8 @@ fn init_project_config(args: &ReleaseArgs) -> Result<()> {
 }
 
 fn init_version_file(work_dir: &Path) -> Result<String> {
+    // 项目里一个版本文件都没有时兜底建一个；返回路径后它会作为唯一的 config_file，
+    // 其内容 0.0.0 同时充当本次发布的基准版本，于是首次发布得到 v0.0.1
     let target = work_dir.join("version.txt");
     std::fs::write(&target, "0.0.0\n")?;
     let path_str = canonicalize_path(&target)
@@ -185,6 +201,7 @@ fn init_version_file(work_dir: &Path) -> Result<String> {
 }
 
 fn resolve_file_paths(files: &[String], base_dir: &Path) -> Vec<String> {
+    // 统一成正斜杠再往后传：下游按文件名后缀选编辑器，Windows 的反斜杠会让判断失效
     files
         .iter()
         .map(|f| {
@@ -192,10 +209,12 @@ fn resolve_file_paths(files: &[String], base_dir: &Path) -> Vec<String> {
             if path.is_absolute() {
                 f.clone().replace('\\', "/")
             } else if path.starts_with(".") || f.contains('/') || f.contains('\\') {
+                // 带路径的相对路径按 base_dir（仓库根）解析
                 canonicalize_path(base_dir.join(f))
                     .map(|p| p.to_string_lossy().replace('\\', "/"))
                     .unwrap_or_else(|_| f.clone().replace('\\', "/"))
             } else {
+                // 裸文件名不走 base_dir：自动探测给出的候选本来就是相对当前目录的
                 canonicalize_path(f)
                     .map(|p| p.to_string_lossy().replace('\\', "/"))
                     .unwrap_or_else(|_| f.clone().replace('\\', "/"))
@@ -215,6 +234,7 @@ fn build_execution_plan(
     add_release_metadata(&mut plan, args, state);
 
     let edit_phase = build_edit_phase(config_files, state, registry)?;
+    // 有没有文件真的被改写决定要不要 commit：Phase 里只剩说明消息说明版本号已是目标值
     let has_changes = edit_phase
         .steps()
         .iter()
@@ -242,6 +262,7 @@ fn add_release_metadata(plan: &mut ExecutionPlan, args: &ReleaseArgs, state: &Re
         value: state.new_tag.clone(),
     });
     if state.used_fallback {
+        // 首次发布或 tag 被删净时的常见情形，提醒用户基准值是猜出来的
         plan.add_message(DisplayMessage::Warning {
             msg: format!("无 git tag，使用文件版本 {} 作为基准", state.current_tag),
         });
@@ -270,6 +291,7 @@ fn build_edit_phase(
 
         let (original, edited) = compute_edited_content(editor, &state.new_tag, file_path)?;
 
+        // 文件与 tag 不一致时仍以 tag 为准，否则同一 tag 会被反复改写成不同内容
         if let Ok(file_ver) = read_file_version(editor, file_path) {
             let git_ver = state.current_tag.trim_start_matches('v');
             if file_ver != git_ver {
@@ -282,6 +304,7 @@ fn build_edit_phase(
             }
         }
 
+        // 版本号已经是目标值时没有可写的内容，跳过本文件（也就不产生 Op，见 has_changes）
         if original == edited {
             continue;
         }
@@ -296,6 +319,7 @@ fn build_edit_phase(
             edit_phase.add_message(diff);
         }
 
+        // lockfile 交给各自的包管理器重算，避免提交与新版本号不一致的锁文件
         add_lockfile_operations(&mut edit_phase, file_path);
 
         edit_phase.add(GitOperation::Add {
@@ -311,6 +335,8 @@ fn compute_line_diff(file_path: &str, original: &str, edited: &str) -> Option<Di
     let old_lines: Vec<&str> = original.lines().collect();
     let new_lines: Vec<&str> = edited.lines().collect();
 
+    // 按下标逐行比对（不是真正的 diff 算法）：版本号改一行时足够直观，
+    // 一旦发生增删行，后面的行会整体错位、表现为变更行偏多；仅供预览，不参与改写
     let changed_lines: Vec<(String, String)> = old_lines
         .iter()
         .zip(new_lines.iter())
@@ -342,6 +368,8 @@ fn build_git_phase(
 ) -> Phase {
     let mut git_phase = Phase::new("Git 提交推送");
 
+    // 这里的操作都以当前进程 cwd（"."）执行：文件参数是绝对路径，commit/tag 本来就作用于整个仓库，
+    // 因此 --no-root 时在子目录里执行也不会漏掉仓库根的改动
     if has_changes {
         git_phase.add(GitOperation::Commit {
             message: state.commit_message.clone(),
@@ -349,11 +377,13 @@ fn build_git_phase(
         });
     }
 
+    // 没有文件改动就只补 tag（例如版本号已是目标值、或只想给当前 HEAD 打标）
     git_phase.add(GitOperation::CreateTag {
         tag: state.new_tag.clone(),
         working_dir: PathBuf::from("."),
     });
 
+    // 推送不分主次：每个 remote 都要拿到同一个 tag 与分支
     if !args.skip_push {
         for remote in ctx.remote_names() {
             git_phase.add(GitOperation::PushTag {

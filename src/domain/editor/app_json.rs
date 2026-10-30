@@ -1,5 +1,10 @@
+//! app.json（Expo 配置）编辑器。
+//! 版本号定位策略：从 `"expo": {` 起惰性匹配到其后的第一个 `"version"`，
+//! 因此文件外层若另有同名的 version 字段也不会被误改，命中的一定是 expo.version。
+
 use super::{EditorError, FileEditor, Result, VersionPosition, extract_version_position};
 
+/// 处理 Expo 的 app.json，版本号取自 expo.version 字段。
 pub struct AppJsonEditor;
 
 impl AppJsonEditor {
@@ -27,6 +32,7 @@ impl FileEditor for AppJsonEditor {
         let value: serde_json::Value = serde_json::from_str(content)
             .map_err(|e| EditorError::ParseError(format!("Failed to parse app.json: {}", e)))?;
 
+        // 先用 serde_json 确认这确实是一份 Expo 配置，避免把任意 app.json 当成可改版本的文件
         if value.get("expo").is_none() {
             return Err(EditorError::VersionNotFound(
                 "app.json is not an Expo config (missing expo field)".to_string(),
@@ -54,6 +60,7 @@ impl FileEditor for AppJsonEditor {
             ));
         }
 
+        // 替换是纯文本按位置的，理论上只有版本号长度变化，长度突变说明定位错了
         let original_len = original.len();
         let edited_len = edited.len();
         if edited_len.abs_diff(original_len) > original_len / 2 {

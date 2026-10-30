@@ -1,5 +1,9 @@
+//! 路径规整：统一 canonicalize 后的 Windows verbatim 前缀处理，以及面向展示的路径格式化。
+
 use std::path::{Path, PathBuf};
 
+/// 取绝对路径，并在 Windows 上去掉 canonicalize 自带的 `\\?\` 前缀
+// `\\?\` 是 Windows 的 verbatim 路径标记，很多外部工具和展示场景都不认它
 pub fn canonicalize_path(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
     let canonicalized = std::fs::canonicalize(path.as_ref())?;
 
@@ -19,6 +23,7 @@ pub fn canonicalize_path(path: impl AsRef<Path>) -> std::io::Result<PathBuf> {
     }
 }
 
+/// 给用户看的路径字符串，去掉 `\\?\` 前缀，不要求路径真实存在
 pub fn format_path(path: &Path) -> String {
     path.to_string_lossy()
         .trim_start_matches(r"\\?\")

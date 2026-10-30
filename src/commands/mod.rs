@@ -1,3 +1,6 @@
+//! 子命令实现，每个文件对应一个 pma 子命令，统一走 collect → plan → execute 三段式。
+//! `multi_repo` 与 `runtime` 是两种共用骨架（批量遍历 / 单项目），故保持模块私有再重导出。
+
 pub mod branch;
 pub mod config;
 pub mod doctor;

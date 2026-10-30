@@ -1,9 +1,13 @@
+//! 通用工具集合：终端输出（`output`）、路径规整（`path`）、外部命令探测（`process`），
+//! 以及一些与具体模块无关的小函数。
+
 pub mod output;
 pub mod path;
 pub mod process;
 
 pub use process::is_command_available;
 
+/// 把秒数渲染成中文可读时长，不足 1 分钟时只显示秒
 pub fn format_duration(secs: u64) -> String {
     if secs >= 60 {
         let minutes = secs / 60;

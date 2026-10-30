@@ -1,5 +1,10 @@
+//! pom.xml 编辑器。
+//! 版本号定位策略：匹配第一个 `<version>...</version>` 标签对，
+//! 单模块 pom 中它就是项目版本；多模块或带 <parent> 的 pom 需人工确认。
+
 use super::{EditorError, FileEditor, Result, VersionPosition, extract_version_position};
 
+/// 处理 pom.xml 的 <version> 标签。
 pub struct PomXmlEditor;
 
 impl PomXmlEditor {

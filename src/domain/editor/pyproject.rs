@@ -1,10 +1,17 @@
+//! pyproject.toml 编辑器。
+//! 版本号定位策略：按 TOML section 切分，支持 PEP 621 的 `[project]` 与 Poetry 的
+//! `[tool.poetry]` 两种布局，优先 `[project]`，两者都没有 version 时报错。
+
 use super::{EditorError, FileEditor, Result, VersionPosition};
 
+/// 处理 pyproject.toml 的项目版本号，兼容 PEP 621 与 Poetry 布局。
 pub struct PyprojectEditor;
 
 impl PyprojectEditor {
     fn find_version_in_section(content: &str, section_header: &str) -> Option<VersionPosition> {
         let section_start = content.find(section_header)?;
+        // section 边界为下一个 "\n["；没有后续 section 时以文件末尾兜底，
+        // 这样不会匹配到后面 section（例如 [tool.x]）里的 version
         let section_end = content[section_start..]
             .find("\n[")
             .map(|p| section_start + p)
@@ -42,6 +49,7 @@ impl FileEditor for PyprojectEditor {
             EditorError::ParseError(format!("Failed to parse pyproject.toml: {}", e))
         })?;
 
+        // 先用 toml_edit 确认 section 存在，再回到原文按位置替换，保证不改格式
         if doc.contains_key("project") {
             let project_version = Self::find_version_in_section(content, "[project]");
             if project_version.is_some() {

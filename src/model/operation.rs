@@ -1,7 +1,11 @@
+//! 声明式的操作模型：一个 Operation 就是一次可描述、可被延迟执行的动作。
+//! 命令层只负责"拼装" Operation，`crate::engine::plan` 才真正把它执行或打印成 dry-run 计划。
+
 use std::path::PathBuf;
 
 use crate::domain::git::GitOperation;
 
+/// 执行外部程序，`optional` 为 true 时失败只告警而不中断整个计划
 #[derive(Debug, Clone)]
 pub enum ShellOperation {
     Run {
@@ -21,6 +25,7 @@ impl ShellOperation {
     }
 }
 
+/// 文件级改动，写文件走备份式改写，复制目录用于 fork 模板
 #[derive(Debug, Clone)]
 pub enum EditOperation {
     WriteFile {
@@ -44,6 +49,7 @@ impl EditOperation {
     }
 }
 
+/// pma 自身升级，失败通常会留下明确的人工替代路径（手动下载 browser_url）
 #[derive(Debug, Clone)]
 pub enum SelfUpdateOperation {
     DownloadAndInstall {
@@ -73,6 +79,7 @@ impl SelfUpdateOperation {
     }
 }
 
+/// 顶层操作分类，engine 按变体分发到不同的执行器
 #[derive(Debug, Clone)]
 pub enum Operation {
     Git(GitOperation),
@@ -82,6 +89,7 @@ pub enum Operation {
 }
 
 impl Operation {
+    /// 人类可读的一步 CLI 描述，同时用于正常执行时的回显和 dry-run 预览
     pub fn description(&self) -> String {
         match self {
             Operation::Git(op) => op.description(),

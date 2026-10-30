@@ -1,7 +1,10 @@
+//! 从下载到的 tar.gz / zip 里取出 pma 可执行文件的内容。
+
 use crate::domain::self_update::SelfUpdateError;
 use crate::error::Result;
 use std::io::{self, Read};
 
+/// 按 `asset_name` 的后缀选择解包方式，返回 `bin_name` 对应文件的字节
 pub fn extract_binary(data: &[u8], asset_name: &str, bin_name: &str) -> Result<Vec<u8>> {
     if asset_name.ends_with(".tar.gz") {
         extract_from_tar_gz(data, bin_name)
@@ -27,6 +30,7 @@ fn extract_from_tar_gz(data: &[u8], bin_name: &str) -> Result<Vec<u8>> {
         let path = entry
             .path()
             .map_err(|e| SelfUpdateError::TarEntryPath { source: e })?;
+        // 按文件名而非完整路径匹配：包里的二进制可能顶层裸放，也可能套一层目录
         if path.file_name().and_then(|n| n.to_str()) == Some(bin_name) {
             let mut buf = Vec::new();
             entry.read_to_end(&mut buf)?;
@@ -50,6 +54,7 @@ fn extract_from_zip(data: &[u8], bin_name: &str) -> Result<Vec<u8>> {
             source: Box::new(e),
         })?;
         let name = file.name().to_string();
+        // 按后缀而非全等匹配：zip 内条目名可能带目录前缀；代价是可能误命中同后缀名的其它文件
         if name.ends_with(bin_name) {
             let mut buf = Vec::new();
             file.read_to_end(&mut buf)?;

@@ -1,3 +1,8 @@
+//! 分支相关的仓库命令：列出本地分支、切换、重命名，以及最复杂的 `clean` ——
+//! 把本地分支与远端跟踪引用分成 C（已合并）/ B（未合并）/ A（保护）/ D（孤儿）/ E（远端已合并）五类后按需清理。
+//! clean 的流程是「采集 git 快照 → git branch -r 取本地跟踪引用 → ls-remote 取远端真实分支 → 交叉分类 → 生成 plan」，
+//! 删除动作统一放进 continue_on_error 的 Phase，单条失败不阻断其余分支。
+
 use crate::commands::MultiRepo;
 use crate::commands::RepoPathArgs;
 use crate::domain::git::GitCommandRunner;
@@ -199,6 +204,7 @@ fn parse_ls_remote_line(line: &str) -> Option<String> {
     }
 }
 
+/// `pma branch` 的子命令集合，别名见各变体上的 visible_alias
 #[derive(Debug, clap::Subcommand)]
 pub enum BranchArgs {
     #[command(visible_alias = "ls")]
@@ -213,12 +219,15 @@ pub enum BranchArgs {
     All(BranchAllArgs),
 }
 
+/// `branch list` 的参数：只有搜索路径，输出以本地分支为范围
 #[derive(Debug, clap::Args)]
 pub struct BranchListArgs {
     #[command(flatten)]
     pub repo_path: RepoPathArgs,
 }
 
+/// `branch clean` 的参数：`remote` 只决定 C/B 类分支 `push --delete` 打向哪个 remote，
+/// D/E 类按各自跟踪引用所属的 remote 逐个清理
 #[derive(Debug, clap::Args)]
 pub struct BranchCleanArgs {
     #[command(flatten)]
@@ -252,6 +261,7 @@ pub struct BranchCleanArgs {
     pub yes: bool,
 }
 
+/// `branch switch` 的参数：分支必须已存在，否则跳过而不创建
 #[derive(Debug, clap::Args)]
 pub struct BranchSwitchArgs {
     #[arg(help = "Branch name to switch to")]
@@ -260,6 +270,7 @@ pub struct BranchSwitchArgs {
     pub repo_path: RepoPathArgs,
 }
 
+/// `branch rename` 的参数：只改本地分支名，不触碰远端分支
 #[derive(Debug, clap::Args)]
 pub struct BranchRenameArgs {
     #[arg(help = "Old branch name")]
@@ -270,17 +281,20 @@ pub struct BranchRenameArgs {
     pub repo_path: RepoPathArgs,
 }
 
+/// `branch all` 的参数：把除当前分支外的其它本地分支依次 checkout 后 pull 一遍
 #[derive(Debug, clap::Args)]
 pub struct BranchAllArgs {
     #[command(flatten)]
     pub repo_path: RepoPathArgs,
 }
 
+/// list 的上下文：只依赖一份仓库快照
 #[derive(Debug)]
 pub(crate) struct BranchListContext {
     git_ctx: GitContext,
 }
 
+/// clean 的分类结果，字母编号与 plan 里输出的 `[X 类]` 前缀一致
 #[derive(Debug)]
 pub(crate) struct BranchCleanContext {
     /// C 类分支: 已合并到保护分支，始终删除
@@ -293,7 +307,7 @@ pub(crate) struct BranchCleanContext {
     remote_merged_branches: Vec<(String, String)>,
     /// 保护分支的跟踪引用虽已在远端消失，但按安全底线保留，仅提示
     protected_stale_refs: Vec<(String, String)>,
-    /// ls-remote 不可达的 remote，其 D 类检测已降级跳过
+    /// ls-remote 失败的 remote：拿不到远端分支表，其跟踪引用无法判定，已在 collect 里整体归入 D 类
     unreachable_remotes: Vec<String>,
     /// 主 remote 上真实存在的分支名；None 表示该 remote 不可达
     primary_remote_heads: Option<HashSet<String>>,
@@ -316,16 +330,21 @@ impl BranchCleanContext {
     }
 }
 
+/// switch 的上下文
 #[derive(Debug)]
 pub(crate) struct BranchSwitchContext {
+    /// 目标本地分支是否存在
     exists: bool,
 }
 
+/// rename 的上下文
 #[derive(Debug)]
 pub(crate) struct BranchRenameContext {
+    /// 待改名的本地分支是否存在
     exists: bool,
 }
 
+/// all 的上下文：需要分支列表来决定 checkout 哪些分支
 #[derive(Debug)]
 pub(crate) struct BranchAllContext {
     git_ctx: GitContext,
@@ -378,6 +397,8 @@ impl MultiRepo for BranchCleanArgs {
         let remote_name = if git_ctx.has_remote(&self.remote) {
             self.remote.clone()
         } else {
+            // --remote 给的名字不存在时逐级退化：当前分支 upstream → 第一个 remote → 仍用原值。
+            // 保留原值不会误删别的 remote，后续 primary_remote_has 恒为 false，只是全部跳过远端删除
             git_ctx
                 .preferred_remote()
                 .or_else(|| git_ctx.first_remote_name())
@@ -546,6 +567,8 @@ impl MultiRepo for BranchCleanArgs {
         // E 类: 本地分支已删除、远端跟踪引用仍在，且远端分支已合并到保护分支。
         // 这类分支在本地已清理过，但远端残留，属于无用远端分支，应删除远端分支与本地跟踪引用。
         // 远端必须真实存在该分支（否则归 D 类），且本地已无同名分支（否则归 C 类）。
+        // merged_remote_refs 只按分支名建索引、不含 remote：同名分支只要在任意一个保护分支里
+        // 合并过就算已合并（跨 remote 共享结论）；这里的候选在上层已排除保护分支
         let merged_remote_refs =
             list_merged_remote_refs(&runner, repo_path, &protected_branches_to_skip);
         let mut remote_merged_branches: Vec<(String, String)> = Vec::new();
@@ -597,7 +620,7 @@ impl MultiRepo for BranchCleanArgs {
         let clean_unmerged = self.delete_unmerged && !unmerged.is_empty();
 
         // === 前置提示 ===
-        // remote 不可达时 D 类检测降级跳过，但不影响 C/B 类清理
+        // 不可达 remote 的跟踪引用在 collect 里已被整体计入 D 类，这里只是提醒判定依据不充分
         for rem in &ctx.unreachable_remotes {
             plan.add_message(DisplayMessage::Warning {
                 msg: format!("remote {} 不可达，已跳过其 D 类孤儿分支检测", rem),
@@ -625,6 +648,7 @@ impl MultiRepo for BranchCleanArgs {
         }
 
         // === 确认提示：D 类分支数量超过阈值（10条）===
+        // 数量大时才打扰用户：小批量删除是常态操作，大批量可能是仓库/远端判断出错
         let d_class_count = ctx.remote_orphan_branches.len();
         let mut clean_orphans = d_class_count > 0;
         if clean_orphans && !self.dry_run && !self.yes && d_class_count > 10 {
@@ -649,6 +673,7 @@ impl MultiRepo for BranchCleanArgs {
             }
         }
 
+        // 这里用 clean_orphans 而不是 d_class_count：用户在上面取消后不应再算作待清理工作量
         let e_class_count = ctx.remote_merged_branches.len();
         let has_work =
             !to_delete.is_empty() || clean_unmerged || clean_orphans || e_class_count > 0;
@@ -692,6 +717,7 @@ impl MultiRepo for BranchCleanArgs {
 
         // 清理类操作彼此独立且幂等，单条失败（引用已不存在、远端拒绝等）不应中断后续清理
         // C 类分支: 始终清理
+        // 本地删除与远端删除成对下发：只删一边的话，下次 fetch/pull 会把另一端再带回来
         if !to_delete.is_empty() {
             let mut clean_phase =
                 Phase::new("清理 C 类分支（已合并到保护分支）").continue_on_error();
@@ -929,6 +955,7 @@ impl MultiRepo for BranchAllArgs {
             }
         }
 
+        // 遍历结束后必须切回进入时的分支，否则会把仓库留在最后一个分支上
         sync_phase.add(GitOperation::Checkout {
             ref_name: current_branch.clone(),
             working_dir: repo_path.to_path_buf(),
@@ -951,6 +978,7 @@ impl MultiRepo for BranchAllArgs {
     }
 }
 
+/// 分发 `pma branch` 子命令；各子命令都是多仓库命令，交给同样的遍历骨架执行
 pub fn run(args: BranchArgs) -> Result<()> {
     match args {
         BranchArgs::List(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
@@ -998,6 +1026,7 @@ mod tests {
         assert_eq!(parse_local_branch_line(""), None);
     }
 
+    // 分支名本身可以含 `/`，只能在第一个斜杠处切分，否则 remote 之外的路径会被吃掉
     #[test]
     fn splits_tracking_ref_on_first_slash_only() {
         assert_eq!(

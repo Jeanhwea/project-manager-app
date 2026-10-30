@@ -1,5 +1,10 @@
+//! package.json 编辑器。
+//! 版本号定位策略：匹配第一次出现的 `"version": "..."`。
+//! 改写走纯文本替换而非 serde_json 重新序列化，以此保留原始的缩进、换行与键顺序。
+
 use super::{EditorError, FileEditor, Result, VersionPosition, extract_version_position};
 
+/// 处理 package.json 的顶层 version 字段。
 pub struct PackageJsonEditor;
 
 impl PackageJsonEditor {
@@ -23,6 +28,7 @@ impl FileEditor for PackageJsonEditor {
     }
 
     fn parse(&self, content: &str) -> Result<super::VersionLocation> {
+        // 只做 JSON 合法性校验，不参与改写：一旦重新序列化就会丢失缩进与键顺序
         let _: serde_json::Value = serde_json::from_str(content).map_err(|e| {
             EditorError::ParseError(format!("Failed to parse package.json: {}", e))
         })?;
@@ -48,6 +54,7 @@ impl FileEditor for PackageJsonEditor {
             ));
         }
 
+        // 纯文本替换只应带来版本号长度的变化，长度突变说明定位错了
         let original_len = original.len();
         let edited_len = edited.len();
         if edited_len.abs_diff(original_len) > original_len / 2 {

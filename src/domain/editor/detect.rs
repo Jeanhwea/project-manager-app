@@ -1,3 +1,6 @@
+//! 配置文件的发现、读取与改写编排：决定 release 要改哪些文件、怎么改，
+//! 以及在改完配置文件后再顺带更新哪些 lockfile 并把它们加入 git。
+
 use super::{EditorRegistry, FileEditor};
 use crate::domain::git::{GitOperation, ReleaseError};
 use crate::error::Result;
@@ -7,6 +10,7 @@ use crate::utils;
 use regex::Regex;
 use std::path::{Path, PathBuf};
 
+/// 明确指定文件时只保留能被某个编辑器识别的；未指定则改为自动探测。
 pub fn resolve_config_files(registry: &EditorRegistry, files: &[String]) -> Result<Vec<String>> {
     if files.is_empty() {
         return detect_config_files(registry);
@@ -20,6 +24,7 @@ pub fn resolve_config_files(registry: &EditorRegistry, files: &[String]) -> Resu
         .collect()
 }
 
+/// 按注册表给出的候选路径探测仓库中真实存在的配置文件，一个都找不到时报错。
 pub fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     let mut result = Vec::new();
 
@@ -45,6 +50,7 @@ pub fn detect_config_files(registry: &EditorRegistry) -> Result<Vec<String>> {
     Ok(result)
 }
 
+/// 把形如 `{}/package.json` 的候选模板展开成目录中各子目录下的实际路径。
 pub fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     let mut results = Vec::new();
     let (prefix, suffix) = match pattern.split_once("{}") {
@@ -52,6 +58,7 @@ pub fn expand_glob_pattern(pattern: &str) -> Vec<String> {
         None => return results,
     };
 
+    // 模板以 {} 开头时扫当前目录，否则扫前缀指定的目录
     let scan_dir = if prefix.is_empty() {
         ".".to_string()
     } else {
@@ -66,6 +73,7 @@ pub fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     for entry in entries.flatten() {
         if entry.path().is_dir() {
             let dir_name = entry.file_name().to_string_lossy().to_string();
+            // 隐藏目录与 node_modules 里的包不是本项目成员，跳过以免误改依赖的版本号
             if dir_name.starts_with('.') || dir_name == "node_modules" {
                 continue;
             }
@@ -76,6 +84,7 @@ pub fn expand_glob_pattern(pattern: &str) -> Vec<String> {
     results
 }
 
+/// 改完配置文件后，把对应生态的 lockfile 更新操作追加到执行计划中。
 pub fn add_lockfile_operations(plan: &mut impl AddOperation, config_file: &str) {
     if config_file.ends_with("Cargo.toml") {
         add_cargo_lock_operations(plan, config_file);
@@ -92,6 +101,7 @@ fn add_uv_lock_operations(plan: &mut impl AddOperation, pyproject_path: &str) {
     let dir = parent_dir(Path::new(pyproject_path));
     let lock_path = dir.join("uv.lock");
 
+    // lockfile 不存在或被 gitignore 时不处理：无需更新，也不该被 git add
     if !lock_path.exists() || is_gitignored(&lock_path) {
         return;
     }
@@ -128,6 +138,7 @@ fn add_cargo_lock_operations(plan: &mut impl AddOperation, cargo_toml_path: &str
         return;
     }
 
+    // 能拿到包名就精确更新该包；workspace 根文件没有包名，退化为整体更新
     if let Ok(package_name) = read_cargo_package_name(cargo_toml_path) {
         plan.add_op(ShellOperation::Run {
             program: "cargo".to_string(),
@@ -201,6 +212,7 @@ fn try_existing_js_lockfile(
         ("bun.lock", "bun", &["install"]),
     ];
 
+    // 按 lockfile 类型挑工具；命中第一个真实存在的 lockfile 后就不再考虑其它
     for (lock_name, cmd, args) in lockfiles {
         let lock_path = pkg_dir.join(lock_name);
         if !lock_path.exists() || is_gitignored(&lock_path) {
@@ -258,11 +270,13 @@ fn add_pnpm_fallback(
     });
 }
 
+/// 解析 tag、读取文件、改版本号并校验结果，返回改写前后的完整内容。
 pub fn compute_edited_content(
     editor: &dyn FileEditor,
     tag: &str,
     config_file: &str,
 ) -> Result<(String, String)> {
+    // tag 可能带 v 前缀，配置文件里的版本号不带
     let version = tag.trim_start_matches('v');
     let content = std::fs::read_to_string(config_file).map_err(|e| ReleaseError::ReadFile {
         path: config_file.to_string(),
@@ -276,6 +290,7 @@ pub fn compute_edited_content(
     Ok((content, edited))
 }
 
+/// 读取某个配置文件里当前的版本号字符串（原文切片，未做规范化）。
 pub fn read_file_version(editor: &dyn FileEditor, config_file: &str) -> Result<String> {
     let content = std::fs::read_to_string(config_file).map_err(|e| ReleaseError::ReadFile {
         path: config_file.to_string(),
@@ -293,6 +308,7 @@ pub fn read_file_version(editor: &dyn FileEditor, config_file: &str) -> Result<S
     Ok(version_str.to_string())
 }
 
+/// 在多个配置文件中取最大的版本号，作为没有 tag 可参照时的兜底基准。
 pub fn extract_fallback_version(
     registry: &EditorRegistry,
     config_files: &[String],
@@ -301,6 +317,7 @@ pub fn extract_fallback_version(
 
     let mut best: Option<Version> = None;
     for file_path in config_files {
+        // 注意：任何一个文件匹配不到编辑器都会让整个函数返回 None，而不是跳过该文件
         let editor = registry.detect_editor(Path::new(file_path))?;
         if let Ok(ver_str) = read_file_version(editor, file_path)
             && let Ok(ver) = Version::parse(&ver_str)
@@ -312,6 +329,7 @@ pub fn extract_fallback_version(
     best.map(|v| v.to_string())
 }
 
+/// 从 Cargo.toml 的 [package] 段读取包名，供 cargo update --package 使用。
 pub fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
     let content =
         std::fs::read_to_string(cargo_toml_path).map_err(|e| ReleaseError::ReadFile {
@@ -319,6 +337,8 @@ pub fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
             source: e,
         })?;
     let re = Regex::new(r#"name\s*=\s*"([^"]*)""#)?;
+    // 逐行跟踪当前是否仍在 [package] 段内：遇到下一个 [section] 就退出，
+    // 否则会取到 [dependencies] 等段里的 name
     let mut in_package = false;
     for line in content.lines() {
         if line.trim() == "[package]" {
@@ -337,6 +357,7 @@ pub fn read_cargo_package_name(cargo_toml_path: &str) -> Result<String> {
 }
 
 fn parent_dir(path: &Path) -> &Path {
+    // 形如 "Cargo.toml" 的相对路径没有 parent，退回到当前目录
     let parent = path.parent().unwrap_or(Path::new("."));
     if parent.as_os_str().is_empty() {
         Path::new(".")

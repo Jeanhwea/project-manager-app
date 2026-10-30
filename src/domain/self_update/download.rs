@@ -1,9 +1,13 @@
+//! 下载 release 安装包，按「自定义地址 → GitHub API → 网页直连 → 公共镜像代理」的顺序逐个尝试，
+//! 任一来源拿到合法的 archive 就返回；全部失败才报错。
+
 use crate::domain::self_update::SelfUpdateError;
 use crate::error::Result;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::env;
 use std::io::Read;
 
+/// GitHub 下载加速镜像，仅在 browser 直连失败且 URL 属于 github.com 时兜底使用
 const GITHUB_PROXIES: &[&str] = &[
     "https://gh-proxy.org/",
     "https://ghfast.top/",
@@ -14,7 +18,9 @@ const GITHUB_PROXIES: &[&str] = &[
     "https://ghproxy.net/",
 ];
 
+/// 依次尝试各下载来源，返回安装包字节
 pub fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Result<Vec<u8>> {
+    // 内网或 GitHub 不通时，用 PMA_DOWNLOAD_URL 直接指定镜像地址
     if let Ok(custom_url) = env::var("PMA_DOWNLOAD_URL")
         && let Ok(data) = try_download(&custom_url)
         && validate_archive(&data, asset_name).is_ok()
@@ -34,6 +40,7 @@ pub fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Res
         return Ok(data);
     }
 
+    // 代理的用法是把完整 URL（含 https://）整体追加在代理前缀之后；只对 github.com 的链接有意义
     if browser_url.starts_with("https://github.com/") {
         for proxy in GITHUB_PROXIES {
             let proxy_url = format!("{}{}", proxy, browser_url);
@@ -51,6 +58,8 @@ pub fn download_asset(api_url: &str, browser_url: &str, asset_name: &str) -> Res
     .into())
 }
 
+/// 按文件头魔数确认下载到的确实是安装包；未知格式直接放行
+// 镜像与代理经常返回 200 + HTML 错误页，只看 HTTP 状态码会把网页当成安装包写进磁盘
 fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
     let valid = if asset_name.ends_with(".zip") {
         data.len() >= 4 && &data[..4] == b"PK\x03\x04"
@@ -67,10 +76,12 @@ fn validate_archive(data: &[u8], asset_name: &str) -> Result<()> {
 }
 
 fn try_download_api(api_url: &str) -> Result<Vec<u8>> {
+    // API 地址默认返回 JSON 元数据，必须显式要 octet-stream 才会回传二进制
     let mut req = ureq::get(api_url)
         .set("User-Agent", "pma-self-update")
         .set("Accept", "application/octet-stream");
 
+    // 带 token 可避开匿名请求的严格限流
     if let Ok(token) = env::var("GITHUB_TOKEN") {
         req = req.set("Authorization", &format!("Bearer {}", token));
     }
@@ -98,6 +109,7 @@ fn read_response_with_progress(resp: ureq::Response) -> Result<Vec<u8>> {
         .and_then(|v| v.parse().ok())
         .unwrap_or(0);
 
+    // Content-Length 缺失（分块传输 / 经过代理）时只能退化为不带总量的 spinner
     let pb = if total > 0 {
         let pb = ProgressBar::new(total);
         pb.set_style(

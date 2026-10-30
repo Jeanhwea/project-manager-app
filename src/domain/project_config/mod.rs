@@ -1,10 +1,15 @@
+//! 读取仓库根目录的 `.pma.json`（本项目关心的版本文件清单）。
+//! 缺失或解析失败一律返回 None，由调用方退回默认的候选文件列表。
+
 use crate::model::project_config::{PROJECT_CONFIG_FILE, ProjectConfig};
 use std::path::{Path, PathBuf};
 
+/// `.pma.json` 在 `work_dir` 下的完整路径
 pub fn config_path(work_dir: &Path) -> PathBuf {
     work_dir.join(PROJECT_CONFIG_FILE)
 }
 
+/// 加载项目配置；文件不存在、读不出或 JSON 非法都返回 None 并打印警告
 pub fn load(work_dir: &Path) -> Option<ProjectConfig> {
     let path = config_path(work_dir);
     if !path.exists() {

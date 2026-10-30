@@ -1,3 +1,5 @@
+//! `ExecutionContext` 的落地实现：按 OutputMode 分派到捕获或流式执行，并提供超时强杀。
+
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command as StdCommand, Stdio};
 use std::thread;
@@ -6,11 +8,14 @@ use std::time::{Duration, Instant};
 use super::{CommandResult, ExecutionContext, OutputMode};
 use crate::error::{AppError, Result};
 
+/// 轮询等待子进程的间隔：不能用阻塞等待，否则就没机会中途 kill
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 
+/// 无状态的命令执行器
 pub struct CommandRunner;
 
 impl CommandRunner {
+    /// 按上下文的输出方式分派到对应的执行路径
     pub fn execute(&self, context: &ExecutionContext) -> Result<CommandResult> {
         match context.output_mode {
             OutputMode::Capture => self.execute_capture(context),
@@ -18,14 +23,18 @@ impl CommandRunner {
         }
     }
 
+    /// 捕获模式：`timeout` 在这里不生效，命令始终阻塞到结束，
+    /// 因此只应用于能快速返回的查询类命令
     fn execute_capture(&self, context: &ExecutionContext) -> Result<CommandResult> {
         let mut cmd = self.build_command(context)?;
 
         let output = cmd.output().map_err(AppError::Io)?;
 
+        // 非 UTF-8 输出替换成占位符而非直接失败，避免编码问题拖垮整条命令
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
 
+        // 进程被信号杀死时取不到退出码，统一记为 -1
         Ok(CommandResult::with_output(
             output.status.code().unwrap_or(-1),
             stdout,
@@ -51,8 +60,10 @@ impl CommandRunner {
         let stdout_sink = sink.clone();
         let stderr_sink = sink.clone();
 
+        // stdout/stderr 各起一个线程持续抽走，否则管道缓冲区写满会让子进程阻塞
         let stdout_thread = thread::spawn(move || {
             let reader = BufReader::new(stdout);
+            // 读到无效 UTF-8 或管道关闭即停止转发
             for line in reader.lines().map_while(std::result::Result::ok) {
                 crate::utils::output::emit_line(stdout_sink.as_ref(), &line);
             }
@@ -70,6 +81,7 @@ impl CommandRunner {
             None => child.wait().map_err(AppError::Io)?,
         };
 
+        // 显式 join：保证退出前最后几行输出已经打完，不会和汇总页交错
         let _ = stdout_thread.join();
         let _ = stderr_thread.join();
 
@@ -84,6 +96,7 @@ impl CommandRunner {
     fn build_command(&self, context: &ExecutionContext) -> Result<StdCommand> {
         #[cfg(target_os = "windows")]
         {
+            // Windows 下统一借 cmd /c 执行，避免 .bat/.cmd 等不同可执行类型的解析差异
             let mut cmd = StdCommand::new("cmd");
             cmd.arg("/c").arg(&context.program).args(&context.args);
 
@@ -108,6 +121,7 @@ impl CommandRunner {
     }
 }
 
+/// 轮询等待子进程，超过 `timeout` 就杀掉进程树并返回 Timeout 错误
 fn wait_with_timeout(child: &mut Child, timeout: Duration) -> Result<std::process::ExitStatus> {
     let start = Instant::now();
     loop {
@@ -116,8 +130,10 @@ fn wait_with_timeout(child: &mut Child, timeout: Duration) -> Result<std::proces
             None => {
                 if start.elapsed() >= timeout {
                     kill_process_tree(child);
+                    // 必须再 wait 一次回收子进程，否则会留下僵尸进程
                     let _ = child.wait();
                     let secs = timeout.as_secs();
+                    // 把 91s 这种零碎秒数上取整到整分钟，报给用户更好读
                     let display_secs = if secs >= 60 && !secs.is_multiple_of(60) {
                         (secs / 60 + 1) * 60
                     } else {
@@ -133,6 +149,8 @@ fn wait_with_timeout(child: &mut Child, timeout: Duration) -> Result<std::proces
     }
 }
 
+/// 终止子进程及其后代。
+/// 注意 Unix 分支只 kill 了直接子进程，git 再 fork 出去的 helper（如 ssh 传输层）可能残留。
 fn kill_process_tree(child: &mut Child) {
     #[cfg(target_os = "windows")]
     {
