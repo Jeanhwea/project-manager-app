@@ -1,3 +1,6 @@
+//! 执行计划的解释器：按顺序执行 `ExecutionPlan` 里的各 Phase 步骤，
+//! 处理 dry-run 预览、整体 deadline 分摊到单步超时、以及 Phase 级别的失败容错策略。
+
 use crate::domain::git::GitCommandRunner;
 use crate::domain::self_update::{SelfUpdateError, download_asset, install_binary};
 use crate::error::{AppError, Result};
@@ -8,15 +11,18 @@ use crate::model::plan::{
 use crate::utils::output;
 use std::time::{Duration, Instant};
 
+/// 不设时间上限地执行计划
 pub fn run_plan(plan: &ExecutionPlan) -> Result<ExecutionResult> {
     run_plan_with_deadline(plan, None)
 }
 
+/// 执行计划，`deadline` 到了会中止后续步骤；dry-run 计划只打印不落地
 pub fn run_plan_with_deadline(
     plan: &ExecutionPlan,
     deadline: Option<Instant>,
 ) -> Result<ExecutionResult> {
     if plan.dry_run() {
+        // dry-run 不产生副作用，因此直接返回空结果，deadline 也一并忽略
         let count = plan.operation_count();
         output::dry_run_header(&format!("将要执行的操作 ({} 条):", count));
         display_plan(plan);
@@ -44,6 +50,7 @@ pub fn run_plan_with_deadline(
     Ok(result)
 }
 
+/// 执行单个 Phase，返回 false 表示应停止整个计划的后续 Phase
 fn run_phase(
     phase: &Phase,
     runner: &GitCommandRunner,
@@ -62,6 +69,7 @@ fn run_phase(
         match step {
             Step::Op(op) => {
                 let tolerate = phase.is_continue_on_error();
+                // 剩余时间作为该步骤的子进程超时，双保险：既不无限等待，也不越过总 deadline
                 let timeout = deadline.map(|d| d.saturating_duration_since(Instant::now()));
                 if !run_op_step(op, runner, result, tolerate, timeout) && !tolerate {
                     return false;
@@ -73,6 +81,7 @@ fn run_phase(
     true
 }
 
+/// 执行一个步骤，返回 false 表示该步骤失败；是否继续由调用方按容错策略决定
 fn run_op_step(
     op: &Operation,
     runner: &GitCommandRunner,
@@ -97,6 +106,7 @@ fn run_op_step(
         Err(e) => {
             if tolerate {
                 output::warning(&format!("执行失败，已跳过: {}", first_line(&e.to_string())));
+                // 容错模式下不计入 executed，也不记 error，后续阶段不受影响
                 return false;
             }
             let hint = recovery_hint(op, result.executed_count());
@@ -120,6 +130,7 @@ fn is_timeout(err: &AppError) -> bool {
     )
 }
 
+// 错误信息常带多行 git 输出，回显时压缩成第一行非空内容
 fn first_line(text: &str) -> String {
     text.lines()
         .map(str::trim)
@@ -128,6 +139,7 @@ fn first_line(text: &str) -> String {
         .to_string()
 }
 
+/// 失败后给出人工补救提示；git 操作有专属文案，其余退化为"已完成 N 步"
 fn recovery_hint(failed_op: &Operation, executed_count: usize) -> String {
     if let Operation::Git(git_op) = failed_op
         && let Some(text) = git_op.recovery_hint(executed_count)
@@ -137,6 +149,7 @@ fn recovery_hint(failed_op: &Operation, executed_count: usize) -> String {
     format!("{} 个操作已完成", executed_count)
 }
 
+/// 只打印计划不做任何改动，用于 dry-run；计划为空时提示"无操作"
 pub fn display_plan(plan: &ExecutionPlan) {
     let has_operations = plan.operation_count() > 0;
     if !has_operations && plan.messages().is_empty() && plan.footer_messages().is_empty() {
@@ -204,6 +217,7 @@ pub fn render_message(msg: &DisplayMessage) {
     }
 }
 
+/// 按类型分发到各执行器
 fn execute_operation(
     op: &Operation,
     runner: &GitCommandRunner,
@@ -217,6 +231,7 @@ fn execute_operation(
     }
 }
 
+// optional 的命令无论退出码如何都不算失败，只降级为告警
 fn execute_shell(op: &ShellOperation, timeout: Option<Duration>) -> Result<()> {
     match op {
         ShellOperation::Run {
@@ -294,6 +309,7 @@ fn copy_dir_recursive(source: &std::path::Path, target: &std::path::Path) -> Res
         let dst_path = target.join(entry.file_name());
 
         if src_path.is_dir() {
+            // 不搬模板仓库自身的 .git：fork 出来的项目应当有自己的历史
             if entry.file_name() == ".git" {
                 continue;
             }
@@ -306,6 +322,7 @@ fn copy_dir_recursive(source: &std::path::Path, target: &std::path::Path) -> Res
     Ok(())
 }
 
+/// 下载发布资产后原地替换当前可执行文件；中途失败会留下 SelfUpdateError 供上层提示手动安装
 fn execute_self_update(op: &SelfUpdateOperation) -> Result<()> {
     match op {
         SelfUpdateOperation::DownloadAndInstall {
@@ -332,6 +349,7 @@ mod tests {
     use crate::model::operation::ShellOperation;
     use crate::model::plan::Phase;
 
+    // 依赖系统自带的 echo，测试只关心步骤推进与超时行为，不关心命令输出
     fn echo_plan() -> ExecutionPlan {
         let mut plan = ExecutionPlan::new();
         let mut phase = Phase::new("测试阶段");

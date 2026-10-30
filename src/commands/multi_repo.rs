@@ -1,3 +1,6 @@
+//! 多仓库命令的公共驱动：先按深度发现仓库，再串行或并行对每个仓库跑一遍 collect → plan → execute。
+//! 子命令只需实现 [`MultiRepo`]（关心单个仓库），遍历、并发、进度与汇总都由本模块负责。
+
 use crate::domain::git::repository::{RepoInfo, RepoWalker};
 use crate::domain::runner::pool;
 use crate::error::Result;
@@ -5,8 +8,11 @@ use crate::model::plan::ExecutionResult;
 use crate::utils::output;
 use std::path::Path;
 
+/// 面向「每个仓库跑一遍」的子命令（sync / doctor / status 等）
 pub(crate) trait MultiRepo {
+    /// 单个仓库的上下文
     type Context;
+    /// 单个仓库的执行计划
     type Plan;
 
     fn collect(&self, repo_path: &Path) -> Result<Self::Context>;
@@ -14,6 +20,7 @@ pub(crate) trait MultiRepo {
     fn execute(&self, plan: &Self::Plan) -> Result<ExecutionResult>;
 }
 
+/// 所有多仓库命令共用的路径与搜索深度参数
 #[derive(Debug, clap::Args)]
 pub struct RepoPathArgs {
     #[arg(
@@ -30,6 +37,7 @@ pub struct RepoPathArgs {
 fn init_repo_walker(args: &RepoPathArgs) -> Result<Option<RepoWalker>> {
     let search_path = resolve_walker_path(&args.path)?;
     let walker = RepoWalker::new(&search_path, args.max_depth)?;
+    // 一个仓库都没找到不算错误（目录本来就可能不是仓库根目录），提示后按成功返回
     if walker.is_empty() {
         output::not_found("未找到 Git 仓库");
         return Ok(None);
@@ -39,6 +47,7 @@ fn init_repo_walker(args: &RepoPathArgs) -> Result<Option<RepoWalker>> {
 
 fn resolve_walker_path(path: &str) -> Result<std::path::PathBuf> {
     if path == "." {
+        // 默认路径下向上找仓库根：在仓库子目录里执行时也能作用于该仓库
         let cwd = std::env::current_dir()?;
         Ok(crate::domain::git::repository::find_repository_upwards(&cwd).unwrap_or(cwd))
     } else {
@@ -46,10 +55,12 @@ fn resolve_walker_path(path: &str) -> Result<std::path::PathBuf> {
     }
 }
 
+/// 串行执行（jobs = 1）
 pub fn run_multi_repo_cmd(cmd: &(impl MultiRepo + Sync), repo_path: &RepoPathArgs) -> Result<()> {
     run_multi_repo_cmd_with_jobs(cmd, repo_path, 1)
 }
 
+/// 按 `jobs` 决定并发度执行；`jobs = 0` 表示按 CPU 核数自动决定
 pub fn run_multi_repo_cmd_with_jobs(
     cmd: &(impl MultiRepo + Sync),
     repo_path: &RepoPathArgs,
@@ -62,10 +73,12 @@ pub fn run_multi_repo_cmd_with_jobs(
 }
 
 fn run_multi_repo<C: MultiRepo + Sync>(cmd: &C, walker: &RepoWalker, jobs: usize) -> Result<()> {
+    // resolve_jobs 会把 jobs 收敛到 [1, 仓库数]，0 表示按 CPU 核数取，单仓库自然退化成串行
     let jobs = pool::resolve_jobs(jobs, walker.total());
     if jobs <= 1 {
         run_serial(cmd, walker.repositories());
     } else {
+        // 并行分支内部已汇总打印结果，不返回 Err
         pool::run_parallel(cmd, walker.repositories(), jobs);
     }
     Ok(())
@@ -86,6 +99,7 @@ fn run_serial<C: MultiRepo>(cmd: &C, repos: &[RepoInfo]) {
                 }
                 Err(e) => output::error_chain(&e),
             },
+            // collect 失败说明这个仓库不满足处理前提，跳过它继续跑下一个
             Err(e) => {
                 output::warning(&format!("跳过 {}: {}", repo_path.display(), e));
                 continue;
@@ -130,6 +144,7 @@ mod tests {
 
     fn temp_repos(count: usize) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
+        // 只要目录里存在 .git 就会被 RepoWalker 认成仓库，不必真的 git init
         for i in 0..count {
             fs::create_dir_all(dir.path().join(format!("repo{}", i)).join(".git")).unwrap();
         }

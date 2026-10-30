@@ -1,9 +1,13 @@
+//! 命令行层：定义 pma 的顶层 CLI 结构、子命令分发，以及统一的 clap 输出配色。
+//! 子命令的参数结构和 `run` 实现放在 `commands` 模块，这里只做转发。
+
 mod commands;
 
 pub use commands::{Cli, dispatch};
 
 use clap::builder::styling::Styles;
 
+/// clap 帮助/报错信息的统一样式：标题黄、字面量绿、错误红、候选项青
 pub fn styles() -> Styles {
     Styles::styled()
         .header(

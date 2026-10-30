@@ -1,3 +1,7 @@
+//! `pma config`：查看与初始化 `~/.pma` 下的配置。init 写入默认的主配置与 GitLab 配置，
+//! show 打印当前生效的配置值（文件缺失时展示的是默认值），
+//! path 只输出配置目录本身，方便被脚本取值。写文件动作都在 execute 阶段落地。
+
 use crate::commands::Command;
 use crate::domain::config::ConfigManager;
 use crate::domain::config::schema;
@@ -7,6 +11,7 @@ use crate::model::operation::EditOperation;
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::PathBuf;
 
+/// `pma config` 的子命令：初始化（init）、查看配置（show）、查看路径（path）
 #[derive(Debug, clap::Subcommand)]
 pub enum ConfigArgs {
     /// Initialize a default configuration file
@@ -17,6 +22,7 @@ pub enum ConfigArgs {
     Path,
 }
 
+/// init 的采集结果：待创建的配置目录与两个配置文件路径
 #[derive(Debug)]
 pub(crate) struct ConfigInitContext {
     base_dir: PathBuf,
@@ -24,6 +30,7 @@ pub(crate) struct ConfigInitContext {
     gitlab_path: PathBuf,
 }
 
+/// show 的采集结果：配置目录是否已存在，以及两份配置的当前内容
 #[derive(Debug)]
 pub(crate) struct ConfigShowContext {
     base_dir: PathBuf,
@@ -32,11 +39,13 @@ pub(crate) struct ConfigShowContext {
     gitlab_config: schema::GitlabConfig,
 }
 
+/// path 的采集结果：配置根目录
 #[derive(Debug)]
 pub(crate) struct ConfigPathContext {
     base_dir: PathBuf,
 }
 
+// 三个子命令都不带参数，用零大小类型承接各自的 Command 实现
 struct InitArgs;
 struct ShowArgs;
 struct PathArgs;
@@ -47,6 +56,7 @@ impl Command for InitArgs {
 
     fn collect(&self) -> Result<ConfigInitContext> {
         let base_dir = ConfigManager::base_dir();
+        // 目录已存在就直接放弃，避免覆盖用户已有的 config.toml / gitlab.toml（含 token）
         if base_dir.exists() {
             return Err(AppError::AlreadyExists {
                 resource: "配置目录".into(),
@@ -65,6 +75,7 @@ impl Command for InitArgs {
         let mut plan = ExecutionPlan::new();
 
         let mut init_phase = Phase::new("创建配置");
+        // 主配置与 GitLab 配置分开两个文件写：后者含凭据，方便单独收紧权限
         init_phase.add(EditOperation::WriteFile {
             path: ctx.config_path.to_string_lossy().to_string(),
             content: schema::default_config_content().to_string(),
@@ -106,6 +117,7 @@ impl Command for ShowArgs {
     fn collect(&self) -> Result<ConfigShowContext> {
         let base_dir = ConfigManager::base_dir();
         let dir_exists = base_dir.exists();
+        // load_* 在缺失或解析失败时返回默认值，所以 show 永远能打印出一份配置
         let config = ConfigManager::load_config();
         let gitlab_config = ConfigManager::load_gitlab();
 
@@ -120,6 +132,7 @@ impl Command for ShowArgs {
     fn plan(&self, ctx: &ConfigShowContext) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
 
+        // 目录不存在意味着上面拿到的是默认值而非用户配置，必须标注出来以免误导
         let dir_status = if ctx.dir_exists {
             String::new()
         } else {
@@ -182,6 +195,7 @@ impl Command for ShowArgs {
                 msg: "未配置 GitLab 服务器 (使用 pma gitlab login 添加)".to_string(),
             });
         } else {
+            // 只显示 URL 与协议，绝不把 token 打进屏幕/日志
             for srv in &ctx.gitlab_config.servers {
                 plan.add_message(DisplayMessage::Detail {
                     label: srv.url.clone(),
@@ -210,6 +224,7 @@ impl Command for PathArgs {
 
     fn plan(&self, ctx: &ConfigPathContext) -> Result<ExecutionPlan> {
         let mut plan = ExecutionPlan::new();
+        // 只输出裸路径，不带标签或装饰，便于 `$(pma config path)` 之类的脚本消费
         plan.add_message(DisplayMessage::Skip {
             msg: ctx.base_dir.display().to_string(),
         });
@@ -221,6 +236,7 @@ impl Command for PathArgs {
     }
 }
 
+/// 分发 `pma config` 子命令
 pub fn run(args: ConfigArgs) -> Result<()> {
     match args {
         ConfigArgs::Init => Command::run(&InitArgs),

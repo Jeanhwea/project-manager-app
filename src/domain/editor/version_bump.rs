@@ -1,8 +1,13 @@
+//! 版本号解析与递增。
+//! 对外只暴露 major/minor/patch 三段，解析则复用 semver crate，保证与 Git tag 语义一致。
+
 use clap::ValueEnum;
 use semver::Version as SemVersion;
 
+/// release 时版本号的递增方式，同时作为 clap 命令行参数使用。
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum BumpType {
+    // 别名让用户能写 --bump ma / mi / pa 这样的简写
     #[value(alias = "ma")]
     Major,
     #[value(alias = "mi")]
@@ -11,6 +16,7 @@ pub enum BumpType {
     Patch,
 }
 
+/// 只含 major/minor/patch 的版本号，忽略 semver 的预发布与构建元数据。
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Version {
     pub major: u32,
@@ -19,6 +25,7 @@ pub struct Version {
 }
 
 impl Version {
+    /// 按 semver 解析版本字符串，允许首尾空白；非法格式返回 VersionFormatError。
     pub fn parse(s: &str) -> super::Result<Self> {
         let ver = SemVersion::parse(s.trim()).map_err(|e| {
             super::EditorError::VersionFormatError(format!("Invalid version format: {}", e))
@@ -30,12 +37,14 @@ impl Version {
         })
     }
 
+    /// 从 Git tag 解析版本号，容忍 v 前缀；解析失败返回 None。
     pub fn from_tag(tag: &str) -> Option<Self> {
         let tag = tag.trim();
         let version_str = tag.strip_prefix('v').unwrap_or(tag);
         Self::parse(version_str).ok()
     }
 
+    /// 递增指定段并把更低位归零，不修改自身。
     pub fn bump(&self, bump_type: &BumpType) -> Self {
         match bump_type {
             BumpType::Major => Version {
@@ -56,6 +65,7 @@ impl Version {
         }
     }
 
+    /// 转成带 v 前缀的 Git tag 字符串。
     pub fn to_tag(&self) -> String {
         format!("v{}.{}.{}", self.major, self.minor, self.patch)
     }

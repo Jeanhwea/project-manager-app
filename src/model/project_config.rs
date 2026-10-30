@@ -1,7 +1,11 @@
+//! 项目级配置文件 `.pma.json` 的模型与序列化。
+
 use serde::{Deserialize, Serialize};
 
+/// 项目配置文件名，放在仓库根目录，用于记录本项目关心的版本文件清单
 pub const PROJECT_CONFIG_FILE: &str = ".pma.json";
 
+/// `.pma.json` 的结构，目前只有 `files` 一项：release 时需要改版本号的文件路径
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ProjectConfig {
     #[serde(default)]
@@ -9,6 +13,8 @@ pub struct ProjectConfig {
 }
 
 impl ProjectConfig {
+    /// 生成一份配置文件的初始内容
+    // 结构里只有 Vec<String>，序列化不会失败；这里仍留后备值，避免 fork 流程因序列化异常中断
     pub fn render(files: &[String]) -> String {
         let cfg = ProjectConfig {
             files: files.to_vec(),
@@ -37,6 +43,7 @@ mod tests {
         assert_eq!(parsed.files, cfg.files);
     }
 
+    // 缺失的 files 字段依赖 serde(default)，不应报错
     #[test]
     fn test_deserialize_missing_files_field() {
         let parsed: ProjectConfig = serde_json::from_str("{}").unwrap();

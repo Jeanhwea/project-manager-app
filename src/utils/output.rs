@@ -1,3 +1,7 @@
+//! 终端输出的统一出口：所有面向用户的打印都经过这里，以便统一符号与配色。
+//! 除常规打印外还提供 capture 机制——把本线程的输出收集到 `Vec<String>`，
+//! 供并行任务先攒后打（避免多仓库输出互相穿插）和测试断言使用。
+
 use colored::Colorize;
 use std::cell::RefCell;
 use std::io::Write;
@@ -7,14 +11,18 @@ use std::sync::{Arc, Mutex, MutexGuard};
 const LABEL_WIDTH: usize = 8;
 const HEADER_BAR_WIDTH: usize = 60;
 
+/// 输出捕获容器：线程安全，可被并行任务共享后由主线程统一 flush
 pub type OutputSink = Arc<Mutex<Vec<String>>>;
 
+// thread_local 而非全局：并行任务的捕获互不干扰，谁开启谁生效
 thread_local! {
     static CAPTURE_SINK: RefCell<Option<OutputSink>> = const { RefCell::new(None) };
 }
 
+// 保证 stdout 的写入以块为单位原子输出，避免并行任务的输出交错撕裂
 static OUTPUT_LOCK: Mutex<()> = Mutex::new(());
 
+// 以下两个锁取值都容忍 poisoned：某个任务 panic 后，其余输出仍应正常进行
 fn sink_lock(sink: &OutputSink) -> MutexGuard<'_, Vec<String>> {
     sink.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
@@ -25,6 +33,7 @@ fn output_lock() -> MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+/// 开始捕获本线程的输出，返回的 sink 可在 capture 结束后继续读取其内容
 pub fn capture_start() -> OutputSink {
     let sink = Arc::new(Mutex::new(Vec::new()));
     CAPTURE_SINK.with(|slot| {
@@ -33,6 +42,7 @@ pub fn capture_start() -> OutputSink {
     sink
 }
 
+/// 结束捕获并返回已收集的行；此后本线程的输出恢复为直接打印
 pub fn capture_finish() -> Vec<String> {
     let sink = CAPTURE_SINK.with(|slot| slot.borrow_mut().take());
     match sink {
@@ -41,10 +51,12 @@ pub fn capture_finish() -> Vec<String> {
     }
 }
 
+/// 本线程当前的捕获目标，未开启捕获时为 None
 pub fn current_sink() -> Option<OutputSink> {
     CAPTURE_SINK.with(|slot| slot.borrow().clone())
 }
 
+/// 显式指定 sink 的输出通道：有 sink 就收集，没有就直接打到 stdout
 pub fn emit_line(sink: Option<&OutputSink>, line: &str) {
     match sink {
         Some(sink) => sink_lock(sink).push(line.to_string()),
@@ -52,6 +64,7 @@ pub fn emit_line(sink: Option<&OutputSink>, line: &str) {
     }
 }
 
+/// 并行执行的进度计数，in_flight 是已完成之外仍在跑的任务数
 #[derive(Debug, Clone, Copy)]
 pub struct ProgressCount {
     pub done: usize,
@@ -59,6 +72,7 @@ pub struct ProgressCount {
     pub in_flight: usize,
 }
 
+/// 渲染单行进度；总数可能小于已完成数（如任务被提前剪枝），所以剩余量用 saturating_sub
 pub fn format_progress(done: usize, total: usize, in_flight: usize) -> String {
     format!(
         "进度 {}/{} · 进行中 {} · 剩余 {}",
@@ -78,6 +92,7 @@ pub fn parallel_start(total: usize, jobs: usize) {
     ));
 }
 
+/// 把若干行已攒下的输出连同可选的进度行一次性写出（持短暂的输出锁）
 pub fn flush_block(lines: &[String], progress: Option<ProgressCount>) {
     if lines.is_empty() && progress.is_none() {
         return;
@@ -240,6 +255,7 @@ pub fn section(title: &str) {
     ));
 }
 
+/// 逐仓库输出的分隔头，序号宽度按 total 的位数对齐，便于扫一眼看出进度
 pub fn repo_header(index: usize, total: usize, path: &Path) {
     let total_str = total.to_string();
     let progress = format!("[{:>w$}/{}]", index, total, w = total_str.len());
@@ -270,6 +286,7 @@ pub fn error(msg: &str) {
     print_with_tag(symbols::RESULT_PREFIX, TAG_RED, msg, BODY_RED);
 }
 
+/// 把一个错误的 `source()` 链按 caused by 逐级打印
 pub fn error_chain(err: &(impl std::error::Error + ?Sized)) {
     error(&err.to_string());
     let mut current = err.source();
@@ -343,6 +360,8 @@ pub fn dry_run_header(msg: &str) {
     ));
 }
 
+/// 剥离操作描述里的 `[工作目录]` 前缀；命中时返回 Some(dir)，否则原样返回
+// 当前 command()/dry_command() 只用到后半段 body 用于回显，dir 预留给需要展示工作目录的场景
 fn split_command_prefix(cmd: &str) -> (Option<&str>, &str) {
     if let Some(rest) = cmd.strip_prefix('[')
         && let Some((dir, tail)) = rest.split_once(']')
@@ -354,12 +373,14 @@ fn split_command_prefix(cmd: &str) -> (Option<&str>, &str) {
     }
 }
 
+// 终端里非 ASCII（主要是中文）按两列宽显示，对齐必须按显示宽度而非字符数算
 fn display_width(s: &str) -> usize {
     s.chars()
         .map(|c| if (c as u32) < 0x80 { 1 } else { 2 })
         .sum()
 }
 
+// 超宽时不截断：宁可排版参差也不能丢掉标签或路径信息
 fn pad_to_width(s: &str, width: usize) -> String {
     let w = display_width(s);
     if w >= width {
@@ -392,6 +413,7 @@ mod tests {
 
     #[test]
     fn test_capture_is_thread_local() {
+        // 新开的线程看不到本线程的 sink，capture 不影响其它线程的输出
         let _sink = capture_start();
         std::thread::spawn(|| {
             assert!(current_sink().is_none());
@@ -412,6 +434,7 @@ mod tests {
         emit_line(None, "direct");
     }
 
+    // 这几组只验证在不同 sink/progress 组合下不 panic，并检查输出行本身
     #[test]
     fn test_flush_block_writes_lines() {
         flush_block(&["line one".to_string(), "line two".to_string()], None);

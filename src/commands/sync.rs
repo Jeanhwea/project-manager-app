@@ -1,3 +1,7 @@
+//! 批量同步目录下的 Git 仓库：`pma sync` 对每个仓库依次做
+//! 「可选地 checkout 其它分支并 pull → pull 当前分支 → fetch tags → push 分支与 tag」。
+//! 是否推送取决于 remote 类型与配置；仓库之间可由 `-j` 并发执行，单个仓库由 `--timeout` 限时。
+
 use crate::commands::MultiRepo;
 use crate::commands::RepoPathArgs;
 use crate::domain::config::ConfigManager;
@@ -10,12 +14,14 @@ use crate::model::git::{GitContext, Remote};
 use crate::model::plan::{DisplayMessage, ExecutionPlan, ExecutionResult, Phase};
 use std::path::Path;
 
+/// `pma sync` 的参数集合
 #[derive(Debug, clap::Args)]
 pub struct SyncArgs {
     #[command(flatten)]
     pub repo_path: RepoPathArgs,
     #[arg(long, short, help = "Target remote name (e.g. origin, upstream)")]
     pub remote: Option<String>,
+    /// 未指定 `--remote` 时的取值开关；当前实现里 true / false 行为一致，都退化为全部 remote
     #[arg(
         long,
         short = 'A',
@@ -54,8 +60,11 @@ pub struct SyncArgs {
 #[derive(Debug)]
 pub(crate) struct SyncContext {
     git_ctx: GitContext,
+    /// 本次要 pull / push 的 remote 列表；空表示无 remote 可操作
     target_remotes: Vec<String>,
+    /// true 表示其中至少一个 remote 允许推送
     should_push: bool,
+    /// `-a` 打开时为 true：除当前分支外的本地分支也逐个 checkout 后 pull
     sync_all_branches: bool,
 }
 
@@ -83,6 +92,8 @@ impl MultiRepo for SyncArgs {
             .filter_map(|name| git_ctx.remotes.iter().find(|r| &r.name == name))
             .collect();
 
+        // 只要有一个 target remote 值得推就进入 push 阶段，不可推的 remote 在下面逐条跳过，
+        // 这样单 remote 仓库不会因为没有 push 操作而丢失 warning 说明
         let should_push = !target_remote_objs.is_empty()
             && target_remote_objs
                 .iter()
@@ -97,6 +108,7 @@ impl MultiRepo for SyncArgs {
     }
 
     fn plan(&self, ctx: &SyncContext, repo_path: &Path) -> Result<ExecutionPlan> {
+        // 没有 remote 的仓库（或未解析出 target remote）不做任何网络操作
         if ctx.git_ctx.remotes.is_empty() || ctx.target_remotes.is_empty() {
             return skip_plan("无远程仓库");
         }
@@ -116,6 +128,8 @@ impl MultiRepo for SyncArgs {
             if !other_branches.is_empty() {
                 let mut branch_phase = Phase::new("同步其他分支");
 
+                // 外层是分支、内层是 remote：多个 remote 都有该分支时会重复 checkout + pull，
+                // 代价可接受，换来的是每个 remote 都能按自己的 tracking 关系更新
                 for branch in &other_branches {
                     for remote in &ctx.target_remotes {
                         if ctx.git_ctx.has_remote_branch(remote, &branch.name) {
@@ -136,6 +150,7 @@ impl MultiRepo for SyncArgs {
                     }
                 }
 
+                // 收尾切回进入时的分支：branch_phase 里 checkout 过一串分支
                 branch_phase.add(GitOperation::Checkout {
                     ref_name: current_branch.clone(),
                     working_dir: repo_path.to_path_buf(),
@@ -162,6 +177,8 @@ impl MultiRepo for SyncArgs {
             }
         }
 
+        // 兜底再拉一次：不带 remote/branch，完全按 git 自己的 upstream 配置走，
+        // 这样即使上面的 has_remote_branch 判断为假（例如 tracking 关系未保存进快照）也能更新当前分支
         pull_phase.add(GitOperation::PullDefault {
             working_dir: repo_path.to_path_buf(),
         });
@@ -220,6 +237,7 @@ impl MultiRepo for SyncArgs {
     }
 
     fn execute(&self, plan: &ExecutionPlan) -> Result<ExecutionResult> {
+        // deadline 在每次 execute 开始时现算，所以限时是针对单个仓库的，不会被并发的其它仓库吃满
         let deadline = self
             .timeout_duration()
             .map(|timeout| std::time::Instant::now() + timeout);
@@ -227,11 +245,13 @@ impl MultiRepo for SyncArgs {
     }
 }
 
+/// 批量同步入口；`jobs` 直接透传给遍历骨架决定并发度
 pub fn run(args: SyncArgs) -> Result<()> {
     crate::commands::run_multi_repo_cmd_with_jobs(&args, &args.repo_path, args.jobs)
 }
 
 impl SyncArgs {
+    // `--timeout`（分钟）换算成 Duration；0 表示不限时（返回 None）
     fn timeout_duration(&self) -> Option<std::time::Duration> {
         if self.timeout == 0 {
             None
@@ -260,10 +280,12 @@ fn resolve_target_remotes(
         return Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect());
     }
 
+    // 未指定 remote 时无论 -A 真假都退化为全部 remote：没有"首选 remote"的信息可用
     Ok(git_ctx.remotes.iter().map(|r| r.name.clone()).collect())
 }
 
 fn should_push_to_remote(remote: &Remote) -> bool {
+    // GitHub 的 http/https 推送需要 token 或交互式登录，默认不推，SSH remote 不受影响
     if is_github_http_remote(remote) {
         return false;
     }
@@ -277,6 +299,7 @@ fn should_push_to_remote(remote: &Remote) -> bool {
         .any(|r| r == &remote.name)
 }
 
+// 判定 remote 是否指向 GitHub 且走 http/https：主机名要命中配置里的 `github` rule 才算
 fn is_github_http_remote(remote: &Remote) -> bool {
     let url = remote.url.as_str();
     if !(url.starts_with("http://") || url.starts_with("https://")) {

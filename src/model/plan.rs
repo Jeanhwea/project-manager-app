@@ -1,5 +1,10 @@
+//! 执行计划模型：一次命令被拆解为若干 `Phase`，每个 Phase 由操作（`Step::Op`）和
+//! 穿插的展示消息（`Step::Msg`）组成。`Phase` 之间可设置失败是否继续，`ExecutionPlan`
+//! 之上还记录了 dry-run 标记、前置/后置消息以及执行后的 `ExecutionResult`。
+
 use crate::model::operation::Operation;
 
+/// 计划内的展示消息，每个变体对应 `utils::output` 中的一种输出样式
 #[derive(Debug, Clone)]
 pub enum DisplayMessage {
     Header {
@@ -37,17 +42,20 @@ pub enum DisplayMessage {
     Blank,
 }
 
+/// Phase 内的一个步骤：要么是一个待执行的操作，要么是一条只做展示的消息
 #[derive(Debug, Clone)]
 pub enum Step {
     Op(Operation),
     Msg(DisplayMessage),
 }
 
+/// 往编排对象里追加操作/消息的统一抽象，`Phase` 与 `ExecutionPlan` 都实现它
 pub trait AddOperation {
     fn add_op(&mut self, op: impl Into<Operation>);
     fn add_msg(&mut self, msg: DisplayMessage);
 }
 
+/// 计划中的一个执行阶段，是失败容错的最小单位
 #[derive(Debug, Clone)]
 pub struct Phase {
     label: String,
@@ -111,6 +119,7 @@ impl AddOperation for Phase {
     }
 }
 
+/// 整个计划的顶层容器：phases 依次执行，messages 在开头渲染、footer_messages 在结尾渲染
 #[derive(Debug, Clone)]
 pub struct ExecutionPlan {
     phases: Vec<Phase>,
@@ -164,6 +173,7 @@ impl ExecutionPlan {
     }
 
     pub fn add(&mut self, op: impl Into<Operation>) {
+        // 未显式创建 Phase 时兜底建一个 default，避免操作无处可放
         if self.phases.is_empty() {
             self.phases.push(Phase::new("default"));
         }
@@ -191,6 +201,7 @@ impl AddOperation for ExecutionPlan {
     }
 }
 
+/// 计划执行后的汇总结果：成功数 + 失败明细，供调用方决定如何收尾
 #[derive(Debug, Clone)]
 pub struct ExecutionResult {
     executed: usize,
@@ -237,6 +248,7 @@ impl Default for ExecutionResult {
     }
 }
 
+/// 单个操作的失败记录，description 是失败的那一步，recovery_hint 提示如何人工补救
 #[derive(Debug, Clone)]
 pub struct OperationError {
     description: String,

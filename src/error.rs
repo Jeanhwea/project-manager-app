@@ -1,9 +1,14 @@
+//! 全局统一的错误类型 `AppError`。
+//! 各层（domain / commands / 外部库）的专项错误通过 `#[from]` 收拢到这里，
+//! 再由 main 统一展开成错误链打印，业务代码只面对单一错误类型。
+
 use crate::commands::gitlab::GitlabApiError;
 use crate::commands::snap::SnapshotError;
 use crate::domain::editor::EditorError;
 use crate::domain::git::{GitError, ReleaseError};
 use crate::domain::self_update::SelfUpdateError;
 
+/// 应用层统一的错误枚举，各变体外的 `#[error(transparent)]` 表示直接透传下层错误的展示文案
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error(transparent)]
@@ -52,4 +57,5 @@ pub enum AppError {
     Timeout { timeout: String },
 }
 
+/// 业务代码统一使用的 Result 别名，错误侧固定为 `AppError`
 pub type Result<T> = std::result::Result<T, AppError>;

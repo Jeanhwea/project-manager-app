@@ -1,5 +1,10 @@
+//! tauri.conf.json 编辑器。
+//! 版本号定位策略：匹配第一次出现的 `"version": "..."`（Tauri 配置文件里它是顶层字段）；
+//! 改写走纯文本替换，以保留原有 JSON 排版与键顺序。
+
 use super::{EditorError, FileEditor, Result, VersionPosition, extract_version_position};
 
+/// 处理 tauri.conf.json 的顶层 version 字段。
 pub struct TauriConfEditor;
 
 impl TauriConfEditor {
@@ -27,6 +32,7 @@ impl FileEditor for TauriConfEditor {
     }
 
     fn parse(&self, content: &str) -> Result<super::VersionLocation> {
+        // 只做 JSON 合法性校验，不参与改写：重新序列化会丢失原有排版
         let _: serde_json::Value = serde_json::from_str(content).map_err(|e| {
             EditorError::ParseError(format!("Failed to parse tauri.conf.json: {}", e))
         })?;
@@ -52,6 +58,7 @@ impl FileEditor for TauriConfEditor {
             ));
         }
 
+        // 纯文本替换只应带来版本号长度的变化，长度突变说明定位错了
         let original_len = original.len();
         let edited_len = edited.len();
         if edited_len.abs_diff(original_len) > original_len / 2 {

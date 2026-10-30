@@ -1,3 +1,6 @@
+//! pma 的顶层命令行定义：一个 `Cli` 根命令加若干子命令（`Commands`）。
+//! 每个子命令只持有自己的参数结构，真正的业务逻辑在 `crate::commands` 下同名模块中。
+
 use clap::Parser;
 
 use crate::commands::{
@@ -14,6 +17,7 @@ use crate::commands::{
 };
 use crate::error::Result;
 
+/// 根命令，除子命令外不接受其他参数
 #[derive(Parser)]
 #[command(name = "pma")]
 #[command(about = "Project Manager Application (项目管理工具)")]
@@ -24,6 +28,7 @@ pub struct Cli {
     pub command: Commands,
 }
 
+/// 所有可用子命令，变体上的文档注释即 clap 的 help 文案
 #[derive(clap::Subcommand)]
 pub enum Commands {
     /// Release a new version
@@ -82,6 +87,7 @@ pub enum Commands {
     },
 }
 
+/// 把解析后的子命令路由到对应实现，命令内部的失败统一以 `AppError` 上抛
 pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Release(args) => crate::commands::release::run(args),
@@ -90,6 +96,7 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         Commands::Fork(args) => crate::commands::fork::run(args),
         Commands::Gitlab { command } => crate::commands::gitlab::run(command),
         Commands::Snap { command } => crate::commands::snap::run(command),
+        // Clean 只是 branch clean 的顶层别名，走通用多仓库路径而非 branch::run
         Commands::Clean(args) => crate::commands::run_multi_repo_cmd(&args, &args.repo_path),
         Commands::Status(args) => crate::commands::status::run(args),
         Commands::Branch { command } => crate::commands::branch::run(command),

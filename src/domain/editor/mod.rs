@@ -1,3 +1,7 @@
+//! 版本号编辑器：把 release 流程里的「改版本号」抽象成一组可插拔的编辑器。
+//! 每个编辑器负责一种配置文件（Cargo.toml、package.json、pyproject.toml 等），
+//! 先在原文中定位版本号的字节范围，再按范围做纯文本替换，以尽量保留原文件格式。
+
 mod app_json;
 mod cargo_toml;
 mod cmake;
@@ -15,16 +19,22 @@ mod tauri_conf;
 mod version_bump;
 mod version_text;
 
+/// 配置文件的发现、读取与改写编排入口。
 pub use detect::{
     add_lockfile_operations, compute_edited_content, detect_config_files,
     extract_fallback_version, read_file_version, resolve_config_files,
 };
+/// 编辑器模块的错误类型与 Result 别名。
 pub use error::{EditorError, Result};
+/// FileEditor trait 与写文件的辅助函数。
 pub use file_editor::{FileEditor, write_with_backup};
+/// 版本号位置描述与按位置替换的工具函数。
 pub use position::{
     VersionLocation, VersionPosition, extract_version_position, replace_at_position,
 };
+/// 按文件名把路径分发到具体编辑器的注册表。
 pub use registry::EditorRegistry;
+/// 版本号解析与递增。
 pub use version_bump::{BumpType, Version};
 
 #[cfg(test)]
