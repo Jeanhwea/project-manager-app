@@ -8,6 +8,7 @@ use crate::commands::RepoPathArgs;
 use crate::domain::git::GitCommandRunner;
 use crate::domain::git::GitOperation;
 use crate::domain::git::collect_context;
+use crate::domain::git::list_remote_heads;
 use crate::engine::plan;
 use crate::error::Result;
 use crate::model::git::{Branch, GitContext};
@@ -178,29 +179,6 @@ fn add_clean_summary(plan: &mut ExecutionPlan, ctx: &BranchCleanContext, delete_
                 ctx.protected_branches_to_skip.join(", ")
             ),
         });
-    }
-}
-
-/// 查询远端真实存在的分支名（git ls-remote --heads），远端不可达时返回 None
-fn list_remote_heads(
-    runner: &GitCommandRunner,
-    repo_path: &Path,
-    remote: &str,
-) -> Option<HashSet<String>> {
-    let result = runner.run_local(&["ls-remote", "--heads", remote], Some(repo_path));
-    let output = result.ok()?;
-    Some(output.lines().filter_map(parse_ls_remote_line).collect())
-}
-
-/// 解析 git ls-remote 的一行输出 `<sha>\trefs/heads/<branch>`，提取分支名
-fn parse_ls_remote_line(line: &str) -> Option<String> {
-    const PREFIX: &str = "refs/heads/";
-    let pos = line.find(PREFIX)?;
-    let name = line[pos + PREFIX.len()..].trim();
-    if name.is_empty() {
-        None
-    } else {
-        Some(name.to_string())
     }
 }
 
@@ -1045,14 +1023,5 @@ mod tests {
             parse_tracking_ref_line("  gitana/HEAD -> gitana/master"),
             None
         );
-    }
-
-    #[test]
-    fn extracts_branch_name_from_ls_remote_line() {
-        assert_eq!(
-            parse_ls_remote_line("a1b2c3d\trefs/heads/feat/shen-POC"),
-            Some("feat/shen-POC".to_string())
-        );
-        assert_eq!(parse_ls_remote_line("a1b2c3d\trefs/tags/v1.0.0"), None);
     }
 }

@@ -220,9 +220,11 @@ mod tests {
         let ctx =
             ExecutionContext::new("nonexistent_command_xyz123").output_mode(OutputMode::Capture);
 
-        let result = runner.execute(&ctx);
-
-        assert!(result.is_err());
+        // Unix 下 spawn 直接失败；Windows 走 cmd /c，进程能启动但退出码非 0，两者都不能算成功
+        match runner.execute(&ctx) {
+            Err(_) => {}
+            Ok(result) => assert!(!result.success),
+        }
     }
 
     #[test]
