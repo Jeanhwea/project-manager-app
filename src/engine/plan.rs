@@ -106,7 +106,8 @@ fn run_op_step(
         Err(e) => {
             if tolerate {
                 output::warning(&format!("执行失败，已跳过: {}", first_line(&e.to_string())));
-                // 容错模式下不计入 executed，也不记 error，后续阶段不受影响
+                // 容错模式下不计入 executed，也不记 error，后续阶段不受影响；单独累计供汇总展示
+                result.add_warning();
                 return false;
             }
             let hint = recovery_hint(op, result.executed_count());
