@@ -135,7 +135,6 @@ enum Color {
     Cyan,
     Blue,
     Magenta,
-    White,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -189,7 +188,6 @@ fn style_text(text: &str, style: Style) -> String {
             Color::Cyan => s.cyan(),
             Color::Blue => s.blue(),
             Color::Magenta => s.magenta(),
-            Color::White => s.white(),
         };
     }
     if style.bold {
@@ -259,7 +257,8 @@ pub fn section(title: &str) {
 pub fn repo_header(index: usize, total: usize, path: &Path) {
     let total_str = total.to_string();
     let progress = format!("[{:>w$}/{}]", index, total, w = total_str.len());
-    let progress = style_text(&progress, Style::fg(Color::White).bold());
+    // 浅色主题的终端下白字几乎不可见，进度标记改用加粗蓝色保证可读性
+    let progress = style_text(&progress, Style::fg(Color::Blue).bold());
     let path_str = style_text(
         &crate::utils::path::format_path(path),
         Style::fg(Color::Cyan).underline(),
